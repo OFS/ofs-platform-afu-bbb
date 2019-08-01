@@ -1,0 +1,290 @@
+#!/usr/bin/env python
+
+#
+# Copyright (c) 2017, Intel Corporation
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# Neither the name of the Intel Corporation nor the names of its contributors
+# may be used to endorse or promote products derived from this software
+# without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+import os
+import sys
+import fnmatch
+from distutils import dir_util, file_util, text_file
+
+from platlib.ofs_plat_cfg import ofs_plat_cfg
+from platlib.emit_src_cfg import emit_src_cfg
+from platlib.ofs_template import ofs_template
+import platlib.gen_ofs_class_if as ofsc
+
+
+def errorExit(msg):
+    sys.stderr.write(msg)
+    sys.exit(1)
+
+
+def parse_args():
+    """Parse command line arguments."""
+
+    msg = """
+Given an input .ini configuration file, gen_ofs_plat_if constructs an
+ofs_plat_if tree that is tailored to the target platform.
+"""
+
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Generate a platform-specific ofs_plat_if tree.",
+        epilog=msg)
+
+    # Positional arguments
+    parser.add_argument(
+        '-c', '--config', required=1,
+        help="""Platform configuration .ini file path.""")
+
+    # Default sources are in the same tree as the script
+    src_root = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), 'src')
+    parser.add_argument(
+        '-s', '--source', default=src_root,
+        help="""Source directory containing ofs_plat_if components.
+                (Default: """ + src_root + ")")
+
+    parser.add_argument(
+        '-t', '--target', required=1,
+        help="""Target directory.""")
+
+    parser.add_argument(
+        '-f', '--force',
+        action='store_true',
+        help="""Overwrite target directory if it exists.""")
+
+    # Verbose/quiet
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '-v', '--verbose', action='store_true',
+        help="""Verbose output.""")
+    group.add_argument(
+        '-q', '--quiet', action='store_true',
+        help="""Reduce output.""")
+
+    global args
+    args = parser.parse_args()
+
+
+def load_config():
+    """Load the platform configuration .ini file."""
+
+    # Does the .ini file exist?
+    if (not os.path.isfile(args.config)):
+        errorExit('Configuration file "' + args.config + '" not found!\n')
+
+    global plat_cfg
+    plat_cfg = ofs_plat_cfg(src=args.source, ini_file=args.config,
+                            quiet=args.quiet)
+
+
+def gen_generic_target():
+    """Create the target directory and copy the platform-independent components
+    to it. Platform-independent components are enumerated in a file called
+    "sources_generic.txt" in the top of the sources tree."""
+
+    # Does the target already exist?
+    if (os.path.exists(args.target)):
+        # Replace it?
+        if (args.force):
+            if (os.path.isdir(args.target)):
+                dir_util.remove_tree(args.target)
+            else:
+                os.remove(args.target)
+        else:
+            errorExit('Target "' + args.target + '" already exists!\n')
+
+    # Make the target directory
+    if (not args.quiet):
+        print("Creating target directory: " + args.target)
+    dir_util.mkpath(os.path.join(args.target, "rtl"))
+
+    # Copy generic files listed in <source>/sources_generic.txt
+    src_list = os.path.join(args.source, 'sources_generic.txt')
+    if (not os.path.isfile(src_list)):
+        errorExit('Expected to find source list in "' + src_list + '"!\n')
+
+    # Read sources_generic.txt and copy directory trees and files
+    if (args.verbose):
+        print('\nReading list of generic sources from ' + src_list + ':')
+    sources_generic = text_file.TextFile(src_list, lstrip_ws=1)
+
+    while 1:
+        s = sources_generic.readline()
+        if (s is None):
+            break
+        p = os.path.join(args.source, s)
+        if (os.path.isdir(p)):
+            copy_tree(s, s)
+        elif (os.path.isfile(p)):
+            copy_file(s, s)
+
+    sources_generic.close()
+
+
+def gen_fim_interface():
+    """Construct the platform-specific portion of the interface definition."""
+
+    if (args.verbose):
+        print('')
+
+    for s in plat_cfg.sections():
+        base_class, group_num = plat_cfg.parse_section_name(s)
+        native_class = plat_cfg.section_native_class(s)
+
+        # Copy sources for base/native class
+        ofsc.copy_class(src=args.source, tgt=args.target,
+                        base_class=base_class,
+                        native_class=native_class,
+                        group_num=group_num, verbose=args.verbose)
+
+        # Update the template files for the group number
+        ofsc.use_class_templates(tgt=args.target, base_class=base_class,
+                                 group_num=group_num, verbose=args.verbose)
+
+
+def process_template_files():
+    """Map all the template files to platform-specific copies."""
+
+    tmpl = ofs_template(plat_cfg=plat_cfg, verbose=args.verbose)
+
+    # Template files are named *.template.* and are in the top-level
+    # rtl source directory.
+    rtl_top = os.path.join(args.source, 'rtl')
+    if (args.verbose):
+        print("\nProcessing top-level RTL template files from {0}:".format(
+            rtl_top))
+
+    for fn in sorted(fnmatch.filter(os.listdir(rtl_top), '*.template.*')):
+        if (fn[-1] == '~'):
+            continue
+        # Full path of the .template. source file
+        fp_src = os.path.join(rtl_top, fn)
+        # Full path of the target file, with .template. removed
+        fp_tgt = os.path.join(args.target, 'rtl',
+                              fn.replace('.template.', '.'))
+        if (os.path.isfile(fp_src)):
+            tmpl.copy_template_file(fp_src, fp_tgt)
+
+
+def clean_target():
+    """Clean up target tree after everything is copied to it."""
+
+    # Remove backup files
+    for dirpath, dirnames, filenames in os.walk(args.target):
+        for fn in fnmatch.filter(filenames, '*~'):
+            os.remove(os.path.join(dirpath, fn))
+
+
+def gen_platform_addenda():
+    """Once all files are copied to the target, generate configuration files
+    that load sources into either Quartus or a simulator."""
+
+    if (args.verbose):
+        print("\nGenerating files to import ofs_plat_if:")
+
+    # Simulator sources
+    sim_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
+                                     os.path.join(args.target, 'sim')],
+                               verbose=args.verbose)
+    sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
+                                  'platform_if_includes.txt')
+    sim_src_cfg.emit_sim_sources(os.path.join(args.target, 'sim'),
+                                 'platform_if_addenda.txt')
+
+    # Quartus sources
+    qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
+                                     os.path.join(args.target, 'par')],
+                               verbose=args.verbose)
+    qsf_src_cfg.emit_qsf_sources(args.target,
+                                 'par/platform_if_addenda.qsf',
+                                 './platform/ofs_plat_if')
+
+
+def copy_tree(src, dst):
+    """Copy a directory tree. src and dst are relative to the --source and
+    --target directories."""
+
+    src_path = os.path.join(args.source, src)
+    dst_path = os.path.join(args.target, dst)
+
+    if (args.verbose):
+        if (src == dst):
+            print("  Copying {0}".format(src))
+        else:
+            print("  Copying {0} to {1}".format(src_path, dst_path))
+
+    dir_util.copy_tree(src_path, dst_path, update=1)
+
+
+def copy_file(src, dst):
+    """Copy a file. src and dst are relative to the --source and --target
+    directories."""
+
+    src_path = os.path.join(args.source, src)
+    dst_path = os.path.join(args.target, dst)
+
+    if (args.verbose):
+        if (src == dst):
+            print("  Copying {0}".format(src))
+        else:
+            print("  Copying {0} to {1}".format(src_path, dst_path))
+
+    file_util.copy_file(src_path, dst_path, update=1)
+
+
+def main():
+    # Parse command line arguments
+    parse_args()
+
+    # Load platform .ini file
+    load_config()
+
+    # Copy platform-independent components to target directory
+    gen_generic_target()
+
+    # Generate the FIM-specific components
+    gen_fim_interface()
+
+    # Generate platform-specific files from templates
+    process_template_files()
+
+    # A bit of cleanup. Remove backup files.
+    clean_target()
+
+    # Construct configuration files to load the target sources
+    gen_platform_addenda()
+
+
+if __name__ == "__main__":
+    main()

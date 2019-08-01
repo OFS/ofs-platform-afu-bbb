@@ -1,0 +1,71 @@
+{
+   "version": 1,
+   "platform-name": "a10_gx_intg_xeon_bdx",
+   "description": "Integrated Broadwell Xeon + Arria 10 with QPI/UPI and two PCIe host channels",
+   "ase-platform": "intg_xeon",
+
+   "comment":
+      [
+         "These will be defined as Verilog preprocessor macros and may be",
+         "tested in RTL after platform_if.vh is loaded."
+      ],
+   "define":
+      [
+         "PLATFORM_FPGA_FAMILY_A10",
+         "PLATFORM_FPGA_FAMILY_A10_GX",
+         "PLATFORM_FPGA_INTG_XEON",
+         "PLATFORM_FPGA_INTG_XEON_BDX"
+      ],
+
+   "comment":
+      [
+         "Only class 'ofs_plat_if' is required, in which case only AFUs",
+         "using the OFS platform interface standard will be supported.",
+         "",
+         "In order to support the legacy ccip_std_afu() top-level interface",
+         "clocks, power, cci-p, etc. must be defined. When possible, values",
+         "are derived from the equivalent OFS platform macros in order to",
+         "reduce the possibility of errors."
+      ],
+   "module-ports-offered" :
+      [
+         {
+            "class": "ofs_plat_if",
+            "interface": "afu"
+         },
+
+         {
+            "class": "clocks",
+            "interface": "pClk3_usr2",
+            "params":
+               {
+                  "pclk-freq": "`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ"
+               }
+         },
+         {
+            "class": "power",
+            "interface": "2bit",
+            "optional": true
+         },
+         {
+            "class": "error",
+            "interface": "1bit",
+            "optional": true
+         },
+         {
+            "class": "cci-p",
+            "interface": "struct",
+            "params":
+               {
+                  "c0-supported-reqs": "`OFS_PLAT_PARAM_HOST_CHAN_C0_SUPPORTED_REQS",
+                  "c1-supported-reqs": "`OFS_PLAT_PARAM_HOST_CHAN_C1_SUPPORTED_REQS",
+                  "cl-len-supported": "`OFS_PLAT_PARAM_HOST_CHAN_CL_LEN_SUPPORTED",
+                  "byte-en-supported": "`OFS_PLAT_PARAM_HOST_CHAN_BYTE_EN_SUPPORTED",
+                  "max-bw-active-lines-c0": "`OFS_PLAT_PARAM_HOST_CHAN_MAX_BW_ACTIVE_LINES_C0",
+                  "max-bw-active-lines-c1": "`OFS_PLAT_PARAM_HOST_CHAN_MAX_BW_ACTIVE_LINES_C1",
+                  "max-outstanding-mmio-rd-reqs": "`OFS_PLAT_PARAM_HOST_CHAN_MAX_OUTSTANDING_MMIO_RD_REQS",
+                  "suggested-timing-reg-stages": "`OFS_PLAT_PARAM_HOST_CHAN_SUGGESTED_TIMING_REG_STAGES"
+               }
+         }
+      ]
+}

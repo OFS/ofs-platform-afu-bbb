@@ -1,0 +1,8 @@
+# Generic (platform-independent) sources. These are copied to the target
+# ofs_plat_if tree as it is configured.
+par
+rtl/compat
+rtl/ofs_plat_if.vh
+rtl/platform_if.vh
+rtl/utils
+sim

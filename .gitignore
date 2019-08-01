@@ -1,6 +1,8 @@
 *.rpt
 *.cmp
 *.debuginfo
+*.pyc
+__pycache__/
 *.o
 *.so
 *.sof
