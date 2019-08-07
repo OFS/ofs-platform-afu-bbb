@@ -190,13 +190,13 @@ class ofs_plat_cfg(object):
             # Is an implementation-independent defaults section present?
             if (self.defaults.has_section(c)):
                 found_defaults = True
-                merged.update(OrderedDict(self.defaults[c]))
+                merged.update(OrderedDict(self.defaults.items(c)))
 
             # Are defaults present for the native class?
             native_def_sect = c + '.' + native_class
             if (self.defaults.has_section(native_def_sect)):
                 found_defaults = True
-                merged.update(OrderedDict(self.defaults[native_def_sect]))
+                merged.update(OrderedDict(self.defaults.items(native_def_sect)))
 
             if (not found_defaults):
                 # Error! No defaults exist for the implementation.
@@ -207,7 +207,7 @@ class ofs_plat_cfg(object):
                 self.__errorExit(msg)
 
             # Incorporate platform-specific parameters
-            merged.update(OrderedDict(self.config[s]))
+            merged.update(OrderedDict(self.config.items(s)))
             self.merged_config[s] = merged
 
             # The "instance noun" is the name for an instance of the class,
