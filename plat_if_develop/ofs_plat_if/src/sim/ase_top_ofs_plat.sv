@@ -36,10 +36,6 @@
 
 `include "ofs_plat_if.vh"
 
-// ASE configuration
-`include "platform.vh"
-
-
 module ase_top_ofs_plat
    (
     input  logic pClk,
