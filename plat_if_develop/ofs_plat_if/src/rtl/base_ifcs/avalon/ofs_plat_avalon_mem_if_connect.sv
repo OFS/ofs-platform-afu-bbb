@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017, Intel Corporation
+// Copyright (c) 2019, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,32 +29,32 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Wire together two local memory Avalon instances.
+// Wire together two Avalon memory instances.
 //
-module ofs_plat_local_mem_avalon_if_connect
+module ofs_plat_avalon_mem_if_connect
    (
-    ofs_plat_local_mem_avalon_if.to_fiu mem_fiu,
-    ofs_plat_local_mem_avalon_if.to_afu mem_afu
+    ofs_plat_avalon_mem_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master
     );
 
     always_comb
     begin
-        mem_afu.clk = mem_fiu.clk;
-        mem_afu.reset = mem_fiu.reset;
+        mem_master.clk = mem_slave.clk;
+        mem_master.reset = mem_slave.reset;
 
-        mem_afu.waitrequest = mem_fiu.waitrequest;
-        mem_afu.readdata = mem_fiu.readdata;
-        mem_afu.readdatavalid = mem_fiu.readdatavalid;
+        mem_master.waitrequest = mem_slave.waitrequest;
+        mem_master.readdata = mem_slave.readdata;
+        mem_master.readdatavalid = mem_slave.readdatavalid;
 
-        mem_fiu.burstcount = mem_afu.burstcount;
-        mem_fiu.writedata = mem_afu.writedata;
-        mem_fiu.address = mem_afu.address;
-        mem_fiu.write = mem_afu.write;
-        mem_fiu.read = mem_afu.read;
-        mem_fiu.byteenable = mem_afu.byteenable;
+        mem_slave.burstcount = mem_master.burstcount;
+        mem_slave.writedata = mem_master.writedata;
+        mem_slave.address = mem_master.address;
+        mem_slave.write = mem_master.write;
+        mem_slave.read = mem_master.read;
+        mem_slave.byteenable = mem_master.byteenable;
 
         // Debugging signal
-        mem_afu.bank_number = mem_fiu.bank_number;
+        mem_master.instance_number = mem_slave.instance_number;
     end
 
-endmodule // ofs_plat_local_mem_avalon_if_connect
+endmodule // ofs_plat_avalon_mem_if_connect

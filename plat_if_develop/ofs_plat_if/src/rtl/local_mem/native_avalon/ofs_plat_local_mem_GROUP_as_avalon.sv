@@ -57,8 +57,12 @@ module ofs_plat_local_mem_GROUP_as_avalon
     // AFU clock for memory when a clock crossing is requested
     input  logic tgt_mem_afu_clk,
 
-    ofs_plat_local_mem_avalon_if.to_fiu to_fiu,
-    ofs_plat_local_mem_avalon_if.to_afu to_afu
+    // The ports are named "to_fiu" and "to_afu" despite the Avalon
+    // to_slave/to_master naming because the PIM port naming is a
+    // bus-independent abstraction. At top-level, PIM ports are
+    // always to_fiu and to_afu.
+    ofs_plat_avalon_mem_if.to_slave to_fiu,
+    ofs_plat_avalon_mem_if.to_master to_afu
     );
 
     // ====================================================================
@@ -103,14 +107,14 @@ module ofs_plat_local_mem_GROUP_as_avalon
             //
             // No clock crossing, maybe register stages.
             //
-            ofs_plat_local_mem_avalon_if_reg
+            ofs_plat_avalon_mem_if_reg
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
               mem_pipe
                (
-                .mem_fiu(to_fiu),
-                .mem_afu(to_afu)
+                .mem_slave(to_fiu),
+                .mem_master(to_afu)
                 );
         end
         else
@@ -118,9 +122,9 @@ module ofs_plat_local_mem_GROUP_as_avalon
             //
             // Cross to the specified clock.
             //
-            ofs_plat_local_mem_avalon_if
+            ofs_plat_avalon_mem_if
               #(
-                .NUM_BANKS(to_fiu.NUM_BANKS_),
+                .NUM_INSTANCES(to_fiu.NUM_INSTANCES_),
                 .ADDR_WIDTH(to_fiu.ADDR_WIDTH_),
                 .DATA_WIDTH(to_fiu.DATA_WIDTH_),
                 .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_)
@@ -158,31 +162,31 @@ module ofs_plat_local_mem_GROUP_as_avalon
                                            NUM_EXTRA_STAGES;
 
             // Clock crossing bridge
-            ofs_plat_local_mem_avalon_if_async_shim
+            ofs_plat_avalon_mem_if_async_shim
               #(
                 .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
                 )
               mem_async_shim
                (
-                .mem_fiu(to_fiu),
-                .mem_afu(mem_cross),
-                .mem_afu_clk(tgt_mem_afu_clk),
-                .mem_afu_reset(local_mem_reset_pipe[2])
+                .mem_slave(to_fiu),
+                .mem_master(mem_cross),
+                .mem_master_clk(tgt_mem_afu_clk),
+                .mem_master_reset(local_mem_reset_pipe[2])
                 );
 
             // Add requested register stages on the AFU side of the clock crossing.
             // In this case the register stages are a simple pipeline because
             // the clock crossing FIFO reserves space for these stages to drain
             // after waitrequest is asserted.
-            ofs_plat_local_mem_avalon_if_reg_simple
+            ofs_plat_avalon_mem_if_reg_simple
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES),
                 .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
                 )
               mem_pipe
                (
-                .mem_fiu(mem_cross),
-                .mem_afu(to_afu)
+                .mem_slave(mem_cross),
+                .mem_master(to_afu)
                 );
         end
     endgenerate

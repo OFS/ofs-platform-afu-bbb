@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017, Intel Corporation
+// Copyright (c) 2019, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,21 +29,21 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Clock crossing bridge for the local memory Avalon interface.
+// Clock crossing bridge for the Avalon memory interface.
 //
 
-module ofs_plat_local_mem_avalon_if_async_shim
+module ofs_plat_avalon_mem_if_async_shim
   #(
     parameter COMMAND_FIFO_DEPTH = 128,
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
-    // requests can be received after mem_afu.waitrequest is asserted.
+    // requests can be received after mem_master.waitrequest is asserted.
     parameter COMMAND_ALMFULL_THRESHOLD = 0
     )
    (
-    ofs_plat_local_mem_avalon_if.to_fiu mem_fiu,
-    ofs_plat_local_mem_avalon_if.to_afu mem_afu,
-    input  logic mem_afu_clk,
-    input  logic mem_afu_reset
+    ofs_plat_avalon_mem_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master,
+    input  logic mem_master_clk,
+    input  logic mem_master_reset
     );
 
     localparam SPACE_AVAIL_WIDTH = $clog2(COMMAND_FIFO_DEPTH) + 1;
@@ -53,77 +53,77 @@ module ofs_plat_local_mem_avalon_if_async_shim
 
     always_comb
     begin
-        mem_afu.clk = mem_afu_clk;
-        mem_afu.reset = mem_afu_reset;
+        mem_master.clk = mem_master_clk;
+        mem_master.reset = mem_master_reset;
     end
 
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
-        .DATA_WIDTH(mem_fiu.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(mem_fiu.ADDR_WIDTH),
-        .BURSTCOUNT_WIDTH(mem_fiu.BURST_CNT_WIDTH),
+        .DATA_WIDTH(mem_slave.DATA_WIDTH),
+        .HDL_ADDR_WIDTH(mem_slave.ADDR_WIDTH),
+        .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
-        .RESPONSE_FIFO_DEPTH(2 ** (mem_fiu.BURST_CNT_WIDTH + 1))
+        .RESPONSE_FIFO_DEPTH(2 ** (mem_slave.BURST_CNT_WIDTH + 1))
         )
       avmm_cross
        (
-        .s0_clk(mem_afu.clk),
-        .s0_reset(mem_afu.reset),
+        .s0_clk(mem_master.clk),
+        .s0_reset(mem_master.reset),
 
-        .m0_clk(mem_fiu.clk),
-        .m0_reset(mem_fiu.reset),
+        .m0_clk(mem_slave.clk),
+        .m0_reset(mem_slave.reset),
 
         .s0_waitrequest(cmd_waitrequest),
-        .s0_readdata(mem_afu.readdata),
-        .s0_readdatavalid(mem_afu.readdatavalid),
-        .s0_burstcount(mem_afu.burstcount),
-        .s0_writedata(mem_afu.writedata),
-        .s0_address(mem_afu.address),
-        .s0_write(mem_afu.write),
-        .s0_read(mem_afu.read),
-        .s0_byteenable(mem_afu.byteenable),
+        .s0_readdata(mem_master.readdata),
+        .s0_readdatavalid(mem_master.readdatavalid),
+        .s0_burstcount(mem_master.burstcount),
+        .s0_writedata(mem_master.writedata),
+        .s0_address(mem_master.address),
+        .s0_write(mem_master.write),
+        .s0_read(mem_master.read),
+        .s0_byteenable(mem_master.byteenable),
         .s0_debugaccess(1'b0),
         .s0_space_avail_data(cmd_space_avail),
 
-        .m0_waitrequest(mem_fiu.waitrequest),
-        .m0_readdata(mem_fiu.readdata),
-        .m0_readdatavalid(mem_fiu.readdatavalid),
-        .m0_burstcount(mem_fiu.burstcount),
-        .m0_writedata(mem_fiu.writedata),
-        .m0_address(mem_fiu.address),
-        .m0_write(mem_fiu.write),
-        .m0_read(mem_fiu.read),
-        .m0_byteenable(mem_fiu.byteenable),
+        .m0_waitrequest(mem_slave.waitrequest),
+        .m0_readdata(mem_slave.readdata),
+        .m0_readdatavalid(mem_slave.readdatavalid),
+        .m0_burstcount(mem_slave.burstcount),
+        .m0_writedata(mem_slave.writedata),
+        .m0_address(mem_slave.address),
+        .m0_write(mem_slave.write),
+        .m0_read(mem_slave.read),
+        .m0_byteenable(mem_slave.byteenable),
         .m0_debugaccess()
         );
 
-    // Compute mem_afu.waitrequest
+    // Compute mem_master.waitrequest
     generate
         if (COMMAND_ALMFULL_THRESHOLD == 0)
         begin : no_almfull
             // Use the usual Avalon MM protocol
-            assign mem_afu.waitrequest = cmd_waitrequest;
+            assign mem_master.waitrequest = cmd_waitrequest;
         end
         else
         begin : almfull
             // Treat waitrequest as an almost full signal, allowing
             // COMMAND_ALMFULL_THRESHOLD requests after waitrequest is
             // asserted.
-            always_ff @(posedge mem_afu.clk)
+            always_ff @(posedge mem_master.clk)
             begin
-                if (mem_afu.reset)
+                if (mem_master.reset)
                 begin
-                    mem_afu.waitrequest <= 1'b1;
+                    mem_master.waitrequest <= 1'b1;
                 end
                 else
                 begin
-                    mem_afu.waitrequest <= cmd_waitrequest ||
+                    mem_master.waitrequest <= cmd_waitrequest ||
                         (cmd_space_avail <= (SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
                 end
             end
 
             // synthesis translate_off
-            always @(negedge mem_afu.clk)
+            always @(negedge mem_master.clk)
             begin
                 // In almost full mode it is illegal for a request to arrive
                 // when s0_waitrequest is asserted. If this ever happens it
@@ -131,16 +131,16 @@ module ofs_plat_local_mem_avalon_if_async_shim
                 // cmd_space_avail forced back-pressure too late or it was
                 // ignored.
 
-                if (~mem_afu.reset && cmd_waitrequest && mem_afu.write)
+                if (~mem_master.reset && cmd_waitrequest && mem_master.write)
                 begin
-                    $fatal("** ERROR ** local memory bank %0d dropped write transaction",
-                           mem_afu.bank_number);
+                    $fatal("** ERROR ** %m: instance %0d dropped write transaction",
+                           mem_master.instance_number);
                 end
 
-                if (~mem_afu.reset && cmd_waitrequest && mem_afu.read)
+                if (~mem_master.reset && cmd_waitrequest && mem_master.read)
                 begin
-                    $fatal("** ERROR ** local memory bank %0d dropped read transaction",
-                           mem_afu.bank_number);
+                    $fatal("** ERROR ** %m: instance %0d dropped read transaction",
+                           mem_master.instance_number);
                 end
             end
             // synthesis translate_on
@@ -148,6 +148,6 @@ module ofs_plat_local_mem_avalon_if_async_shim
     endgenerate
 
     // Debugging signal
-    assign mem_afu.bank_number = mem_fiu.bank_number;
+    assign mem_master.instance_number = mem_slave.instance_number;
 
-endmodule // ofs_plat_local_mem_avalon_if_async_shim
+endmodule // ofs_plat_avalon_mem_if_async_shim

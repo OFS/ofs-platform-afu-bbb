@@ -43,11 +43,19 @@ package ofs_plat_log_pkg;
     }
     t_log_class;
 
+    // What is the name for an instance of the class?
+    localparam string instance_name[3] = {
+        "",
+        "port",
+        "bank"
+        };
+
     int log_fds[3] = '{3{-1}};
-    localparam string log_names[3] = { "",
-                                "log_ofs_plat_host_chan.tsv",
-                                "log_ofs_plat_local_mem.tsv"
-                                };
+    localparam string log_names[3] = {
+        "",
+        "log_ofs_plat_host_chan.tsv",
+        "log_ofs_plat_local_mem.tsv"
+        };
 
     // Get the file descriptor for a group
     function automatic int get_fd(t_log_class g);
