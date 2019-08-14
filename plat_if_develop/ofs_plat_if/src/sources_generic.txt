@@ -1,6 +1,7 @@
 # Generic (platform-independent) sources. These are copied to the target
 # ofs_plat_if tree as it is configured.
 par
+rtl/base_ifcs
 rtl/compat
 rtl/ofs_plat_if.vh
 rtl/platform_if.vh

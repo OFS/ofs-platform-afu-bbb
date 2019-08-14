@@ -37,7 +37,7 @@
 
 module ofs_plat_local_mem_GROUP_if_tie_off
    (
-    ofs_plat_local_mem_avalon_if.to_fiu bank
+    ofs_plat_avalon_mem_if.to_slave bank
     );
 
     always_comb

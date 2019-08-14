@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017, Intel Corporation
+// Copyright (c) 2019, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -36,37 +36,37 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_local_mem_avalon_if_reg
+module ofs_plat_avalon_mem_if_reg
   #(
     // Number of stages to add when registering inputs or outputs
     parameter N_REG_STAGES = 1
     )
    (
-    ofs_plat_local_mem_avalon_if.to_fiu mem_fiu,
-    ofs_plat_local_mem_avalon_if.to_afu mem_afu
+    ofs_plat_avalon_mem_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master
     );
 
     genvar s;
     generate
         if (N_REG_STAGES == 0)
         begin : wires
-            ofs_plat_local_mem_avalon_if_connect conn(.mem_fiu, .mem_afu);
+            ofs_plat_avalon_mem_if_connect conn(.mem_slave, .mem_master);
         end
         else
         begin : regs
             // Pipeline stages.
-            ofs_plat_local_mem_avalon_if
+            ofs_plat_avalon_mem_if
               #(
-                .NUM_BANKS(mem_fiu.NUM_BANKS_),
-                .ADDR_WIDTH(mem_fiu.ADDR_WIDTH_),
-                .DATA_WIDTH(mem_fiu.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_fiu.BURST_CNT_WIDTH_)
+                .NUM_INSTANCES(mem_slave.NUM_INSTANCES_),
+                .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
+                .DATA_WIDTH(mem_slave.DATA_WIDTH_),
+                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
-            // Map mem_fiu to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_local_mem_avalon_if_connect conn0(.mem_fiu(mem_fiu),
-                                                       .mem_afu(mem_pipe[0]));
+            // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
+            ofs_plat_avalon_mem_if_connect conn0(.mem_slave(mem_slave),
+                                                 .mem_master(mem_pipe[0]));
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
@@ -76,9 +76,9 @@ module ofs_plat_local_mem_avalon_if_reg
 
                 ofs_plat_utils_avalon_mm_bridge
                   #(
-                    .DATA_WIDTH(mem_fiu.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(mem_fiu.ADDR_WIDTH),
-                    .BURSTCOUNT_WIDTH(mem_fiu.BURST_CNT_WIDTH)
+                    .DATA_WIDTH(mem_slave.DATA_WIDTH),
+                    .HDL_ADDR_WIDTH(mem_slave.ADDR_WIDTH),
+                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH)
                     )
                   bridge
                    (
@@ -111,13 +111,13 @@ module ofs_plat_local_mem_avalon_if_reg
                     );
 
                 // Debugging signal
-                assign mem_pipe[s].bank_number = mem_pipe[s-1].bank_number;
+                assign mem_pipe[s].instance_number = mem_pipe[s-1].instance_number;
             end
 
-            // Map mem_afu to the last stage (wired)
-            ofs_plat_local_mem_avalon_if_connect conn1(.mem_fiu(mem_pipe[N_REG_STAGES]),
-                                                       .mem_afu(mem_afu));
+            // Map mem_master to the last stage (wired)
+            ofs_plat_avalon_mem_if_connect conn1(.mem_slave(mem_pipe[N_REG_STAGES]),
+                                                 .mem_master(mem_master));
         end
     endgenerate
 
-endmodule // ofs_plat_local_mem_avalon_if_reg
+endmodule // ofs_plat_avalon_mem_if_reg

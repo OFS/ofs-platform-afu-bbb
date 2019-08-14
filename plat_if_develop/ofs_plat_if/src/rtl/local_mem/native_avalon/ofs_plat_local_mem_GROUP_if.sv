@@ -51,10 +51,10 @@ interface ofs_plat_local_GROUP_mem_if
     // existing one's parameters.
     localparam NUM_BANKS_ = $bits(logic [NUM_BANKS:0]) - 1;
 
-    ofs_plat_local_mem_avalon_if
+    ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::LOCAL_MEM : ofs_plat_log_pkg::NONE),
-        .NUM_BANKS(NUM_BANKS),
+        .NUM_INSTANCES(NUM_BANKS),
         .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_ADDR_WIDTH),
         .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_DATA_WIDTH),
         .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_BURST_CNT_WIDTH),
