@@ -28,6 +28,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+`include "ofs_plat_if.vh"
+
 //
 // Wire together two Avalon memory instances.
 //
@@ -42,16 +44,8 @@ module ofs_plat_avalon_mem_if_connect
         mem_master.clk = mem_slave.clk;
         mem_master.reset = mem_slave.reset;
 
-        mem_master.waitrequest = mem_slave.waitrequest;
-        mem_master.readdata = mem_slave.readdata;
-        mem_master.readdatavalid = mem_slave.readdatavalid;
-
-        mem_slave.burstcount = mem_master.burstcount;
-        mem_slave.writedata = mem_master.writedata;
-        mem_slave.address = mem_master.address;
-        mem_slave.write = mem_master.write;
-        mem_slave.read = mem_master.read;
-        mem_slave.byteenable = mem_master.byteenable;
+        `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
+        `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
 
         // Debugging signal
         mem_master.instance_number = mem_slave.instance_number;

@@ -71,6 +71,8 @@ interface ofs_plat_avalon_mem_if
     logic waitrequest;
     logic [DATA_WIDTH-1:0] readdata;
     logic readdatavalid;
+    logic writeresponsevalid;
+    logic [1:0] response;
 
     logic [ADDR_WIDTH-1:0] address;
     logic write;
@@ -83,7 +85,6 @@ interface ofs_plat_avalon_mem_if
     // code that instantiates the interface object.
     logic [$clog2(NUM_INSTANCES)-1:0] instance_number;
 
-
     //
     // Connection from master toward slave
     //
@@ -95,6 +96,8 @@ interface ofs_plat_avalon_mem_if
         input  waitrequest,
         input  readdata,
         input  readdatavalid,
+        input  writeresponsevalid,
+        input  response,
 
         output address,
         output write,
@@ -118,6 +121,8 @@ interface ofs_plat_avalon_mem_if
         output waitrequest,
         output readdata,
         output readdatavalid,
+        output writeresponsevalid,
+        output response,
 
         input  address,
         input  write,
@@ -158,11 +163,12 @@ interface ofs_plat_avalon_mem_if
                 // Read response
                 if (! reset && readdatavalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d resp 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (%d)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            readdata);
+                            readdata,
+                            response);
                 end
 
                 // Write request
@@ -176,6 +182,16 @@ interface ofs_plat_avalon_mem_if
                             burstcount,
                             byteenable,
                             writedata);
+                end
+
+                // Write response
+                if (! reset && writeresponsevalid)
+                begin
+                    $fwrite(log_fd, "%m: %t %s %0d write resp (%d)\n",
+                            $time,
+                            ofs_plat_log_pkg::instance_name[LOG_CLASS],
+                            instance_number,
+                            response);
                 end
             end
         end

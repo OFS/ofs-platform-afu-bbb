@@ -97,6 +97,18 @@ module ofs_plat_avalon_mem_if_async_shim
         .m0_debugaccess()
         );
 
+    // These signals currently do not pass through the bridge
+    assign mem_master.response = 'x;
+    always_ff @(posedge mem_master.clk)
+    begin
+        // Fake a writeresponsevalid
+        mem_master.writeresponsevalid <= mem_master.write && ! mem_master.waitrequest;
+        if (mem_master.reset)
+        begin
+            mem_master.writeresponsevalid <= 1'b0;
+        end
+    end
+
     // Compute mem_master.waitrequest
     generate
         if (COMMAND_ALMFULL_THRESHOLD == 0)

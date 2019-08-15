@@ -114,6 +114,23 @@ module ase_top_ofs_plat
         begin : b_reset
             assign plat_ifc.local_mem.banks[b].clk = mem_banks_clk[b];
             assign plat_ifc.local_mem.banks[b].reset = plat_ifc.softReset;
+
+            // The model doesn't generate either "response" or "writeresponsevalid".
+            // Generate them here.
+            assign plat_ifc.local_mem.banks[b].response = 2'b0;
+            logic did_write;
+
+            always_ff @(plat_ifc.local_mem.banks[b].clk)
+            begin
+                did_write <= plat_ifc.local_mem.banks[b].write &&
+                             ! plat_ifc.local_mem.banks[b].waitrequest;
+
+                plat_ifc.local_mem.banks[b].writeresponsevalid <= did_write;
+                if (plat_ifc.local_mem.banks[b].reset)
+                begin
+                    plat_ifc.local_mem.banks[b].writeresponsevalid <= 1'b0;
+                end
+            end
         end
     endgenerate
 `endif
