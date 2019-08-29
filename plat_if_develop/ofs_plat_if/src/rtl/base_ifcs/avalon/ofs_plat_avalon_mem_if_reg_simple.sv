@@ -112,11 +112,11 @@ module ofs_plat_avalon_mem_if_reg_simple
 
 
             // Map mem_master to the last stage (wired)
+            assign mem_master.clk = mem_pipe[N_REG_STAGES].clk;
+            assign mem_master.reset = mem_pipe[N_REG_STAGES].reset;
+
             always_comb
             begin
-                mem_master.clk = mem_pipe[N_REG_STAGES].clk;
-                mem_master.reset = mem_pipe[N_REG_STAGES].reset;
-
                 `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_pipe[N_REG_STAGES]);
                 mem_master.waitrequest = mem_waitrequest_pipe[N_WAITREQUEST_STAGES];
 

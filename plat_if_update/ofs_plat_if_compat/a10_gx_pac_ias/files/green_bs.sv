@@ -103,26 +103,23 @@ module green_bs
     // wraps all ports to the AFU.
     ofs_plat_if plat_ifc();
 
-    always_comb
-    begin
-        // Clocks
-        plat_ifc.clocks.pClk = Clk_400;
-        plat_ifc.clocks.pClkDiv2 = Clk_200;
-        plat_ifc.clocks.pClkDiv4 = Clk_100;
-        plat_ifc.clocks.uClk_usr = uClk_usr;
-        plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
+    // Clocks
+    assign plat_ifc.clocks.pClk = Clk_400;
+    assign plat_ifc.clocks.pClkDiv2 = Clk_200;
+    assign plat_ifc.clocks.pClkDiv4 = Clk_100;
+    assign plat_ifc.clocks.uClk_usr = uClk_usr;
+    assign plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
 
-        // Reset, etc.
-        plat_ifc.softReset = SoftReset;
-        plat_ifc.pwrState = pck_cp2af_pwrState;
+    // Reset, etc.
+    assign plat_ifc.softReset = SoftReset;
+    assign plat_ifc.pwrState = pck_cp2af_pwrState;
 
-        // Host CCI-P port
-        plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
-        plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
-        plat_ifc.host_chan.ports[0].error = pck_cp2af_error;
-        plat_ifc.host_chan.ports[0].sRx = bus_ccip_Rx;
-        bus_ccip_Tx = plat_ifc.host_chan.ports[0].sTx;
-    end
+    // Host CCI-P port
+    assign plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
+    assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
+    assign plat_ifc.host_chan.ports[0].error = pck_cp2af_error;
+    assign plat_ifc.host_chan.ports[0].sRx = bus_ccip_Rx;
+    assign bus_ccip_Tx = plat_ifc.host_chan.ports[0].sTx;
 
 // ===========================================
 // AFU - Remote Debug JTAG IP instantiation

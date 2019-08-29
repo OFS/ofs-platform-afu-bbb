@@ -51,7 +51,7 @@ interface ofs_plat_if
     );
 
     // Required: Platform top-level clocks
-    t_ofs_plat_clocks clocks;
+    wire t_ofs_plat_clocks clocks;
 
     // Required: ACTIVE HIGH Soft Reset (clocked by pClk)
     logic softReset;

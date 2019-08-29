@@ -39,11 +39,11 @@ module ofs_plat_avalon_mem_if_connect
     ofs_plat_avalon_mem_if.to_master mem_master
     );
 
+    assign mem_master.clk = mem_slave.clk;
+    assign mem_master.reset = mem_slave.reset;
+
     always_comb
     begin
-        mem_master.clk = mem_slave.clk;
-        mem_master.reset = mem_slave.reset;
-
         `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
         `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
 

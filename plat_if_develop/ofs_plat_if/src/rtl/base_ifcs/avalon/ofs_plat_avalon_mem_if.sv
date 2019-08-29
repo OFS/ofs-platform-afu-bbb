@@ -64,7 +64,7 @@ interface ofs_plat_avalon_mem_if
     // Number of bytes in a data line
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
 
-    logic clk;
+    wire clk;
     logic reset;
 
     // Signals
@@ -140,6 +140,8 @@ interface ofs_plat_avalon_mem_if
     //
 
     // synthesis translate_off
+    logic [BURST_CNT_WIDTH-1:0] wr_bursts_rem;
+
     initial
     begin : logger_proc
         // Watch traffic
@@ -174,14 +176,25 @@ interface ofs_plat_avalon_mem_if
                 // Write request
                 if (! reset && write && ! waitrequest)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write 0x%x burst 0x%x mask 0x%x data 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             address,
+                            ((wr_bursts_rem == 0) ? "sop " : ""),
                             burstcount,
                             byteenable,
                             writedata);
+
+                    // Track write bursts in order to print "sop"
+                    if (wr_bursts_rem == 0)
+                    begin
+                        wr_bursts_rem <= burstcount - 1;
+                    end
+                    else
+                    begin
+                        wr_bursts_rem <= wr_bursts_rem - 1;
+                    end
                 end
 
                 // Write response
@@ -192,6 +205,11 @@ interface ofs_plat_avalon_mem_if
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             response);
+                end
+
+                if (reset)
+                begin
+                    wr_bursts_rem <= 0;
                 end
             end
         end
