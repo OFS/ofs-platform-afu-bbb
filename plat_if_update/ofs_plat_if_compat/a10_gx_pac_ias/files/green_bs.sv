@@ -190,13 +190,10 @@ module green_bs
              .q(DDR4b_softReset)
     );
 
-    always_comb
-    begin
-        plat_ifc.local_mem.banks[0].clk = DDR4a_USERCLK;
-        plat_ifc.local_mem.banks[0].reset = DDR4a_softReset;
-        plat_ifc.local_mem.banks[1].clk = DDR4b_USERCLK;
-        plat_ifc.local_mem.banks[1].reset = DDR4b_softReset;
-    end
+    assign plat_ifc.local_mem.banks[0].clk = DDR4a_USERCLK;
+    assign plat_ifc.local_mem.banks[0].reset = DDR4a_softReset;
+    assign plat_ifc.local_mem.banks[1].clk = DDR4b_USERCLK;
+    assign plat_ifc.local_mem.banks[1].reset = DDR4b_softReset;
 
     ddr_avmm_bridge #(
             .DATA_WIDTH        (512),
@@ -263,16 +260,18 @@ module green_bs
 `ifdef INCLUDE_ETHERNET
     // OFS platform interface passes all HSSI ports through the top-level
     // wrapper.
+    assign plat_ifc.hssi.ports[0].f2a_tx_clk = hssi.f2a_tx_clk;
+    assign plat_ifc.hssi.ports[0].f2a_tx_clkx2 = hssi.f2a_tx_clkx2;
+    assign plat_ifc.hssi.ports[0].f2a_rx_clk_ln0 = hssi.f2a_rx_clk_ln0;
+    assign plat_ifc.hssi.ports[0].f2a_rx_clkx2_ln0 = hssi.f2a_rx_clkx2_ln0;
+    assign plat_ifc.hssi.ports[0].f2a_rx_clk_ln4 = hssi.f2a_rx_clk_ln4;
+    assign plat_ifc.hssi.ports[0].f2a_prmgmt_ctrl_clk = hssi.f2a_prmgmt_ctrl_clk;
+
     always_comb
     begin
-        plat_ifc.hssi.ports[0].f2a_tx_clk = hssi.f2a_tx_clk;
-        plat_ifc.hssi.ports[0].f2a_tx_clkx2 = hssi.f2a_tx_clkx2;
         plat_ifc.hssi.ports[0].f2a_tx_locked = hssi.f2a_tx_locked;
        
-        plat_ifc.hssi.ports[0].f2a_rx_clk_ln0 = hssi.f2a_rx_clk_ln0;
-        plat_ifc.hssi.ports[0].f2a_rx_clkx2_ln0 = hssi.f2a_rx_clkx2_ln0;
         plat_ifc.hssi.ports[0].f2a_rx_locked_ln0 = hssi.f2a_rx_locked_ln0;
-        plat_ifc.hssi.ports[0].f2a_rx_clk_ln4 = hssi.f2a_rx_clk_ln4;
         plat_ifc.hssi.ports[0].f2a_rx_locked_ln4 = hssi.f2a_rx_locked_ln4;
     
         hssi.a2f_tx_analogreset = plat_ifc.hssi.ports[0].a2f_tx_analogreset;
@@ -314,7 +313,6 @@ module green_bs
 
         hssi.a2f_prmgmt_fatal_err = plat_ifc.hssi.ports[0].a2f_prmgmt_fatal_err;
         hssi.a2f_prmgmt_dout = plat_ifc.hssi.ports[0].a2f_prmgmt_dout;
-        plat_ifc.hssi.ports[0].f2a_prmgmt_ctrl_clk = hssi.f2a_prmgmt_ctrl_clk;
         plat_ifc.hssi.ports[0].f2a_prmgmt_cmd = hssi.f2a_prmgmt_cmd;
         plat_ifc.hssi.ports[0].f2a_prmgmt_addr = hssi.f2a_prmgmt_addr;
         plat_ifc.hssi.ports[0].f2a_prmgmt_din = hssi.f2a_prmgmt_din;

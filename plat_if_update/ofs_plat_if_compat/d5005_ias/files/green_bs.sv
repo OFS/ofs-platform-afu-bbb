@@ -209,9 +209,13 @@ module green_bs
     // mappings from DDR4x PR wires.
     pr_avalon_mem_if pr_local_mem[NUM_FIU_LOCAL_MEM_BANKS]();
 
+    assign pr_local_mem[0].clk = DDR4a_USERCLK;
+    assign pr_local_mem[1].clk = DDR4b_USERCLK;
+    assign pr_local_mem[2].clk = DDR4c_USERCLK;
+    assign pr_local_mem[3].clk = DDR4d_USERCLK;
+
     always_comb
     begin
-        pr_local_mem[0].clk = DDR4a_USERCLK;
         pr_local_mem[0].waitrequest = DDR4a_waitrequest;
         pr_local_mem[0].readdata = DDR4a_readdata;
         pr_local_mem[0].readdatavalid = DDR4a_readdatavalid;
@@ -223,7 +227,6 @@ module green_bs
         DDR4a_byteenable = pr_local_mem[0].byteenable;
         pr_local_mem[0].ecc_interrupt = DDR4a_ecc_interrupt;
 
-        pr_local_mem[1].clk = DDR4b_USERCLK;
         pr_local_mem[1].waitrequest = DDR4b_waitrequest;
         pr_local_mem[1].readdata = DDR4b_readdata;
         pr_local_mem[1].readdatavalid = DDR4b_readdatavalid;
@@ -235,7 +238,6 @@ module green_bs
         DDR4b_byteenable = pr_local_mem[1].byteenable;
         pr_local_mem[1].ecc_interrupt = DDR4b_ecc_interrupt;
 
-        pr_local_mem[2].clk = DDR4c_USERCLK;
         pr_local_mem[2].waitrequest = DDR4c_waitrequest;
         pr_local_mem[2].readdata = DDR4c_readdata;
         pr_local_mem[2].readdatavalid = DDR4c_readdatavalid;
@@ -247,7 +249,6 @@ module green_bs
         DDR4c_byteenable = pr_local_mem[2].byteenable;
         pr_local_mem[2].ecc_interrupt = DDR4c_ecc_interrupt;
 
-        pr_local_mem[3].clk = DDR4d_USERCLK;
         pr_local_mem[3].waitrequest = DDR4d_waitrequest;
         pr_local_mem[3].readdata = DDR4d_readdata;
         pr_local_mem[3].readdatavalid = DDR4d_readdatavalid;
@@ -346,13 +347,18 @@ module green_bs
         generate
             for (qsfp_num = 0; qsfp_num < NUM_QSFP_IF; qsfp_num = qsfp_num + 1)
             begin : hssi_map
+                assign plat_ifc.hssi.ports[qsfp_num].f2a_tx_clkout = hssi[qsfp_num].f2a_tx_clkout;
+                // assign plat_ifc.hssi.ports[qsfp_num].f2a_tx_clkout2 = hssi[qsfp_num].f2a_tx_clkout2;
+                assign plat_ifc.hssi.ports[qsfp_num].f2a_tx_parallel_clk_x1[0] = hssi[qsfp_num].f2a_tx_parallel_clk_x1[0];
+                assign plat_ifc.hssi.ports[qsfp_num].f2a_tx_parallel_clk_x2[0] = hssi[qsfp_num].f2a_tx_parallel_clk_x2[0];
+                assign plat_ifc.hssi.ports[qsfp_num].f2a_rx_clkout = hssi[qsfp_num].f2a_rx_clkout;
+                // assign plat_ifc.hssi.ports[qsfp_num].f2a_rx_clkout2 = hssi[qsfp_num].f2a_rx_clkout2;
+                assign plat_ifc.hssi.ports[qsfp_num].f2a_rx_parallel_clk_x1[0] = hssi[qsfp_num].f2a_rx_parallel_clk_x1[0];
+                assign plat_ifc.hssi.ports[qsfp_num].f2a_rx_parallel_clk_x2[0] = hssi[qsfp_num].f2a_rx_parallel_clk_x2[0];
+
                 always_comb
                 begin
                     // TX PCS
-                    plat_ifc.hssi.ports[qsfp_num].f2a_tx_clkout = hssi[qsfp_num].f2a_tx_clkout;
-                    // plat_ifc.hssi.ports[qsfp_num].f2a_tx_clkout2 = hssi[qsfp_num].f2a_tx_clkout2;
-                    plat_ifc.hssi.ports[qsfp_num].f2a_tx_parallel_clk_x1[0] = hssi[qsfp_num].f2a_tx_parallel_clk_x1[0];
-                    plat_ifc.hssi.ports[qsfp_num].f2a_tx_parallel_clk_x2[0] = hssi[qsfp_num].f2a_tx_parallel_clk_x2[0];
                     plat_ifc.hssi.ports[qsfp_num].f2a_tx_ready = hssi[qsfp_num].f2a_tx_ready;
                     plat_ifc.hssi.ports[qsfp_num].f2a_tx_fifo_empty = hssi[qsfp_num].f2a_tx_fifo_empty;
                     plat_ifc.hssi.ports[qsfp_num].f2a_tx_fifo_full = hssi[qsfp_num].f2a_tx_fifo_full;
@@ -361,10 +367,6 @@ module green_bs
                     hssi[qsfp_num].a2f_tx_parallel_data = plat_ifc.hssi.ports[qsfp_num].a2f_tx_parallel_data;
 
                     // RX PCS
-                    plat_ifc.hssi.ports[qsfp_num].f2a_rx_clkout = hssi[qsfp_num].f2a_rx_clkout;
-                    // plat_ifc.hssi.ports[qsfp_num].f2a_rx_clkout2 = hssi[qsfp_num].f2a_rx_clkout2;
-                    plat_ifc.hssi.ports[qsfp_num].f2a_rx_parallel_clk_x1[0] = hssi[qsfp_num].f2a_rx_parallel_clk_x1[0];
-                    plat_ifc.hssi.ports[qsfp_num].f2a_rx_parallel_clk_x2[0] = hssi[qsfp_num].f2a_rx_parallel_clk_x2[0];
                     plat_ifc.hssi.ports[qsfp_num].f2a_rx_ready = hssi[qsfp_num].f2a_rx_ready;
                     hssi[qsfp_num].a2f_rx_bitslip = plat_ifc.hssi.ports[qsfp_num].a2f_rx_bitslip;
                     plat_ifc.hssi.ports[qsfp_num].f2a_rx_fifo_empty = hssi[qsfp_num].f2a_rx_fifo_empty;
