@@ -42,12 +42,7 @@ module ofs_plat_local_mem_GROUP_if_tie_off
 
     always_comb
     begin
-        bank.burstcount = 0;
-        bank.writedata = 0;
-        bank.address = 0;
-        bank.write = 0;
-        bank.read = 0;
-        bank.byteenable = 0;
+        `ofs_plat_avalon_mem_if_init_master_comb(bank);
     end
 
 endmodule // ofs_plat_local_mem_GROUP_if_tie_off

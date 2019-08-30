@@ -39,7 +39,7 @@ interface ofs_plat_host_ccip_if
     parameter ENABLE_LOG = 0         // Log events for this instance?
     );
 
-    logic clk;
+    wire clk;
     logic reset;    // ACTIVE HIGH
 
     // CCI-P Protocol Error Detected

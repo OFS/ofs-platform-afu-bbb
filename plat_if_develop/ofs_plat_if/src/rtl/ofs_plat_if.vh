@@ -38,6 +38,7 @@
 
 `include "ofs_plat_if_top_config.vh"
 `include "ofs_plat_host_ccip_if.vh"
+`include "ofs_plat_avalon_mem_if.vh"
 
 // Compatibility mode for OPAE SDK's Platform Interface Manager
 `ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU

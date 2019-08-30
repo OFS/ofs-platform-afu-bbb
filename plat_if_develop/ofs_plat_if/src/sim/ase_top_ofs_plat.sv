@@ -54,14 +54,11 @@ module ase_top_ofs_plat
     // Clocks
     //
 
-    always_comb
-    begin
-        plat_ifc.clocks.pClk = pClk;
-        plat_ifc.clocks.pClkDiv2 = pClkDiv2;
-        plat_ifc.clocks.pClkDiv4 = pClkDiv4;
-        plat_ifc.clocks.uClk_usr = uClk_usr;
-        plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
-    end
+    assign plat_ifc.clocks.pClk = pClk;
+    assign plat_ifc.clocks.pClkDiv2 = pClkDiv2;
+    assign plat_ifc.clocks.pClkDiv4 = pClkDiv4;
+    assign plat_ifc.clocks.uClk_usr = uClk_usr;
+    assign plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
 
 
     //
@@ -114,6 +111,26 @@ module ase_top_ofs_plat
         begin : b_reset
             assign plat_ifc.local_mem.banks[b].clk = mem_banks_clk[b];
             assign plat_ifc.local_mem.banks[b].reset = plat_ifc.softReset;
+
+            assign plat_ifc.local_mem.banks[b].response = 2'b0;
+
+            // The model doesn't generate "writeresponsevalid".
+            // Generate it here.
+            ofs_plat_avalon_mem_if_gen_write_response
+              #(
+                .BURST_CNT_WIDTH(local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
+                )
+              wr_resp
+               (
+                .clk(plat_ifc.local_mem.banks[b].clk),
+                .reset(plat_ifc.local_mem.banks[b].reset),
+
+                .write(plat_ifc.local_mem.banks[b].write),
+                .waitrequest(plat_ifc.local_mem.banks[b].waitrequest),
+                .burstcount(plat_ifc.local_mem.banks[b].burstcount),
+
+                .writeresponsevalid(plat_ifc.local_mem.banks[b].writeresponsevalid)
+                );
         end
     endgenerate
 `endif

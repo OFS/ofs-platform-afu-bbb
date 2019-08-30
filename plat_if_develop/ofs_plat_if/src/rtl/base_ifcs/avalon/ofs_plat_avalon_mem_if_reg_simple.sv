@@ -28,6 +28,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+`include "ofs_plat_if.vh"
+
 //
 // A simple version of Avalon MM interface register stage insertion.
 // Waitrequest is treated as an almost full protocol, with the assumption
@@ -80,15 +82,8 @@ module ofs_plat_avalon_mem_if_reg_simple
                     // Waitrequest is a different pipeline, implemented below.
                     mem_pipe[s].waitrequest <= 1'b1;
 
-                    mem_pipe[s].readdata <= mem_pipe[s-1].readdata;
-                    mem_pipe[s].readdatavalid <= mem_pipe[s-1].readdatavalid;
-
-                    mem_pipe[s-1].burstcount <= mem_pipe[s].burstcount;
-                    mem_pipe[s-1].writedata <= mem_pipe[s].writedata;
-                    mem_pipe[s-1].address <= mem_pipe[s].address;
-                    mem_pipe[s-1].write <= mem_pipe[s].write;
-                    mem_pipe[s-1].read <= mem_pipe[s].read;
-                    mem_pipe[s-1].byteenable <= mem_pipe[s].byteenable;
+                    `ofs_plat_avalon_mem_if_from_slave_to_master_ff(mem_pipe[s], mem_pipe[s-1]);
+                    `ofs_plat_avalon_mem_if_from_master_to_slave_ff(mem_pipe[s-1], mem_pipe[s]);
 
                     if (mem_slave.reset)
                     begin
@@ -117,21 +112,17 @@ module ofs_plat_avalon_mem_if_reg_simple
 
 
             // Map mem_master to the last stage (wired)
+            assign mem_master.clk = mem_pipe[N_REG_STAGES].clk;
+            assign mem_master.reset = mem_pipe[N_REG_STAGES].reset;
+
             always_comb
             begin
-                mem_master.clk = mem_pipe[N_REG_STAGES].clk;
-                mem_master.reset = mem_pipe[N_REG_STAGES].reset;
-
+                `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_pipe[N_REG_STAGES]);
                 mem_master.waitrequest = mem_waitrequest_pipe[N_WAITREQUEST_STAGES];
-                mem_master.readdata = mem_pipe[N_REG_STAGES].readdata;
-                mem_master.readdatavalid = mem_pipe[N_REG_STAGES].readdatavalid;
 
-                mem_pipe[N_REG_STAGES].burstcount = mem_master.burstcount;
-                mem_pipe[N_REG_STAGES].writedata = mem_master.writedata;
-                mem_pipe[N_REG_STAGES].address = mem_master.address;
+                `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_pipe[N_REG_STAGES], mem_master);
                 mem_pipe[N_REG_STAGES].write = mem_master.write && ! mem_master.waitrequest;
                 mem_pipe[N_REG_STAGES].read = mem_master.read && ! mem_master.waitrequest;
-                mem_pipe[N_REG_STAGES].byteenable = mem_master.byteenable;
 
                 // Debugging signal
                 mem_master.instance_number = mem_pipe[N_REG_STAGES].instance_number;

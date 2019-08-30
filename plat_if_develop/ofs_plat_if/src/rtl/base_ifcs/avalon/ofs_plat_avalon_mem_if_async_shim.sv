@@ -51,11 +51,8 @@ module ofs_plat_avalon_mem_if_async_shim
     logic cmd_waitrequest;
     logic [SPACE_AVAIL_WIDTH-1:0] cmd_space_avail;
 
-    always_comb
-    begin
-        mem_master.clk = mem_master_clk;
-        mem_master.reset = mem_master_reset;
-    end
+    assign mem_master.clk = mem_master_clk;
+    assign mem_master.reset = mem_master_reset;
 
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
@@ -95,6 +92,26 @@ module ofs_plat_avalon_mem_if_async_shim
         .m0_read(mem_slave.read),
         .m0_byteenable(mem_slave.byteenable),
         .m0_debugaccess()
+        );
+
+    // response doesn't pass through the bridge. It isn't supported.
+    assign mem_master.response = 'x;
+
+    // writeresponsevalid does not pass through the bridge. Synthesize it here.
+    ofs_plat_avalon_mem_if_gen_write_response
+      #(
+        .BURST_CNT_WIDTH(mem_master.BURST_CNT_WIDTH)
+        )
+      wr_resp
+       (
+        .clk(mem_master.clk),
+        .reset(mem_master.reset),
+
+        .write(mem_master.write),
+        .waitrequest(mem_master.waitrequest),
+        .burstcount(mem_master.burstcount),
+
+        .writeresponsevalid(mem_master.writeresponsevalid)
         );
 
     // Compute mem_master.waitrequest

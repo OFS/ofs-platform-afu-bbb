@@ -74,26 +74,23 @@ module green_bs
     // wraps all ports to the AFU.
     ofs_plat_if plat_ifc();
 
-    always_comb
-    begin
-        // Clocks
-        plat_ifc.clocks.pClk = Clk_400;
-        plat_ifc.clocks.pClkDiv2 = Clk_200;
-        plat_ifc.clocks.pClkDiv4 = Clk_100;
-        plat_ifc.clocks.uClk_usr = uClk_usr;
-        plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
+    // Clocks
+    assign plat_ifc.clocks.pClk = Clk_400;
+    assign plat_ifc.clocks.pClkDiv2 = Clk_200;
+    assign plat_ifc.clocks.pClkDiv4 = Clk_100;
+    assign plat_ifc.clocks.uClk_usr = uClk_usr;
+    assign plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
 
-        // Reset, etc.
-        plat_ifc.softReset = SoftReset;
-        plat_ifc.pwrState = pck_cp2af_pwrState;
+    // Reset, etc.
+    assign plat_ifc.softReset = SoftReset;
+    assign plat_ifc.pwrState = pck_cp2af_pwrState;
 
-        // Host CCI-P port
-        plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
-        plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
-        plat_ifc.host_chan.ports[0].error = pck_cp2af_error;
-        plat_ifc.host_chan.ports[0].sRx = bus_ccip_Rx;
-        bus_ccip_Tx = plat_ifc.host_chan.ports[0].sTx;
-    end
+    // Host CCI-P port
+    assign plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
+    assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
+    assign plat_ifc.host_chan.ports[0].error = pck_cp2af_error;
+    assign plat_ifc.host_chan.ports[0].sRx = bus_ccip_Rx;
+    assign bus_ccip_Tx = plat_ifc.host_chan.ports[0].sTx;
 
 
 // ===========================================
@@ -133,16 +130,18 @@ module green_bs
   `ifdef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
     // OFS platform interface passes all HSSI ports through the top-level
     // wrapper.
+    assign plat_ifc.hssi.ports[0].f2a_tx_clk = hssi.f2a_tx_clk;
+    assign plat_ifc.hssi.ports[0].f2a_tx_clk2 = hssi.f2a_tx_clk2;
+    assign plat_ifc.hssi.ports[0].f2a_rx_clk_ln0 = hssi.f2a_rx_clk_ln0;
+    assign plat_ifc.hssi.ports[0].f2a_rx_clk2_ln0 = hssi.f2a_rx_clk2_ln0;
+    assign plat_ifc.hssi.ports[0].f2a_rx_clk_ln4 = hssi.f2a_rx_clk_ln4;
+    assign plat_ifc.hssi.ports[0].f2a_prmgmt_ctrl_clk = hssi.f2a_prmgmt_ctrl_clk;
+
     always_comb
     begin
-        plat_ifc.hssi.ports[0].f2a_tx_clk = hssi.f2a_tx_clk;
-        plat_ifc.hssi.ports[0].f2a_tx_clk2 = hssi.f2a_tx_clk2;
         plat_ifc.hssi.ports[0].f2a_tx_locked = hssi.f2a_tx_locked;
        
-        plat_ifc.hssi.ports[0].f2a_rx_clk_ln0 = hssi.f2a_rx_clk_ln0;
-        plat_ifc.hssi.ports[0].f2a_rx_clk2_ln0 = hssi.f2a_rx_clk2_ln0;
         plat_ifc.hssi.ports[0].f2a_rx_locked_ln0 = hssi.f2a_rx_locked_ln0;
-        plat_ifc.hssi.ports[0].f2a_rx_clk_ln4 = hssi.f2a_rx_clk_ln4;
         plat_ifc.hssi.ports[0].f2a_rx_locked_ln4 = hssi.f2a_rx_locked_ln4;
     
         hssi.a2f_init_start = plat_ifc.hssi.ports[0].a2f_init_start;
@@ -184,7 +183,6 @@ module green_bs
 
         hssi.a2f_prmgmt_fatal_err = plat_ifc.hssi.ports[0].a2f_prmgmt_fatal_err;
         hssi.a2f_prmgmt_dout = plat_ifc.hssi.ports[0].a2f_prmgmt_dout;
-        plat_ifc.hssi.ports[0].f2a_prmgmt_ctrl_clk = hssi.f2a_prmgmt_ctrl_clk;
         plat_ifc.hssi.ports[0].f2a_prmgmt_cmd = hssi.f2a_prmgmt_cmd;
         plat_ifc.hssi.ports[0].f2a_prmgmt_addr = hssi.f2a_prmgmt_addr;
         plat_ifc.hssi.ports[0].f2a_prmgmt_din = hssi.f2a_prmgmt_din;

@@ -88,7 +88,7 @@ module ofs_plat_avalon_mem_if_reg
                     .s0_waitrequest(mem_pipe[s].waitrequest),
                     .s0_readdata(mem_pipe[s].readdata),
                     .s0_readdatavalid(mem_pipe[s].readdatavalid),
-                    .s0_response(),
+                    .s0_response(mem_pipe[s].response),
                     .s0_burstcount(mem_pipe[s].burstcount),
                     .s0_writedata(mem_pipe[s].writedata),
                     .s0_address(mem_pipe[s].address), 
@@ -100,7 +100,7 @@ module ofs_plat_avalon_mem_if_reg
                     .m0_waitrequest(mem_pipe[s - 1].waitrequest),
                     .m0_readdata(mem_pipe[s - 1].readdata),
                     .m0_readdatavalid(mem_pipe[s - 1].readdatavalid),
-                    .m0_response('x),
+                    .m0_response(mem_pipe[s - 1].response),
                     .m0_burstcount(mem_pipe[s - 1].burstcount),
                     .m0_writedata(mem_pipe[s - 1].writedata),
                     .m0_address(mem_pipe[s - 1].address), 
@@ -109,6 +109,16 @@ module ofs_plat_avalon_mem_if_reg
                     .m0_byteenable(mem_pipe[s - 1].byteenable),
                     .m0_debugaccess()
                     );
+
+                // The bridge doesn't handle writeresponsevalid
+                always_ff @(posedge mem_pipe[s].clk)
+                begin
+                    mem_pipe[s].writeresponsevalid <= mem_pipe[s-1].writeresponsevalid;
+                    if (mem_pipe[s].reset)
+                    begin
+                        mem_pipe[s].writeresponsevalid <= 1'b0;
+                    end
+                end
 
                 // Debugging signal
                 assign mem_pipe[s].instance_number = mem_pipe[s-1].instance_number;
