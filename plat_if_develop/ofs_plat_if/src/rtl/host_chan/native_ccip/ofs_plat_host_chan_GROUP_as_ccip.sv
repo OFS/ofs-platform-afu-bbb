@@ -131,7 +131,7 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 (ccip_cfg_pkg::SUGGESTED_TIMING_REG_STAGES != 0) ?
                     ccip_cfg_pkg::SUGGESTED_TIMING_REG_STAGES : 1;
 
-            ofs_plat_utils_ccip_reg
+            ofs_plat_shim_ccip_reg
               #(
                 .N_REG_STAGES(NUM_PRE_CROSS_REG_STAGES)
                 )
@@ -145,7 +145,7 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 );
 
             // Cross to the target clock
-            ofs_plat_utils_ccip_async_shim
+            ofs_plat_shim_ccip_async
               #(
                 .EXTRA_ALMOST_FULL_STAGES(2 * NUM_TIMING_REG_STAGES)
                 )
@@ -180,7 +180,7 @@ module ofs_plat_host_chan_GROUP_as_ccip
     //
     // ====================================================================
 
-    ofs_plat_utils_ccip_reg
+    ofs_plat_shim_ccip_reg
       #(
         .N_REG_STAGES(NUM_TIMING_REG_STAGES)
         )

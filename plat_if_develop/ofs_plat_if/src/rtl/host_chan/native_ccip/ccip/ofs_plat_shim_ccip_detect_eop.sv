@@ -41,7 +41,7 @@
 
 `include "ofs_plat_host_ccip_if.vh"
 
-module ofs_plat_shim_detect_eop
+module ofs_plat_shim_ccip_detect_eop
   #(
     // The maximum number of write requests on c1Tx indicates the number
     // of low bits in c1Tx.hdr.mdata to use as a unique tag for each
@@ -102,7 +102,7 @@ module ofs_plat_shim_detect_eop
     t_ccip_clNum wr_rsp_packet_len;
     logic wr_rsp_pkt_eop;
 
-    ofs_plat_shim_detect_eop_track_flits
+    ofs_plat_shim_ccip_detect_eop_track_flits
       #(
         .MAX_ACTIVE_REQS(MAX_ACTIVE_WR_REQS)
         )
@@ -170,14 +170,14 @@ module ofs_plat_shim_detect_eop
 
     assign to_fiu.sTx.c2 = to_afu.sTx.c2;
 
-endmodule // ofs_plat_shim_detect_eop
+endmodule // ofs_plat_shim_ccip_detect_eop
 
 
 //
 // Control code for monitoring requests and responses on a channel and
 // detecting the flit that is the last response for a packet.
 //
-module ofs_plat_shim_detect_eop_track_flits
+module ofs_plat_shim_ccip_detect_eop_track_flits
   #(
     MAX_ACTIVE_REQS = 128
     )
@@ -319,4 +319,4 @@ module ofs_plat_shim_detect_eop_track_flits
     // Update internal flit count.
     assign T1_wdata = (T1_pkt_eop ? t_ccip_clNum'(0) : T1_flitCnt + t_ccip_clNum'(1));
 
-endmodule // ofs_plat_shim_detect_eop_track_flits
+endmodule // ofs_plat_shim_ccip_detect_eop_track_flits

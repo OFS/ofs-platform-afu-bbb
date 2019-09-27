@@ -27,7 +27,7 @@
  */
 
 /*
- * Module: ofs_plat_utils_ccip_async_shim
+ * Module: ofs_plat_shim_ccip_async
  *         CCI-P async shim to connect slower/faster AFUs to the FIU
  *
  * Owner      : Rahul R Sharma
@@ -40,7 +40,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_utils_ccip_async_shim
+module ofs_plat_shim_ccip_async
   #(
     parameter DEBUG_ENABLE          = 0,
 

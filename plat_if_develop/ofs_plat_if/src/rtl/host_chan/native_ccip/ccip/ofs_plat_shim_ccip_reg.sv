@@ -36,7 +36,7 @@
 
 import ccip_if_pkg::*;
 
-module ofs_plat_utils_ccip_reg
+module ofs_plat_shim_ccip_reg
   #(
     parameter REGISTER_RX = 1,
     parameter REGISTER_TX = 1,
@@ -188,5 +188,5 @@ module ofs_plat_utils_ccip_reg
         end
     endgenerate
 
-endmodule // ofs_plat_utils_ccip_reg
+endmodule // ofs_plat_shim_ccip_reg
 
