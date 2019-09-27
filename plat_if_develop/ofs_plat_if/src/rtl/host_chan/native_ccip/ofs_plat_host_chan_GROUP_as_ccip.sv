@@ -70,8 +70,6 @@ module ofs_plat_host_chan_GROUP_as_ccip
     output t_ofs_plat_power_state afu_pwrState
     );
 
-    assign to_afu.clk = (ADD_CLOCK_CROSSING == 0) ? to_fiu.clk : afu_clk;
-
     //
     // How many register stages should be inserted for timing?
     //
@@ -105,37 +103,27 @@ module ofs_plat_host_chan_GROUP_as_ccip
     // ====================================================================
 
     // CCI-P signals in the AFU's requested clock domain
-    logic cross_cp2af_softReset;
-    t_if_ccip_Tx cross_af2cp_sTx;
-    t_if_ccip_Rx cross_cp2af_sRx;
-    t_ofs_plat_power_state cross_cp2af_pwrState;
-    logic cross_cp2af_error;
-    logic actual_afu_clk;
+    ofs_plat_host_ccip_if afu_clk_ccip_if();
+    t_ofs_plat_power_state afu_clk_ccip_pwrState;
 
     generate
         if (ADD_CLOCK_CROSSING == 0)
         begin : nc
             // No clock crossing
-            always_comb
-            begin
-                actual_afu_clk = to_fiu.clk;
+            assign afu_clk_ccip_if.clk = to_fiu.clk;
 
-                cross_cp2af_softReset = to_fiu.reset;
-                to_fiu.sTx = cross_af2cp_sTx;
-                cross_cp2af_sRx = to_fiu.sRx;
+            assign afu_clk_ccip_if.reset = to_fiu.reset;
+            assign to_fiu.sTx = afu_clk_ccip_if.sTx;
+            assign afu_clk_ccip_if.sRx = to_fiu.sRx;
 
-                cross_cp2af_pwrState = fiu_pwrState;
-                cross_cp2af_error = to_fiu.error;
-            end
+            assign afu_clk_ccip_pwrState = fiu_pwrState;
+            assign afu_clk_ccip_if.error = to_fiu.error;
         end
         else
         begin : ofs_plat_clock_crossing
             // Before crossing add some FIU-side register stages for timing.
-            logic reg_cp2af_softReset;
-            t_if_ccip_Tx reg_af2cp_sTx;
-            t_if_ccip_Rx reg_cp2af_sRx;
+            ofs_plat_host_ccip_if reg_ccip_if();
             t_ofs_plat_power_state reg_cp2af_pwrState;
-            logic reg_cp2af_error;
 
             // How many register stages should be inserted for timing?
             // At least one stage, perhaps more.
@@ -149,19 +137,11 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 )
             ccip_pre_cross_reg
                (
-                .clk(to_fiu.clk),
+                .to_fiu(to_fiu),
+                .fiu_pwrState(fiu_pwrState),
 
-                .fiu_reset(to_fiu.reset),
-                .fiu_cp2af_sRx(to_fiu.sRx),
-                .fiu_af2cp_sTx(to_fiu.sTx),
-                .fiu_cp2af_pwrState(fiu_pwrState),
-                .fiu_cp2af_error(to_fiu.error),
-
-                .afu_reset(reg_cp2af_softReset),
-                .afu_cp2af_sRx(reg_cp2af_sRx),
-                .afu_af2cp_sTx(reg_af2cp_sTx),
-                .afu_cp2af_pwrState(reg_cp2af_pwrState),
-                .afu_cp2af_error(reg_cp2af_error)
+                .to_afu(reg_ccip_if),
+                .afu_pwrState(reg_cp2af_pwrState)
                 );
 
             // Cross to the target clock
@@ -171,25 +151,15 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 )
               ccip_async_shim
                (
-                .bb_softreset(reg_cp2af_softReset),
-                .bb_clk(to_fiu.clk),
-                .bb_tx(reg_af2cp_sTx),
-                .bb_rx(reg_cp2af_sRx),
-                .bb_pwrState(reg_cp2af_pwrState),
-                .bb_error(reg_cp2af_error),
+                .to_fiu(reg_ccip_if),
+                .fiu_pwrState(reg_cp2af_pwrState),
 
-                .afu_softreset(cross_cp2af_softReset),
                 .afu_clk(afu_clk),
-                .afu_tx(cross_af2cp_sTx),
-                .afu_rx(cross_cp2af_sRx),
-                .afu_pwrState(cross_cp2af_pwrState),
-                .afu_error(cross_cp2af_error),
+                .to_afu(afu_clk_ccip_if),
+                .afu_pwrState(afu_clk_ccip_pwrState),
 
                 .async_shim_error()
                 );
-
-            assign actual_afu_clk = afu_clk;
-
         end
     endgenerate
 
@@ -216,19 +186,11 @@ module ofs_plat_host_chan_GROUP_as_ccip
         )
       ccip_reg
        (
-        .clk(actual_afu_clk),
+        .to_fiu(afu_clk_ccip_if),
+        .fiu_pwrState(afu_clk_ccip_pwrState),
 
-        .fiu_reset(cross_cp2af_softReset),
-        .fiu_cp2af_sRx(cross_cp2af_sRx),
-        .fiu_af2cp_sTx(cross_af2cp_sTx),
-        .fiu_cp2af_pwrState(cross_cp2af_pwrState),
-        .fiu_cp2af_error(cross_cp2af_error),
-
-        .afu_reset(to_afu.reset),
-        .afu_cp2af_sRx(to_afu.sRx),
-        .afu_af2cp_sTx(to_afu.sTx),
-        .afu_cp2af_pwrState(afu_pwrState),
-        .afu_cp2af_error(to_afu.error)
+        .to_afu(to_afu),
+        .afu_pwrState(afu_pwrState)
         );
 
 endmodule // ofs_plat_host_chan_as_ccip

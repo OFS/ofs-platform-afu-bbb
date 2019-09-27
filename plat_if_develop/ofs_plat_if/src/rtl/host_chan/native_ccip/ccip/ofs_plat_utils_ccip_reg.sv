@@ -47,22 +47,18 @@ module ofs_plat_utils_ccip_reg
     parameter N_REG_STAGES = 1
     )
    (
-    input  logic clk,
-
     // FIU side
-    input  logic fiu_reset,
-    input  t_if_ccip_Rx fiu_cp2af_sRx,       // CCI-P Rx Port
-    output t_if_ccip_Tx fiu_af2cp_sTx,       // CCI-P Tx Port
-    input  t_ofs_plat_power_state fiu_cp2af_pwrState,   // CCI-P AFU Power State
-    input  logic fiu_cp2af_error,            // CCI-P Protocol Error Detected
+    ofs_plat_host_ccip_if.to_fiu to_fiu,
+    input  t_ofs_plat_power_state fiu_pwrState,   // CCI-P AFU Power State
 
     // AFU side
-    output logic afu_reset,
-    output t_if_ccip_Rx afu_cp2af_sRx,       // CCI-P Rx Port
-    input  t_if_ccip_Tx afu_af2cp_sTx,       // CCI-P Tx Port
-    output t_ofs_plat_power_state afu_cp2af_pwrState,
-    output logic afu_cp2af_error
+    ofs_plat_host_ccip_if.to_afu to_afu,
+    output t_ofs_plat_power_state afu_pwrState
     );
+
+    logic clk;
+    assign clk = to_fiu.clk;
+    assign to_afu.clk = to_fiu.clk;
 
     genvar s;
     generate
@@ -76,7 +72,7 @@ module ofs_plat_utils_ccip_reg
 
             always @(posedge clk)
             begin
-                reset[0] <= fiu_reset;
+                reset[0] <= to_fiu.reset;
             end
 
             for (s = 0; s < N_REG_STAGES - 1; s = s + 1)
@@ -87,11 +83,11 @@ module ofs_plat_utils_ccip_reg
                 end
             end
 
-            assign afu_reset = reset[N_REG_STAGES - 1];
+            assign to_afu.reset = reset[N_REG_STAGES - 1];
         end
         else
         begin : wire_reset
-            assign afu_reset = fiu_reset;
+            assign to_afu.reset = to_fiu.reset;
         end
 
 
@@ -106,7 +102,7 @@ module ofs_plat_utils_ccip_reg
             // Tx to register stages
             always_ff @(posedge clk)
             begin
-                reg_af2cp_sTx[0] <= afu_af2cp_sTx;
+                reg_af2cp_sTx[0] <= to_afu.sTx;
             end
 
             // Intermediate stages
@@ -118,11 +114,11 @@ module ofs_plat_utils_ccip_reg
                 end
             end
 
-            assign fiu_af2cp_sTx = reg_af2cp_sTx[N_REG_STAGES - 1];
+            assign to_fiu.sTx = reg_af2cp_sTx[N_REG_STAGES - 1];
         end
         else
         begin : wire_tx
-            assign fiu_af2cp_sTx = afu_af2cp_sTx;
+            assign to_fiu.sTx = to_afu.sTx;
         end
 
 
@@ -136,7 +132,7 @@ module ofs_plat_utils_ccip_reg
 
             always_ff @(posedge clk)
             begin
-                reg_cp2af_sRx[0] <= fiu_cp2af_sRx;
+                reg_cp2af_sRx[0] <= to_fiu.sRx;
             end
 
             // Intermediate stages
@@ -148,11 +144,11 @@ module ofs_plat_utils_ccip_reg
                 end
             end
 
-            assign afu_cp2af_sRx = reg_cp2af_sRx[N_REG_STAGES - 1];
+            assign to_afu.sRx = reg_cp2af_sRx[N_REG_STAGES - 1];
         end
         else
         begin : wire_rx
-            assign afu_cp2af_sRx = fiu_cp2af_sRx;
+            assign to_afu.sRx = to_fiu.sRx;
         end
 
 
@@ -168,8 +164,8 @@ module ofs_plat_utils_ccip_reg
 
             always_ff @(posedge clk)
             begin
-                reg_cp2af_pwrState[0] <= fiu_cp2af_pwrState;
-                reg_cp2af_error[0] <= fiu_cp2af_error;
+                reg_cp2af_pwrState[0] <= fiu_pwrState;
+                reg_cp2af_error[0] <= to_fiu.error;
             end
 
             // Intermediate stages
@@ -182,13 +178,13 @@ module ofs_plat_utils_ccip_reg
                 end
             end
 
-            assign afu_cp2af_pwrState = reg_cp2af_pwrState[N_REG_STAGES - 1];
-            assign afu_cp2af_error = reg_cp2af_error[N_REG_STAGES - 1];
+            assign afu_pwrState = reg_cp2af_pwrState[N_REG_STAGES - 1];
+            assign to_afu.error = reg_cp2af_error[N_REG_STAGES - 1];
         end
         else
         begin : wire_err
-            assign afu_cp2af_pwrState = fiu_cp2af_pwrState;
-            assign afu_cp2af_error = fiu_cp2af_error;
+            assign afu_pwrState = fiu_pwrState;
+            assign to_afu.error = to_fiu.error;
         end
     endgenerate
 
