@@ -81,6 +81,39 @@ package ofs_plat_ccip_if_funcs_pkg;
                r.mmioWrValid;
     endfunction
 
+    function automatic logic ccip_c0Tx_isReadReq_noCheckValid(
+        input t_if_ccip_c0_Tx r
+        );
+
+        return ((r.hdr.req_type == eREQ_RDLINE_I) ||
+                (r.hdr.req_type == eREQ_RDLINE_S) ||
+                (r.hdr.req_type == eREQ_RDLSPEC_I) ||
+                (r.hdr.req_type == eREQ_RDLSPEC_S)
+                );
+    endfunction
+
+    function automatic logic ccip_c0Tx_isReadReq(
+        input t_if_ccip_c0_Tx r
+        );
+
+        return r.valid && ccip_c0Tx_isReadReq_noCheckValid(r);
+    endfunction
+
+    function automatic logic ccip_c0Tx_isSpecReadReq_noCheckValid(
+        input t_if_ccip_c0_Tx r
+        );
+
+        return ((r.hdr.req_type == eREQ_RDLSPEC_I) ||
+                (r.hdr.req_type == eREQ_RDLSPEC_S));
+    endfunction
+
+    function automatic logic ccip_c0Tx_isSpecReadReq(
+        input t_if_ccip_c0_Tx r
+        );
+
+        return r.valid && ccip_c0Tx_isSpecReadReq_noCheckValid(r);
+    endfunction
+
     function automatic logic ccip_c0Rx_isReadRsp(
         input t_if_ccip_c0_Rx r
         );
@@ -112,9 +145,8 @@ package ofs_plat_ccip_if_funcs_pkg;
         );
 
         return ((r.hdr.req_type == eREQ_WRLINE_I) ||
-                (r.hdr.req_type == eREQ_WRLINE_M)
-                || (r.hdr.req_type == eREQ_WRPUSH_I)
-                );
+                (r.hdr.req_type == eREQ_WRLINE_M) ||
+                (r.hdr.req_type == eREQ_WRPUSH_I));
     endfunction
 
     function automatic logic ccip_c1Tx_isWriteReq(

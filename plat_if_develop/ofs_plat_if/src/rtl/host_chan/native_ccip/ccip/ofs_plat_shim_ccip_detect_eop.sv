@@ -39,7 +39,7 @@
 //   bits (see MAX_ACTIVE_WR_REQS below).
 //
 
-`include "ofs_plat_host_ccip_if.vh"
+`include "ofs_plat_if.vh"
 
 module ofs_plat_shim_ccip_detect_eop
   #(
@@ -48,7 +48,7 @@ module ofs_plat_shim_ccip_detect_eop
     // active write request. Logic between this module and the AFU must
     // guarantee that values are unique! The tags are used inside the
     // EOP detector.
-    parameter MAX_ACTIVE_WR_REQS = 128
+    parameter MAX_ACTIVE_WR_REQS = ccip_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0]
     )
    (
     // Connection toward the FIU
