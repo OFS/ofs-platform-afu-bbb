@@ -48,7 +48,7 @@ interface ofs_plat_host_chan_GROUP_if
 
     ofs_plat_host_ccip_if
       #(
-        .ENABLE_LOG(ENABLE_LOG)
+        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
         )
         ports[NUM_PORTS]();
 

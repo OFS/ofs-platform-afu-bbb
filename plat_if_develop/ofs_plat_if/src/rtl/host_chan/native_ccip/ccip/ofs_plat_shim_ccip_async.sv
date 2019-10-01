@@ -27,8 +27,8 @@
  */
 
 /*
- * Module: ofs_plat_utils_ccip_async_shim
- *         CCI-P async shim to connect slower/faster AFUs to 400 Mhz Blue bitstream
+ * Module: ofs_plat_shim_ccip_async
+ *         CCI-P async shim to connect slower/faster AFUs to the FIU
  *
  * Owner      : Rahul R Sharma
  *              rahul.r.sharma@intel.com
@@ -40,7 +40,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_utils_ccip_async_shim
+module ofs_plat_shim_ccip_async
   #(
     parameter DEBUG_ENABLE          = 0,
 
@@ -58,22 +58,15 @@ module ofs_plat_utils_ccip_async_shim
     // ---------------------------------- //
     // Blue Bitstream Interface
     // ---------------------------------- //
-    input logic        bb_softreset,
-    input logic        bb_clk,
-    output             t_if_ccip_Tx bb_tx,
-    input              t_if_ccip_Rx bb_rx,
-    input logic [1:0]  bb_pwrState,
-    input logic        bb_error,
+    ofs_plat_host_ccip_if.to_fiu to_fiu,
+    input t_ofs_plat_power_state fiu_pwrState,
 
     // ---------------------------------- //
     // Green Bitstream interface
     // ---------------------------------- //
-    output logic       afu_softreset,
-    input logic        afu_clk,
-    input              t_if_ccip_Tx afu_tx,
-    output             t_if_ccip_Rx afu_rx,
-    output logic [1:0] afu_pwrState,
-    output logic       afu_error,
+    input logic afu_clk,
+    ofs_plat_host_ccip_if.to_afu to_afu,
+    output t_ofs_plat_power_state afu_pwrState,
 
     // ---------------------------------- //
     // Error vector (afu_clk domain)
@@ -88,7 +81,7 @@ module ofs_plat_utils_ccip_async_shim
     localparam C1RX_TOTAL_WIDTH = $bits(t_ccip_c1_RspMemHdr);
 
     // TX buffers just need to be large enough to avoid pipeline back pressure.
-    // The TX rate limiter is the slower of the AFU and BB clocks, not the TX buffer.
+    // The TX rate limiter is the slower of the AFU and FIU clocks, not the TX buffer.
     localparam C0TX_DEPTH_RADIX = $clog2(3 * CCIP_TX_ALMOST_FULL_THRESHOLD +
                                          EXTRA_ALMOST_FULL_STAGES);
 
@@ -105,15 +98,17 @@ module ofs_plat_utils_ccip_async_shim
                                             (CCIP_TX_ALMOST_FULL_THRESHOLD / 2) +
                                             EXTRA_ALMOST_FULL_STAGES;
 
+    assign to_afu.clk = afu_clk;
+
     //
     // Reset synchronizer
     //
     (* preserve *) logic reset[3:0] = '{1'b1, 1'b1, 1'b1, 1'b1};
-    assign afu_softreset = reset[3];
+    assign to_afu.reset = reset[3];
 
-    always @(posedge bb_clk)
+    always @(posedge to_fiu.clk)
     begin
-        reset[0] <= bb_softreset;
+        reset[0] <= to_fiu.reset;
     end
 
     always @(posedge afu_clk)
@@ -125,15 +120,15 @@ module ofs_plat_utils_ccip_async_shim
     //
     // Power state and error synchronizer
     //
-    (* preserve *) logic [1:0] pwrState[3:0];
+    (* preserve *) t_ofs_plat_power_state pwrState[3:0];
     (* preserve *) logic error[3:0];
     assign afu_pwrState = pwrState[3];
-    assign afu_error = error[3];
+    assign to_afu.error = error[3];
 
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
-        pwrState[0] <= bb_pwrState;
-        error[0] <= bb_error;
+        pwrState[0] <= fiu_pwrState;
+        error[0] <= to_fiu.error;
     end
 
     always_ff @(posedge afu_clk)
@@ -152,22 +147,22 @@ module ofs_plat_utils_ccip_async_shim
     end
 
 
-    t_if_ccip_Rx bb_rx_q;
-    t_if_ccip_Rx afu_rx_next;
+    t_if_ccip_Rx fiu_sRx_q;
+    t_if_ccip_Rx afu_sRx_next;
 
-    t_if_ccip_Tx bb_tx_next;
-    t_if_ccip_Tx afu_tx_q;
+    t_if_ccip_Tx fiu_sTx_next;
+    t_if_ccip_Tx afu_sTx_q;
 
     always_ff @(posedge afu_clk)
     begin
-        afu_rx <= afu_rx_next;
-        afu_tx_q <= afu_tx;
+        to_afu.sRx <= afu_sRx_next;
+        afu_sTx_q <= to_afu.sTx;
     end
 
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
-        bb_rx_q <= bb_rx;
-        bb_tx <= bb_tx_next;
+        fiu_sRx_q <= to_fiu.sRx;
+        to_fiu.sTx <= fiu_sTx_next;
     end
 
 
@@ -188,11 +183,11 @@ module ofs_plat_utils_ccip_async_shim
         )
      c0tx_afifo
        (
-        .data(afu_tx_q.c0.hdr),
-        .wrreq(afu_tx_q.c0.valid && ! c0tx_fifo_wrfull),
+        .data(afu_sTx_q.c0.hdr),
+        .wrreq(afu_sTx_q.c0.valid && ! c0tx_fifo_wrfull),
         .rdreq(c0tx_rdreq),
         .wrclk(afu_clk),
-        .rdclk(bb_clk),
+        .rdclk(to_fiu.clk),
         .aclr(reset[0]),
         .q(c0tx_dout),
         .rdusedw(),
@@ -205,16 +200,16 @@ module ofs_plat_utils_ccip_async_shim
         );
 
     // Forward FIFO toward FIU when there is data and the output channel is available
-    assign c0tx_rdreq = ! c0tx_rdempty && ! bb_rx_q.c0TxAlmFull;
-    always_ff @(posedge bb_clk)
+    assign c0tx_rdreq = ! c0tx_rdempty && ! fiu_sRx_q.c0TxAlmFull;
+    always_ff @(posedge to_fiu.clk)
     begin
         c0tx_rdreq_q <= c0tx_rdreq;
     end
 
     always_comb
     begin
-        bb_tx_next.c0.valid = c0tx_rdreq_q;
-        bb_tx_next.c0.hdr = c0tx_dout;
+        fiu_sTx_next.c0.valid = c0tx_rdreq_q;
+        fiu_sTx_next.c0.hdr = c0tx_dout;
     end
 
     // Track round-trip request -> response credits to avoid filling the
@@ -227,9 +222,9 @@ module ofs_plat_utils_ccip_async_shim
       c0req_credit_counter
         (
          .clk(afu_clk),
-         .reset(afu_softreset),
-         .c0Tx(afu_tx_q.c0),
-         .c0Rx(afu_rx_next.c0),
+         .reset(to_afu.reset),
+         .c0Tx(afu_sTx_q.c0),
+         .c0Rx(afu_sRx_next.c0),
          .cnt(c0req_cnt)
          );
 
@@ -256,9 +251,9 @@ module ofs_plat_utils_ccip_async_shim
 
     always_ff @(posedge afu_clk)
     begin
-        afu_rx_next.c0TxAlmFull <= c0tx_almfull ||
-                                   (c0req_cnt > C0RX_DEPTH_RADIX'(C0_REQ_CREDIT_LIMIT)) ||
-                                   buffer_error;
+        afu_sRx_next.c0TxAlmFull <= c0tx_almfull ||
+                                    (c0req_cnt > C0RX_DEPTH_RADIX'(C0_REQ_CREDIT_LIMIT)) ||
+                                    buffer_error;
     end
 
 
@@ -280,11 +275,11 @@ module ofs_plat_utils_ccip_async_shim
         )
      c1tx_afifo
        (
-        .data({afu_tx_q.c1.hdr, afu_tx_q.c1.data}),
-        .wrreq(afu_tx_q.c1.valid && ! c1tx_fifo_wrfull),
+        .data({afu_sTx_q.c1.hdr, afu_sTx_q.c1.data}),
+        .wrreq(afu_sTx_q.c1.valid && ! c1tx_fifo_wrfull),
         .rdreq(c1tx_rdreq),
         .wrclk(afu_clk),
-        .rdclk(bb_clk),
+        .rdclk(to_fiu.clk),
         .aclr(reset[0]),
         .q({c1tx_dout_hdr, c1tx_dout_data}),
         .rdusedw(),
@@ -309,18 +304,18 @@ module ofs_plat_utils_ccip_async_shim
 
     // Forward FIFO toward FIU when there is data and the output channel is available
     assign c1tx_rdreq = ! c1tx_rdempty &&
-                        (! bb_rx_q.c1TxAlmFull || c1tx_complete_partial_packet);
+                        (! fiu_sRx_q.c1TxAlmFull || c1tx_complete_partial_packet);
 
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
         c1tx_rdreq_q <= c1tx_rdreq;
     end
 
     always_comb
     begin
-        bb_tx_next.c1.valid = c1tx_rdreq_q;
-        bb_tx_next.c1.hdr = c1tx_dout_hdr;
-        bb_tx_next.c1.data = c1tx_dout_data;
+        fiu_sTx_next.c1.valid = c1tx_rdreq_q;
+        fiu_sTx_next.c1.hdr = c1tx_dout_hdr;
+        fiu_sTx_next.c1.data = c1tx_dout_data;
     end
 
     //
@@ -328,7 +323,7 @@ module ofs_plat_utils_ccip_async_shim
     //
     t_ccip_clNum c1tx_rem_beats;
 
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
         if (c1tx_rdreq_q)
         begin
@@ -366,9 +361,9 @@ module ofs_plat_utils_ccip_async_shim
       c1req_credit_counter
        (
         .clk(afu_clk),
-        .reset(afu_softreset),
-        .c1Tx(afu_tx_q.c1),
-        .c1Rx(afu_rx_next.c1),
+        .reset(to_afu.reset),
+        .c1Tx(afu_sTx_q.c1),
+        .c1Rx(afu_sRx_next.c1),
         .cnt(c1req_cnt)
         );
 
@@ -393,9 +388,9 @@ module ofs_plat_utils_ccip_async_shim
 
     always_ff @(posedge afu_clk)
     begin
-        afu_rx_next.c1TxAlmFull <= c1tx_almfull ||
-                                   (c1req_cnt > C1RX_DEPTH_RADIX'(C1_REQ_CREDIT_LIMIT)) ||
-                                   buffer_error;
+        afu_sRx_next.c1TxAlmFull <= c1tx_almfull ||
+                                    (c1req_cnt > C1RX_DEPTH_RADIX'(C1_REQ_CREDIT_LIMIT)) ||
+                                    buffer_error;
     end
 
 
@@ -414,11 +409,11 @@ module ofs_plat_utils_ccip_async_shim
         )
       c2tx_afifo
        (
-        .data({afu_tx_q.c2.hdr, afu_tx_q.c2.data}),
-        .wrreq(afu_tx_q.c2.mmioRdValid & ! c2tx_fifo_wrfull),
+        .data({afu_sTx_q.c2.hdr, afu_sTx_q.c2.data}),
+        .wrreq(afu_sTx_q.c2.mmioRdValid & ! c2tx_fifo_wrfull),
         .rdreq(c2tx_rdreq),
         .wrclk(afu_clk),
-        .rdclk(bb_clk),
+        .rdclk(to_fiu.clk),
         .aclr(reset[0]),
         .q(c2tx_dout),
         .rdusedw(),
@@ -431,15 +426,15 @@ module ofs_plat_utils_ccip_async_shim
         );
 
     assign c2tx_rdreq = ! c2tx_rdempty;
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
         c2tx_rdreq_q <= c2tx_rdreq;
     end
 
     always_comb
     begin
-        bb_tx_next.c2.mmioRdValid = c2tx_rdreq_q;
-        {bb_tx_next.c2.hdr, bb_tx_next.c2.data} = c2tx_dout;
+        fiu_sTx_next.c2.mmioRdValid = c2tx_rdreq_q;
+        {fiu_sTx_next.c2.hdr, fiu_sTx_next.c2.data} = c2tx_dout;
     end
 
 
@@ -458,10 +453,10 @@ module ofs_plat_utils_ccip_async_shim
         )
       c0rx_afifo
        (
-        .data({bb_rx_q.c0.hdr, bb_rx_q.c0.data, bb_rx_q.c0.rspValid, bb_rx_q.c0.mmioRdValid, bb_rx_q.c0.mmioWrValid}),
-        .wrreq(bb_rx_q.c0.rspValid | bb_rx_q.c0.mmioRdValid |  bb_rx_q.c0.mmioWrValid),
+        .data({fiu_sRx_q.c0.hdr, fiu_sRx_q.c0.data, fiu_sRx_q.c0.rspValid, fiu_sRx_q.c0.mmioRdValid, fiu_sRx_q.c0.mmioWrValid}),
+        .wrreq(fiu_sRx_q.c0.rspValid | fiu_sRx_q.c0.mmioRdValid |  fiu_sRx_q.c0.mmioWrValid),
         .rdreq(c0rx_rdreq),
-        .wrclk(bb_clk),
+        .wrclk(to_fiu.clk),
         .rdclk(afu_clk),
         .aclr(reset[0]),
         .q(c0rx_dout),
@@ -482,15 +477,15 @@ module ofs_plat_utils_ccip_async_shim
 
     always_comb
     begin
-        { afu_rx_next.c0.hdr, afu_rx_next.c0.data,
-          afu_rx_next.c0.rspValid, afu_rx_next.c0.mmioRdValid,
-          afu_rx_next.c0.mmioWrValid } = c0rx_dout;
+        { afu_sRx_next.c0.hdr, afu_sRx_next.c0.data,
+          afu_sRx_next.c0.rspValid, afu_sRx_next.c0.mmioRdValid,
+          afu_sRx_next.c0.mmioWrValid } = c0rx_dout;
 
         if (! c0rx_rdreq_q)
         begin
-            afu_rx_next.c0.rspValid = 1'b0;
-            afu_rx_next.c0.mmioRdValid = 1'b0;
-            afu_rx_next.c0.mmioWrValid = 1'b0;
+            afu_sRx_next.c0.rspValid = 1'b0;
+            afu_sRx_next.c0.mmioRdValid = 1'b0;
+            afu_sRx_next.c0.mmioWrValid = 1'b0;
         end
     end
 
@@ -510,10 +505,10 @@ module ofs_plat_utils_ccip_async_shim
         )
       c1rx_afifo
        (
-        .data(bb_rx_q.c1.hdr),
-        .wrreq(bb_rx_q.c1.rspValid),
+        .data(fiu_sRx_q.c1.hdr),
+        .wrreq(fiu_sRx_q.c1.rspValid),
         .rdreq(c1rx_rdreq),
-        .wrclk(bb_clk),
+        .wrclk(to_fiu.clk),
         .rdclk(afu_clk),
         .aclr(reset[0]),
         .q(c1rx_dout),
@@ -534,8 +529,8 @@ module ofs_plat_utils_ccip_async_shim
 
     always_comb
     begin
-        afu_rx_next.c1.rspValid = c1rx_rdreq_q;
-        afu_rx_next.c1.hdr = c1rx_dout;
+        afu_sRx_next.c1.rspValid = c1rx_rdreq_q;
+        afu_sRx_next.c1.hdr = c1rx_dout;
     end
 
 
@@ -550,7 +545,7 @@ module ofs_plat_utils_ccip_async_shim
      */
     always_ff @(posedge afu_clk)
     begin
-        if (afu_softreset)
+        if (to_afu.reset)
         begin
             async_shim_error[2:0] <= 3'b0;
         end
@@ -558,33 +553,33 @@ module ofs_plat_utils_ccip_async_shim
         begin
             // Hold the error state once set
             async_shim_error[0] <= async_shim_error[0] ||
-                                   (c0tx_fifo_wrfull && afu_tx_q.c0.valid);
+                                   (c0tx_fifo_wrfull && afu_sTx_q.c0.valid);
             async_shim_error[1] <= async_shim_error[1] ||
-                                   (c1tx_fifo_wrfull && afu_tx_q.c1.valid);
+                                   (c1tx_fifo_wrfull && afu_sTx_q.c1.valid);
             async_shim_error[2] <= async_shim_error[2] ||
-                                   (c2tx_fifo_wrfull && afu_tx_q.c2.mmioRdValid);
+                                   (c2tx_fifo_wrfull && afu_sTx_q.c2.mmioRdValid);
         end
     end
 
 
-    // FIU-side errors in the bb_clk domain
-    (* preserve *) logic [1:0] async_shim_error_bb;
+    // FIU-side errors in the to_fiu.clk domain
+    (* preserve *) logic [1:0] async_shim_error_fiu;
 
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
         if (reset[0])
         begin
-            async_shim_error_bb <= 2'b0;
+            async_shim_error_fiu <= 2'b0;
         end
         else
         begin
             // Hold the error state once set
-            async_shim_error_bb[0] <= async_shim_error_bb[0] ||
-                                      (c0rx_fifo_wrfull && (bb_rx_q.c0.rspValid ||
-                                                            bb_rx_q.c0.mmioRdValid ||
-                                                            bb_rx_q.c0.mmioWrValid));
-            async_shim_error_bb[1] <= async_shim_error_bb[1] ||
-                                      (c1rx_fifo_wrfull && bb_rx_q.c1.rspValid);
+            async_shim_error_fiu[0] <= async_shim_error_fiu[0] ||
+                                       (c0rx_fifo_wrfull && (fiu_sRx_q.c0.rspValid ||
+                                                             fiu_sRx_q.c0.mmioRdValid ||
+                                                             fiu_sRx_q.c0.mmioWrValid));
+            async_shim_error_fiu[1] <= async_shim_error_fiu[1] ||
+                                       (c1rx_fifo_wrfull && fiu_sRx_q.c1.rspValid);
         end
     end
 
@@ -593,7 +588,7 @@ module ofs_plat_utils_ccip_async_shim
 
     always_ff @(posedge afu_clk)
     begin
-        async_shim_error_afu <= async_shim_error_bb;
+        async_shim_error_afu <= async_shim_error_fiu;
         async_shim_error_afu_q <= async_shim_error_afu;
         async_shim_error[4:3] <= async_shim_error_afu_q;
     end
@@ -618,17 +613,17 @@ module ofs_plat_utils_ccip_async_shim
         end
     end
 
-    always_ff @(posedge bb_clk)
+    always_ff @(posedge to_fiu.clk)
     begin
-        if (async_shim_error_bb[0])
+        if (async_shim_error_fiu[0])
             $warning("** ERROR ** C0Rx dropped transaction");
-        if (async_shim_error_bb[1])
+        if (async_shim_error_fiu[1])
             $warning("** ERROR ** C1Rx dropped transaction");
     end
 
-    always_ff @(negedge bb_clk)
+    always_ff @(negedge to_fiu.clk)
     begin
-        if ((|(async_shim_error_bb)))
+        if ((|(async_shim_error_fiu)))
         begin
             $fatal("Aborting due to dropped transaction");
         end
@@ -649,16 +644,16 @@ module ofs_plat_utils_ccip_async_shim
             (* preserve *) logic [31:0] afu_c2tx_cnt;
             (* preserve *) logic [31:0] afu_c0rx_cnt;
             (* preserve *) logic [31:0] afu_c1rx_cnt;
-            (* preserve *) logic [31:0] bb_c0tx_cnt;
-            (* preserve *) logic [31:0] bb_c1tx_cnt;
-            (* preserve *) logic [31:0] bb_c2tx_cnt;
-            (* preserve *) logic [31:0] bb_c0rx_cnt;
-            (* preserve *) logic [31:0] bb_c1rx_cnt;
+            (* preserve *) logic [31:0] fiu_c0tx_cnt;
+            (* preserve *) logic [31:0] fiu_c1tx_cnt;
+            (* preserve *) logic [31:0] fiu_c2tx_cnt;
+            (* preserve *) logic [31:0] fiu_c0rx_cnt;
+            (* preserve *) logic [31:0] fiu_c1rx_cnt;
 
             // afu_if counts
             always_ff @(posedge afu_clk)
             begin
-                if (afu_softreset)
+                if (to_afu.reset)
                 begin
                     afu_c0tx_cnt <= 0;
                     afu_c1tx_cnt <= 0;
@@ -668,42 +663,42 @@ module ofs_plat_utils_ccip_async_shim
                 end
                 else
                 begin
-                    if (afu_tx_q.c0.valid)
+                    if (afu_sTx_q.c0.valid)
                         afu_c0tx_cnt <= afu_c0tx_cnt + 1;
-                    if (afu_tx_q.c1.valid)
+                    if (afu_sTx_q.c1.valid)
                         afu_c1tx_cnt <= afu_c1tx_cnt + 1;
-                    if (afu_tx_q.c2.mmioRdValid)
+                    if (afu_sTx_q.c2.mmioRdValid)
                         afu_c2tx_cnt <= afu_c2tx_cnt + 1;
-                    if (afu_rx_next.c0.rspValid|afu_rx_next.c0.mmioRdValid|afu_rx_next.c0.mmioWrValid)
+                    if (afu_sRx_next.c0.rspValid|afu_sRx_next.c0.mmioRdValid|afu_sRx_next.c0.mmioWrValid)
                         afu_c0rx_cnt <= afu_c0rx_cnt + 1;
-                    if (afu_rx_next.c1.rspValid)
+                    if (afu_sRx_next.c1.rspValid)
                         afu_c1rx_cnt <= afu_c1rx_cnt + 1;
                 end
             end
 
-            // bb_if counts
-            always_ff @(posedge bb_clk)
+            // fiu_if counts
+            always_ff @(posedge to_fiu.clk)
             begin
                 if (reset[0])
                 begin
-                    bb_c0tx_cnt <= 0;
-                    bb_c1tx_cnt <= 0;
-                    bb_c2tx_cnt <= 0;
-                    bb_c0rx_cnt <= 0;
-                    bb_c1rx_cnt <= 0;
+                    fiu_c0tx_cnt <= 0;
+                    fiu_c1tx_cnt <= 0;
+                    fiu_c2tx_cnt <= 0;
+                    fiu_c0rx_cnt <= 0;
+                    fiu_c1rx_cnt <= 0;
                 end
                 else
                 begin
-                    if (bb_tx_next.c0.valid)
-                        bb_c0tx_cnt <= bb_c0tx_cnt + 1;
-                    if (bb_tx_next.c1.valid)
-                        bb_c1tx_cnt <= bb_c1tx_cnt + 1;
-                    if (bb_tx_next.c2.mmioRdValid)
-                        bb_c2tx_cnt <= bb_c2tx_cnt + 1;
-                    if (bb_rx_q.c0.rspValid|bb_rx_q.c0.mmioRdValid|bb_rx_q.c0.mmioWrValid)
-                        bb_c0rx_cnt <= bb_c0rx_cnt + 1;
-                    if (bb_rx_q.c1.rspValid)
-                        bb_c1rx_cnt <= bb_c1rx_cnt + 1;
+                    if (fiu_sTx_next.c0.valid)
+                        fiu_c0tx_cnt <= fiu_c0tx_cnt + 1;
+                    if (fiu_sTx_next.c1.valid)
+                        fiu_c1tx_cnt <= fiu_c1tx_cnt + 1;
+                    if (fiu_sTx_next.c2.mmioRdValid)
+                        fiu_c2tx_cnt <= fiu_c2tx_cnt + 1;
+                    if (fiu_sRx_q.c0.rspValid|fiu_sRx_q.c0.mmioRdValid|fiu_sRx_q.c0.mmioWrValid)
+                        fiu_c0rx_cnt <= fiu_c0rx_cnt + 1;
+                    if (fiu_sRx_q.c1.rspValid)
+                        fiu_c1rx_cnt <= fiu_c1rx_cnt + 1;
                 end
             end
         end
