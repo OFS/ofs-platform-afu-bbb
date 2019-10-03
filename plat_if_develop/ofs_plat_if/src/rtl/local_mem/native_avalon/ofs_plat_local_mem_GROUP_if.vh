@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017, Intel Corporation
+// Copyright (c) 2019, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,32 +28,30 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`include "ofs_plat_if_top_config.vh"
+`ifndef __OFS_PLAT_LOCAL_MEM_GROUP_IF_VH__
+`define __OFS_PLAT_LOCAL_MEM_GROUP_IF_VH__
 
-package local_mem_GROUP_cfg_pkg;
+//
+// Templates for defining parameters of possible local memory interface classes.
+// These are independent of the actual class of the local memory interface
+// coming out of the FIM. Instead, they are aids in defining the interface
+// desired by the AFU. The macros match the target interface parameters to
+// the interface from the FIM.
+//
 
-    parameter LOCAL_MEM_VERSION_NUMBER = 1;
+//
+//  Local memory as an Avalon interface. Typical definition:
+//
+//     ofs_plat_avalon_mem_if
+//       #(
+//         `OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_MEM_IF_PARAMS
+//         )
+//       local_mem_to_afu[local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+//
+`define OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_MEM_IF_PARAMS \
+    .NUM_INSTANCES(local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS), \
+    .ADDR_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
+    .DATA_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
+    .BURST_CNT_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
 
-    parameter LOCAL_MEM_NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_NUM_BANKS;
-
-    parameter LOCAL_MEM_ADDR_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_ADDR_WIDTH;
-    parameter LOCAL_MEM_DATA_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_DATA_WIDTH;
-
-    parameter LOCAL_MEM_BURST_CNT_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_BURST_CNT_WIDTH;
-
-    // Number of bytes in a data line
-    parameter LOCAL_MEM_DATA_N_BYTES = LOCAL_MEM_DATA_WIDTH / 8;
-
-
-    // Base types
-    // --------------------------------------------------------------------
-
-    typedef logic [LOCAL_MEM_ADDR_WIDTH-1:0] t_local_mem_addr;
-    typedef logic [LOCAL_MEM_DATA_WIDTH-1:0] t_local_mem_data;
-
-    typedef logic [LOCAL_MEM_BURST_CNT_WIDTH-1:0] t_local_mem_burst_cnt;
-
-    // Byte-level mask of a data line
-    typedef logic [LOCAL_MEM_DATA_N_BYTES-1:0] t_local_mem_byte_mask;
-
-endpackage // local_mem_GROUP_cfg_pkg
+`endif // __OFS_PLAT_LOCAL_MEM_GROUP_IF_VH__

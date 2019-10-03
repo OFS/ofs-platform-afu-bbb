@@ -43,6 +43,20 @@
 `include "platform_if.vh"
 
 //
+// If these macros are missing the compilation is not in compatibility
+// mode and platform_shim_ccip_std_afu won't be used. Skip this module
+// to avoid compilation failure.
+//
+`ifndef PLATFORM_PARAM_CCI_P_CLOCK
+  `ifndef PLATFORM_PARAM_CCI_P_CLOCK_IS_DEFAULT
+    `define DISABLE_PLATFORM_SHIM_CCIP_STD_AFU 1
+  `endif
+`endif
+
+
+`ifndef DISABLE_PLATFORM_SHIM_CCIP_STD_AFU
+
+//
 // Start with a simple wrapper that extracts hssi ports with the
 // name used in the v1 PIM. Some AFUs specify clocks using the hssi
 // naming.
@@ -190,11 +204,11 @@ module platform_shim_ccip_std_afu_hssi
 `endif
 
 `ifdef PLATFORM_SHIM_MAP_LOCAL_MEM
-    ofs_plat_local_mem_if
+    ofs_plat_avalon_mem_if
       #(
-        .NUM_BANKS(NUM_LOCAL_MEM_BANKS)
+        `OFS_PLAT_LOCAL_MEM_AS_AVALON_MEM_IF_PARAMS
         )
-      local_mem_to_afu();
+      local_mem_to_afu[NUM_LOCAL_MEM_BANKS]();
 
     // The compatibility interface to local memory is slightly different,
     // named avalon_mem_if.
@@ -241,7 +255,7 @@ module platform_shim_ccip_std_afu_hssi
                 .tgt_mem_afu_clk(`PLATFORM_PARAM_LOCAL_MEMORY_CLOCK),
 `endif
                 .to_fiu(plat_ifc.local_mem.banks[b]),
-                .to_afu(local_mem_to_afu.banks[b])
+                .to_afu(local_mem_to_afu[b])
                 );
 
             // Wire mapping to the compatibility interface
@@ -249,20 +263,20 @@ module platform_shim_ccip_std_afu_hssi
             begin
                 local_mem[b].clk = plat_ifc.local_mem.banks[b].clk;
 
-                local_mem_clk[b] = local_mem_to_afu.banks[b].clk;
-                local_mem_reset[b] = local_mem_to_afu.banks[b].reset;
+                local_mem_clk[b] = local_mem_to_afu[b].clk;
+                local_mem_reset[b] = local_mem_to_afu[b].reset;
                 local_mem_compat[b].bank_number = b;
 
-                local_mem_compat[b].waitrequest = local_mem_to_afu.banks[b].waitrequest;
-                local_mem_compat[b].readdata = local_mem_to_afu.banks[b].readdata;
-                local_mem_compat[b].readdatavalid = local_mem_to_afu.banks[b].readdatavalid;
+                local_mem_compat[b].waitrequest = local_mem_to_afu[b].waitrequest;
+                local_mem_compat[b].readdata = local_mem_to_afu[b].readdata;
+                local_mem_compat[b].readdatavalid = local_mem_to_afu[b].readdatavalid;
 
-                local_mem_to_afu.banks[b].address = local_mem_compat[b].address;
-                local_mem_to_afu.banks[b].write = local_mem_compat[b].write;
-                local_mem_to_afu.banks[b].read = local_mem_compat[b].read;
-                local_mem_to_afu.banks[b].burstcount = local_mem_compat[b].burstcount;
-                local_mem_to_afu.banks[b].writedata = local_mem_compat[b].writedata;
-                local_mem_to_afu.banks[b].byteenable = local_mem_compat[b].byteenable;
+                local_mem_to_afu[b].address = local_mem_compat[b].address;
+                local_mem_to_afu[b].write = local_mem_compat[b].write;
+                local_mem_to_afu[b].read = local_mem_compat[b].read;
+                local_mem_to_afu[b].burstcount = local_mem_compat[b].burstcount;
+                local_mem_to_afu[b].writedata = local_mem_compat[b].writedata;
+                local_mem_to_afu[b].byteenable = local_mem_compat[b].byteenable;
             end
         end
     endgenerate
@@ -377,3 +391,5 @@ module platform_shim_ccip_std_afu_hssi
         );
 
 endmodule // platform_shim_ccip_std_afu_hssi
+
+`endif //  `ifndef DISABLE_PLATFORM_SHIM_CCIP_STD_AFU

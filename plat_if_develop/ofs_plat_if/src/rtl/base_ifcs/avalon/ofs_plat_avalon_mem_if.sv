@@ -71,7 +71,6 @@ interface ofs_plat_avalon_mem_if
     logic waitrequest;
     logic [DATA_WIDTH-1:0] readdata;
     logic readdatavalid;
-    logic writeresponsevalid;
     logic [1:0] response;
 
     logic [ADDR_WIDTH-1:0] address;
@@ -96,7 +95,6 @@ interface ofs_plat_avalon_mem_if
         input  waitrequest,
         input  readdata,
         input  readdatavalid,
-        input  writeresponsevalid,
         input  response,
 
         output address,
@@ -121,7 +119,6 @@ interface ofs_plat_avalon_mem_if
         output waitrequest,
         output readdata,
         output readdatavalid,
-        output writeresponsevalid,
         output response,
 
         input  address,
@@ -195,16 +192,6 @@ interface ofs_plat_avalon_mem_if
                     begin
                         wr_bursts_rem <= wr_bursts_rem - 1;
                     end
-                end
-
-                // Write response
-                if (! reset && writeresponsevalid)
-                begin
-                    $fwrite(log_fd, "%m: %t %s %0d write resp (%d)\n",
-                            $time,
-                            ofs_plat_log_pkg::instance_name[LOG_CLASS],
-                            instance_number,
-                            response);
                 end
 
                 if (reset)

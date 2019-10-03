@@ -40,6 +40,10 @@
 `include "ofs_plat_host_ccip_if.vh"
 `include "ofs_plat_avalon_mem_if.vh"
 
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
+  `include "ofs_plat_local_mem_wrapper.vh"
+`endif
+
 // Compatibility mode for OPAE SDK's Platform Interface Manager
 `ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
   `include "platform_shim_ccip_std_afu.vh"

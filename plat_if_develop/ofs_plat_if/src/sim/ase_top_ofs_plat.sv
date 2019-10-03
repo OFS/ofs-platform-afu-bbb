@@ -113,24 +113,6 @@ module ase_top_ofs_plat
             assign plat_ifc.local_mem.banks[b].reset = plat_ifc.softReset;
 
             assign plat_ifc.local_mem.banks[b].response = 2'b0;
-
-            // The model doesn't generate "writeresponsevalid".
-            // Generate it here.
-            ofs_plat_avalon_mem_if_gen_write_response
-              #(
-                .BURST_CNT_WIDTH(local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
-                )
-              wr_resp
-               (
-                .clk(plat_ifc.local_mem.banks[b].clk),
-                .reset(plat_ifc.local_mem.banks[b].reset),
-
-                .write(plat_ifc.local_mem.banks[b].write),
-                .waitrequest(plat_ifc.local_mem.banks[b].waitrequest),
-                .burstcount(plat_ifc.local_mem.banks[b].burstcount),
-
-                .writeresponsevalid(plat_ifc.local_mem.banks[b].writeresponsevalid)
-                );
         end
     endgenerate
 `endif

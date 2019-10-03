@@ -110,16 +110,6 @@ module ofs_plat_avalon_mem_if_reg
                     .m0_debugaccess()
                     );
 
-                // The bridge doesn't handle writeresponsevalid
-                always_ff @(posedge mem_pipe[s].clk)
-                begin
-                    mem_pipe[s].writeresponsevalid <= mem_pipe[s-1].writeresponsevalid;
-                    if (mem_pipe[s].reset)
-                    begin
-                        mem_pipe[s].writeresponsevalid <= 1'b0;
-                    end
-                end
-
                 // Debugging signal
                 assign mem_pipe[s].instance_number = mem_pipe[s-1].instance_number;
             end

@@ -65,7 +65,6 @@
     MEM_MASTER.waitrequest = MEM_SLAVE.waitrequest; \
     MEM_MASTER.readdata = MEM_SLAVE.readdata; \
     MEM_MASTER.readdatavalid = MEM_SLAVE.readdatavalid; \
-    MEM_MASTER.writeresponsevalid = MEM_SLAVE.writeresponsevalid; \
     MEM_MASTER.response = MEM_SLAVE.response
 
 // Note the lack of waitrequest in the non-blocking assignment. The
@@ -73,7 +72,6 @@
 `define ofs_plat_avalon_mem_if_from_slave_to_master_ff(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.readdata <= MEM_SLAVE.readdata; \
     MEM_MASTER.readdatavalid <= MEM_SLAVE.readdatavalid; \
-    MEM_MASTER.writeresponsevalid <= MEM_SLAVE.writeresponsevalid; \
     MEM_MASTER.response <= MEM_SLAVE.response
 
 
@@ -103,14 +101,12 @@
     MEM_SLAVE.waitrequest = 1'b0; \
     MEM_SLAVE.readdata = '0; \
     MEM_SLAVE.readdatavalid = 1'b0; \
-    MEM_SLAVE.writeresponsevalid = 1'b0; \
     MEM_SLAVE.response = 2'b0
 
 `define ofs_plat_avalon_mem_if_init_slave_ff(MEM_SLAVE) \
     MEM_SLAVE.waitrequest <= 1'b0; \
     MEM_SLAVE.readdata <= '0; \
     MEM_SLAVE.readdatavalid <= 1'b0; \
-    MEM_SLAVE.writeresponsevalid <= 1'b0; \
     MEM_SLAVE.response <= 2'b0
 
 

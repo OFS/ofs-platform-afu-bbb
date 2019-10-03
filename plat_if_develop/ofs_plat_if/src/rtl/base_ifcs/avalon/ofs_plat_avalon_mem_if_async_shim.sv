@@ -54,9 +54,13 @@ module ofs_plat_avalon_mem_if_async_shim
     assign mem_master.clk = mem_master_clk;
     assign mem_master.reset = mem_master_reset;
 
+    typedef logic [1:0] t_response;
+    t_response m0_response_dummy;
+
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
-        .DATA_WIDTH(mem_slave.DATA_WIDTH),
+        // Leave room for passing "response" along with readdata
+        .DATA_WIDTH($bits(t_response) + mem_slave.DATA_WIDTH),
         .HDL_ADDR_WIDTH(mem_slave.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
@@ -71,10 +75,12 @@ module ofs_plat_avalon_mem_if_async_shim
         .m0_reset(mem_slave.reset),
 
         .s0_waitrequest(cmd_waitrequest),
-        .s0_readdata(mem_master.readdata),
+        .s0_readdata({mem_master.response, mem_master.readdata}),
         .s0_readdatavalid(mem_master.readdatavalid),
         .s0_burstcount(mem_master.burstcount),
-        .s0_writedata(mem_master.writedata),
+        // Write data width has space for response because DATA_WIDTH was set above
+        // in order to pass response with readdata.
+        .s0_writedata({t_response'(0), mem_master.writedata}),
         .s0_address(mem_master.address),
         .s0_write(mem_master.write),
         .s0_read(mem_master.read),
@@ -83,35 +89,16 @@ module ofs_plat_avalon_mem_if_async_shim
         .s0_space_avail_data(cmd_space_avail),
 
         .m0_waitrequest(mem_slave.waitrequest),
-        .m0_readdata(mem_slave.readdata),
+        .m0_readdata({mem_slave.response, mem_slave.readdata}),
         .m0_readdatavalid(mem_slave.readdatavalid),
         .m0_burstcount(mem_slave.burstcount),
-        .m0_writedata(mem_slave.writedata),
+        // See s0_writedata above for m0_response_dummy explanation.
+        .m0_writedata({m0_response_dummy, mem_slave.writedata}),
         .m0_address(mem_slave.address),
         .m0_write(mem_slave.write),
         .m0_read(mem_slave.read),
         .m0_byteenable(mem_slave.byteenable),
         .m0_debugaccess()
-        );
-
-    // response doesn't pass through the bridge. It isn't supported.
-    assign mem_master.response = 'x;
-
-    // writeresponsevalid does not pass through the bridge. Synthesize it here.
-    ofs_plat_avalon_mem_if_gen_write_response
-      #(
-        .BURST_CNT_WIDTH(mem_master.BURST_CNT_WIDTH)
-        )
-      wr_resp
-       (
-        .clk(mem_master.clk),
-        .reset(mem_master.reset),
-
-        .write(mem_master.write),
-        .waitrequest(mem_master.waitrequest),
-        .burstcount(mem_master.burstcount),
-
-        .writeresponsevalid(mem_master.writeresponsevalid)
         );
 
     // Compute mem_master.waitrequest
@@ -150,13 +137,13 @@ module ofs_plat_avalon_mem_if_async_shim
 
                 if (~mem_master.reset && cmd_waitrequest && mem_master.write)
                 begin
-                    $fatal("** ERROR ** %m: instance %0d dropped write transaction",
+                    $fatal(2, "** ERROR ** %m: instance %0d dropped write transaction",
                            mem_master.instance_number);
                 end
 
                 if (~mem_master.reset && cmd_waitrequest && mem_master.read)
                 begin
-                    $fatal("** ERROR ** %m: instance %0d dropped read transaction",
+                    $fatal(2, "** ERROR ** %m: instance %0d dropped read transaction",
                            mem_master.instance_number);
                 end
             end
