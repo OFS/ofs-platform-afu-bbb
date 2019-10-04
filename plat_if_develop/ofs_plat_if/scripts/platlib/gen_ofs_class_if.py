@@ -61,19 +61,32 @@ def copy_class(src=None, tgt=None, base_class=None, native_class=None,
                                                            group_num,
                                                            native_class))
 
-    # Copy sources
+    # Source path
     src_subdir = os.path.join('rtl', base_class, native_class)
-    tgt_subdir = os.path.join('rtl', base_class)
     if (not os.path.isdir(os.path.join(src, src_subdir))):
         __errorExit('Failed to find source directory: {0}'.format(
             os.path.join(src, src_subdir)))
-    if (verbose):
-        print('  Copying source {0} to {1}'.format(src_subdir,
-                                                   os.path.join(tgt,
-                                                                tgt_subdir)))
 
+    # Target path drops the class, since an interface has exactly one class.
+    # The platform configuration file picked one class from the available
+    # options in the source path.
+    tgt_subdir = os.path.join('rtl', base_class)
+
+    if (verbose):
+        print('  Copying source {0} to {1}'.format(
+            src_subdir, os.path.join(tgt, tgt_subdir)))
     dir_util.copy_tree(os.path.join(src, src_subdir),
                        os.path.join(tgt, tgt_subdir))
+
+    # Is there also an afu_ifcs tree? If yes, merge it into the target
+    src_afu_ifc_subdir = os.path.join('rtl', base_class, 'afu_ifcs')
+    tgt_afu_ifc_subdir = os.path.join(tgt_subdir, 'afu_ifcs')
+    if (os.path.isdir(os.path.join(src, src_afu_ifc_subdir))):
+        if (verbose):
+            print('    Merging AFU interface sources {0}'.format(
+                src_afu_ifc_subdir, os.path.join(tgt, tgt_afu_ifc_subdir)))
+        dir_util.copy_tree(os.path.join(src, src_afu_ifc_subdir),
+                           os.path.join(tgt, tgt_afu_ifc_subdir))
 
 
 def use_class_templates(tgt=None, base_class=None, group_num=0,
@@ -101,7 +114,7 @@ def use_class_templates(tgt=None, base_class=None, group_num=0,
             __gen_file_from_template(os.path.join(dirpath, fn),
                                      os.path.join(dirpath, tgt_fn),
                                      '_GROUP', group_str)
-            __note_gen_file(base_class, dirpath, tgt_fn)
+            __note_gen_file(base_class, dir, tgt_fn)
             os.remove(os.path.join(dirpath, fn))
 
 

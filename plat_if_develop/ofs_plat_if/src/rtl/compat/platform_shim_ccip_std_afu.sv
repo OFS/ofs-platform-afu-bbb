@@ -206,7 +206,7 @@ module platform_shim_ccip_std_afu_hssi
 `ifdef PLATFORM_SHIM_MAP_LOCAL_MEM
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_LOCAL_MEM_AS_AVALON_MEM_IF_PARAMS
+        `OFS_PLAT_LOCAL_MEM_AS_AVALON_IF_PARAMS
         )
       local_mem_to_afu[NUM_LOCAL_MEM_BANKS]();
 
