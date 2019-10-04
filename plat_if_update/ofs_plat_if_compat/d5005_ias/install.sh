@@ -103,7 +103,7 @@ if [ -f hw/lib/build/platform/pr_hssi_if.vh ]; then
 fi
 grep -v PR_HSSI_IF_VH hw/lib/build/platform/pr_hssi_if.vh.orig > hw/lib/build/platform/ofs_plat_if/rtl/hssi/pr_hssi_if.sv
 # Tie off file is specific to this platform
-cp -f "${SCRIPT_DIR}"/files/ofs_plat_hssi_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/hssi/
+cp -f "${SCRIPT_DIR}"/files/ofs_plat_hssi_fiu_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/hssi/
 
 echo ""
 echo "Update complete."

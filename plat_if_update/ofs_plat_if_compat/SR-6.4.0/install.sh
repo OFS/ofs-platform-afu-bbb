@@ -161,7 +161,7 @@ sed -e '/HSSI_IF/d' \
     BBS_6.4.0/skx_pr_pkg/lib/green/hssi_if.vh > hw/lib/build/platform/ofs_plat_if/rtl/hssi/pr_hssi_if.sv
 
 # HSSI tie off file is specific to this platform
-cp -f "${SCRIPT_DIR}"/files/ofs_plat_hssi_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/hssi/
+cp -f "${SCRIPT_DIR}"/files/ofs_plat_hssi_fiu_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/hssi/
 
 echo ""
 echo "Update complete."

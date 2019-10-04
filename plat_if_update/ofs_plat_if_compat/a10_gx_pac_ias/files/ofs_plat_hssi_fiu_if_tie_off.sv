@@ -28,28 +28,34 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
+//
+// Tie off a single hssi_if port.
+//
+
 `include "ofs_plat_if.vh"
 
-//
-// Required: platforms with raw interface "host_chan" must provide an interface
-// wrapper named "ofs_plat_host_chan_if". The wrapper must accept only one
-// parameter, ENABLE_LOG, even if debug logging during simulation isn't
-// implemented for the platform.
-//
-// The default parameter state must define a configuration that matches
-// the hardware. A standard interface enables platform-independent AFUs.
-//
-
-interface ofs_plat_host_chan_GROUP_if
-  #(
-    parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = 1
+module ofs_plat_hssi_fiu_if_tie_off
+   (
+    pr_hssi_if.to_fiu port
     );
 
-    ofs_plat_host_ccip_if
-      #(
-        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
-        )
-        ports[NUM_PORTS]();
+    always_comb
+    begin
+        port.a2f_tx_analogreset = '0;
+        port.a2f_tx_digitalreset = '0;
+        port.a2f_rx_analogreset = '0;
+        port.a2f_rx_digitalreset = '0;
+        port.a2f_rx_seriallpbken = '0;
+        port.a2f_rx_set_locktoref = '0;
+        port.a2f_rx_set_locktodata = '0;
+        port.a2f_tx_parallel_data = '0;
+        port.a2f_tx_control = '0;
+        port.a2f_rx_enh_fifo_rd_en = '0;
+        port.a2f_tx_enh_data_valid = '0;
+        port.a2f_init_start = '0;
+        port.a2f_prmgmt_fatal_err = '0;
+        port.a2f_prmgmt_dout = '0;
+    end
 
-endinterface // ofs_plat_host_chan_if
+endmodule // ofs_plat_hssi_fiu_if_tie_off

@@ -71,7 +71,7 @@ interface ofs_plat_if
     //==
     @OFS_PLAT_IF_TEMPLATE@
 
-    ofs_plat_@class@@group@_if
+    ofs_plat_@class@@group@_fiu_if
       #(
         .ENABLE_LOG(ENABLE_LOG)
         )
