@@ -28,15 +28,15 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_LOCAL_MEM_GROUP_IF_VH__
-`define __OFS_PLAT_LOCAL_MEM_GROUP_IF_VH__
+`ifndef __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_IF_VH__
+`define __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_IF_VH__
 
 //
 // Templates for defining parameters of possible local memory interface classes.
 // These are independent of the actual class of the local memory interface
-// coming out of the FIM. Instead, they are aids in defining the interface
+// coming out of the FIU. Instead, they are aids in defining the interface
 // desired by the AFU. The macros match the target interface parameters to
-// the interface from the FIM.
+// the interface from the FIU.
 //
 
 //
@@ -44,14 +44,14 @@
 //
 //     ofs_plat_avalon_mem_if
 //       #(
-//         `OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_MEM_IF_PARAMS
+//         `OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_IF_PARAMS
 //         )
 //       local_mem_to_afu[local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 //
-`define OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_MEM_IF_PARAMS \
+`define OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_IF_PARAMS \
     .NUM_INSTANCES(local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS), \
     .ADDR_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
     .BURST_CNT_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
 
-`endif // __OFS_PLAT_LOCAL_MEM_GROUP_IF_VH__
+`endif // __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_IF_VH__
