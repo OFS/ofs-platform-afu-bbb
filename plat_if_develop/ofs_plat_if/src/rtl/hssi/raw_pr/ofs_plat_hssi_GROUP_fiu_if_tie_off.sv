@@ -30,19 +30,21 @@
 
 
 //
-// Tie off a single local_mem_if bank.
+// Tie off a single hssi_if port.
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_local_mem_GROUP_if_tie_off
+module ofs_plat_hssi_GROUP_fiu_if_tie_off
    (
-    ofs_plat_avalon_mem_if.to_slave bank
+    pr_hssi_GROUP_if.to_fiu port
     );
 
     always_comb
     begin
-        `ofs_plat_avalon_mem_if_init_master_comb(bank);
+        //
+        // *** Platform-specific tie-off assignments go here ***
+        //
     end
 
-endmodule // ofs_plat_local_mem_GROUP_if_tie_off
+endmodule // ofs_plat_hssi_GROUP_fiu_if_tie_off

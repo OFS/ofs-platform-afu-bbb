@@ -28,23 +28,29 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
-//
-// Tie off a single hssi_if port.
-//
-
 `include "ofs_plat_if.vh"
 
-module ofs_plat_hssi_GROUP_if_tie_off
-   (
-    pr_hssi_GROUP_if.to_fiu port
+//
+// Definition of the host channel interface between the platform (blue bits)
+// and the AFU (green bits). This is the fixed interface that crosses the
+// PR boundary.
+//
+// The default parameter state must define a configuration that matches
+// the hardware.
+//=
+//= _GROUP is replaced with the group number by the gen_ofs_plat_if script
+//= as it generates a platform-specific build/platform/ofs_plat_if tree.
+//
+interface ofs_plat_host_chan_GROUP_fiu_if
+  #(
+    parameter ENABLE_LOG = 0,
+    parameter NUM_PORTS = 1
     );
 
-    always_comb
-    begin
-        //
-        // *** Platform-specific tie-off assignments go here ***
-        //
-    end
+    ofs_plat_host_ccip_if
+      #(
+        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
+        )
+        ports[NUM_PORTS]();
 
-endmodule // ofs_plat_hssi_GROUP_if_tie_off
+endinterface // ofs_plat_host_chan_GROUP_fiu_if

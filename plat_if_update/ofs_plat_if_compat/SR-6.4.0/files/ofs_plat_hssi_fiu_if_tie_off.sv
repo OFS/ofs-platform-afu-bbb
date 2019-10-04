@@ -30,23 +30,32 @@
 
 
 //
-// Tie off a single host_chan_if port.
-//
-// The signals must match the type of host_chan_if ports.
+// Tie off a single hssi_if port.
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_GROUP_if_tie_off
+module ofs_plat_hssi_fiu_if_tie_off
    (
-    ofs_plat_host_ccip_if.to_fiu port
+    pr_hssi_if.to_fiu port
     );
 
     always_comb
     begin
-        port.sTx.c0.valid = 1'b0;
-        port.sTx.c1.valid = 1'b0;
-        port.sTx.c2.mmioRdValid = 1'b0;
+        port.a2f_init_start = '0;
+        port.a2f_tx_analogreset = '0;
+        port.a2f_tx_digitalreset = '0;
+        port.a2f_rx_analogreset = '0;
+        port.a2f_rx_digitalreset = '0;
+        port.a2f_rx_seriallpbken = '0;
+        port.a2f_rx_set_locktoref = '0;
+        port.a2f_rx_set_locktodata = '0;
+        port.a2f_tx_parallel_data = '0;
+        port.a2f_tx_control = '0;
+        port.a2f_rx_enh_fifo_rd_en = '0;
+        port.a2f_tx_enh_data_valid = '0;
+        port.a2f_prmgmt_fatal_err = '0;
+        port.a2f_prmgmt_dout = '0;
     end
 
-endmodule // ofs_plat_host_chan_if_tie_off
+endmodule // ofs_plat_hssi_fiu_if_tie_off

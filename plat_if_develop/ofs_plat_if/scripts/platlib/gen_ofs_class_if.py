@@ -115,10 +115,19 @@ def __gen_file_from_template(src_fn, tgt_fn, src_pattern, tgt_pattern):
     upcase_pattern = re.compile(r'([A-Z])' + src_pattern)
     tgt_pattern_upper = r'\1' + tgt_pattern.upper()
 
+    # Drop lines beginning with '//='. These are comments for platform
+    # developers in the source files here but are dropped in the generated
+    # files.
+    src_comment_pattern = re.compile(r'\s*//=')
+
     s = open(src_fn, 'r')
     t = open(tgt_fn, 'w')
 
     for line in s:
+        # Drop source-only comments?
+        if (src_comment_pattern.match(line)):
+            continue
+
         # First do upper case substitution
         line = upcase_pattern.sub(tgt_pattern_upper, line)
         # Now lower case and write out the result

@@ -28,29 +28,25 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
+//
+// Tie off a single hssi_if port.
+//
+
 `include "ofs_plat_if.vh"
 
-//
-// Required: platforms with raw interface "hssi" must provide an interface
-// wrapper named "ofs_plat_hssi_if". The wrapper must accept at least the
-// parameter ENABLE_LOG, even if debug logging during simulation isn't
-// implemented for the platform.
-//
-// The default parameter state must define a configuration that matches
-// the hardware.
-//
-interface ofs_plat_hssi_GROUP_if
-  #(
-    parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = `OFS_PLAT_PARAM_HSSI_GROUP_NUM_PORTS
+module ofs_plat_hssi_fiu_if_tie_off
+   (
+    pr_hssi_if.to_fiu port
     );
 
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new ofs_plat_hssi_if from an
-    // existing one's parameters.
-    localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
+    always_comb
+    begin
+        port.a2f_tx_parallel_data = '0;
+        port.a2f_rx_bitslip = '0;
+        port.a2f_rx_fifo_rd_en = '0;
+        port.a2f_rx_seriallpbken = '0;
+        port.a2f_channel_reset = '0;
+    end
 
-    // For now, we simply pass the raw pr_hssi_if to the AFU.
-    pr_hssi_GROUP_if ports[NUM_PORTS]();
-
-endinterface // ofs_plat_hssi_GROUP_if
+endmodule // ofs_plat_hssi_fiu_if_tie_off

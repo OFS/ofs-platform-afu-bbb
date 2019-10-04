@@ -68,7 +68,7 @@ module ofs_plat_if_tie_off_unused
         begin : tie_@class@@group@
             if (~@CLASS@@GROUP@_IN_USE_MASK[i])
             begin : m
-                ofs_plat_@class@@group@_if_tie_off tie_off(plat_ifc.@class@@group@.@noun@[i]);
+                ofs_plat_@class@@group@_fiu_if_tie_off tie_off(plat_ifc.@class@@group@.@noun@[i]);
 
                 // synthesis translate_off
                 initial

@@ -28,34 +28,40 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
-//
-// Tie off a single hssi_if port.
-//
-
 `include "ofs_plat_if.vh"
 
-module ofs_plat_hssi_if_tie_off
-   (
-    pr_hssi_if.to_fiu port
+//
+// Definition of the local memory interface between the platform (blue bits)
+// and the AFU (green bits). This is the fixed interface that crosses the
+// PR boundary.
+//
+// The default parameter state must define a configuration that matches
+// the hardware.
+//=
+//= _GROUP is replaced with the group number by the gen_ofs_plat_if script
+//= as it generates a platform-specific build/platform/ofs_plat_if tree.
+//
+interface ofs_plat_local_mem_GROUP_fiu_if
+  #(
+    parameter ENABLE_LOG = 0,
+    parameter NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_NUM_BANKS,
+    parameter WAIT_REQUEST_ALLOWANCE = 0
     );
 
-    always_comb
-    begin
-        port.a2f_tx_analogreset = '0;
-        port.a2f_tx_digitalreset = '0;
-        port.a2f_rx_analogreset = '0;
-        port.a2f_rx_digitalreset = '0;
-        port.a2f_rx_seriallpbken = '0;
-        port.a2f_rx_set_locktoref = '0;
-        port.a2f_rx_set_locktodata = '0;
-        port.a2f_tx_parallel_data = '0;
-        port.a2f_tx_control = '0;
-        port.a2f_rx_enh_fifo_rd_en = '0;
-        port.a2f_tx_enh_data_valid = '0;
-        port.a2f_init_start = '0;
-        port.a2f_prmgmt_fatal_err = '0;
-        port.a2f_prmgmt_dout = '0;
-    end
+    // A hack to work around compilers complaining of circular dependence
+    // incorrectly when trying to make a new ofs_plat_local_mem_if from an
+    // existing one's parameters.
+    localparam NUM_BANKS_ = $bits(logic [NUM_BANKS:0]) - 1;
 
-endmodule // ofs_plat_hssi_if_tie_off
+    ofs_plat_avalon_mem_if
+      #(
+        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::LOCAL_MEM : ofs_plat_log_pkg::NONE),
+        .NUM_INSTANCES(NUM_BANKS),
+        .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_ADDR_WIDTH),
+        .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_DATA_WIDTH),
+        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_BURST_CNT_WIDTH),
+        .WAIT_REQUEST_ALLOWANCE(WAIT_REQUEST_ALLOWANCE)
+        )
+        banks[NUM_BANKS]();
+
+endinterface // ofs_plat_local_mem_GROUP_fiu_if

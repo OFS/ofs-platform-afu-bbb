@@ -30,23 +30,22 @@
 
 
 //
-// Tie off a single hssi_if port.
+// Tie off a single host channel interface port.
+//
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_hssi_if_tie_off
+module ofs_plat_host_chan_GROUP_fiu_if_tie_off
    (
-    pr_hssi_if.to_fiu port
+    ofs_plat_host_ccip_if.to_fiu port
     );
 
     always_comb
     begin
-        port.a2f_tx_parallel_data = '0;
-        port.a2f_rx_bitslip = '0;
-        port.a2f_rx_fifo_rd_en = '0;
-        port.a2f_rx_seriallpbken = '0;
-        port.a2f_channel_reset = '0;
+        port.sTx.c0.valid = 1'b0;
+        port.sTx.c1.valid = 1'b0;
+        port.sTx.c2.mmioRdValid = 1'b0;
     end
 
-endmodule // ofs_plat_hssi_if_tie_off
+endmodule // ofs_plat_host_chan_GROUP_fiu_if_tie_off
