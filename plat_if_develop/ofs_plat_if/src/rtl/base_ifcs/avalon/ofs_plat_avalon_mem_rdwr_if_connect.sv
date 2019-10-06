@@ -31,36 +31,24 @@
 `include "ofs_plat_if.vh"
 
 //
-// Definition of the local memory interface between the platform (blue bits)
-// and the AFU (green bits). This is the fixed interface that crosses the
-// PR boundary.
+// Wire together two Avalon split bus memory instances.
 //
-// The default parameter state must define a configuration that matches
-// the hardware.
-//=
-//= _GROUP is replaced with the group number by the gen_ofs_plat_if script
-//= as it generates a platform-specific build/platform/ofs_plat_if tree.
-//
-interface ofs_plat_local_mem_GROUP_fiu_if
-  #(
-    parameter ENABLE_LOG = 0,
-    parameter NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_NUM_BANKS,
-    parameter WAIT_REQUEST_ALLOWANCE = 0
+module ofs_plat_avalon_mem_rdwr_if_connect
+   (
+    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
     );
 
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new ofs_plat_local_mem_if from an
-    // existing one's parameters.
-    localparam NUM_BANKS_ = $bits(logic [NUM_BANKS:0]) - 1;
+    assign mem_master.clk = mem_slave.clk;
+    assign mem_master.reset = mem_slave.reset;
 
-    ofs_plat_avalon_mem_if
-      #(
-        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::LOCAL_MEM : ofs_plat_log_pkg::NONE),
-        .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_ADDR_WIDTH),
-        .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_DATA_WIDTH),
-        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_BURST_CNT_WIDTH),
-        .WAIT_REQUEST_ALLOWANCE(WAIT_REQUEST_ALLOWANCE)
-        )
-        banks[NUM_BANKS]();
+    always_comb
+    begin
+        `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_comb(mem_slave, mem_master);
+        `ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_comb(mem_master, mem_slave);
 
-endinterface // ofs_plat_local_mem_GROUP_fiu_if
+        // Debugging signal
+        mem_master.instance_number = mem_slave.instance_number;
+    end
+
+endmodule // ofs_plat_avalon_mem_rdwr_if_connect

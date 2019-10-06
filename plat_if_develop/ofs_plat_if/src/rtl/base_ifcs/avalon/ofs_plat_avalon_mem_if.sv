@@ -39,9 +39,6 @@ interface ofs_plat_avalon_mem_if
     // Log events for this instance?
     parameter ofs_plat_log_pkg::t_log_class LOG_CLASS = ofs_plat_log_pkg::NONE,
 
-    // Controls the size of instance_number
-    parameter NUM_INSTANCES = 1,
-
     parameter ADDR_WIDTH = 0,
     parameter DATA_WIDTH = 0,
     parameter BURST_CNT_WIDTH = 0,
@@ -56,7 +53,6 @@ interface ofs_plat_avalon_mem_if
     // A hack to work around compilers complaining of circular dependence
     // incorrectly when trying to make a new ofs_plat_local_mem_if from an
     // existing one's parameters.
-    localparam NUM_INSTANCES_ = $bits(logic [NUM_INSTANCES:0]) - 1;
     localparam ADDR_WIDTH_ = $bits(logic [ADDR_WIDTH:0]) - 1;
     localparam DATA_WIDTH_ = $bits(logic [DATA_WIDTH:0]) - 1;
     localparam BURST_CNT_WIDTH_ = $bits(logic [BURST_CNT_WIDTH:0]) - 1;
@@ -82,7 +78,7 @@ interface ofs_plat_avalon_mem_if
 
     // Debugging state.  This will typically be driven to a constant by the
     // code that instantiates the interface object.
-    logic [$clog2(NUM_INSTANCES)-1:0] instance_number;
+    int unsigned instance_number;
 
     //
     // Connection from master toward slave
@@ -104,7 +100,8 @@ interface ofs_plat_avalon_mem_if
         output writedata,
         output byteenable,
 
-        output instance_number
+        // Debugging
+        input  instance_number
         );
 
 
@@ -128,6 +125,7 @@ interface ofs_plat_avalon_mem_if
         input  writedata,
         input  byteenable,
 
+        // Debugging
         output instance_number
         );
 
@@ -151,12 +149,13 @@ interface ofs_plat_avalon_mem_if
                 // Read request
                 if (! reset && read && ! waitrequest)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x mask 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             address,
-                            burstcount);
+                            burstcount,
+                            byteenable);
                 end
 
                 // Read response

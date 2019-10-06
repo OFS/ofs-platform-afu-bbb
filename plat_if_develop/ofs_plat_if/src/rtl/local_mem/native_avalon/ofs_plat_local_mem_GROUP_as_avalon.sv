@@ -124,7 +124,6 @@ module ofs_plat_local_mem_GROUP_as_avalon
             //
             ofs_plat_avalon_mem_if
               #(
-                .NUM_INSTANCES(to_fiu.NUM_INSTANCES_),
                 .ADDR_WIDTH(to_fiu.ADDR_WIDTH_),
                 .DATA_WIDTH(to_fiu.DATA_WIDTH_),
                 .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_)

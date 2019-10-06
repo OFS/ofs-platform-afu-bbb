@@ -57,7 +57,6 @@ module ofs_plat_avalon_mem_if_reg
             // Pipeline stages.
             ofs_plat_avalon_mem_if
               #(
-                .NUM_INSTANCES(mem_slave.NUM_INSTANCES_),
                 .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
                 .DATA_WIDTH(mem_slave.DATA_WIDTH_),
                 .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)

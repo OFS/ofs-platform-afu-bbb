@@ -49,7 +49,6 @@
 //       local_mem_to_afu[local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 //
 `define OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_IF_PARAMS \
-    .NUM_INSTANCES(local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS), \
     .ADDR_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
     .BURST_CNT_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)

@@ -39,6 +39,7 @@
 `include "ofs_plat_if_top_config.vh"
 `include "ofs_plat_host_ccip_if.vh"
 `include "ofs_plat_avalon_mem_if.vh"
+`include "ofs_plat_avalon_mem_rdwr_if.vh"
 
 `ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
   `include "ofs_plat_local_mem_wrapper.vh"

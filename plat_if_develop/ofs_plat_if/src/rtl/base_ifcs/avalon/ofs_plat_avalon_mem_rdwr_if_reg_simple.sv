@@ -38,27 +38,27 @@
 // forwarding waitrequest from the slave side to the master side.
 //
 
-module ofs_plat_avalon_mem_if_reg_simple
+module ofs_plat_avalon_mem_rdwr_if_reg_simple
   #(
     // Number of stages to add when registering inputs or outputs
     parameter N_REG_STAGES = 1,
     parameter N_WAITREQUEST_STAGES = N_REG_STAGES
     )
    (
-    ofs_plat_avalon_mem_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_if.to_master mem_master
+    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
     );
 
     genvar s;
     generate
         if (N_REG_STAGES == 0)
         begin : wires
-            ofs_plat_avalon_mem_if_connect conn(.mem_slave, .mem_master);
+            ofs_plat_avalon_mem_rdwr_if_connect conn(.mem_slave, .mem_master);
         end
         else
         begin : regs
             // Pipeline stages.
-            ofs_plat_avalon_mem_if
+            ofs_plat_avalon_mem_rdwr_if
               #(
                 .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
                 .DATA_WIDTH(mem_slave.DATA_WIDTH_),
@@ -67,8 +67,8 @@ module ofs_plat_avalon_mem_if_reg_simple
                 mem_pipe[N_REG_STAGES+1]();
 
             // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_avalon_mem_if_connect conn0(.mem_slave(mem_slave),
-                                                 .mem_master(mem_pipe[0]));
+            ofs_plat_avalon_mem_rdwr_if_connect conn0(.mem_slave(mem_slave),
+                                                      .mem_master(mem_pipe[0]));
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
@@ -79,10 +79,11 @@ module ofs_plat_avalon_mem_if_reg_simple
                 always_ff @(posedge mem_slave.clk)
                 begin
                     // Waitrequest is a different pipeline, implemented below.
-                    mem_pipe[s].waitrequest <= 1'b1;
+                    mem_pipe[s].rd_waitrequest <= 1'b1;
+                    mem_pipe[s].wr_waitrequest <= 1'b1;
 
-                    `ofs_plat_avalon_mem_if_from_slave_to_master_ff(mem_pipe[s], mem_pipe[s-1]);
-                    `ofs_plat_avalon_mem_if_from_master_to_slave_ff(mem_pipe[s-1], mem_pipe[s]);
+                    `ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_ff(mem_pipe[s], mem_pipe[s-1]);
+                    `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_ff(mem_pipe[s-1], mem_pipe[s]);
 
                     if (mem_slave.reset)
                     begin
@@ -98,15 +99,21 @@ module ofs_plat_avalon_mem_if_reg_simple
 
             // waitrequest is a shift register, with mem_slave.waitrequest entering
             // at bit 0.
-            logic [N_WAITREQUEST_STAGES:0] mem_waitrequest_pipe;
-            assign mem_waitrequest_pipe[0] = mem_slave.waitrequest;
+            logic [N_WAITREQUEST_STAGES:0] mem_rd_waitrequest_pipe;
+            assign mem_rd_waitrequest_pipe[0] = mem_slave.rd_waitrequest;
+            logic [N_WAITREQUEST_STAGES:0] mem_wr_waitrequest_pipe;
+            assign mem_wr_waitrequest_pipe[0] = mem_slave.wr_waitrequest;
 
             always_ff @(posedge mem_slave.clk)
             begin
                 // Shift the waitrequest pipeline
-                mem_waitrequest_pipe[N_WAITREQUEST_STAGES:1] <=
+                mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES:1] <=
                     mem_slave.reset ? {N_WAITREQUEST_STAGES{1'b1}} :
-                                      mem_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0];
+                                      mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0];
+
+                mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES:1] <=
+                    mem_slave.reset ? {N_WAITREQUEST_STAGES{1'b1}} :
+                                      mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0];
             end
 
 
@@ -116,12 +123,13 @@ module ofs_plat_avalon_mem_if_reg_simple
 
             always_comb
             begin
-                `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_pipe[N_REG_STAGES]);
-                mem_master.waitrequest = mem_waitrequest_pipe[N_WAITREQUEST_STAGES];
+                `ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_comb(mem_master, mem_pipe[N_REG_STAGES]);
+                mem_master.rd_waitrequest = mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES];
+                mem_master.wr_waitrequest = mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES];
 
-                `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_pipe[N_REG_STAGES], mem_master);
-                mem_pipe[N_REG_STAGES].read = mem_master.read && ! mem_master.waitrequest;
-                mem_pipe[N_REG_STAGES].write = mem_master.write && ! mem_master.waitrequest;
+                `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_comb(mem_pipe[N_REG_STAGES], mem_master);
+                mem_pipe[N_REG_STAGES].read = mem_master.read && ! mem_master.rd_waitrequest;
+                mem_pipe[N_REG_STAGES].write = mem_master.write && ! mem_master.wr_waitrequest;
 
                 // Debugging signal
                 mem_master.instance_number = mem_pipe[N_REG_STAGES].instance_number;
@@ -129,4 +137,4 @@ module ofs_plat_avalon_mem_if_reg_simple
         end
     endgenerate
 
-endmodule // ofs_plat_avalon_mem_if_reg_simple
+endmodule // ofs_plat_avalon_mem_rdwr_if_reg_simple
