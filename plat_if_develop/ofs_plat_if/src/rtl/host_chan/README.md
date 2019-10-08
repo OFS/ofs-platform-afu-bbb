@@ -130,7 +130,7 @@ preprocessor macros are managed by the PIM:
   speculation instead of an error on failed address translation.
 
 The PIM records many platform-specific properties in ccip_cfg_pkg. See the
-[ccip_cfg_pkg.sv](ofs_plat_if/src/rtl/host_chan/native_ccip/ccip_GROUP_cfg_pkg.sv)
+[ccip_cfg_pkg.sv](native_ccip/ccip_GROUP_cfg_pkg.sv)
 source for details.
 
 
@@ -149,7 +149,7 @@ ports.
 #### Host Memory Slave ####
 
 The host memory slave interface is defined in
-[ofs_plat_avalon_mem_rdwr_if.sv](ofs_plat_if/src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_rdwr_if.sv).
+[ofs_plat_avalon_mem_rdwr_if.sv](../base_ifcs/avalon/ofs_plat_avalon_mem_rdwr_if.sv).
 This interface has some unusual syntax and semantics in order to achieve
 acceptable host memory performance:
 
@@ -203,7 +203,7 @@ acceptable host memory performance:
 
 The AFU Avalon MMIO master interface is a standard Avalon bus with an address
 shared by reads and writes. It is defined in
-[ofs_plat_avalon_mem_if.sv](ofs_plat_if/src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_if.sv).
+[ofs_plat_avalon_mem_if.sv](../base_ifcs/avalon/ofs_plat_avalon_mem_if.sv).
 OPAE assumes that MMIO requests are committed in request order.
 
 #### Instantiating an AFU Avalon Memory Interface ####
