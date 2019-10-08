@@ -44,7 +44,7 @@
 interface ofs_plat_host_chan_GROUP_fiu_if
   #(
     parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = 1
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_GROUP_NUM_PORTS
     );
 
     ofs_plat_host_ccip_if
