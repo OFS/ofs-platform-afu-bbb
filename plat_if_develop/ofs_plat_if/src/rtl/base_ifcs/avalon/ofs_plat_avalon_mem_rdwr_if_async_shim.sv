@@ -78,25 +78,25 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .m0_reset(mem_slave.reset),
 
         .s0_waitrequest(cmd_rd_waitrequest),
-        .s0_readdata({mem_master.rd_response, mem_master.readdata}),
-        .s0_readdatavalid(mem_master.readdatavalid),
+        .s0_readdata({mem_master.rd_response, mem_master.rd_readdata}),
+        .s0_readdatavalid(mem_master.rd_readdatavalid),
         .s0_burstcount(mem_master.rd_burstcount),
         .s0_writedata('0),
         .s0_address({mem_master.rd_request, mem_master.rd_address}),
         .s0_write(1'b0),
-        .s0_read(mem_master.read),
+        .s0_read(mem_master.rd_read),
         .s0_byteenable(mem_master.rd_byteenable),
         .s0_debugaccess(1'b0),
         .s0_space_avail_data(cmd_rd_space_avail),
 
         .m0_waitrequest(mem_slave.rd_waitrequest),
-        .m0_readdata({mem_slave.rd_response, mem_slave.readdata}),
-        .m0_readdatavalid(mem_slave.readdatavalid),
+        .m0_readdata({mem_slave.rd_response, mem_slave.rd_readdata}),
+        .m0_readdatavalid(mem_slave.rd_readdatavalid),
         .m0_burstcount(mem_slave.rd_burstcount),
         .m0_writedata(),
         .m0_address({mem_slave.rd_request, mem_slave.rd_address}),
         .m0_write(),
-        .m0_read(mem_slave.read),
+        .m0_read(mem_slave.rd_read),
         .m0_byteenable(mem_slave.rd_byteenable),
         .m0_debugaccess()
         );
@@ -124,9 +124,9 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .s0_readdata(),
         .s0_readdatavalid(),
         .s0_burstcount(mem_master.wr_burstcount),
-        .s0_writedata(mem_master.writedata),
+        .s0_writedata(mem_master.wr_writedata),
         .s0_address({mem_master.wr_request, mem_master.wr_address}),
-        .s0_write(mem_master.write),
+        .s0_write(mem_master.wr_write),
         .s0_read(1'b0),
         .s0_byteenable(mem_master.wr_byteenable),
         .s0_debugaccess(1'b0),
@@ -136,9 +136,9 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .m0_readdata('0),
         .m0_readdatavalid(1'b0),
         .m0_burstcount(mem_slave.wr_burstcount),
-        .m0_writedata(mem_slave.writedata),
+        .m0_writedata(mem_slave.wr_writedata),
         .m0_address({mem_slave.wr_request, mem_slave.wr_address}),
-        .m0_write(mem_slave.write),
+        .m0_write(mem_slave.wr_write),
         .m0_read(),
         .m0_byteenable(mem_slave.wr_byteenable),
         .m0_debugaccess()
@@ -167,7 +167,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         // dcfifo has "underflow_checking" on, so safe to hold rdreq
         .rdreq(1'b1),
         .wrclk(mem_slave.clk),
-        .wrreq(mem_slave.writeresponsevalid),
+        .wrreq(mem_slave.wr_writeresponsevalid),
         .q(mem_master.wr_response),
         .rdempty(wr_response_not_valid),
         .rdfull(),
@@ -180,7 +180,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
 
     always_ff @(posedge mem_master.clk)
     begin
-        mem_master.writeresponsevalid <= ~wr_response_not_valid && ~mem_master.reset;
+        mem_master.wr_writeresponsevalid <= ~wr_response_not_valid && ~mem_master.reset;
     end
 
 
@@ -222,13 +222,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
                 // cmd_space_avail forced back-pressure too late or it was
                 // ignored.
 
-                if (~mem_master.reset && cmd_wr_waitrequest && mem_master.write)
+                if (~mem_master.reset && cmd_wr_waitrequest && mem_master.wr_write)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped write transaction",
                            mem_master.instance_number);
                 end
 
-                if (~mem_master.reset && cmd_rd_waitrequest && mem_master.read)
+                if (~mem_master.reset && cmd_rd_waitrequest && mem_master.rd_read)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped read transaction",
                            mem_master.instance_number);

@@ -71,12 +71,12 @@ interface ofs_plat_avalon_mem_rdwr_if
 
     // Read bus
     logic rd_waitrequest;
-    logic [DATA_WIDTH-1:0] readdata;
-    logic readdatavalid;
+    logic [DATA_WIDTH-1:0] rd_readdata;
+    logic rd_readdatavalid;
     logic [1:0] rd_response;
 
     logic [ADDR_WIDTH-1:0] rd_address;
-    logic read;
+    logic rd_read;
     logic [BURST_CNT_WIDTH-1:0] rd_burstcount;
     logic [DATA_N_BYTES-1:0] rd_byteenable;
     // rd_request is non-standard. It is currently reserved and should be set to
@@ -86,13 +86,13 @@ interface ofs_plat_avalon_mem_rdwr_if
 
     // Write bus
     logic wr_waitrequest;
-    logic writeresponsevalid;
+    logic wr_writeresponsevalid;
     logic [1:0] wr_response;
 
     logic [ADDR_WIDTH-1:0] wr_address;
-    logic write;
+    logic wr_write;
     logic [BURST_CNT_WIDTH-1:0] wr_burstcount;
-    logic [DATA_WIDTH-1:0] writedata;
+    logic [DATA_WIDTH-1:0] wr_writedata;
     logic [DATA_N_BYTES-1:0] wr_byteenable;
     // wr_request is non-standard. When used as a host channel to host memory, the
     // Avalon ordered bus does not map well to either AXI or CCI-P, which allow
@@ -124,25 +124,25 @@ interface ofs_plat_avalon_mem_rdwr_if
 
         // Read bus
         input  rd_waitrequest,
-        input  readdata,
-        input  readdatavalid,
+        input  rd_readdata,
+        input  rd_readdatavalid,
         input  rd_response,
 
         output rd_address,
-        output read,
+        output rd_read,
         output rd_burstcount,
         output rd_byteenable,
         output rd_request,
 
         // Write bus
         input  wr_waitrequest,
-        input  writeresponsevalid,
+        input  wr_writeresponsevalid,
         input  wr_response,
 
         output wr_address,
-        output write,
+        output wr_write,
         output wr_burstcount,
-        output writedata,
+        output wr_writedata,
         output wr_byteenable,
         output wr_request,
 
@@ -161,25 +161,25 @@ interface ofs_plat_avalon_mem_rdwr_if
 
         // Read bus
         output rd_waitrequest,
-        output readdata,
-        output readdatavalid,
+        output rd_readdata,
+        output rd_readdatavalid,
         output rd_response,
 
         input  rd_address,
-        input  read,
+        input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
         input  rd_request,
 
         // Write bus
         output wr_waitrequest,
-        output writeresponsevalid,
+        output wr_writeresponsevalid,
         output wr_response,
 
         input  wr_address,
-        input  write,
+        input  wr_write,
         input  wr_burstcount,
-        input  writedata,
+        input  wr_writedata,
         input  wr_byteenable,
         input  wr_request,
 
@@ -193,12 +193,24 @@ interface ofs_plat_avalon_mem_rdwr_if
     //
 
     // synthesis translate_off
+
+    // Are all the parameters defined?
+    initial
+    begin
+        if (ADDR_WIDTH == 0)
+            $fatal(2, "** ERROR ** %m: ADDR_WIDTH is undefined!");
+        if (DATA_WIDTH == 0)
+            $fatal(2, "** ERROR ** %m: DATA_WIDTH is undefined!");
+        if (BURST_CNT_WIDTH == 0)
+            $fatal(2, "** ERROR ** %m: BURST_CNT_WIDTH is undefined!");
+    end
+
     logic [BURST_CNT_WIDTH-1:0] wr_bursts_rem;
 
     // Track burst count
     always_ff @(posedge clk)
     begin
-        if (write && ! wr_waitrequest)
+        if (wr_write && ! wr_waitrequest)
         begin
             // Track write bursts in order to print "sop"
             if (wr_bursts_rem == 0)
@@ -220,13 +232,13 @@ interface ofs_plat_avalon_mem_rdwr_if
     always_ff @(negedge clk)
     begin
         // rd_request must always be 0
-        if (! reset && read && (rd_request !== 1'b0))
+        if (! reset && rd_read && (rd_request !== 1'b0))
         begin
             $fatal(2, "** ERROR ** %m: rd_request must be 0, currently %0d", rd_request);
         end
 
         // wr_request must be set and may not interrupt a burst
-        if (! reset && write)
+        if (! reset && wr_write)
         begin
             if (wr_request === 'x)
             begin
@@ -258,7 +270,7 @@ interface ofs_plat_avalon_mem_rdwr_if
             forever @(posedge clk)
             begin
                 // Read request
-                if (! reset && read && ! rd_waitrequest)
+                if (! reset && rd_read && ! rd_waitrequest)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x\ mask 0x%x\n",
                             $time,
@@ -270,18 +282,18 @@ interface ofs_plat_avalon_mem_rdwr_if
                 end
 
                 // Read response
-                if (! reset && readdatavalid)
+                if (! reset && rd_readdatavalid)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (%d)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            readdata,
+                            rd_readdata,
                             rd_response);
                 end
 
                 // Write request
-                if (! reset && write && ! wr_waitrequest)
+                if (! reset && wr_write && ! wr_waitrequest)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write %s0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
                             $time,
@@ -292,10 +304,10 @@ interface ofs_plat_avalon_mem_rdwr_if
                             ((wr_bursts_rem == 0) ? "sop " : ""),
                             wr_burstcount,
                             wr_byteenable,
-                            writedata);
+                            wr_writedata);
                 end
 
-                if (! reset && writeresponsevalid)
+                if (! reset && wr_writeresponsevalid)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write resp (%d)\n",
                             $time,

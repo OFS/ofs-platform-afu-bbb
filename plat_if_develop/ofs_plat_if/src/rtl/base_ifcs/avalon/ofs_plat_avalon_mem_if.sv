@@ -135,6 +135,18 @@ interface ofs_plat_avalon_mem_if
     //
 
     // synthesis translate_off
+
+    // Are all the parameters defined?
+    initial
+    begin
+        if (ADDR_WIDTH == 0)
+            $fatal(2, "** ERROR ** %m: ADDR_WIDTH is undefined!");
+        if (DATA_WIDTH == 0)
+            $fatal(2, "** ERROR ** %m: DATA_WIDTH is undefined!");
+        if (BURST_CNT_WIDTH == 0)
+            $fatal(2, "** ERROR ** %m: BURST_CNT_WIDTH is undefined!");
+    end
+
     logic [BURST_CNT_WIDTH-1:0] wr_bursts_rem;
 
     initial
