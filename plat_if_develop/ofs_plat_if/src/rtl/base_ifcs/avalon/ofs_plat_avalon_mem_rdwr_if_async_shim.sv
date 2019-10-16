@@ -41,18 +41,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
-    input  logic mem_master_clk,
-    input  logic mem_master_reset
+    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
     );
 
     localparam SPACE_AVAIL_WIDTH = $clog2(COMMAND_FIFO_DEPTH) + 1;
 
     logic cmd_rd_waitrequest, cmd_wr_waitrequest;
     logic [SPACE_AVAIL_WIDTH-1:0] cmd_rd_space_avail, cmd_wr_space_avail;
-
-    assign mem_master.clk = mem_master_clk;
-    assign mem_master.reset = mem_master_reset;
 
     typedef logic [1:0] t_response;
     t_response m0_response_dummy;

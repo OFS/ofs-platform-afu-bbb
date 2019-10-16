@@ -104,11 +104,55 @@ interface ofs_plat_avalon_mem_if
         input  instance_number
         );
 
+    // Same as normal to_slave, but sets clk and reset
+    modport to_slave_clk
+       (
+        output clk,
+        output reset,
+
+        input  waitrequest,
+        input  readdata,
+        input  readdatavalid,
+        input  response,
+
+        output address,
+        output write,
+        output read,
+        output burstcount,
+        output writedata,
+        output byteenable,
+
+        // Debugging
+        input  instance_number
+        );
+
 
     //
     // Connection from slave toward master
     //
     modport to_master
+       (
+        input  clk,
+        input  reset,
+
+        output waitrequest,
+        output readdata,
+        output readdatavalid,
+        output response,
+
+        input  address,
+        input  write,
+        input  read,
+        input  burstcount,
+        input  writedata,
+        input  byteenable,
+
+        // Debugging
+        output instance_number
+        );
+
+    // Same as normal to_master, but sets clk and reset
+    modport to_master_clk
        (
         output clk,
         output reset,

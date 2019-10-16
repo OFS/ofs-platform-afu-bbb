@@ -82,6 +82,7 @@ module ase_top_ofs_plat
 
     assign plat_ifc.host_chan.ports[0].clk = pClk;
     assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
+    assign plat_ifc.host_chan.ports[0].instance_number = 0;
 
 
     //

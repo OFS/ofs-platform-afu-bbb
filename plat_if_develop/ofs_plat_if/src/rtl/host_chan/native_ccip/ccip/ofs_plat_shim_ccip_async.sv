@@ -98,6 +98,7 @@ module ofs_plat_shim_ccip_async
                                             (CCIP_TX_ALMOST_FULL_THRESHOLD / 2) +
                                             EXTRA_ALMOST_FULL_STAGES;
 
+    assign to_afu.instance_number = to_fiu.instance_number;
     assign to_afu.clk = afu_clk;
 
     //

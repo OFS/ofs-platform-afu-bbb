@@ -68,6 +68,8 @@ module ofs_plat_shim_ccip_detect_eop
     assign reset = to_fiu.reset;
     assign to_afu.reset = to_fiu.reset;
 
+    assign to_afu.instance_number = to_fiu.instance_number;
+
     // Index of a request
     localparam N_REQ_IDX_BITS = $clog2(MAX_ACTIVE_WR_REQS);
     typedef logic [N_REQ_IDX_BITS-1 : 0] t_req_idx;

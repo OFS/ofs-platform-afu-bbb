@@ -39,6 +39,25 @@ module ofs_plat_avalon_mem_if_connect
     ofs_plat_avalon_mem_if.to_master mem_master
     );
 
+    always_comb
+    begin
+        `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
+        `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
+
+        // Debugging signal
+        mem_master.instance_number = mem_slave.instance_number;
+    end
+
+endmodule // ofs_plat_avalon_mem_if_connect
+
+
+// Same as standard connection, but pass clk and reset from slave to master
+module ofs_plat_avalon_mem_if_connect_slave_clk
+   (
+    ofs_plat_avalon_mem_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_if.to_master_clk mem_master
+    );
+
     assign mem_master.clk = mem_slave.clk;
     assign mem_master.reset = mem_slave.reset;
 
@@ -51,4 +70,26 @@ module ofs_plat_avalon_mem_if_connect
         mem_master.instance_number = mem_slave.instance_number;
     end
 
-endmodule // ofs_plat_avalon_mem_if_connect
+endmodule // ofs_plat_avalon_mem_if_connect_slave_clk
+
+
+// Same as standard connection, but pass clk and reset from master to slave
+module ofs_plat_avalon_mem_if_connect_master_clk
+   (
+    ofs_plat_avalon_mem_if.to_slave_clk mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master
+    );
+
+    assign mem_slave.clk = mem_master.clk;
+    assign mem_slave.reset = mem_master.reset;
+
+    always_comb
+    begin
+        `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
+        `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
+
+        // Debugging signal
+        mem_master.instance_number = mem_slave.instance_number;
+    end
+
+endmodule // ofs_plat_avalon_mem_if_connect_slave_clk

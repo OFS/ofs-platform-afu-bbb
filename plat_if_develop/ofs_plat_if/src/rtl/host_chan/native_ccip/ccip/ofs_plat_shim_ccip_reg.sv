@@ -60,6 +60,8 @@ module ofs_plat_shim_ccip_reg
     assign clk = to_fiu.clk;
     assign to_afu.clk = to_fiu.clk;
 
+    assign to_afu.instance_number = to_fiu.instance_number;
+
     genvar s;
     generate
         //

@@ -234,7 +234,7 @@ module platform_shim_ccip_std_afu_hssi
     generate
         for (b = 0; b < NUM_LOCAL_MEM_BANKS; b = b + 1)
         begin : mb
-            ofs_plat_local_mem_as_avalon
+            ofs_plat_local_mem_as_avalon_mem
               #(
 `ifndef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK_IS_DEFAULT
                 .ADD_CLOCK_CROSSING(1),
