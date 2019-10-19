@@ -9,7 +9,7 @@
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|reset[0]]
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|error[0]]
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|pwrState[0]*]
-set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|async_shim_error_bb*]
+set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|async_shim_error_fiu*]
 
 ##
 ## Reset path to local memory clock after clock crossing.
