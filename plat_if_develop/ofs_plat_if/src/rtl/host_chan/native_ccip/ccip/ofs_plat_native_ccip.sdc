@@ -1,5 +1,5 @@
 ##
-## Platform interface timing constraints.
+## Platform interface CCI-P timing constraints.
 ##
 
 ##
@@ -10,8 +10,3 @@ set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|rese
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|error[0]]
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|pwrState[0]*]
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|async_shim_error_fiu*]
-
-##
-## Reset path to local memory clock after clock crossing.
-##
-set_false_path -to [get_keepers *|ofs_plat_clock_crossing.local_mem_reset_pipe[0]]
