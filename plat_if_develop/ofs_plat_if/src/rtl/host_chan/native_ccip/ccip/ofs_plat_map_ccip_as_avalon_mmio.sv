@@ -43,7 +43,8 @@
 //
 module ofs_plat_map_ccip_as_avalon_mmio
   #(
-    parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
+    parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64,
+    parameter WRITE_ONLY_MODE = 0
     )
    (
     input  logic clk,
@@ -136,24 +137,34 @@ module ofs_plat_map_ccip_as_avalon_mmio
     t_ccip_tid mmio_tid;
     t_dword_idx dword_idx;
 
-    ofs_plat_prim_fifo_bram
-      #(
-        .N_DATA_BITS($bits(t_dword_idx) + $bits(t_ccip_tid)),
-        .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
-        )
-      tid_in_fifo
-       (
-        .clk,
-        .reset,
-        .enq_data({ t_dword_idx'(mmio_in_hdr.address), mmio_in_hdr.tid }),
-        .enq_en(sRx.c0.mmioRdValid && ! error),
-        .notFull(tid_in_fifo_notFull),
-        .almostFull(),
-        .first({ dword_idx, mmio_tid }),
-        .deq_en(mmio_to_afu.readdatavalid),
-        // Must not be empty
-        .notEmpty()
-        );
+    generate
+        if (WRITE_ONLY_MODE)
+        begin : wo
+            assign mmio_tid = t_ccip_tid'(0);
+            assign dword_idx = t_dword_idx'(0);
+        end
+        else
+        begin : wr
+            ofs_plat_prim_fifo_bram
+              #(
+                .N_DATA_BITS($bits(t_dword_idx) + $bits(t_ccip_tid)),
+                .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
+                )
+              tid_in_fifo
+               (
+                .clk,
+                .reset,
+                .enq_data({ t_dword_idx'(mmio_in_hdr.address), mmio_in_hdr.tid }),
+                .enq_en(sRx.c0.mmioRdValid && ! error),
+                .notFull(tid_in_fifo_notFull),
+                .almostFull(),
+                .first({ dword_idx, mmio_tid }),
+                .deq_en(mmio_to_afu.readdatavalid),
+                // Must not be empty
+                .notEmpty()
+                );
+        end
+    endgenerate
 
     //
     // Ingress FIFO overflow check. Stop the FIFO if an overflow is detected.
@@ -178,7 +189,7 @@ module ofs_plat_map_ccip_as_avalon_mmio
     // Generate requests to the MMIO slave.
     //
     assign mmio_to_afu.write = mmio_req_notEmpty && mmio_is_wr;
-    assign mmio_to_afu.read = mmio_req_notEmpty && ! mmio_is_wr;
+    assign mmio_to_afu.read = mmio_req_notEmpty && ! mmio_is_wr && ! WRITE_ONLY_MODE;
     assign mmio_to_afu.burstcount = 1;
     // Data has already been formatted properly for the mmio_to_afu word size.
     assign mmio_to_afu.writedata = t_mmio_data'(mmio_wr_data);

@@ -153,13 +153,17 @@ def __gen_file_from_template(src_fn, tgt_fn, src_pattern, tgt_pattern):
 def __note_gen_file(base_class, dirpath, fn):
     """Called for each file generated from a template."""
 
-    # Add include files to a wrapper include file with a well known name
+    # Guarantee there is a wrapper .vh file for the base class, even if
+    # it winds up being empty.
+    wrapper_fn = 'ofs_plat_{0}_wrapper.vh'.format(base_class)
+    wrapper_path = os.path.join(dirpath, wrapper_fn)
+    w = __get_wrapper_include_file(wrapper_path)
+
+    # Add include files to the wrapper include file
     if (fn.lower().endswith('.vh')):
-        wrapper_fn = 'ofs_plat_{0}_wrapper.vh'.format(base_class)
-        wrapper_path = os.path.join(dirpath, wrapper_fn)
-        w = __get_wrapper_include_file(wrapper_path)
         w.write('`include "' + fn + '"\n')
-        w.close()
+
+    w.close()
 
 
 def __get_wrapper_include_file(wrapper_path):
@@ -167,7 +171,7 @@ def __get_wrapper_include_file(wrapper_path):
 
     # Does the file exist already? If so, just open for append.
     if (os.path.exists(wrapper_path)):
-        return open(wrapper_path, 'w+')
+        return open(wrapper_path, 'a')
 
     # Create the file and add a header
     w = open(wrapper_path, 'w')
