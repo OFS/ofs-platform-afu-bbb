@@ -70,10 +70,12 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         .mem_slave(avmm_afu_burst_if)
         );
 
+    // Limit burst count to 4 on the FIU side
     ofs_plat_avalon_mem_rdwr_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
-        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        `ofs_plat_avalon_mem_rdwr_if_replicate_mem_params(host_mem_to_afu),
+        .BURST_CNT_WIDTH(3)
         )
       avmm_fiu_burst_if();
 

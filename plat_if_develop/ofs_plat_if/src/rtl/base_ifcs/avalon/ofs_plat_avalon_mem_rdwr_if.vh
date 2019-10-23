@@ -32,13 +32,17 @@
 `define __OFS_PLAT_AVALON_MEM_RDWR_IF_VH__
 
 //
-// Macro for replicating properties of an ofs_plat_avalon_mem_rdwr_if when
+// Macros for replicating properties of an ofs_plat_avalon_mem_rdwr_if when
 // defininig another instance of the interface.
 //
 `define ofs_plat_avalon_mem_rdwr_if_replicate_params(AVALON_IF) \
     .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
     .DATA_WIDTH(AVALON_IF.DATA_WIDTH_), \
     .BURST_CNT_WIDTH(AVALON_IF.BURST_CNT_WIDTH_)
+
+`define ofs_plat_avalon_mem_rdwr_if_replicate_mem_params(AVALON_IF) \
+    .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
+    .DATA_WIDTH(AVALON_IF.DATA_WIDTH_)
 
 
 //
