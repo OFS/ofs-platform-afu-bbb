@@ -160,17 +160,28 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         if (wr_sop)
         begin
             c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            c1Tx.hdr.address <= avmm_fiu_burst_if.wr_address;
-            c1Tx.hdr.req_type <= eREQ_WRLINE_I;
-            c1Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
             c1Tx.hdr.mdata[0] <= fiu_burst_expects_response;
+
+            if (! avmm_fiu_burst_if.wr_request)
+            begin
+                // Normal write
+                c1Tx.hdr.address <= avmm_fiu_burst_if.wr_address;
+                c1Tx.hdr.req_type <= eREQ_WRLINE_I;
+                c1Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
+                c1Tx.hdr.sop <= 1'b1;
+            end
+            else
+            begin
+                // Write fence. req_type and mdata are in the same places in the
+                // header as a normal write.
+                c1Tx.hdr.req_type <= eREQ_WRFENCE;
+            end
         end
         else
         begin
             c1Tx.hdr.address[1:0] <= wr_cl_addr | wr_cl_num;
+            c1Tx.hdr.sop <= 1'b0;
         end
-
-        c1Tx.hdr.sop <= wr_sop;
 
         // Update multi-line state
         if (wr_beat_valid)
@@ -206,8 +217,9 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // Avalon. Bit 0 of mdata records whether the write expects a response.
     always_ff @(posedge clk)
     begin
-        avmm_fiu_burst_if.wr_writeresponsevalid <= ccip_c1Rx_isWriteRsp(sRx.c1) &&
-                                                   sRx.c1.hdr.mdata[0];
+        avmm_fiu_burst_if.wr_writeresponsevalid <=
+            (ccip_c1Rx_isWriteRsp(sRx.c1) || ccip_c1Rx_isWriteFenceRsp(sRx.c1)) &&
+            sRx.c1.hdr.mdata[0];
 
         if (reset)
         begin

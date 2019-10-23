@@ -102,7 +102,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             logic rd_next;
             assign mem_master.rd_waitrequest = ! rd_next;
 
-            // Ready to start a new read request coming from the FIFO? Yes if
+            // Ready to start a new read request coming from the master? Yes if
             // there is no current request or the previous one is complete.
             assign rd_next = ! mem_slave.rd_waitrequest && (! mem_slave.rd_read || rd_complete);
 
@@ -129,7 +129,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                  .s_burstcount(mem_slave.rd_burstcount)
                  );
 
-            // Register read request state coming from the FIFO that isn't held
+            // Register read request state coming from the master that isn't held
             // in the burst count mapping gearbox.
             always_ff @(posedge clk)
             begin
@@ -193,7 +193,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             assign mem_slave.wr_address = s_wr_sop ? s_wr_address : 'x;
             assign mem_slave.wr_burstcount = s_wr_sop ? s_wr_burstcount : 'x;
 
-            // Register write request state coming from the FIFO that isn't held
+            // Register write request state coming from the master that isn't held
             // in the burst count mapping gearbox.
             always_ff @(posedge clk)
             begin
@@ -252,6 +252,43 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
             // Debugging signal
             assign mem_master.instance_number = mem_slave.instance_number;
+
+
+            // synthesis translate_off
+
+            //
+            // Validated in simulation: confirm that the parent module is properly
+            // gating write responses based on wr_slave_burst_expects_response.
+            // The test here is simple: if there are more write responses than
+            // write requests from the master then something is wrong.
+            //
+            int m_num_writes, m_num_write_responses;
+
+            always_ff @(posedge clk)
+            begin
+                if (m_num_write_responses > m_num_writes)
+                begin
+                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the parent module honoring wr_slave_burst_expects_response?");
+                end
+
+                if (mem_master.wr_write && ! mem_master.wr_waitrequest && m_wr_sop)
+                begin
+                    m_num_writes <= m_num_writes + 1;
+                end
+
+                if (mem_master.wr_writeresponsevalid)
+                begin
+                    m_num_write_responses <= m_num_write_responses + 1;
+                end
+
+                if (reset)
+                begin
+                    m_num_writes <= 0;
+                    m_num_write_responses <= 0;
+                end
+            end
+
+            // synthesis translate_on
         end
     endgenerate
 

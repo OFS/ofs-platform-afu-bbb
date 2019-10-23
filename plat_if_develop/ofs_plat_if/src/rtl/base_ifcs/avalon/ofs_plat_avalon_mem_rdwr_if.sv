@@ -341,14 +341,19 @@ interface ofs_plat_avalon_mem_rdwr_if
 
             if (wr_request == 1'b1)
             begin
+                if (! wr_sop)
+                begin
+                    $fatal(2, "** ERROR ** %m: wr_request may not be set in the middle of a burst");
+                end
+
                 if (wr_address != 0)
                 begin
                     $fatal(2, "** ERROR ** %m: wr_address (0x%x) must be 0 when wr_request is set", wr_address);
                 end
 
-                if (wr_bursts_rem != 0)
+                if (wr_burstcount != 1)
                 begin
-                    $fatal(2, "** ERROR ** %m: wr_request may not be set in the middle of a burst");
+                    $fatal(2, "** ERROR ** %m: wr_burstcount (0x%x) must be 1 when wr_request is set", wr_burstcount);
                 end
             end
         end
