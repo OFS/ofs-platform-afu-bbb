@@ -154,9 +154,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
     // Internal MMIO Avalon interface
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(mmio_to_afu.ADDR_WIDTH_),
-        .DATA_WIDTH(mmio_to_afu.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mmio_to_afu.BURST_CNT_WIDTH_)
+        `ofs_plat_avalon_mem_if_replicate_params(mmio_to_afu)
         )
       mmio_if();
 

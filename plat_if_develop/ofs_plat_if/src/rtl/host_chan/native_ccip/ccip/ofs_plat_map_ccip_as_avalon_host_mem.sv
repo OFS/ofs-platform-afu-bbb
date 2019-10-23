@@ -49,15 +49,57 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
     import ofs_plat_ccip_if_funcs_pkg::*;
 
-    assign host_mem_to_afu.clk = clk;
-    assign host_mem_to_afu.reset = reset;
-    assign host_mem_to_afu.instance_number = instance_number;
+    //
+    // The AFU has set the burst count width of host_mem_to_afu to whatever
+    // is expected by the AFU. CCI-P requires bursts no larger than 4 lines.
+    // The bursts must also be naturally aligned. Transform host_mem_to_afu
+    // bursts to legal CCI-P bursts.
+    //
+
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
+        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        )
+      avmm_afu_burst_if();
+
+    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+      conn_clk
+       (
+        .mem_master(host_mem_to_afu),
+        .mem_slave(avmm_afu_burst_if)
+        );
+
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
+        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        )
+      avmm_fiu_burst_if();
+
+    logic fiu_burst_expects_response;
+    ofs_plat_avalon_mem_rdwr_if_map_bursts
+      #(
+        .NATURAL_ALIGNMENT(1)
+        )
+      map_bursts
+       (
+        .mem_master(avmm_afu_burst_if),
+        .mem_slave(avmm_fiu_burst_if),
+        .wr_slave_burst_expects_response(fiu_burst_expects_response)
+        );
+
+    assign avmm_afu_burst_if.clk = clk;
+    assign avmm_afu_burst_if.reset = reset;
+    assign avmm_fiu_burst_if.clk = clk;
+    assign avmm_fiu_burst_if.reset = reset;
+    assign avmm_fiu_burst_if.instance_number = instance_number;
 
     // Map almost full to Avalon waitrequest
     always_ff @(posedge clk)
     begin
-        host_mem_to_afu.rd_waitrequest <= sRx.c0TxAlmFull;
-        host_mem_to_afu.wr_waitrequest <= sRx.c1TxAlmFull;
+        avmm_fiu_burst_if.rd_waitrequest <= sRx.c0TxAlmFull;
+        avmm_fiu_burst_if.wr_waitrequest <= sRx.c1TxAlmFull;
     end
 
     //
@@ -65,12 +107,12 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     always_ff @(posedge clk)
     begin
-        c0Tx.valid <= host_mem_to_afu.rd_read && ! host_mem_to_afu.rd_waitrequest;
+        c0Tx.valid <= avmm_fiu_burst_if.rd_read && ! avmm_fiu_burst_if.rd_waitrequest;
 
         c0Tx.hdr <= t_ccip_c0_ReqMemHdr'(0);
-        c0Tx.hdr.address <= host_mem_to_afu.rd_address;
+        c0Tx.hdr.address <= avmm_fiu_burst_if.rd_address;
         c0Tx.hdr.req_type <= eREQ_RDLINE_I;
-        c0Tx.hdr.cl_len <= t_ccip_clLen'(host_mem_to_afu.rd_burstcount - 3'b1);
+        c0Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.rd_burstcount - 3'b1);
 
         if (reset)
         begin
@@ -81,52 +123,62 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // CCI-P responses are already sorted. Just forward them to Avalon.
     always_ff @(posedge clk)
     begin
-        host_mem_to_afu.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);
-        host_mem_to_afu.rd_readdata <= sRx.c0.data;
+        avmm_fiu_burst_if.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);
+        avmm_fiu_burst_if.rd_readdata <= sRx.c0.data;
 
         if (reset)
         begin
-            host_mem_to_afu.rd_readdatavalid <= 1'b0;
+            avmm_fiu_burst_if.rd_readdatavalid <= 1'b0;
         end
     end
 
-    assign host_mem_to_afu.rd_response = 2'b0;
+    assign avmm_fiu_burst_if.rd_response = 2'b0;
 
     //
     // Host memory writes
     //
     logic wr_beat_valid;
-    assign wr_beat_valid = host_mem_to_afu.wr_write && ! host_mem_to_afu.wr_waitrequest;
+    assign wr_beat_valid = avmm_fiu_burst_if.wr_write && ! avmm_fiu_burst_if.wr_waitrequest;
 
     logic wr_sop;
     t_ccip_clLen wr_cl_len;
     t_ccip_clNum wr_cl_num;
+    t_ccip_clNum wr_cl_addr;
 
     // Is the current incoming write line the end of a packet? It is if either
     // starting a new single-line packet or all lines of a multi-line
     // package have now arrived.
     logic wr_eop;
-    assign wr_eop = (wr_sop && (host_mem_to_afu.wr_burstcount == 3'b1)) ||
+    assign wr_eop = (wr_sop && (avmm_fiu_burst_if.wr_burstcount == 3'b1)) ||
                     (!wr_sop && (wr_cl_num == t_ccip_clNum'(wr_cl_len)));
 
     always_ff @(posedge clk)
     begin
         c1Tx.valid <= wr_beat_valid;
-        c1Tx.data <= host_mem_to_afu.wr_writedata;
+        c1Tx.data <= avmm_fiu_burst_if.wr_writedata;
 
-        c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
-        c1Tx.hdr.address <= host_mem_to_afu.wr_address;
-        c1Tx.hdr.address[1:0] <= host_mem_to_afu.wr_address[1:0] | wr_cl_num;
-        c1Tx.hdr.req_type <= eREQ_WRLINE_I;
+        if (wr_sop)
+        begin
+            c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
+            c1Tx.hdr.address <= avmm_fiu_burst_if.wr_address;
+            c1Tx.hdr.req_type <= eREQ_WRLINE_I;
+            c1Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
+            c1Tx.hdr.mdata[0] <= fiu_burst_expects_response;
+        end
+        else
+        begin
+            c1Tx.hdr.address[1:0] <= wr_cl_addr | wr_cl_num;
+        end
+
         c1Tx.hdr.sop <= wr_sop;
-        c1Tx.hdr.cl_len <= wr_sop ? t_ccip_clLen'(host_mem_to_afu.wr_burstcount - 3'b1) : wr_cl_len;
 
         // Update multi-line state
         if (wr_beat_valid)
         begin
             if (wr_sop)
             begin
-                wr_cl_len <= t_ccip_clLen'(host_mem_to_afu.wr_burstcount - 3'b1);
+                wr_cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
+                wr_cl_addr <= t_ccip_clNum'(avmm_fiu_burst_if.wr_address);
             end
 
             if (wr_eop)
@@ -151,17 +203,18 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     end
 
     // CCI-P write responses are already packed and sorted. Just forward them to
-    // Avalon.
+    // Avalon. Bit 0 of mdata records whether the write expects a response.
     always_ff @(posedge clk)
     begin
-        host_mem_to_afu.wr_writeresponsevalid <= ccip_c1Rx_isWriteRsp(sRx.c1);
+        avmm_fiu_burst_if.wr_writeresponsevalid <= ccip_c1Rx_isWriteRsp(sRx.c1) &&
+                                                   sRx.c1.hdr.mdata[0];
 
         if (reset)
         begin
-            host_mem_to_afu.wr_writeresponsevalid <= 1'b0;
+            avmm_fiu_burst_if.wr_writeresponsevalid <= 1'b0;
         end
     end
 
-    assign host_mem_to_afu.wr_response = 2'b0;
+    assign avmm_fiu_burst_if.wr_response = 2'b0;
 
 endmodule // ofs_plat_map_ccip_as_avalon_host_mem

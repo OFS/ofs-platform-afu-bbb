@@ -28,19 +28,55 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_GROUP_AS_AVALON_MEM__
-`define __OFS_PLAT_HOST_CHAN_GROUP_AS_AVALON_MEM__
 
 //
-// Macros for setting parameters to Avalon interfaces.
+// Track requests on a channel with flits broken down into packets. (E.g. an
+// Avalon write channel.) Detect SOP and EOP by tracking burst (packet) lengths.
 //
+module ofs_plat_prim_burstcount_sop_tracker
+  #(
+    parameter BURST_CNT_WIDTH = 0
+    )
+   (
+    input  logic clk,
+    input  logic reset,
 
-// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. Transform the address
-// width from the CCI-P DWORD index to the specified bus width.
-`define HOST_CHAN_GROUP_AVALON_MMIO_PARAMS(BUSWIDTH) \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
-    .DATA_WIDTH(BUSWIDTH), \
-    .BURST_CNT_WIDTH(1)
+    // Process a flit (update counters)
+    input  logic flit_valid,
+    // Consumed only at SOP -- the length of the next burst
+    input  logic [BURST_CNT_WIDTH-1 : 0] burstcount,
 
+    output logic sop,
+    output logic eop
+    );
 
-`endif // __OFS_PLAT_HOST_CHAN_GROUP_AS_AVALON_MEM__
+    typedef logic [BURST_CNT_WIDTH-1:0] t_burstcount;
+    t_burstcount flits_rem;
+
+    always_ff @(posedge clk)
+    begin
+        if (flit_valid)
+        begin
+            if (sop)
+            begin
+                flits_rem <= burstcount - t_burstcount'(1);
+                sop <= (burstcount == t_burstcount'(1));
+            end
+            else
+            begin
+                flits_rem <= flits_rem - t_burstcount'(1);
+                sop <= (flits_rem == t_burstcount'(1));
+            end
+        end
+
+        if (reset)
+        begin
+            flits_rem <= t_burstcount'(0);
+            sop <= 1'b1;
+        end
+    end
+
+    assign eop = (sop && (burstcount == t_burstcount'(1))) ||
+                 (!sop && (flits_rem == t_burstcount'(1)));
+
+endmodule // ofs_plat_prim_burstcount_sop_tracker
