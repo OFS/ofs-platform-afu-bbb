@@ -192,6 +192,66 @@ interface ofs_plat_avalon_mem_if
     end
 
     logic [BURST_CNT_WIDTH-1:0] wr_bursts_rem;
+    logic wr_sop;
+    assign wr_sop = (wr_bursts_rem == 0);
+
+    // Track burst count
+    always_ff @(posedge clk)
+    begin
+        if (write && ! waitrequest)
+        begin
+            // Track write bursts in order to print "sop"
+            if (wr_bursts_rem == 0)
+            begin
+                wr_bursts_rem <= burstcount - 1;
+            end
+            else
+            begin
+                wr_bursts_rem <= wr_bursts_rem - 1;
+            end
+        end
+
+        if (reset)
+        begin
+            wr_bursts_rem <= 0;
+        end
+    end
+
+    // Validate signals
+    always_ff @(negedge clk)
+    begin
+        if (! reset && read && write)
+        begin
+            $fatal(2, "** ERROR ** %m: Both read and write are asserted!");
+        end
+
+        if (! reset && read)
+        begin
+            if (^address === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: address undefined during a read, currently 0x%x", address);
+            end
+
+            if (^burstcount === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: burstcount undefined during a read, currently 0x%x", burstcount);
+            end
+        end
+
+        // wr_request must be set and may not interrupt a burst
+        if (! reset && write)
+        begin
+            if (wr_sop && (^address === 1'bx))
+            begin
+                $fatal(2, "** ERROR ** %m: address undefined during a write SOP, currently 0x%x", address);
+            end
+
+            if (wr_sop && (^burstcount === 1'bx))
+            begin
+                $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", burstcount);
+            end
+        end
+    end
 
     initial
     begin : logger_proc
@@ -237,21 +297,6 @@ interface ofs_plat_avalon_mem_if
                             burstcount,
                             byteenable,
                             writedata);
-
-                    // Track write bursts in order to print "sop"
-                    if (wr_bursts_rem == 0)
-                    begin
-                        wr_bursts_rem <= burstcount - 1;
-                    end
-                    else
-                    begin
-                        wr_bursts_rem <= wr_bursts_rem - 1;
-                    end
-                end
-
-                if (reset)
-                begin
-                    wr_bursts_rem <= 0;
                 end
             end
         end

@@ -274,6 +274,8 @@ interface ofs_plat_avalon_mem_rdwr_if
     end
 
     logic [BURST_CNT_WIDTH-1:0] wr_bursts_rem;
+    logic wr_sop;
+    assign wr_sop = (wr_bursts_rem == 0);
 
     // Track burst count
     always_ff @(posedge clk)
@@ -297,17 +299,41 @@ interface ofs_plat_avalon_mem_rdwr_if
         end
     end
 
+    // Validate signals
     always_ff @(negedge clk)
     begin
-        // rd_request must always be 0
-        if (! reset && rd_read && (rd_request !== 1'b0))
+        if (! reset && rd_read)
         begin
-            $fatal(2, "** ERROR ** %m: rd_request must be 0, currently %0d", rd_request);
+            if (^rd_address === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: rd_address undefined during a read, currently 0x%x", rd_address);
+            end
+
+            if (^rd_burstcount === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: rd_burstcount undefined during a read, currently 0x%x", rd_burstcount);
+            end
+
+            // rd_request must always be 0
+            if (rd_request !== 1'b0)
+            begin
+                $fatal(2, "** ERROR ** %m: rd_request must be 0, currently %0d", rd_request);
+            end
         end
 
         // wr_request must be set and may not interrupt a burst
         if (! reset && wr_write)
         begin
+            if (wr_sop && (^wr_address === 1'bx))
+            begin
+                $fatal(2, "** ERROR ** %m: wr_address undefined during a write SOP, currently 0x%x", wr_address);
+            end
+
+            if (wr_sop && (^wr_burstcount === 1'bx))
+            begin
+                $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", wr_burstcount);
+            end
+
             if (wr_request === 'x)
             begin
                 $fatal(2, "** ERROR ** %m: wr_request is uninitialized during a write");
@@ -369,7 +395,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             instance_number,
                             ((wr_request == 1'b0) ? "" : "fence "),
                             wr_address,
-                            ((wr_bursts_rem == 0) ? "sop " : ""),
+                            (wr_sop ? "sop " : ""),
                             wr_burstcount,
                             wr_byteenable,
                             wr_writedata);
