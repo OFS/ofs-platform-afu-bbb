@@ -167,6 +167,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
        (
         .clk,
         .reset,
+        .instance_number(host_mem_to_afu.instance_number),
         .sRx,
         .c2Tx,
         .mmio_to_afu(mmio_if)
@@ -262,6 +263,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
        (
         .clk,
         .reset,
+        .instance_number(host_mem_to_afu.instance_number),
         .sRx,
         .c2Tx,
         .mmio_to_afu(mmio_if)
@@ -297,6 +299,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
        (
         .clk,
         .reset,
+        .instance_number(host_mem_to_afu.instance_number),
         .sRx,
         .c2Tx(),	// No writing to CCI-P in write only mode
         .mmio_to_afu(mmio_wr_if)

@@ -123,7 +123,7 @@ interface ofs_plat_avalon_mem_if
         output byteenable,
 
         // Debugging
-        input  instance_number
+        output instance_number
         );
 
 
@@ -148,7 +148,7 @@ interface ofs_plat_avalon_mem_if
         input  byteenable,
 
         // Debugging
-        output instance_number
+        input  instance_number
         );
 
     // Same as normal to_master, but sets clk and reset

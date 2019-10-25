@@ -93,6 +93,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
     assign avmm_afu_burst_if.clk = clk;
     assign avmm_afu_burst_if.reset = reset;
+    assign avmm_afu_burst_if.instance_number = instance_number;
     assign avmm_fiu_burst_if.clk = clk;
     assign avmm_fiu_burst_if.reset = reset;
     assign avmm_fiu_burst_if.instance_number = instance_number;

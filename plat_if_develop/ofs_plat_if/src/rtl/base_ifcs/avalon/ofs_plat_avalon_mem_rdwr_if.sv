@@ -181,7 +181,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_request,
 
         // Debugging
-        input instance_number
+        output instance_number
         );
 
 
@@ -218,7 +218,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_request,
 
         // Debugging
-        output instance_number
+        input  instance_number
         );
 
     // Same as normal to_master, but sets clk and reset

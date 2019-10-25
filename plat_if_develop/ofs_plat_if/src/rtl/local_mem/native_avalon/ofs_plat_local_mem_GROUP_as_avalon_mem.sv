@@ -114,10 +114,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             //
             // No clock crossing, maybe register stages.
             //
-            assign afu_mem_if.clk = to_fiu.clk;
-            assign afu_mem_if.reset = to_fiu.reset;
-
-            ofs_plat_avalon_mem_if_reg
+            ofs_plat_avalon_mem_if_reg_slave_clk
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
@@ -173,6 +170,8 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             // Clock crossing bridge
             assign mem_cross.clk = tgt_mem_afu_clk;
             assign mem_cross.reset = local_mem_reset_pipe[2];
+            // Debugging signal
+            assign mem_cross.instance_number = to_fiu.instance_number;
 
             ofs_plat_avalon_mem_if_async_shim
               #(
@@ -201,6 +200,8 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
 
             assign afu_mem_if.clk = mem_cross.clk;
             assign afu_mem_if.reset = mem_cross.reset;
+            // Debugging signal
+            assign afu_mem_if.instance_number = mem_cross.instance_number;
         end
     endgenerate
 

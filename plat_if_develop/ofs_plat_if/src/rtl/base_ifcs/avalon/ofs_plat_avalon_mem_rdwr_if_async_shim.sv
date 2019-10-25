@@ -233,7 +233,4 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         end
     endgenerate
 
-    // Debugging signal
-    assign mem_master.instance_number = mem_slave.instance_number;
-
 endmodule // ofs_plat_avalon_mem_rdwr_if_async_shim

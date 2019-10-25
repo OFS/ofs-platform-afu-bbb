@@ -250,10 +250,6 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             assign mem_master.wr_response = mem_slave.wr_response;
 
 
-            // Debugging signal
-            assign mem_master.instance_number = mem_slave.instance_number;
-
-
             // synthesis translate_off
 
             //

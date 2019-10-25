@@ -64,10 +64,12 @@ module ofs_plat_avalon_mem_if_reg
                 mem_pipe[N_REG_STAGES+1]();
 
             // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            assign mem_pipe[0].clk = mem_slave.clk;
-            assign mem_pipe[0].reset = mem_slave.reset;
-            ofs_plat_avalon_mem_if_connect conn0(.mem_slave(mem_slave),
-                                                 .mem_master(mem_pipe[0]));
+            ofs_plat_avalon_mem_if_connect_slave_clk
+              conn0
+               (
+                .mem_slave(mem_slave),
+                .mem_master(mem_pipe[0])
+                );
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
@@ -145,6 +147,8 @@ module ofs_plat_avalon_mem_if_reg_slave_clk
 
     assign mem_reg.clk = mem_slave.clk;
     assign mem_reg.reset = mem_slave.reset;
+    // Debugging signal
+    assign mem_reg.instance_number = mem_slave.instance_number;
 
     ofs_plat_avalon_mem_if_reg
       #(
@@ -187,6 +191,8 @@ module ofs_plat_avalon_mem_if_reg_master_clk
 
     assign mem_reg.clk = mem_master.clk;
     assign mem_reg.reset = mem_master.reset;
+    // Debugging signal
+    assign mem_reg.instance_number = mem_master.instance_number;
 
     ofs_plat_avalon_mem_if_reg
       #(

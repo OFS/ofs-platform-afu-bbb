@@ -49,6 +49,7 @@ module ofs_plat_map_ccip_as_avalon_mmio
    (
     input  logic clk,
     input  logic reset,
+    input  int unsigned instance_number,
     input  t_if_ccip_Rx sRx,
     output t_if_ccip_c2_Tx c2Tx,
 
@@ -70,6 +71,7 @@ module ofs_plat_map_ccip_as_avalon_mmio
 
     assign mmio_to_afu.clk = clk;
     assign mmio_to_afu.reset = reset;
+    assign mmio_to_afu.instance_number = instance_number;
 
     // Index of the minimum addressable size (32 bit DWORD)
     localparam DWORD_IDX_BITS = $clog2(DATA_WIDTH / 32);

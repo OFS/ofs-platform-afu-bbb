@@ -43,9 +43,6 @@ module ofs_plat_avalon_mem_if_connect
     begin
         `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
         `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
-
-        // Debugging signal
-        mem_master.instance_number = mem_slave.instance_number;
     end
 
 endmodule // ofs_plat_avalon_mem_if_connect
@@ -61,13 +58,13 @@ module ofs_plat_avalon_mem_if_connect_slave_clk
     assign mem_master.clk = mem_slave.clk;
     assign mem_master.reset = mem_slave.reset;
 
+    // Debugging signal
+    assign mem_master.instance_number = mem_slave.instance_number;
+
     always_comb
     begin
         `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
         `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
-
-        // Debugging signal
-        mem_master.instance_number = mem_slave.instance_number;
     end
 
 endmodule // ofs_plat_avalon_mem_if_connect_slave_clk
@@ -83,13 +80,13 @@ module ofs_plat_avalon_mem_if_connect_master_clk
     assign mem_slave.clk = mem_master.clk;
     assign mem_slave.reset = mem_master.reset;
 
+    // Debugging signal
+    assign mem_slave.instance_number = mem_master.instance_number;
+
     always_comb
     begin
         `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
         `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
-
-        // Debugging signal
-        mem_master.instance_number = mem_slave.instance_number;
     end
 
 endmodule // ofs_plat_avalon_mem_if_connect_slave_clk
