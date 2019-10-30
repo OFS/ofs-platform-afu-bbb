@@ -35,6 +35,13 @@
 // Macros for setting parameters to Avalon interfaces.
 //
 
+// CCI-P to Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
+// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
+// transform bursts into legal CCI-P requests.
+`define HOST_CHAN_GROUP_AVALON_MEM_PARAMS \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
+    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
+
 // CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. Transform the address
 // width from the CCI-P DWORD index to the specified bus width.
 `define HOST_CHAN_GROUP_AVALON_MMIO_PARAMS(BUSWIDTH) \

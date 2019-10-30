@@ -67,57 +67,75 @@ module ofs_plat_prim_burstcount_mapping_gearbox
 
 
     //
-    // Compute the maximum naturally aligned burst count for the address. This
-    // is basically find first non-zero in the low bits of the address.
+    // Leave only the highest one found in burst_req. Everything below it
+    // will be cleared, leaving a single bit set for the burst size.
     //
-    function automatic t_master_burst_cnt aligned_burst_max(t_addr addr);
+    function automatic t_master_burst_cnt only_highest_one(t_master_burst_cnt burst_req);
+        t_master_burst_cnt aligned_burst_req;
+        logic found_one = 1'b0;
+
+        for (int i = MASTER_BURST_WIDTH - 1; i >= 0; i = i - 1)
+        begin
+            aligned_burst_req[i] = burst_req[i] & ! found_one;
+            found_one = burst_req[i] | found_one;
+        end
+
+        return aligned_burst_req;
+    endfunction // only_highest_one
+
+    //
+    // Compute the maximum naturally aligned burst count for the burst request
+    // and address.
+    //
+    function automatic t_master_burst_cnt aligned_burst_max(t_master_burst_cnt burst_req,
+                                                            t_addr addr);
         // The limit to the burst width is the minimum of the slave and master
         // burst sizes.
         int burst_width_limit = (SLAVE_BURST_WIDTH < MASTER_BURST_WIDTH) ? SLAVE_BURST_WIDTH : MASTER_BURST_WIDTH;
-        t_master_burst_cnt bmax = (SLAVE_MAX_BURST < MASTER_MAX_BURST) ? SLAVE_MAX_BURST : MASTER_MAX_BURST;
 
+        // Find the first one in the low bits of either address or request size
         for (int i = 0; i < burst_width_limit; i = i + 1)
         begin
-            if (addr[i])
+            if (burst_req[i] || addr[i])
             begin
-                bmax = t_master_burst_cnt'(1 << i);
-                break;
+                return t_master_burst_cnt'(1 << i);
             end
         end
 
-        return bmax;
+        // This point is reached only when the requested burst size exceeds
+        // SLAVE_MAX_BURST and SLAVE_MAX_BURST is a legal aligned request.
+        return t_master_burst_cnt'(SLAVE_MAX_BURST);
     endfunction // aligned_burst_max
-
 
     //
     // Compute a legal burst count given a requested count and the current address.
     //
     function automatic t_slave_burst_cnt compute_burstcount(t_master_burst_cnt burst_req,
+                                                            t_master_burst_cnt burst_req_masked,
                                                             t_addr addr);
-        t_master_burst_cnt bmax = burst_req;
-
-        // If the requested count exceeds the maximum count that is valid in the
-        // slave then reduce the request to the slave's maximum.
-        if ((SLAVE_BURST_WIDTH < MASTER_BURST_WIDTH) &&
-            (burst_req > t_master_burst_cnt'(SLAVE_MAX_BURST)))
-        begin
-            bmax = t_master_burst_cnt'(SLAVE_MAX_BURST);
-        end
-
-        // Does the slave require naturally aligned addresses?
+        // Does the slave require naturally aligned addresses and sizes?
         if (NATURAL_ALIGNMENT)
         begin
-            t_master_burst_cnt bmax_aligned = aligned_burst_max(addr);
-            if (bmax_aligned < bmax)
+            return t_slave_burst_cnt'(aligned_burst_max(burst_req_masked, addr));
+        end
+        else
+        begin
+            t_master_burst_cnt bmax = burst_req;
+
+            // If the requested count exceeds the maximum count that is valid in the
+            // slave then reduce the request to the slave's maximum.
+            if ((SLAVE_BURST_WIDTH < MASTER_BURST_WIDTH) &&
+                (burst_req > t_master_burst_cnt'(SLAVE_MAX_BURST)))
             begin
-                bmax = bmax_aligned;
+                bmax = t_master_burst_cnt'(SLAVE_MAX_BURST);
             end
+
+            return t_slave_burst_cnt'(bmax);
         end
 
-        return t_slave_burst_cnt'(bmax);
     endfunction // compute_burstcount
 
-    t_master_burst_cnt burstcount;
+    t_master_burst_cnt burstcount, burstcount_masked;
 
     always_ff @(posedge clk)
     begin
@@ -125,18 +143,26 @@ module ofs_plat_prim_burstcount_mapping_gearbox
         begin
             // New request -- the last one is complete
             burstcount <= m_burstcount;
+            burstcount_masked <= only_highest_one(m_burstcount);
             s_addr <= m_addr;
         end
         else if (s_accept_req)
         begin
             // The existing request is only partially transmitted
             burstcount <= burstcount - t_master_burst_cnt'(s_burstcount);
+            burstcount_masked <= only_highest_one(burstcount - t_master_burst_cnt'(s_burstcount));
             s_addr <= s_addr + t_addr'(s_burstcount);
+        end
+
+        if (reset)
+        begin
+            burstcount <= t_master_burst_cnt'(0);
+            burstcount_masked <= t_master_burst_cnt'(0);
         end
     end
 
     // Pick a legal burst count in the slave.
-    assign s_burstcount = compute_burstcount(burstcount, s_addr);
+    assign s_burstcount = compute_burstcount(burstcount, burstcount_masked, s_addr);
     assign s_req_complete = (t_master_burst_cnt'(s_burstcount) == burstcount);
 
 endmodule // ofs_plat_prim_burstcount_mapping_gearbox
