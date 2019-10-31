@@ -64,14 +64,18 @@ module ofs_plat_avalon_mem_if_reg
                 mem_pipe[N_REG_STAGES+1]();
 
             // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_avalon_mem_if_connect conn0(.mem_slave(mem_slave),
-                                                 .mem_master(mem_pipe[0]));
+            ofs_plat_avalon_mem_if_connect_slave_clk
+              conn0
+               (
+                .mem_slave(mem_slave),
+                .mem_master(mem_pipe[0])
+                );
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : p
-                assign mem_pipe[s].clk = mem_pipe[s-1].clk;
-                assign mem_pipe[s].reset = mem_pipe[s-1].reset;
+                assign mem_pipe[s].clk = mem_slave.clk;
+                assign mem_pipe[s].reset = mem_slave.reset;
 
                 ofs_plat_utils_avalon_mm_bridge
                   #(
@@ -120,3 +124,91 @@ module ofs_plat_avalon_mem_if_reg
     endgenerate
 
 endmodule // ofs_plat_avalon_mem_if_reg
+
+
+// Same as standard connection, but pass clk and reset from slave to master
+module ofs_plat_avalon_mem_if_reg_slave_clk
+  #(
+    // Number of stages to add when registering inputs or outputs
+    parameter N_REG_STAGES = 1
+    )
+   (
+    ofs_plat_avalon_mem_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_if.to_master_clk mem_master
+    );
+
+    ofs_plat_avalon_mem_if
+      #(
+        .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
+        .DATA_WIDTH(mem_slave.DATA_WIDTH_),
+        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+        )
+      mem_reg();
+
+    assign mem_reg.clk = mem_slave.clk;
+    assign mem_reg.reset = mem_slave.reset;
+    // Debugging signal
+    assign mem_reg.instance_number = mem_slave.instance_number;
+
+    ofs_plat_avalon_mem_if_reg
+      #(
+        .N_REG_STAGES(N_REG_STAGES)
+        )
+      conn_reg
+       (
+        .mem_slave(mem_slave),
+        .mem_master(mem_reg)
+        );
+
+    ofs_plat_avalon_mem_if_connect_slave_clk
+      conn_direct
+       (
+        .mem_slave(mem_reg),
+        .mem_master(mem_master)
+        );
+
+endmodule // ofs_plat_avalon_mem_if_reg_slave_clk
+
+
+// Same as standard connection, but pass clk and reset from master to slave
+module ofs_plat_avalon_mem_if_reg_master_clk
+  #(
+    // Number of stages to add when registering inputs or outputs
+    parameter N_REG_STAGES = 1
+    )
+   (
+    ofs_plat_avalon_mem_if.to_slave_clk mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master
+    );
+
+    ofs_plat_avalon_mem_if
+      #(
+        .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
+        .DATA_WIDTH(mem_slave.DATA_WIDTH_),
+        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+        )
+      mem_reg();
+
+    assign mem_reg.clk = mem_master.clk;
+    assign mem_reg.reset = mem_master.reset;
+    // Debugging signal
+    assign mem_reg.instance_number = mem_master.instance_number;
+
+    ofs_plat_avalon_mem_if_reg
+      #(
+        .N_REG_STAGES(N_REG_STAGES)
+        )
+      conn_reg
+       (
+        .mem_slave(mem_reg),
+        .mem_master(mem_master)
+        );
+
+    ofs_plat_avalon_mem_if_connect_master_clk
+      conn_direct
+       (
+        .mem_slave(mem_slave),
+        .mem_master(mem_reg)
+        );
+
+endmodule // ofs_plat_avalon_mem_if_reg_master_clk

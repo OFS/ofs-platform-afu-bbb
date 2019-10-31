@@ -28,50 +28,26 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-//
-// Wrapper interface for passing all top-level interfaces into an AFU.
-// Every platform must provide this interface.
-//
-
-`ifndef __OFS_PLAT_IF_VH__
-`define __OFS_PLAT_IF_VH__
-
-`include "ofs_plat_if_top_config.vh"
-`include "ofs_plat_host_ccip_if.vh"
-`include "ofs_plat_avalon_mem_if.vh"
-`include "ofs_plat_avalon_mem_rdwr_if.vh"
-
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
-  `include "ofs_plat_host_chan_wrapper.vh"
-`endif
-
-`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
-  `include "ofs_plat_local_mem_wrapper.vh"
-`endif
-
-// Compatibility mode for OPAE SDK's Platform Interface Manager
-`ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
-  `include "platform_shim_ccip_std_afu.vh"
-`endif
+`ifndef __OFS_PLAT_HOST_CHAN_GROUP_AS_AVALON_MEM__
+`define __OFS_PLAT_HOST_CHAN_GROUP_AS_AVALON_MEM__
 
 //
-// Clocks provided to the AFU. All conforming platforms provide at least
-// 5 primary clocks: pClk, pClkDiv2, pClkDiv4, uClk_usr and uClk_usrDiv2.
-// Divided clocks are all aligned to their primary clocks.
+// Macros for setting parameters to Avalon interfaces.
 //
-typedef struct packed
-{
-    logic pClk;
-    logic pClkDiv2;
-    logic pClkDiv4;
-    logic uClk_usr;
-    logic uClk_usrDiv2;
-}
-t_ofs_plat_clocks;
 
-//
-// Two-bit power state, originally defined in CCI-P.
-//
-typedef logic [1:0] t_ofs_plat_power_state;
+// CCI-P to Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
+// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
+// transform bursts into legal CCI-P requests.
+`define HOST_CHAN_GROUP_AVALON_MEM_PARAMS \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
+    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
-`endif // __OFS_PLAT_IF_VH__
+// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. Transform the address
+// width from the CCI-P DWORD index to the specified bus width.
+`define HOST_CHAN_GROUP_AVALON_MMIO_PARAMS(BUSWIDTH) \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
+    .DATA_WIDTH(BUSWIDTH), \
+    .BURST_CNT_WIDTH(1)
+
+
+`endif // __OFS_PLAT_HOST_CHAN_GROUP_AS_AVALON_MEM__

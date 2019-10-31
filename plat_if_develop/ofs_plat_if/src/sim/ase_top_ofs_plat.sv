@@ -82,6 +82,7 @@ module ase_top_ofs_plat
 
     assign plat_ifc.host_chan.ports[0].clk = pClk;
     assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
+    assign plat_ifc.host_chan.ports[0].instance_number = 0;
 
 
     //
@@ -111,6 +112,7 @@ module ase_top_ofs_plat
         begin : b_reset
             assign plat_ifc.local_mem.banks[b].clk = mem_banks_clk[b];
             assign plat_ifc.local_mem.banks[b].reset = plat_ifc.softReset;
+            assign plat_ifc.local_mem.banks[b].instance_number = b;
 
             assign plat_ifc.local_mem.banks[b].response = 2'b0;
         end

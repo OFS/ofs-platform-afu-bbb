@@ -64,14 +64,18 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                 mem_pipe[N_REG_STAGES+1]();
 
             // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_avalon_mem_rdwr_if_connect conn0(.mem_slave(mem_slave),
-                                                      .mem_master(mem_pipe[0]));
+            ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+              conn0
+               (
+                .mem_slave(mem_slave),
+                .mem_master(mem_pipe[0])
+                );
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : p
-                assign mem_pipe[s].clk = mem_pipe[s-1].clk;
-                assign mem_pipe[s].reset = mem_pipe[s-1].reset;
+                assign mem_pipe[s].clk = mem_slave.clk;
+                assign mem_pipe[s].reset = mem_slave.reset;
 
                 ofs_plat_utils_avalon_mm_bridge
                   #(
@@ -85,26 +89,26 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     .reset(mem_pipe[s].reset),
 
                     .s0_waitrequest(mem_pipe[s].rd_waitrequest),
-                    .s0_readdata(mem_pipe[s].readdata),
-                    .s0_readdatavalid(mem_pipe[s].readdatavalid),
+                    .s0_readdata(mem_pipe[s].rd_readdata),
+                    .s0_readdatavalid(mem_pipe[s].rd_readdatavalid),
                     .s0_response(mem_pipe[s].rd_response),
                     .s0_burstcount(mem_pipe[s].rd_burstcount),
                     .s0_writedata('0),
                     .s0_address({mem_pipe[s].rd_request, mem_pipe[s].rd_address}),
                     .s0_write(1'b0),
-                    .s0_read(mem_pipe[s].read),
+                    .s0_read(mem_pipe[s].rd_read),
                     .s0_byteenable(mem_pipe[s].rd_byteenable),
                     .s0_debugaccess(1'b0),
 
                     .m0_waitrequest(mem_pipe[s - 1].rd_waitrequest),
-                    .m0_readdata(mem_pipe[s - 1].readdata),
-                    .m0_readdatavalid(mem_pipe[s - 1].readdatavalid),
+                    .m0_readdata(mem_pipe[s - 1].rd_readdata),
+                    .m0_readdatavalid(mem_pipe[s - 1].rd_readdatavalid),
                     .m0_response(mem_pipe[s - 1].rd_response),
                     .m0_burstcount(mem_pipe[s - 1].rd_burstcount),
                     .m0_writedata(),
                     .m0_address({mem_pipe[s - 1].rd_request, mem_pipe[s - 1].rd_address}),
                     .m0_write(),
-                    .m0_read(mem_pipe[s - 1].read),
+                    .m0_read(mem_pipe[s - 1].rd_read),
                     .m0_byteenable(mem_pipe[s - 1].rd_byteenable),
                     .m0_debugaccess()
                     );
@@ -124,12 +128,12 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     .s0_readdata(),
                     // Use readdatavalid/response to pass write response.
                     // The bridge doesn't count reads or writes, so this works.
-                    .s0_readdatavalid(mem_pipe[s].writeresponsevalid),
+                    .s0_readdatavalid(mem_pipe[s].wr_writeresponsevalid),
                     .s0_response(mem_pipe[s].wr_response),
                     .s0_burstcount(mem_pipe[s].wr_burstcount),
-                    .s0_writedata(mem_pipe[s].writedata),
+                    .s0_writedata(mem_pipe[s].wr_writedata),
                     .s0_address({mem_pipe[s].wr_request, mem_pipe[s].wr_address}),
-                    .s0_write(mem_pipe[s].write),
+                    .s0_write(mem_pipe[s].wr_write),
                     .s0_read(1'b0),
                     .s0_byteenable(mem_pipe[s].wr_byteenable),
                     .s0_debugaccess(1'b0),
@@ -137,12 +141,12 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     .m0_waitrequest(mem_pipe[s - 1].wr_waitrequest),
                     .m0_readdata('0),
                     // See above -- readdatavalid is used for write responses
-                    .m0_readdatavalid(mem_pipe[s - 1].writeresponsevalid),
+                    .m0_readdatavalid(mem_pipe[s - 1].wr_writeresponsevalid),
                     .m0_response(mem_pipe[s - 1].wr_response),
                     .m0_burstcount(mem_pipe[s - 1].wr_burstcount),
-                    .m0_writedata(mem_pipe[s - 1].writedata),
+                    .m0_writedata(mem_pipe[s - 1].wr_writedata),
                     .m0_address({mem_pipe[s - 1].wr_request, mem_pipe[s - 1].wr_address}),
-                    .m0_write(mem_pipe[s - 1].write),
+                    .m0_write(mem_pipe[s - 1].wr_write),
                     .m0_read(),
                     .m0_byteenable(mem_pipe[s - 1].wr_byteenable),
                     .m0_debugaccess()

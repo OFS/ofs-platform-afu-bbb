@@ -69,6 +69,7 @@ module ofs_plat_shim_ccip_rob_wr
 
     assign to_afu.error = to_fiu.error;
     assign to_afu.reset = to_fiu.reset;
+    assign to_afu.instance_number = to_fiu.instance_number;
 
     logic reset = 1'b1;
     always @(posedge clk)

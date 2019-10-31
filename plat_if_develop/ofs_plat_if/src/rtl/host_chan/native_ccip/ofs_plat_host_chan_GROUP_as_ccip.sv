@@ -118,6 +118,8 @@ module ofs_plat_host_chan_GROUP_as_ccip
 
             assign afu_clk_ccip_pwrState = fiu_pwrState;
             assign afu_clk_ccip_if.error = to_fiu.error;
+
+            assign afu_clk_ccip_if.instance_number = to_fiu.instance_number;
         end
         else
         begin : ofs_plat_clock_crossing

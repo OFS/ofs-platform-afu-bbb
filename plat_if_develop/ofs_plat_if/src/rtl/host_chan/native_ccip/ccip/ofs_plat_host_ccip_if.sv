@@ -54,8 +54,12 @@ interface ofs_plat_host_ccip_if
     // CCI-P Tx Port
     t_if_ccip_Tx sTx;
 
+    // Debugging state.  This will typically be driven to a constant by the
+    // code that instantiates the interface object.
+    int unsigned instance_number;
+
     //
-    // Connection to the platform (FPGA Interface Manager)
+    // Connection from AFU toward the platform (FPGA Interface Manager)
     //
     modport to_fiu
        (
@@ -63,11 +67,13 @@ interface ofs_plat_host_ccip_if
         input  reset,
         input  error,
         input  sRx,
-        output sTx
+        output sTx,
+
+        input instance_number
         );
 
     //
-    // Connection to the AFU (user logic)
+    // Connection from FIU toward the AFU (user logic)
     //
     modport to_afu
        (
@@ -75,7 +81,9 @@ interface ofs_plat_host_ccip_if
         output reset,
         output error,
         output sRx,
-        input  sTx
+        input  sTx,
+
+        output instance_number
         );
 
 

@@ -38,13 +38,13 @@
 //
 
 //
-// This version of ofs_plat_local_mem_as_avalon works only on platforms
+// This version of ofs_plat_local_mem_as_avalon_mem works on platforms
 // where the native interface is already Avalon.
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_local_mem_GROUP_as_avalon
+module ofs_plat_local_mem_GROUP_as_avalon_mem
   #(
     // When non-zero, add a clock crossing to move the AFU interface
     // to the passed in tgt_mem_afu_clk.
@@ -62,7 +62,7 @@ module ofs_plat_local_mem_GROUP_as_avalon
     // bus-independent abstraction. At top-level, PIM ports are
     // always to_fiu and to_afu.
     ofs_plat_avalon_mem_if.to_slave to_fiu,
-    ofs_plat_avalon_mem_if.to_master to_afu
+    ofs_plat_avalon_mem_if.to_master_clk to_afu
     );
 
     // ====================================================================
@@ -100,6 +100,13 @@ module ofs_plat_local_mem_GROUP_as_avalon
 
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
 
+    ofs_plat_avalon_mem_if
+      #(
+        .ADDR_WIDTH(to_fiu.ADDR_WIDTH_),
+        .DATA_WIDTH(to_fiu.DATA_WIDTH_),
+        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_)
+        )
+        afu_mem_if();
 
     generate
         if (ADD_CLOCK_CROSSING == 0)
@@ -107,14 +114,14 @@ module ofs_plat_local_mem_GROUP_as_avalon
             //
             // No clock crossing, maybe register stages.
             //
-            ofs_plat_avalon_mem_if_reg
+            ofs_plat_avalon_mem_if_reg_slave_clk
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
               mem_pipe
                (
                 .mem_slave(to_fiu),
-                .mem_master(to_afu)
+                .mem_master(afu_mem_if)
                 );
         end
         else
@@ -161,6 +168,11 @@ module ofs_plat_local_mem_GROUP_as_avalon
                                            NUM_EXTRA_STAGES;
 
             // Clock crossing bridge
+            assign mem_cross.clk = tgt_mem_afu_clk;
+            assign mem_cross.reset = local_mem_reset_pipe[2];
+            // Debugging signal
+            assign mem_cross.instance_number = to_fiu.instance_number;
+
             ofs_plat_avalon_mem_if_async_shim
               #(
                 .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
@@ -168,9 +180,7 @@ module ofs_plat_local_mem_GROUP_as_avalon
               mem_async_shim
                (
                 .mem_slave(to_fiu),
-                .mem_master(mem_cross),
-                .mem_master_clk(tgt_mem_afu_clk),
-                .mem_master_reset(local_mem_reset_pipe[2])
+                .mem_master(mem_cross)
                 );
 
             // Add requested register stages on the AFU side of the clock crossing.
@@ -185,9 +195,21 @@ module ofs_plat_local_mem_GROUP_as_avalon
               mem_pipe
                (
                 .mem_slave(mem_cross),
-                .mem_master(to_afu)
+                .mem_master(afu_mem_if)
                 );
+
+            assign afu_mem_if.clk = mem_cross.clk;
+            assign afu_mem_if.reset = mem_cross.reset;
+            // Debugging signal
+            assign afu_mem_if.instance_number = mem_cross.instance_number;
         end
     endgenerate
 
-endmodule // ofs_plat_local_mem_as_avalon
+    // Make the final connection to the to_afu instance, including passing the clock.
+    ofs_plat_avalon_mem_if_connect_slave_clk conn_to_afu
+       (
+        .mem_slave(afu_mem_if),
+        .mem_master(to_afu)
+        );
+
+endmodule // ofs_plat_local_mem_GROUP_as_avalon_mem

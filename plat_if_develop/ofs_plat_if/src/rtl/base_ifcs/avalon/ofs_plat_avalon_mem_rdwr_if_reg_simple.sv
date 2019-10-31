@@ -67,14 +67,18 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
                 mem_pipe[N_REG_STAGES+1]();
 
             // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_avalon_mem_rdwr_if_connect conn0(.mem_slave(mem_slave),
-                                                      .mem_master(mem_pipe[0]));
+            ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+              conn0
+               (
+                .mem_slave(mem_slave),
+                .mem_master(mem_pipe[0])
+                );
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : p
-                assign mem_pipe[s].clk = mem_pipe[s-1].clk;
-                assign mem_pipe[s].reset = mem_pipe[s-1].reset;
+                assign mem_pipe[s].clk = mem_slave.clk;
+                assign mem_pipe[s].reset = mem_slave.reset;
 
                 always_ff @(posedge mem_slave.clk)
                 begin
@@ -118,9 +122,6 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
 
 
             // Map mem_master to the last stage (wired)
-            assign mem_master.clk = mem_pipe[N_REG_STAGES].clk;
-            assign mem_master.reset = mem_pipe[N_REG_STAGES].reset;
-
             always_comb
             begin
                 `ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_comb(mem_master, mem_pipe[N_REG_STAGES]);
@@ -130,9 +131,6 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
                 `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_comb(mem_pipe[N_REG_STAGES], mem_master);
                 mem_pipe[N_REG_STAGES].read = mem_master.read && ! mem_master.rd_waitrequest;
                 mem_pipe[N_REG_STAGES].write = mem_master.write && ! mem_master.wr_waitrequest;
-
-                // Debugging signal
-                mem_master.instance_number = mem_pipe[N_REG_STAGES].instance_number;
             end
         end
     endgenerate
