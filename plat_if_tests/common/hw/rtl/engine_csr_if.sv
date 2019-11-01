@@ -1,0 +1,91 @@
+//
+// Copyright (c) 2019, Intel Corporation
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// Redistributions of source code must retain the above copyright notice, this
+// list of conditions and the following disclaimer.
+//
+// Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// Neither the name of the Intel Corporation nor the names of its contributors
+// may be used to endorse or promote products derived from this software
+// without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+//
+// Interface wrapping CSRs for an engine
+//
+
+interface engine_csr_if
+  #(
+    parameter NUM_CSRS = 16,
+    parameter CSR_DATA_WIDTH = 64
+    );
+
+    typedef logic [$clog2(NUM_CSRS)-1 : 0] t_csr_idx;
+    typedef logic [CSR_DATA_WIDTH-1 : 0] t_csr_value;
+
+    // Engine control: CSR manager to engine.
+    // At most one state flag will be set in a given cycle. The state_reset flag
+    // will always be raised before state_run is enabled. Engines should clear
+    // counters on state_reset and run as long as state_run is enabled.
+    logic state_reset;
+    logic state_run;
+
+    // Engine status: engine to CSR manager.
+    // The active flag indicates requests are in flight. It may be set even when
+    // state_run is off. A standard run ends with the controller clearing
+    // state_run and waiting for status_active to go low.
+    logic status_active;
+
+    // Writes to engine CSRs set wr_req for one cycle.
+    logic wr_req;
+    t_csr_idx wr_idx;
+    t_csr_value wr_data;
+
+    // Read registers are sampled continuously. There is no explicit request.
+    t_csr_value rd_data[NUM_CSRS];
+
+    modport csr_mgr
+       (
+        output state_reset,
+        output state_run,
+        input  status_active,
+
+        output wr_req,
+        output wr_idx,
+        output wr_data,
+
+        input  rd_data
+        );
+
+    modport engine
+       (
+        input  state_reset,
+        input  state_run,
+        output status_active,
+
+        input  wr_req,
+        input  wr_idx,
+        input  wr_data,
+
+        output rd_data
+        );
+
+endinterface // engine_csr_if
