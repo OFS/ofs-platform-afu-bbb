@@ -65,8 +65,12 @@ module ofs_plat_afu
 
     ofs_plat_host_chan_as_avalon_mem_with_mmio
       #(
+`ifdef TEST_PARAM_AFU_CLK
         .ADD_CLOCK_CROSSING(1),
-        .ADD_TIMING_REG_STAGES(1)
+`endif
+`ifdef TEST_PARAM_AFU_REG_STAGES
+        .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
+`endif
         )
       primary_avalon
        (
@@ -74,7 +78,11 @@ module ofs_plat_afu
         .host_mem_to_afu,
         .mmio_to_afu(mmio64_to_afu),
 
-        .afu_clk(plat_ifc.clocks.uClk_usr),
+`ifdef TEST_PARAM_AFU_CLK
+        .afu_clk(`TEST_PARAM_AFU_CLK),
+`else
+        .afu_clk(),
+`endif
 
         .fiu_pwrState(plat_ifc.pwrState),
         .afu_pwrState(afu_pwrState)

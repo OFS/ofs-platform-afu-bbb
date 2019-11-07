@@ -1,0 +1,5 @@
+host_chan_params.json
+C:../../../common/hw/rtl/sources.txt
+ofs_plat_afu.sv
+afu.sv
+avalon_mem_rdwr_engine.sv
