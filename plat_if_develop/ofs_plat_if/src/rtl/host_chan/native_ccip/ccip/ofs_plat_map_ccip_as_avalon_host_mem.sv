@@ -37,17 +37,28 @@
 //
 module ofs_plat_map_ccip_as_avalon_host_mem
    (
-    input  logic clk,
-    input  logic reset,
-    input  int unsigned instance_number,
-    input  t_if_ccip_Rx sRx,
-    output t_if_ccip_c0_Tx c0Tx,
-    output t_if_ccip_c1_Tx c1Tx,
+    // CCI-P interface to FIU
+    ofs_plat_host_ccip_if.to_fiu to_fiu,
 
+    // Generated Avalon host memory interface
     ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu
     );
 
     import ofs_plat_ccip_if_funcs_pkg::*;
+
+    logic clk;
+    assign clk = to_fiu.clk;
+
+    logic reset;
+    assign reset = to_fiu.reset;
+
+    t_if_ccip_Rx sRx;
+    assign sRx = to_fiu.sRx;
+
+    // Tie off sTx.c2. MMIO should have been split off before passing to_fiu
+    // to this module.
+    assign to_fiu.sTx.c2 = t_if_ccip_c2_Tx'(0);
+
 
     //
     // The AFU has set the burst count width of host_mem_to_afu to whatever
@@ -93,10 +104,10 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
     assign avmm_afu_burst_if.clk = clk;
     assign avmm_afu_burst_if.reset = reset;
-    assign avmm_afu_burst_if.instance_number = instance_number;
+    assign avmm_afu_burst_if.instance_number = to_fiu.instance_number;
     assign avmm_fiu_burst_if.clk = clk;
     assign avmm_fiu_burst_if.reset = reset;
-    assign avmm_fiu_burst_if.instance_number = instance_number;
+    assign avmm_fiu_burst_if.instance_number = to_fiu.instance_number;
 
     // Map almost full to Avalon waitrequest
     always_ff @(posedge clk)
@@ -110,16 +121,16 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     always_ff @(posedge clk)
     begin
-        c0Tx.valid <= avmm_fiu_burst_if.rd_read && ! avmm_fiu_burst_if.rd_waitrequest;
+        to_fiu.sTx.c0.valid <= avmm_fiu_burst_if.rd_read && ! avmm_fiu_burst_if.rd_waitrequest;
 
-        c0Tx.hdr <= t_ccip_c0_ReqMemHdr'(0);
-        c0Tx.hdr.address <= avmm_fiu_burst_if.rd_address;
-        c0Tx.hdr.req_type <= eREQ_RDLINE_I;
-        c0Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.rd_burstcount - 3'b1);
+        to_fiu.sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
+        to_fiu.sTx.c0.hdr.address <= avmm_fiu_burst_if.rd_address;
+        to_fiu.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
+        to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.rd_burstcount - 3'b1);
 
         if (reset)
         begin
-            c0Tx.valid <= 1'b0;
+            to_fiu.sTx.c0.valid <= 1'b0;
         end
     end
 
@@ -157,33 +168,33 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
     always_ff @(posedge clk)
     begin
-        c1Tx.valid <= wr_beat_valid;
-        c1Tx.data <= avmm_fiu_burst_if.wr_writedata;
+        to_fiu.sTx.c1.valid <= wr_beat_valid;
+        to_fiu.sTx.c1.data <= avmm_fiu_burst_if.wr_writedata;
 
         if (wr_sop)
         begin
-            c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            c1Tx.hdr.mdata[0] <= fiu_burst_expects_response;
+            to_fiu.sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
+            to_fiu.sTx.c1.hdr.mdata[0] <= fiu_burst_expects_response;
 
             if (! avmm_fiu_burst_if.wr_request)
             begin
                 // Normal write
-                c1Tx.hdr.address <= avmm_fiu_burst_if.wr_address;
-                c1Tx.hdr.req_type <= eREQ_WRLINE_I;
-                c1Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
-                c1Tx.hdr.sop <= 1'b1;
+                to_fiu.sTx.c1.hdr.address <= avmm_fiu_burst_if.wr_address;
+                to_fiu.sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
+                to_fiu.sTx.c1.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
+                to_fiu.sTx.c1.hdr.sop <= 1'b1;
             end
             else
             begin
                 // Write fence. req_type and mdata are in the same places in the
                 // header as a normal write.
-                c1Tx.hdr.req_type <= eREQ_WRFENCE;
+                to_fiu.sTx.c1.hdr.req_type <= eREQ_WRFENCE;
             end
         end
         else
         begin
-            c1Tx.hdr.address[1:0] <= wr_cl_addr | wr_cl_num;
-            c1Tx.hdr.sop <= 1'b0;
+            to_fiu.sTx.c1.hdr.address[1:0] <= wr_cl_addr | wr_cl_num;
+            to_fiu.sTx.c1.hdr.sop <= 1'b0;
         end
 
         // Update multi-line state
@@ -209,7 +220,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
         if (reset)
         begin
-            c1Tx.valid <= 1'b0;
+            to_fiu.sTx.c1.valid <= 1'b0;
             wr_sop <= 1'b1;
             wr_cl_len <= eCL_LEN_1;
             wr_cl_num <= t_ccip_clNum'(0);

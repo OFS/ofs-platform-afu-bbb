@@ -72,6 +72,17 @@ interface ofs_plat_host_ccip_if
         input instance_number
         );
 
+    // Read-only version of connection to FIU
+    modport to_fiu_ro
+       (
+        input  clk,
+        input  reset,
+        input  error,
+        input  sRx,
+
+        input instance_number
+        );
+
     //
     // Connection from FIU toward the AFU (user logic)
     //

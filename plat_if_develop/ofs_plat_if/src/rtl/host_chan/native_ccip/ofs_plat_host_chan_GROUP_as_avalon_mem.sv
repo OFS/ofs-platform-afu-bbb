@@ -76,6 +76,8 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem
     output t_ofs_plat_power_state afu_pwrState
     );
 
+    ofs_plat_host_ccip_if ccip_mmio();
+
     ofs_plat_host_chan_GROUP_as_avalon_mem_impl
      #(
        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
@@ -85,12 +87,13 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem
        (
         .to_fiu,
         .host_mem_to_afu,
-        .sRx(),
-        .c2Tx(t_if_ccip_c2_Tx'(0)),
+        .ccip_mmio,
         .afu_clk,
         .fiu_pwrState,
         .afu_pwrState
         );
+
+    assign ccip_mmio.sTx = t_if_ccip_Tx'(0);
 
 endmodule // ofs_plat_host_chan_GROUP_as_avalon_mem
 
@@ -127,13 +130,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
     output t_ofs_plat_power_state afu_pwrState
     );
 
-    logic clk;
-    assign clk = host_mem_to_afu.clk;
-    logic reset;
-    assign reset = host_mem_to_afu.reset;
-
-    t_if_ccip_Rx sRx;
-    t_if_ccip_c2_Tx c2Tx;
+    ofs_plat_host_ccip_if ccip_mmio();
 
     ofs_plat_host_chan_GROUP_as_avalon_mem_impl
      #(
@@ -144,8 +141,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
        (
         .to_fiu,
         .host_mem_to_afu,
-        .sRx,
-        .c2Tx,
+        .ccip_mmio,
         .afu_clk,
         .fiu_pwrState,
         .afu_pwrState
@@ -165,11 +161,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
         )
       av_host_mmio
        (
-        .clk,
-        .reset,
-        .instance_number(host_mem_to_afu.instance_number),
-        .sRx,
-        .c2Tx,
+        .to_fiu(ccip_mmio),
         .mmio_to_afu(mmio_if)
         );
 
@@ -221,13 +213,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
     output t_ofs_plat_power_state afu_pwrState
     );
 
-    logic clk;
-    assign clk = host_mem_to_afu.clk;
-    logic reset;
-    assign reset = host_mem_to_afu.reset;
-
-    t_if_ccip_Rx sRx;
-    t_if_ccip_c2_Tx c2Tx;
+    ofs_plat_host_ccip_if ccip_mmio();
 
     ofs_plat_host_chan_GROUP_as_avalon_mem_impl
      #(
@@ -238,8 +224,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
        (
         .to_fiu,
         .host_mem_to_afu,
-        .sRx,
-        .c2Tx,
+        .ccip_mmio,
         .afu_clk,
         .fiu_pwrState,
         .afu_pwrState
@@ -261,11 +246,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
         )
       av_host_mmio
        (
-        .clk,
-        .reset,
-        .instance_number(host_mem_to_afu.instance_number),
-        .sRx,
-        .c2Tx,
+        .to_fiu(ccip_mmio),
         .mmio_to_afu(mmio_if)
         );
 
@@ -290,18 +271,13 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
       mmio_wr_if();
 
     // Do the CCI-P MMIO to Avalon mapping
-    ofs_plat_map_ccip_as_avalon_mmio
+    ofs_plat_map_ccip_as_avalon_mmio_wo
       #(
-        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_GROUP_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS),
-        .WRITE_ONLY_MODE(1)
+        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_GROUP_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       av_host_mmio_wr
        (
-        .clk,
-        .reset,
-        .instance_number(host_mem_to_afu.instance_number),
-        .sRx,
-        .c2Tx(),	// No writing to CCI-P in write only mode
+        .to_fiu(ccip_mmio),
         .mmio_to_afu(mmio_wr_if)
         );
 
@@ -346,9 +322,9 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
     ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
-    // These ports may be used for MMIO mapping
-    output t_if_ccip_Rx sRx,
-    input t_if_ccip_c2_Tx c2Tx,
+
+    // Export a CCI-P port for MMIO mapping
+    ofs_plat_host_ccip_if.to_afu ccip_mmio,
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -378,6 +354,17 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
         );
 
     //
+    // Split CCI-P into separate host memory and MMIO interfaces.
+    //
+    ofs_plat_host_ccip_if host_mem_ccip_if();
+    ofs_plat_shim_ccip_split_mmio split_mmio
+       (
+        .to_fiu(std_ccip_if),
+        .host_mem(host_mem_ccip_if),
+        .mmio(ccip_mmio)
+        );
+
+    //
     // Later stages depend on CCI-P write responses always being packed: a
     // single write response per multi-line write request. Make sure that
     // is true.
@@ -389,7 +376,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
         )
       eop
        (
-        .to_fiu(std_ccip_if),
+        .to_fiu(host_mem_ccip_if),
         .to_afu(eop_ccip_if)
         );
 
@@ -427,17 +414,8 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     //
     ofs_plat_map_ccip_as_avalon_host_mem av_host_mem
        (
-        .clk(sorted_ccip_if.clk),
-        .reset(sorted_ccip_if.reset),
-        .instance_number(sorted_ccip_if.instance_number),
-        .sRx(sorted_ccip_if.sRx),
-        .c0Tx(sorted_ccip_if.sTx.c0),
-        .c1Tx(sorted_ccip_if.sTx.c1),
+        .to_fiu(sorted_ccip_if),
         .host_mem_to_afu
         );
-
-    // Expose the ports required to implement MMIO to Avalon mapping
-    assign sRx = sorted_ccip_if.sRx;
-    assign sorted_ccip_if.sTx.c2 = c2Tx;
 
 endmodule // ofs_plat_host_chan_GROUP_as_avalon_mem

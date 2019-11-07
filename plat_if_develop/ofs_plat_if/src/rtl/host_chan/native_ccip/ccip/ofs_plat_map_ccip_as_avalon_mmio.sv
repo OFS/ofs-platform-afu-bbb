@@ -41,7 +41,80 @@
 //
 // In CCI-P, the minimum addressable size is a DWORD.
 //
+
+//
+// Standard interface: map CCI-P to a read/write MMIO master that will
+// connect to an AFU MMIO slave.
+//
 module ofs_plat_map_ccip_as_avalon_mmio
+  #(
+    parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
+    )
+   (
+    // CCI-P interface to FIU MMIO master
+    ofs_plat_host_ccip_if.to_fiu to_fiu,
+
+    // Generated Avalon master for connecting to AFU MMIO slave
+    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu
+    );
+
+    ofs_plat_map_ccip_as_avalon_mmio_impl
+      #(
+        .MAX_OUTSTANDING_MMIO_RD_REQS(MAX_OUTSTANDING_MMIO_RD_REQS)
+        )
+      impl
+       (
+        .clk(to_fiu.clk),
+        .reset(to_fiu.reset),
+        .instance_number(to_fiu.instance_number),
+        .sRx(to_fiu.sRx),
+        .c2Tx(to_fiu.sTx.c2),
+        .mmio_to_afu
+        );
+
+endmodule // ofs_plat_map_ccip_as_avalon_mmio
+
+
+//
+// Write-only variant of the Avalon MMIO bridge. This can be used for
+// connecting to AFU MMIO master's that only receive write requests.
+// CCI-P has a 512 bit wide MMIO write request but no corresponding
+// wide MMIO read.
+//
+module ofs_plat_map_ccip_as_avalon_mmio_wo
+  #(
+    parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
+    )
+   (
+    // CCI-P read-only interface to FIU MMIO master
+    ofs_plat_host_ccip_if.to_fiu_ro to_fiu,
+
+    // Generated Avalon master for connecting to AFU MMIO slave
+    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu
+    );
+
+    ofs_plat_map_ccip_as_avalon_mmio_impl
+      #(
+        .MAX_OUTSTANDING_MMIO_RD_REQS(MAX_OUTSTANDING_MMIO_RD_REQS),
+        .WRITE_ONLY_MODE(1)
+        )
+      impl
+       (
+        .clk(to_fiu.clk),
+        .reset(to_fiu.reset),
+        .instance_number(to_fiu.instance_number),
+        .sRx(to_fiu.sRx),
+        .c2Tx(),
+        .mmio_to_afu
+        );
+
+endmodule // ofs_plat_map_ccip_as_avalon_mmio_wo
+
+
+//
+// Internal implementation of the CCI-P to MMIO bridge.
+//
+module ofs_plat_map_ccip_as_avalon_mmio_impl
   #(
     parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64,
     parameter WRITE_ONLY_MODE = 0
