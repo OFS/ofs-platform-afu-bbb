@@ -69,13 +69,6 @@ if [ ! -f hw/lib/build/afu_default.qsf ]; then
     not_release "hw/lib/build/afu_default.qsf"
 fi
 
-# Copy updated green_bs.sv
-echo "Updating hw/lib/build/platform/green_bs.sv..."
-if [ ! -f hw/lib/build/platform/green_bs.sv.orig ]; then
-    mv -f hw/lib/build/platform/green_bs.sv hw/lib/build/platform/green_bs.sv.orig
-fi
-cp "${SCRIPT_DIR}/files/green_bs.sv" hw/lib/build/platform/
-
 # Release v2.0.1 and later support CCI-P writes with byte ranges. Pick the
 # correct PIM configuration.
 if [ ! -f hw/lib/platform/platform_db/s10_pac_dc_hssi.json.orig ]; then
@@ -86,6 +79,13 @@ if grep -q byte-en-supported hw/lib/platform/platform_db/s10_pac_dc_hssi.json.or
 else
     REL_VER=v2_0_0
 fi
+
+# Copy updated green_bs.sv
+echo "Updating hw/lib/build/platform/green_bs.sv..."
+if [ ! -f hw/lib/build/platform/green_bs.sv.orig ]; then
+    mv -f hw/lib/build/platform/green_bs.sv hw/lib/build/platform/green_bs.sv.orig
+fi
+cp "${SCRIPT_DIR}/files/${REL_VER}/green_bs.sv" hw/lib/build/platform/
 
 # Copy platform DB
 echo "Updating hw/lib/platform/platform_db..."
@@ -103,7 +103,7 @@ if [ -f hw/lib/build/platform/pr_hssi_if.vh ]; then
 fi
 grep -v PR_HSSI_IF_VH hw/lib/build/platform/pr_hssi_if.vh.orig > hw/lib/build/platform/ofs_plat_if/rtl/hssi/pr_hssi_if.sv
 # Tie off file is specific to this platform
-cp -f "${SCRIPT_DIR}"/files/ofs_plat_hssi_fiu_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/hssi/
+cp -f "${SCRIPT_DIR}"/files/${REL_VER}/ofs_plat_hssi_fiu_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/hssi/
 
 echo ""
 echo "Update complete."
