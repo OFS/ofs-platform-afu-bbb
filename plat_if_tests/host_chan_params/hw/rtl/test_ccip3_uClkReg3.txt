@@ -1,5 +1,6 @@
 # Use uClk instead of the default clock
 +define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.uClk_usr
-+define+TEST_PARAM_AFU_REG_STAGES=0
+# Multiple register stages
++define+TEST_PARAM_AFU_REG_STAGES=3
 
-C:sources_base.txt
+C:sources_ccip.txt

@@ -1,0 +1,7 @@
++define+TEST_PARAM_IFC_AVALON
+
+host_chan_params.json
+C:../../../common/hw/rtl/sources.txt
+ofs_plat_afu_avalon.sv
+afu.sv
+host_mem_rdwr_engine_avalon.sv

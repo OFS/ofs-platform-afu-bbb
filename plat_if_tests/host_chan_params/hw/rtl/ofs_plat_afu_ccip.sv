@@ -28,6 +28,10 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+//
+// Export the host channel as CCI-P for host memory and Avalon for MMIO.
+//
+
 `default_nettype none
 
 `include "ofs_plat_if.vh"
@@ -40,30 +44,19 @@ module ofs_plat_afu
 
     // ====================================================================
     //
-    //  Get an Avalon host channel collection from the platform.
+    //  Get a CCI-P port from the platform.
     //
     // ====================================================================
 
-    // Host memory AFU master
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        `HOST_CHAN_AVALON_MEM_PARAMS,
-        .BURST_CNT_WIDTH(7),
-        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
-        )
-        host_mem_to_afu();
-
-    // 64 bit read/write MMIO AFU slave
-    ofs_plat_avalon_mem_if
-      #(
-        `HOST_CHAN_AVALON_MMIO_PARAMS(64),
-        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
-        )
-        mmio64_to_afu();
-
+    // Instance of a CCI-P interface. The interface wraps usual CCI-P
+    // sRx and sTx structs as well as the associated clock and reset.
+    ofs_plat_host_ccip_if ccip_to_afu();
     t_ofs_plat_power_state afu_pwrState;
 
-    ofs_plat_host_chan_as_avalon_mem_with_mmio
+    // Use the platform-provided module to map the primary host interface
+    // to CCI-P. The "primary" interface is the port that includes the
+    // main OPAE-managed MMIO connection.
+    ofs_plat_host_chan_as_ccip
       #(
 `ifdef TEST_PARAM_AFU_CLK
         .ADD_CLOCK_CROSSING(1),
@@ -72,11 +65,10 @@ module ofs_plat_afu
         .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
 `endif
         )
-      primary_avalon
+      primary_ccip
        (
         .to_fiu(plat_ifc.host_chan.ports[0]),
-        .host_mem_to_afu,
-        .mmio_to_afu(mmio64_to_afu),
+        .to_afu(ccip_to_afu),
 
 `ifdef TEST_PARAM_AFU_CLK
         .afu_clk(`TEST_PARAM_AFU_CLK),
@@ -86,6 +78,38 @@ module ofs_plat_afu
 
         .fiu_pwrState(plat_ifc.pwrState),
         .afu_pwrState(afu_pwrState)
+        );
+
+
+    // Split CCI-P into a pair of CCI-P interfaces: one for host memory
+    // and the other for MMIO.
+    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) host_mem_to_afu();
+    ofs_plat_host_ccip_if ccip_to_mmio();
+
+    ofs_plat_shim_ccip_split_mmio ccip_split
+       (
+        .to_fiu(ccip_to_afu),
+        .host_mem(host_mem_to_afu),
+        .mmio(ccip_to_mmio)
+        );
+
+
+    // Map the the CCI-P MMIO interface to a 64 bit Avalon interface.
+    ofs_plat_avalon_mem_if
+      #(
+        `HOST_CHAN_AVALON_MMIO_PARAMS(64),
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
+        )
+        mmio64_to_afu();
+
+    ofs_plat_map_ccip_as_avalon_mmio
+      #(
+        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
+        )
+      av_host_mmio
+       (
+        .to_fiu(ccip_to_mmio),
+        .mmio_to_afu(mmio64_to_afu)
         );
 
 

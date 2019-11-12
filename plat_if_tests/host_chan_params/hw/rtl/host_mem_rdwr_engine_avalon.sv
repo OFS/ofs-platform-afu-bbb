@@ -57,12 +57,16 @@
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:35] - Reserved
+//       [63:40] - Reserved
+//       [39]    - Read responses are ordered (when 1)
+//       [38]    - Write response count is bursts or lines (bursts 0 / lines 1)
+//       [37:35] - Engine type (1 for Avalon)
 //       [34]    - Engine active
 //       [33]    - Engine running
 //       [32]    - Engine in reset
 //       [31:16] - Maximum mask size
-//       [15: 0] - Maximum burst size
+//       [15]    - Burst must be natural size and address alignment
+//       [14: 0] - Maximum burst size
 //
 //   1: Number of read bursts requested
 //
@@ -72,12 +76,14 @@
 //
 //   4: Number of write burst responses
 //
-//   5: Hash of read responses for validating correctness
+//   5: Read validation information
+//       [63:32] - Simple checksum portions of lines read (for OOO memory)
+//       [31: 0] - Hash of portions of lines read (for ordered memory interfaces)
 //
 
 `default_nettype none
 
-module avalon_mem_rdwr_engine
+module host_mem_rdwr_engine
   #(
     parameter ENGINE_NUMBER = 0
     )
@@ -111,7 +117,7 @@ module avalon_mem_rdwr_engine
     // Number of bursts to request in a run (limiting run length)
     typedef logic [15:0] t_num_burst_reqs;
 
-    logic [31:0] rd_data_hash;
+    logic [31:0] rd_data_sum, rd_data_hash;
     t_counter rd_bursts_req, rd_lines_req, rd_lines_resp;
     t_counter wr_bursts_req, wr_lines_req, wr_bursts_resp;
 
@@ -155,17 +161,21 @@ module avalon_mem_rdwr_engine
     //
     always_comb
     begin
-        csrs.rd_data[0] = { 29'h0,
+        csrs.rd_data[0] = { 24'h0,
+                            1'b1,		   // Read responses are ordered
+                            1'b0,                  // Write resopnse count is bursts
+                            3'b1,                  // Engine type (Avalon)
                             csrs.status_active,
                             csrs.state_run,
                             csrs.state_reset,
                             16'(ADDR_LOW_WIDTH),
-                            16'(1 << (host_mem_if.BURST_CNT_WIDTH-1)) };
+                            1'b0,
+                            15'(1 << (host_mem_if.BURST_CNT_WIDTH-1)) };
         csrs.rd_data[1] = 64'(rd_bursts_req);
         csrs.rd_data[2] = 64'(rd_lines_resp);
         csrs.rd_data[3] = 64'(wr_lines_req);
         csrs.rd_data[4] = 64'(wr_bursts_resp);
-        csrs.rd_data[5] = 64'(rd_data_hash);
+        csrs.rd_data[5] = { rd_data_sum, rd_data_hash };
 
         for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
         begin
@@ -259,6 +269,16 @@ module avalon_mem_rdwr_engine
         hash32_new_data <= { host_mem_if.rd_readdata[DATA_WIDTH-1 -: 16],
                              host_mem_if.rd_readdata[0 +: 16] };
         rd_data_hash <= hash32_value;
+
+        if (hash32_en)
+        begin
+            rd_data_sum <= rd_data_sum + hash32_new_data;
+        end
+
+        if (state_reset)
+        begin
+            rd_data_sum <= 32'b0;
+        end
     end
 
 
@@ -426,4 +446,4 @@ module avalon_mem_rdwr_engine
         .value(wr_bursts_resp)
         );
 
-endmodule // avalon_mem_rdwr_engine
+endmodule // host_mem_rdwr_engine

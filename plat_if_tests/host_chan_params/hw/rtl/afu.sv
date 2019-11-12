@@ -32,8 +32,14 @@
 
 module afu
    (
+`ifdef TEST_PARAM_IFC_CCIP
+    // Host memory CCI-P
+    ofs_plat_host_ccip_if.to_fiu host_mem_if,
+`endif
+`ifdef TEST_PARAM_IFC_AVALON
     // Host memory (Avalon)
     ofs_plat_avalon_mem_rdwr_if.to_slave host_mem_if,
+`endif
 
     // FPGA MMIO master (Avalon)
     ofs_plat_avalon_mem_if.to_master mmio64_if,
@@ -60,7 +66,12 @@ module afu
 
     // Test UUID. Multiple tests may share an AFU UUID and are differentiated
     // with test IDs.
+`ifdef TEST_PARAM_IFC_CCIP
+    logic [127:0] test_id = 128'hc5ebd585_4b1e_4e3e_a53f_fda6b7b340da;
+`endif
+`ifdef TEST_PARAM_IFC_AVALON
     logic [127:0] test_id = 128'h04babb2e_4498_48bf_8d94_59dce56eb1d4;
+`endif
 
     always_comb
     begin
@@ -83,7 +94,7 @@ module afu
     //
     // ====================================================================
 
-    avalon_mem_rdwr_engine
+    host_mem_rdwr_engine
       #(
         .ENGINE_NUMBER(0)
         )

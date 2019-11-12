@@ -68,6 +68,8 @@ typedef struct
     uint64_t wr_wsid;
 
     uint32_t max_burst_size;
+    bool natural_bursts;
+    bool ordered_read_responses;
 }
 t_engine_buf;
 
@@ -76,6 +78,13 @@ static t_csr_handle_p s_csr_handle;
 static bool s_is_ase;
 static t_engine_buf* s_eng_bufs;
 static double s_afu_mhz;
+
+static char *engine_type[] = 
+{
+    "CCI-P",
+    "Avalon",
+    NULL
+};
 
 
 //
@@ -139,6 +148,30 @@ computeExpectedReadHash(
     }
 
     return hash;
+}
+
+
+// Checksum is used when hardware reads may arrive out of order.
+static uint32_t
+computeExpectedReadSum(
+    uint16_t *buf,
+    uint32_t num_bursts,
+    uint32_t burst_size)
+{
+    uint32_t sum = 0;
+
+    while (num_bursts--)
+    {
+        uint32_t num_lines = burst_size;
+        while (num_lines--)
+        {
+            // Hash the low and high 16 bits of each line
+            sum += ((buf[31] << 16) | buf[0]);
+            buf += 32;
+        }
+    }
+
+    return sum;
 }
 
 
@@ -235,11 +268,16 @@ testSmallRegions(
                 // Start your engines
                 csrEnableEngines(s_csr_handle, (uint64_t)1 << e);
 
-                // Compute the expected hash while the engine runs
+                // Compute the expected hash and sum while the engine runs
                 uint32_t expected_hash = 0;
+                uint32_t expected_sum = 0;
                 if (mode & 1)
                 {
                     expected_hash = computeExpectedReadHash(
+                        (uint16_t*)s_eng_bufs[e].rd_buf,
+                        num_bursts, burst_size);
+
+                    expected_sum = computeExpectedReadSum(
                         (uint16_t*)s_eng_bufs[e].rd_buf,
                         num_bursts, burst_size);
                 }
@@ -263,9 +301,12 @@ testSmallRegions(
 
                 // Get the actual hash
                 uint32_t actual_hash = 0;
+                uint32_t actual_sum = 0;
                 if (mode & 1)
                 {
-                    actual_hash = csrEngRead(s_csr_handle, e, 5);
+                    uint64_t check_val = csrEngRead(s_csr_handle, e, 5);
+                    actual_hash = (uint32_t)check_val;
+                    actual_sum = check_val >> 32;
                 }
 
                 // Test that writes arrived
@@ -279,7 +320,14 @@ testSmallRegions(
                         num_bursts, burst_size, &write_error_line);
                 }
 
-                if (expected_hash != actual_hash)
+                if (expected_sum != actual_sum)
+                {
+                    num_errors += 1;
+                    printf("\n    Read ERROR expected sum 0x%08x found 0x%08x\n",
+                           expected_sum, actual_sum);
+                }
+                else if ((expected_hash != actual_hash) &&
+                         s_eng_bufs[e].ordered_read_responses)
                 {
                     num_errors += 1;
                     printf("\n    Read ERROR expected hash 0x%08x found 0x%08x\n",
@@ -299,13 +347,21 @@ testSmallRegions(
             num_bursts = (num_bursts * 2) + 1;
         }
 
-        // Test every burst size up to 4 and then sparsely after that
-        if ((burst_size < 4) || (burst_size == max_burst_size))
-            burst_size += 1;
+        if (s_eng_bufs[e].natural_bursts)
+        {
+            // Natural burst sizes -- test powers of 2
+            burst_size <<= 1;
+        }
         else
         {
-            burst_size = burst_size * 3 + 1;
-            if (burst_size > max_burst_size) burst_size = max_burst_size;
+            // Test every burst size up to 4 and then sparsely after that
+            if ((burst_size < 4) || (burst_size == max_burst_size))
+                burst_size += 1;
+            else
+            {
+                burst_size = burst_size * 3 + 1;
+                if (burst_size > max_burst_size) burst_size = max_burst_size;
+            }
         }
     }
 
@@ -455,8 +511,16 @@ testHostChanParams(
         csrEngWrite(csr_handle, e, 4, (MB(1) / CL(1)) - 1);
 
         // Get the maximum burst size for the engine.
-        s_eng_bufs[e].max_burst_size = csrEngRead(s_csr_handle, e, 0) & 0xff;
+        uint64_t r = csrEngRead(s_csr_handle, e, 0);
+        s_eng_bufs[e].max_burst_size = r & 0x7fff;
+        s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
+        s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
+        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
+        printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
+        printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
+        printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
     }
+    printf("\n");
     
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
@@ -481,8 +545,16 @@ testHostChanParams(
                 runBandwidth((uint64_t)1 << e);
             }
 
-            burst_size += 1;
-            if (burst_size == 5) burst_size = s_eng_bufs[e].max_burst_size;
+            if (s_eng_bufs[e].natural_bursts)
+            {
+                // Natural burst sizes -- test powers of 2
+                burst_size <<= 1;
+            }
+            else
+            {
+                burst_size += 1;
+                if (burst_size == 5) burst_size = s_eng_bufs[e].max_burst_size;
+            }
         }
     }
 
