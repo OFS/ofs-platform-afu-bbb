@@ -46,9 +46,7 @@
 
 // State from the AFU's JSON file, extracted using OPAE's afu_json_mgr script
 #include "afu_json_info.h"
-#include "csr_mgr.h"
-#include "hash32.h"
-#include "utils.h"
+#include "test_host_chan_params.h"
 
 #define CACHELINE_BYTES 64
 #define CL(x) ((x) * CACHELINE_BYTES)

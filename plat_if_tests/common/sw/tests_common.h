@@ -28,18 +28,11 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __TEST_HOST_CHAN_PARAMS_H__
-#define __TEST_HOST_CHAN_PARAMS_H__
+#ifndef __TESTS_COMMON_H__
+#define __TESTS_COMMON_H__
 
-#include <opae/fpga.h>
-#include "tests_common.h"
+#include "connect.h"
+#include "csr_mgr.h"
+#include "hash32.h"
 
-int
-testHostChanParams(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase);
-
-#endif // __TEST_HOST_CHAN_PARAMS_H__
+#endif // __TESTS_COMMON_H__

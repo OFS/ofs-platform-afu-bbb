@@ -28,15 +28,27 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __UTILS_H__
-#define __UTILS_H__
+#ifndef __CONNECT_H__
+#define __CONNECT_H__
 
 #include <opae/fpga.h>
 
+typedef struct
+{
+    int segment;
+    int bus;
+    int device;
+    int function;
+    int socket;
+}
+t_target_bdf;
+
 // Search for an accelerator matching the requested UUID and connect to it.
-fpga_handle connectToAccel(const char *accel_uuid);
+fpga_handle connectToAccel(const char *accel_uuid, const t_target_bdf *bdf);
+
+void initTargetBDF(t_target_bdf *bdf);
 
 // Is the AFU simulated?
-bool probeForASE();
+bool probeForASE(const t_target_bdf *bdf);
 
-#endif // __UTILS_H__
+#endif // __CONNECT_H__

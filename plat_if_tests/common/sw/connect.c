@@ -33,19 +33,41 @@
 #include <uuid/uuid.h>
 
 #include <opae/fpga.h>
-#include "utils.h"
+#include "tests_common.h"
+
+#define ON_ERR_GOTO(res, label, desc)        \
+    {                                        \
+        if ((res) != FPGA_OK) {              \
+            print_err((desc), (res));        \
+            goto label;                      \
+        }                                    \
+    }
+
+
+//
+// Print readable error message for fpga_results
+//
+static void
+print_err(const char *s, fpga_result res)
+{
+    fprintf(stderr, "Error %s: %s\n", s, fpgaErrStr(res));
+}
+
 
 //
 // Search for an accelerator matching the requested UUID and connect to it.
 //
-fpga_handle connectToAccel(const char *accel_uuid)
+fpga_handle
+connectToAccel(const char *accel_uuid, const t_target_bdf *bdf)
 {
     fpga_properties filter = NULL;
     fpga_guid guid;
-    fpga_token accel_token;
+    fpga_token accel_token = NULL;
     uint32_t num_matches;
-    fpga_handle accel_handle;
+    fpga_handle accel_handle = NULL;
     fpga_result r;
+
+    assert(NULL != bdf);
 
     // Don't print verbose messages in ASE by default
     setenv("ASE_LOG", "0", 0);
@@ -53,6 +75,36 @@ fpga_handle connectToAccel(const char *accel_uuid)
     // Set up a filter that will search for an accelerator
     fpgaGetProperties(NULL, &filter);
     fpgaPropertiesSetObjectType(filter, FPGA_ACCELERATOR);
+
+    if (-1 != bdf->segment)
+    {
+        r = fpgaPropertiesSetSegment(filter, bdf->segment);
+        ON_ERR_GOTO(r, out_destroy, "setting segment");
+    }
+
+    if (-1 != bdf->bus)
+    {
+        r = fpgaPropertiesSetBus(filter, bdf->bus);
+        ON_ERR_GOTO(r, out_destroy, "setting bus");
+    }
+
+    if (-1 != bdf->device)
+    {
+        r = fpgaPropertiesSetDevice(filter, bdf->device);
+        ON_ERR_GOTO(r, out_destroy, "setting device");
+    }
+
+    if (-1 != bdf->function)
+    {
+        r = fpgaPropertiesSetFunction(filter, bdf->function);
+        ON_ERR_GOTO(r, out_destroy, "setting function");
+    }
+
+    if (-1 != bdf->socket)
+    {
+        r = fpgaPropertiesSetSocketID(filter, bdf->socket);
+        ON_ERR_GOTO(r, out_destroy, "setting socket id");
+    }
 
     // Add the desired UUID to the filter
     uuid_parse(accel_uuid, guid);
@@ -62,27 +114,40 @@ fpga_handle connectToAccel(const char *accel_uuid)
     num_matches = 1;
     fpgaEnumerate(&filter, 1, &accel_token, 1, &num_matches);
 
-    // Not needed anymore
-    fpgaDestroyProperties(&filter);
-
     if (num_matches < 1)
     {
         fprintf(stderr, "Accelerator %s not found!\n", accel_uuid);
-        return 0;
+        goto out_destroy;
     }
 
     // Open accelerator
     r = fpgaOpen(accel_token, &accel_handle, 0);
     assert(FPGA_OK == r);
 
+  out_destroy:
     // Done with token
-    fpgaDestroyToken(&accel_token);
+    if (accel_token)
+        fpgaDestroyToken(&accel_token);
+
+    fpgaDestroyProperties(&filter);
 
     return accel_handle;
 }
 
 
-bool probeForASE()
+void
+initTargetBDF(t_target_bdf *target)
+{
+    target->segment = -1;
+    target->bus = -1;
+    target->device = -1;
+    target->function = -1;
+    target->socket = -1;
+}
+
+
+bool
+probeForASE(const t_target_bdf *bdf)
 {
     fpga_result r = FPGA_OK;
     uint16_t device_id = 0;
@@ -93,6 +158,36 @@ bool probeForASE()
     // Connect to the FPGA management engine
     fpgaGetProperties(NULL, &filter);
     fpgaPropertiesSetObjectType(filter, FPGA_DEVICE);
+
+    if (-1 != bdf->segment)
+    {
+        r = fpgaPropertiesSetSegment(filter, bdf->segment);
+        ON_ERR_GOTO(r, out_destroy, "setting segment");
+    }
+
+    if (-1 != bdf->bus)
+    {
+        r = fpgaPropertiesSetBus(filter, bdf->bus);
+        ON_ERR_GOTO(r, out_destroy, "setting bus");
+    }
+
+    if (-1 != bdf->device)
+    {
+        r = fpgaPropertiesSetDevice(filter, bdf->device);
+        ON_ERR_GOTO(r, out_destroy, "setting device");
+    }
+
+    if (-1 != bdf->function)
+    {
+        r = fpgaPropertiesSetFunction(filter, bdf->function);
+        ON_ERR_GOTO(r, out_destroy, "setting function");
+    }
+
+    if (-1 != bdf->socket)
+    {
+        r = fpgaPropertiesSetSocketID(filter, bdf->socket);
+        ON_ERR_GOTO(r, out_destroy, "setting socket id");
+    }
 
     // Connecting to one is sufficient to find ASE.
     fpgaEnumerate(&filter, 1, &fme_token, 1, &num_matches);
@@ -107,4 +202,8 @@ bool probeForASE()
 
     // ASE's device ID is 0xa5e
     return ((FPGA_OK == r) && (0xa5e == device_id));
+
+  out_destroy:
+    fpgaDestroyProperties(&filter);
+    return false;
 }
