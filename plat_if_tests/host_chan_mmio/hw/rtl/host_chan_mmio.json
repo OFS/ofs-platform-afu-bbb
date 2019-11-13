@@ -1,0 +1,20 @@
+{
+   "version": 1,
+   "afu-image": {
+      "power": 0,
+      "clock-frequency-high": "auto",
+      "clock-frequency-low": "auto",
+      "afu-top-interface":
+         {
+            "class": "ofs_plat_afu"
+         },
+      "accelerator-clusters":
+         [
+            {
+               "name": "host_chan_mmio",
+               "total-contexts": 1,
+               "accelerator-type-uuid": "76d7ae9c-f66b-461f-816a-5428bcebdbc5"
+            }
+         ]
+   }
+}

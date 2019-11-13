@@ -156,7 +156,7 @@ interface ofs_plat_host_ccip_if
         endcase
     endfunction
 
-    // Print CSR data
+    // Print CSR length
     function int csr_len(logic [1:0] length);
         case (length)
             2'b0: return 4;
@@ -164,6 +164,17 @@ interface ofs_plat_host_ccip_if
             2'b10: return 64;
             default: return 0;
         endcase
+    endfunction
+
+    // Print CSR data
+    function string csr_data(int num_bytes, t_ccip_clData data);
+        string str;
+        case (num_bytes)
+           4: $sformat(str, "0x%08h", data[31:0]);
+           8: $sformat(str, "0x%016h", data[63:0]);
+           64: $sformat(str, "0x%0128h", data[511:0]);
+        endcase
+        return str;
     endfunction
 
     initial
@@ -254,12 +265,12 @@ interface ofs_plat_host_ccip_if
                     t_ccip_c0_ReqMmioHdr mmio_hdr;
                     mmio_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
 
-                    $fwrite(log_fd, "%m:\t%t\tMMIOWrReq\t%x\t%d bytes\t%x\t%x\n",
+                    $fwrite(log_fd, "%m:\t%t\tMMIOWrReq\t%x\t%d bytes\t%x\t%s\n",
                             $time,
                             mmio_hdr.tid,
                             csr_len(mmio_hdr.length),
                             mmio_hdr.address,
-                            sRx.c0.data[63:0]);
+                            csr_data(csr_len(mmio_hdr.length), sRx.c0.data));
                 end
 
                 /******************* SW -> AFU Config Read *******************/

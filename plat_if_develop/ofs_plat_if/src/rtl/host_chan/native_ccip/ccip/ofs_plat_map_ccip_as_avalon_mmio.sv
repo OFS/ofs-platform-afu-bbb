@@ -181,8 +181,28 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
             mmio_in_wr_data = {8{sRx.c0.data[63:0]}};
         else
             // Full 512 bit write
-            mmio_in_wr_data = sRx.c0.data[63:0];
+            mmio_in_wr_data = sRx.c0.data;
     end
+
+    // Drop requests that are larger than the data bus size. E.g., 512 bit writes
+    // will not be sent to 64 bit interfaces.
+    logic mmio_req_fits_in_data;
+    generate
+        if (DATA_WIDTH <= 32)
+            // Accept only 32 bit requests
+            assign mmio_req_fits_in_data = (mmio_in_hdr.length == 2'b00);
+        else if (DATA_WIDTH <= 64)
+            // Accept 32 and 64 bit requests
+            assign mmio_req_fits_in_data = (mmio_in_hdr.length[1] == 1'b0);
+        else
+            assign mmio_req_fits_in_data = 1'b1;
+    endgenerate
+
+    // New request?
+    logic req_in_fifo_enq_en;
+    assign req_in_fifo_enq_en = (sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) &&
+                                mmio_req_fits_in_data &&
+                                ! error;
 
     ofs_plat_prim_fifo_bram
       #(
@@ -196,7 +216,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
         .clk,
         .reset,
         .enq_data({ sRx.c0.mmioWrValid, mmio_in_wr_data, mmio_in_hdr }),
-        .enq_en((sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) && ! error),
+        .enq_en(req_in_fifo_enq_en),
         .notFull(req_in_fifo_notFull),
         .almostFull(),
         .first({ mmio_is_wr, mmio_wr_data, mmio_hdr }),
@@ -217,6 +237,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
         begin : wo
             assign mmio_tid = t_ccip_tid'(0);
             assign dword_idx = t_dword_idx'(0);
+            assign tid_in_fifo_notFull = 1'b1;
         end
         else
         begin : wr
