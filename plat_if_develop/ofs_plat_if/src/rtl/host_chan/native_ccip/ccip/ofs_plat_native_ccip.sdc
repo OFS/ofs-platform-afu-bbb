@@ -10,3 +10,8 @@ set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|rese
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|error[0]]
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|pwrState[0]*]
 set_false_path -from [get_keepers *|ofs_plat_clock_crossing.ccip_async_shim|async_shim_error_fiu*]
+
+## CCI-P to Avalon MMIO bridge clock crossing
+set_false_path -from [get_keepers *|ofs_av_mmio_impl|reset_fclk]
+set_false_path -from [get_keepers *|ofs_plat_avalon_host_mem_afu_reset[0]]
+set_false_path -from [get_keepers *|ofs_plat_avalon_host_mem_afu_pwrState[0]*]

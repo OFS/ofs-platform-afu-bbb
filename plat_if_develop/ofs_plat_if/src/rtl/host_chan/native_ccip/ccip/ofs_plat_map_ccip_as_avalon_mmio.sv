@@ -48,6 +48,10 @@
 //
 module ofs_plat_map_ccip_as_avalon_mmio
   #(
+    // When non-zero, add a clock crossing to move the Avalon
+    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    parameter ADD_CLOCK_CROSSING = 0,
+
     parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
     )
    (
@@ -55,21 +59,28 @@ module ofs_plat_map_ccip_as_avalon_mmio
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
     // Generated Avalon master for connecting to AFU MMIO slave
-    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu
+    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
+
+    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    input  logic afu_clk,
+    input  logic afu_reset
     );
 
     ofs_plat_map_ccip_as_avalon_mmio_impl
       #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_OUTSTANDING_MMIO_RD_REQS(MAX_OUTSTANDING_MMIO_RD_REQS)
         )
-      impl
+      ofs_av_mmio_impl
        (
         .clk(to_fiu.clk),
         .reset(to_fiu.reset),
         .instance_number(to_fiu.instance_number),
         .sRx(to_fiu.sRx),
         .c2Tx(to_fiu.sTx.c2),
-        .mmio_to_afu
+        .mmio_to_afu,
+        .afu_clk,
+        .afu_reset
         );
 
 endmodule // ofs_plat_map_ccip_as_avalon_mmio
@@ -83,6 +94,10 @@ endmodule // ofs_plat_map_ccip_as_avalon_mmio
 //
 module ofs_plat_map_ccip_as_avalon_mmio_wo
   #(
+    // When non-zero, add a clock crossing to move the AValon
+    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    parameter ADD_CLOCK_CROSSING = 0,
+
     parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
     )
    (
@@ -90,22 +105,29 @@ module ofs_plat_map_ccip_as_avalon_mmio_wo
     ofs_plat_host_ccip_if.to_fiu_ro to_fiu,
 
     // Generated Avalon master for connecting to AFU MMIO slave
-    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu
+    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
+
+    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    input  logic afu_clk,
+    input  logic afu_reset
     );
 
     ofs_plat_map_ccip_as_avalon_mmio_impl
       #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_OUTSTANDING_MMIO_RD_REQS(MAX_OUTSTANDING_MMIO_RD_REQS),
         .WRITE_ONLY_MODE(1)
         )
-      impl
+      ofs_av_mmio_impl
        (
         .clk(to_fiu.clk),
         .reset(to_fiu.reset),
         .instance_number(to_fiu.instance_number),
         .sRx(to_fiu.sRx),
         .c2Tx(),
-        .mmio_to_afu
+        .mmio_to_afu,
+        .afu_clk,
+        .afu_reset
         );
 
 endmodule // ofs_plat_map_ccip_as_avalon_mmio_wo
@@ -116,6 +138,7 @@ endmodule // ofs_plat_map_ccip_as_avalon_mmio_wo
 //
 module ofs_plat_map_ccip_as_avalon_mmio_impl
   #(
+    parameter ADD_CLOCK_CROSSING = 0,
     parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64,
     parameter WRITE_ONLY_MODE = 0
     )
@@ -126,8 +149,15 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     input  t_if_ccip_Rx sRx,
     output t_if_ccip_c2_Tx c2Tx,
 
-    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu
+    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
+
+    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    input  logic afu_clk,
+    input  logic afu_reset
     );
+
+    logic fclk;
+    assign fclk = clk;
 
     localparam DATA_WIDTH = mmio_to_afu.DATA_WIDTH_;
     typedef logic [DATA_WIDTH-1 : 0] t_mmio_data;
@@ -142,8 +172,16 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     end
     // synthesis translate_on
 
-    assign mmio_to_afu.clk = clk;
-    assign mmio_to_afu.reset = reset;
+    // "reset" is already synchronous in "fclk", but Quartus sometimes has trouble
+    // figuring this out.
+    (* preserve *) logic reset_fclk = 1'b1;
+    always @(posedge fclk)
+    begin
+        reset_fclk <= reset;
+    end
+
+    assign mmio_to_afu.clk = (ADD_CLOCK_CROSSING == 0) ? fclk : afu_clk;
+    assign mmio_to_afu.reset = (ADD_CLOCK_CROSSING == 0) ? reset : afu_reset;
     assign mmio_to_afu.instance_number = instance_number;
 
     // Index of the minimum addressable size (32 bit DWORD)
@@ -151,16 +189,16 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     typedef logic [DWORD_IDX_BITS-1 : 0] t_dword_idx;
 
     // Cast CCI-P c0 header into ReqMmioHdr
-    t_ccip_c0_ReqMmioHdr mmio_in_hdr;
-    assign mmio_in_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
+    t_ccip_c0_ReqMmioHdr mmio_in_hdr_fclk;
+    assign mmio_in_hdr_fclk = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
 
-    logic error;
+    logic error_fclk;
 
     //
     // Send MMIO requests through a buffering FIFO in case the AFU's MMIO slave
     // asserts waitrequest.
     //
-    logic req_in_fifo_notFull;
+    logic req_in_fifo_notFull_fclk;
     logic mmio_is_wr;
     t_ccip_clData mmio_wr_data;
     t_ccip_c0_ReqMmioHdr mmio_hdr;
@@ -170,18 +208,18 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     // Restructure incoming write data so that 32 and 64 bit writes are replicated
     // throughout, even in a 512 bit MMIO interface. Quartus will drop unused
     // replications.
-    t_ccip_clData mmio_in_wr_data;
+    t_ccip_clData mmio_in_wr_data_fclk;
     always_comb
     begin
-        if (mmio_in_hdr.length == 2'b00)
+        if (mmio_in_hdr_fclk.length == 2'b00)
             // 32 bit write -- replicate 16 times
-            mmio_in_wr_data = {16{sRx.c0.data[31:0]}};
-        else if (mmio_in_hdr.length == 2'b01)
+            mmio_in_wr_data_fclk = {16{sRx.c0.data[31:0]}};
+        else if (mmio_in_hdr_fclk.length == 2'b01)
             // 64 bit write -- replicate 8 times
-            mmio_in_wr_data = {8{sRx.c0.data[63:0]}};
+            mmio_in_wr_data_fclk = {8{sRx.c0.data[63:0]}};
         else
             // Full 512 bit write
-            mmio_in_wr_data = sRx.c0.data;
+            mmio_in_wr_data_fclk = sRx.c0.data;
     end
 
     // Drop requests that are larger than the data bus size. E.g., 512 bit writes
@@ -190,21 +228,21 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     generate
         if (DATA_WIDTH <= 32)
             // Accept only 32 bit requests
-            assign mmio_req_fits_in_data = (mmio_in_hdr.length == 2'b00);
+            assign mmio_req_fits_in_data = (mmio_in_hdr_fclk.length == 2'b00);
         else if (DATA_WIDTH <= 64)
             // Accept 32 and 64 bit requests
-            assign mmio_req_fits_in_data = (mmio_in_hdr.length[1] == 1'b0);
+            assign mmio_req_fits_in_data = (mmio_in_hdr_fclk.length[1] == 1'b0);
         else
             assign mmio_req_fits_in_data = 1'b1;
     endgenerate
 
     // New request?
-    logic req_in_fifo_enq_en;
-    assign req_in_fifo_enq_en = (sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) &&
-                                mmio_req_fits_in_data &&
-                                ! error;
+    logic req_in_fifo_enq_en_fclk;
+    assign req_in_fifo_enq_en_fclk = (sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) &&
+                                     mmio_req_fits_in_data &&
+                                     ! error_fclk;
 
-    ofs_plat_prim_fifo_bram
+    ofs_plat_prim_fifo_dc_bram
       #(
         // Simply push the whole data structures through the FIFO.
         // Quartus will remove the parts that wind up not being used.
@@ -213,12 +251,13 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
         )
       req_in_fifo
        (
-        .clk,
-        .reset,
-        .enq_data({ sRx.c0.mmioWrValid, mmio_in_wr_data, mmio_in_hdr }),
-        .enq_en(req_in_fifo_enq_en),
-        .notFull(req_in_fifo_notFull),
+        .reset(reset_fclk),
+        .wr_clk(fclk),
+        .enq_data({ sRx.c0.mmioWrValid, mmio_in_wr_data_fclk, mmio_in_hdr_fclk }),
+        .enq_en(req_in_fifo_enq_en_fclk),
+        .notFull(req_in_fifo_notFull_fclk),
         .almostFull(),
+        .rd_clk(mmio_to_afu.clk),
         .first({ mmio_is_wr, mmio_wr_data, mmio_hdr }),
         .deq_en(mmio_req_deq),
         .notEmpty(mmio_req_notEmpty)
@@ -228,16 +267,17 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     // Save tid for MMIO reads. It will be needed when generating the
     // response. Avalon slave responses will be returned in request order.
     //
-    logic tid_in_fifo_notFull;
-    t_ccip_tid mmio_tid;
-    t_dword_idx dword_idx;
+    logic tid_in_fifo_notFull_fclk;
+    logic tid_deq_fclk;
+    t_ccip_tid mmio_tid_fclk;
+    t_dword_idx dword_idx_fclk;
 
     generate
         if (WRITE_ONLY_MODE)
         begin : wo
-            assign mmio_tid = t_ccip_tid'(0);
-            assign dword_idx = t_dword_idx'(0);
-            assign tid_in_fifo_notFull = 1'b1;
+            assign mmio_tid_fclk = t_ccip_tid'(0);
+            assign dword_idx_fclk = t_dword_idx'(0);
+            assign tid_in_fifo_notFull_fclk = 1'b1;
         end
         else
         begin : wr
@@ -248,14 +288,14 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
                 )
               tid_in_fifo
                (
-                .clk,
+                .clk(fclk),
                 .reset,
-                .enq_data({ t_dword_idx'(mmio_in_hdr.address), mmio_in_hdr.tid }),
-                .enq_en(sRx.c0.mmioRdValid && ! error),
-                .notFull(tid_in_fifo_notFull),
+                .enq_data({ t_dword_idx'(mmio_in_hdr_fclk.address), mmio_in_hdr_fclk.tid }),
+                .enq_en(sRx.c0.mmioRdValid && ! error_fclk),
+                .notFull(tid_in_fifo_notFull_fclk),
                 .almostFull(),
-                .first({ dword_idx, mmio_tid }),
-                .deq_en(mmio_to_afu.readdatavalid),
+                .first({ dword_idx_fclk, mmio_tid_fclk }),
+                .deq_en(tid_deq_fclk),
                 // Must not be empty
                 .notEmpty()
                 );
@@ -267,17 +307,17 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     // This tends to be a far easier failure to debug than when an MMIO request
     // is dropped silently.
     //
-    always_ff @(posedge clk)
+    always_ff @(posedge fclk)
     begin
-        if (((sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) && ! req_in_fifo_notFull) ||
-            (sRx.c0.mmioRdValid && ! tid_in_fifo_notFull))
+        if (((sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) && ! req_in_fifo_notFull_fclk) ||
+            (sRx.c0.mmioRdValid && ! tid_in_fifo_notFull_fclk))
         begin
-            error <= 1'b1;
+            error_fclk <= 1'b1;
         end
 
         if (reset)
         begin
-            error <= !DATA_WIDTH_LEGAL;
+            error_fclk <= !DATA_WIDTH_LEGAL;
         end
     end
 
@@ -329,15 +369,19 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     end
 
     // Forward read responses back to CCI-P.
-    always_ff @(posedge clk)
-    begin
-        c2Tx.mmioRdValid <= mmio_to_afu.readdatavalid;
-        c2Tx.hdr.tid <= mmio_tid;
+    logic mmio_rd_valid_fclk;
+    t_mmio_data mmio_readdata_fclk;
+    assign tid_deq_fclk = mmio_rd_valid_fclk;
 
-        c2Tx.data <= mmio_to_afu.readdata;
-        if (dword_idx[0])
+    always_ff @(posedge fclk)
+    begin
+        c2Tx.mmioRdValid <= mmio_rd_valid_fclk;
+        c2Tx.hdr.tid <= mmio_tid_fclk;
+
+        c2Tx.data <= mmio_readdata_fclk;
+        if (dword_idx_fclk[0])
         begin
-            c2Tx.data[31:0] <= mmio_to_afu.readdata[63:32];
+            c2Tx.data[31:0] <= mmio_readdata_fclk[63:32];
         end
 
         if (reset)
@@ -346,13 +390,39 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
         end
     end
 
+    generate
+        if (ADD_CLOCK_CROSSING == 0)
+        begin : c2_nc
+            // No clock crossing required
+            assign mmio_rd_valid_fclk = mmio_to_afu.readdatavalid;
+            assign mmio_readdata_fclk = mmio_to_afu.readdata;
+        end
+        else
+        begin : c2_cc
+            // Clock crossing from AFU Avalon master to CCI-P MMIO read response
+            logic rsp_out_notEmpty_fclk;
+            assign mmio_rd_valid_fclk = rsp_out_notEmpty_fclk;
 
-    //
-    // Generate requests to the 512 bit slave.
-    //
-    // Convert to 512 bit words (from 32 bit words)
-    //assign mmio512_wr_to_afu.address = mmio_hdr.address[$bits(t_ccip_mmioAddr)-1 : 4];
-
+            ofs_plat_prim_fifo_dc_bram
+              #(
+                .N_DATA_BITS(DATA_WIDTH),
+                .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
+                )
+            rsp_out_fifo
+              (
+               .reset(reset_fclk),
+               .wr_clk(mmio_to_afu.clk),
+               .enq_data(mmio_to_afu.readdata),
+               .enq_en(mmio_to_afu.readdatavalid),
+               .notFull(),
+               .almostFull(),
+               .rd_clk(fclk),
+               .first(mmio_readdata_fclk),
+               .deq_en(rsp_out_notEmpty_fclk),
+               .notEmpty(rsp_out_notEmpty_fclk)
+               );
+        end
+    endgenerate
 
     //
     // Consume requests once they are accepted by the Avalon slave.

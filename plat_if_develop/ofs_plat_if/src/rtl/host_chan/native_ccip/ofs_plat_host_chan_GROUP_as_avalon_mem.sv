@@ -133,11 +133,11 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
     ofs_plat_host_ccip_if ccip_mmio();
 
     ofs_plat_host_chan_GROUP_as_avalon_mem_impl
-     #(
-       .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-       .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
-       )
-     impl
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
+        )
+      impl
        (
         .to_fiu,
         .host_mem_to_afu,
@@ -157,12 +157,16 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
     // Do the CCI-P MMIO to Avalon mapping
     ofs_plat_map_ccip_as_avalon_mmio
       #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_GROUP_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       av_host_mmio
        (
         .to_fiu(ccip_mmio),
-        .mmio_to_afu(mmio_if)
+        .mmio_to_afu(mmio_if),
+
+        .afu_clk(host_mem_to_afu.clk),
+        .afu_reset(host_mem_to_afu.reset)
         );
 
     // Add register stages, as requested. Force an extra one for timing.
@@ -242,12 +246,16 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
     // Do the CCI-P MMIO to Avalon mapping
     ofs_plat_map_ccip_as_avalon_mmio
       #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_GROUP_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       av_host_mmio
        (
         .to_fiu(ccip_mmio),
-        .mmio_to_afu(mmio_if)
+        .mmio_to_afu(mmio_if),
+
+        .afu_clk(host_mem_to_afu.clk),
+        .afu_reset(host_mem_to_afu.reset)
         );
 
     // Add register stages, as requested. Force an extra one for timing.
@@ -273,12 +281,16 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
     // Do the CCI-P MMIO to Avalon mapping
     ofs_plat_map_ccip_as_avalon_mmio_wo
       #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_GROUP_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       av_host_mmio_wr
        (
         .to_fiu(ccip_mmio),
-        .mmio_to_afu(mmio_wr_if)
+        .mmio_to_afu(mmio_wr_if),
+
+        .afu_clk(host_mem_to_afu.clk),
+        .afu_reset(host_mem_to_afu.reset)
         );
 
     // Add register stages, as requested. Force an extra one for timing.
@@ -335,22 +347,21 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     output t_ofs_plat_power_state afu_pwrState
     );
 
-    //
-    // Transform native CCI-P signals to the AFU's requested clock domain.
-    //
-    ofs_plat_host_ccip_if std_ccip_if();
-    ofs_plat_host_chan_GROUP_as_ccip
-     #(
-       .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-       .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
-       )
-     afu_ccip
+    ofs_plat_host_ccip_if reg_ccip_if();
+    t_ofs_plat_power_state reg_fiu_pwrState;
+
+    ofs_plat_shim_ccip_reg
+      #(
+        // At least one register stage
+        .N_REG_STAGES((ADD_TIMING_REG_STAGES == 0) ? 1 : ADD_TIMING_REG_STAGES)
+        )
+      ccip_reg
        (
-        .to_fiu(to_fiu),
-        .to_afu(std_ccip_if),
-        .afu_clk,
+        .to_fiu,
         .fiu_pwrState,
-        .afu_pwrState
+
+        .to_afu(reg_ccip_if),
+        .afu_pwrState(reg_fiu_pwrState)
         );
 
     //
@@ -359,7 +370,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     ofs_plat_host_ccip_if host_mem_ccip_if();
     ofs_plat_shim_ccip_split_mmio split_mmio
        (
-        .to_fiu(std_ccip_if),
+        .to_fiu(reg_ccip_if),
         .host_mem(host_mem_ccip_if),
         .mmio(ccip_mmio)
         );
@@ -408,14 +419,39 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
         .to_afu(sorted_ccip_if)
         );
 
+    //
+    // Reset and pwrState synchronizers
+    //
+    (* preserve *) logic ofs_plat_avalon_host_mem_afu_reset[3:0] = '{1'b1, 1'b1, 1'b1, 1'b1};
+    (* preserve *) t_ofs_plat_power_state ofs_plat_avalon_host_mem_afu_pwrState[3:0];
+    assign afu_pwrState = ofs_plat_avalon_host_mem_afu_pwrState[3];
+
+    always @(posedge to_fiu.clk)
+    begin
+        ofs_plat_avalon_host_mem_afu_reset[0] <= to_fiu.reset;
+        ofs_plat_avalon_host_mem_afu_pwrState[0] <= reg_fiu_pwrState;
+    end
+
+    always @(posedge afu_clk)
+    begin
+        ofs_plat_avalon_host_mem_afu_reset[3:1] <= ofs_plat_avalon_host_mem_afu_reset[2:0];
+        ofs_plat_avalon_host_mem_afu_pwrState[3:1] <= ofs_plat_avalon_host_mem_afu_pwrState[2:0];
+    end
 
     //
     // Now we can map to Avalon.
     //
-    ofs_plat_map_ccip_as_avalon_host_mem av_host_mem
+    ofs_plat_map_ccip_as_avalon_host_mem
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .MAX_ACTIVE_RD_LINES(ccip_GROUP_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
+        )
+      av_host_mem
        (
         .to_fiu(sorted_ccip_if),
-        .host_mem_to_afu
+        .host_mem_to_afu,
+        .afu_clk,
+        .afu_reset(ofs_plat_avalon_host_mem_afu_reset[3])
         );
 
 endmodule // ofs_plat_host_chan_GROUP_as_avalon_mem

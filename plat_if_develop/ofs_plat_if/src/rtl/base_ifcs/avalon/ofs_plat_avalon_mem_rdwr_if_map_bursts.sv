@@ -177,11 +177,11 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                  .clk,
                  .reset,
 
-                 .m_new_req(! mem_slave.wr_waitrequest && m_wr_sop),
+                 .m_new_req(mem_master.wr_write && ! mem_slave.wr_waitrequest && m_wr_sop),
                  .m_addr(mem_master.wr_address),
                  .m_burstcount(mem_master.wr_burstcount),
 
-                 .s_accept_req(! mem_slave.wr_waitrequest && s_wr_sop),
+                 .s_accept_req(mem_slave.wr_write && ! mem_slave.wr_waitrequest && s_wr_sop),
                  .s_req_complete(wr_complete),
                  .s_addr(s_wr_address),
                  .s_burstcount(s_wr_burstcount)

@@ -34,7 +34,12 @@
 
 module ofs_plat_avalon_mem_rdwr_if_async_shim
   #(
-    parameter COMMAND_FIFO_DEPTH = 128,
+    parameter RD_COMMAND_FIFO_DEPTH = 8,
+    parameter RD_RESPONSE_FIFO_DEPTH = 8,
+
+    parameter WR_COMMAND_FIFO_DEPTH = 8,
+    parameter WR_RESPONSE_FIFO_DEPTH = 8,
+
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
     // requests can be received after mem_master.waitrequest is asserted.
     parameter COMMAND_ALMFULL_THRESHOLD = 0
@@ -44,13 +49,24 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     ofs_plat_avalon_mem_rdwr_if.to_master mem_master
     );
 
-    localparam SPACE_AVAIL_WIDTH = $clog2(COMMAND_FIFO_DEPTH) + 1;
+    localparam RD_SPACE_AVAIL_WIDTH = $clog2(RD_COMMAND_FIFO_DEPTH) + 1;
+    localparam WR_SPACE_AVAIL_WIDTH = $clog2(WR_COMMAND_FIFO_DEPTH) + 1;
 
     logic cmd_rd_waitrequest, cmd_wr_waitrequest;
-    logic [SPACE_AVAIL_WIDTH-1:0] cmd_rd_space_avail, cmd_wr_space_avail;
+    logic [RD_SPACE_AVAIL_WIDTH-1:0] cmd_rd_space_avail;
+    logic [WR_SPACE_AVAIL_WIDTH-1:0] cmd_wr_space_avail;
 
     typedef logic [1:0] t_response;
     t_response m0_response_dummy;
+
+    // The clock crossing bridge requires that an extra 2 * MAX_BURST slots
+    // remain in the response queue in order to deal with the the depth
+    // of the request pipeline inside the clock crossing FIFO. When the
+    // maximum burst count is large this can affect throughput. Pad the
+    // response FIFO with extra slots.
+    localparam RD_MAX_BURST = (1 << (mem_slave.BURST_CNT_WIDTH_ - 1));
+    localparam RD_RESPONSE_PADDED_FIFO_DEPTH = RD_RESPONSE_FIFO_DEPTH +
+                                               2 * RD_MAX_BURST;
 
     //
     // Read bus clock crossing
@@ -61,8 +77,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .DATA_WIDTH($bits(t_response) + mem_slave.DATA_WIDTH),
         .HDL_ADDR_WIDTH(1 + mem_slave.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
-        .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
-        .RESPONSE_FIFO_DEPTH(2 ** (mem_slave.BURST_CNT_WIDTH + 1))
+        .COMMAND_FIFO_DEPTH(RD_COMMAND_FIFO_DEPTH),
+        .RESPONSE_FIFO_DEPTH(RD_RESPONSE_PADDED_FIFO_DEPTH)
         )
       avmm_cross_rd
        (
@@ -104,8 +120,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .DATA_WIDTH(mem_slave.DATA_WIDTH),
         .HDL_ADDR_WIDTH(1 + mem_slave.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
-        .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
-        .RESPONSE_FIFO_DEPTH(2 ** (mem_slave.BURST_CNT_WIDTH + 1))
+        .COMMAND_FIFO_DEPTH(WR_COMMAND_FIFO_DEPTH),
+        .RESPONSE_FIFO_DEPTH(WR_RESPONSE_FIFO_DEPTH)
         )
       avmm_cross_wr
        (
@@ -149,6 +165,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     logic wr_response_not_valid;
     logic wr_response_full;
 
+    // Define a name for use in timing constraints
+    (* preserve *) logic ofs_plat_avalon_mem_rdwr_slave_reset = 1'b1;
+    always @(posedge mem_slave.clk)
+    begin
+        ofs_plat_avalon_mem_rdwr_slave_reset <= mem_slave.reset;
+    end
+
     ofs_plat_utils_dc_fifo
       #(
         .DATA_WIDTH($bits(t_response)),
@@ -156,7 +179,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         )
       avmm_cross_wr_response
        (
-        .aclr(mem_master.reset),
+        .aclr(ofs_plat_avalon_mem_rdwr_slave_reset),
         .data(mem_slave.wr_response),
         .rdclk(mem_master.clk),
         // dcfifo has "underflow_checking" on, so safe to hold rdreq
@@ -202,9 +225,9 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
                 else
                 begin
                     mem_master.rd_waitrequest <= cmd_rd_waitrequest ||
-                        (cmd_rd_space_avail <= (SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
+                        (cmd_rd_space_avail <= (RD_SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
                     mem_master.wr_waitrequest <= cmd_wr_waitrequest ||
-                        (cmd_wr_space_avail <= (SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
+                        (cmd_wr_space_avail <= (WR_SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
                 end
             end
 

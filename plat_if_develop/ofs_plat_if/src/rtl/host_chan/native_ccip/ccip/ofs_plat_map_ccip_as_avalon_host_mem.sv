@@ -36,12 +36,25 @@
 // making the Avalon mapping relatively easy.
 //
 module ofs_plat_map_ccip_as_avalon_host_mem
+  #(
+    // When non-zero, add a clock crossing to move the AValon
+    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    parameter ADD_CLOCK_CROSSING = 0,
+
+    // Size of the read response buffer instantiated when a clock crossing
+    // as required.
+    parameter MAX_ACTIVE_RD_LINES = 256
+    )
    (
     // CCI-P interface to FIU
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
     // Generated Avalon host memory interface
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu
+    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+
+    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    input  logic afu_clk,
+    input  logic afu_reset
     );
 
     import ofs_plat_ccip_if_funcs_pkg::*;
@@ -59,6 +72,72 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // to this module.
     assign to_fiu.sTx.c2 = t_if_ccip_c2_Tx'(0);
 
+    // ====================================================================
+    //
+    //  Begin with the AFU connection (host_mem_to_afu) and work down
+    //  toward the FIU.
+    //
+    // ====================================================================
+
+    //
+    // Bind the proper clock to the AFU interface. If there is no clock
+    // crossing requested then it's just the FIU CCI-P clock.
+    //
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        )
+      avmm_afu_clk_if();
+
+    assign avmm_afu_clk_if.clk = (ADD_CLOCK_CROSSING == 0) ? clk : afu_clk;
+    assign avmm_afu_clk_if.reset = (ADD_CLOCK_CROSSING == 0) ? reset : afu_reset;
+    assign avmm_afu_clk_if.instance_number = to_fiu.instance_number;
+
+    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+      conn_afu_clk
+       (
+        .mem_master(host_mem_to_afu),
+        .mem_slave(avmm_afu_clk_if)
+        );
+
+    //
+    // Cross to the FIU clock. This is either trivial wired connections
+    // when there is no clock crossing or it requires an Avalon clock
+    // crossing shim.
+    //
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        )
+      avmm_fiu_clk_if();
+
+    assign avmm_fiu_clk_if.clk = clk;
+    assign avmm_fiu_clk_if.reset = reset;
+    assign avmm_fiu_clk_if.instance_number = to_fiu.instance_number;
+
+    generate
+        if (ADD_CLOCK_CROSSING == 0)
+        begin : nc
+            ofs_plat_avalon_mem_rdwr_if_connect
+              conn_same_clk
+               (
+                .mem_master(avmm_afu_clk_if),
+                .mem_slave(avmm_fiu_clk_if)
+                );
+        end
+        else
+        begin : cc
+            ofs_plat_avalon_mem_rdwr_if_async_shim
+              #(
+                .RD_RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES)
+                )
+              cross_clk
+               (
+                .mem_master(avmm_afu_clk_if),
+                .mem_slave(avmm_fiu_clk_if)
+                );
+        end
+    endgenerate
 
     //
     // The AFU has set the burst count width of host_mem_to_afu to whatever
@@ -66,22 +145,6 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // The bursts must also be naturally aligned. Transform host_mem_to_afu
     // bursts to legal CCI-P bursts.
     //
-
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
-        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
-        )
-      avmm_afu_burst_if();
-
-    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
-      conn_clk
-       (
-        .mem_master(host_mem_to_afu),
-        .mem_slave(avmm_afu_burst_if)
-        );
-
-    // Limit burst count to 4 on the FIU side
     ofs_plat_avalon_mem_rdwr_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
@@ -90,6 +153,10 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         )
       avmm_fiu_burst_if();
 
+    assign avmm_fiu_burst_if.clk = clk;
+    assign avmm_fiu_burst_if.reset = reset;
+    assign avmm_fiu_burst_if.instance_number = to_fiu.instance_number;
+
     logic fiu_burst_expects_response;
     ofs_plat_avalon_mem_rdwr_if_map_bursts
       #(
@@ -97,17 +164,24 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         )
       map_bursts
        (
-        .mem_master(avmm_afu_burst_if),
+        .mem_master(avmm_fiu_clk_if),
         .mem_slave(avmm_fiu_burst_if),
+
+        // The AFU interface requires one response per AFU-sized burst.
+        // When mapping a single AFU burst to multiple FIU write bursts
+        // only the last FIU write burst should generate a response to
+        // the AFU.
         .wr_slave_burst_expects_response(fiu_burst_expects_response)
         );
 
-    assign avmm_afu_burst_if.clk = clk;
-    assign avmm_afu_burst_if.reset = reset;
-    assign avmm_afu_burst_if.instance_number = to_fiu.instance_number;
-    assign avmm_fiu_burst_if.clk = clk;
-    assign avmm_fiu_burst_if.reset = reset;
-    assign avmm_fiu_burst_if.instance_number = to_fiu.instance_number;
+
+    // ====================================================================
+    //
+    //  avmm_fiu_burst_if is in the FIU's CCI-P clock domain and the
+    //  bursts are legal CCI-P sizes and address alignment. A 1:1 mapping
+    //  of Avalon to CCI-P messages is now possible.
+    //
+    // ====================================================================
 
     // Map almost full to Avalon waitrequest
     always_ff @(posedge clk)

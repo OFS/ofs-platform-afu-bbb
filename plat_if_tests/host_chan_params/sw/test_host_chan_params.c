@@ -459,7 +459,7 @@ runBandwidth(
     else
     {
         printf("  R+W GB/s:   %f (read %f, write %f)\n",
-               read_bw + write_bw, write_bw, write_bw);
+               read_bw + write_bw, read_bw, write_bw);
     }
 
     return 0;
