@@ -43,7 +43,9 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
     // Size of the read response buffer instantiated when a clock crossing
     // as required.
-    parameter MAX_ACTIVE_RD_LINES = 256
+    parameter MAX_ACTIVE_RD_LINES = 256,
+
+    parameter ADD_TIMING_REG_STAGES = 0
     )
    (
     // CCI-P interface to FIU
@@ -101,9 +103,9 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         );
 
     //
-    // Cross to the FIU clock. This is either trivial wired connections
-    // when there is no clock crossing or it requires an Avalon clock
-    // crossing shim.
+    // Cross to the FIU clock and add register stages. The two are combined
+    // because the clock crossing buffer can also be used to simplify the
+    // Avalon waitrequest protocol.
     //
     ofs_plat_avalon_mem_rdwr_if
       #(
@@ -118,7 +120,14 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     generate
         if (ADD_CLOCK_CROSSING == 0)
         begin : nc
-            ofs_plat_avalon_mem_rdwr_if_connect
+            //
+            // No clock crossing buffer. Must use normal Avalon waitrequest
+            // protocol.
+            //
+            ofs_plat_avalon_mem_rdwr_if_reg
+              #(
+                .N_REG_STAGES(ADD_TIMING_REG_STAGES)
+                )
               conn_same_clk
                (
                 .mem_master(avmm_afu_clk_if),
@@ -127,13 +136,70 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         end
         else
         begin : cc
+            //
+            // We can reserve some space in the clock crossing block RAM for
+            // pipelined requests, allowing us to treat waitrequest more like
+            // an almost full protocol.
+            //
+
+            // We assume that a single waitrequest signal can propagate faster
+            // than the entire bus, so limit the number of stages.
+            localparam NUM_WAITREQUEST_STAGES =
+                // If pipeline is 4 stages or fewer then use the pipeline depth.
+                (ADD_TIMING_REG_STAGES <= 4 ? ADD_TIMING_REG_STAGES :
+                    // Up to depth 16 pipelines, use 4 waitrequest stages.
+                    // Beyond 16 stages, set the waitrequest depth to 1/4 the
+                    // base pipeline depth.
+                    (ADD_TIMING_REG_STAGES <= 16 ? 4 : (ADD_TIMING_REG_STAGES >> 2)));
+
+            ofs_plat_avalon_mem_rdwr_if
+              #(
+                `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu),
+                .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
+                )
+              avmm_reg_if();
+
+            assign avmm_reg_if.clk = afu_clk;
+            assign avmm_reg_if.reset = afu_reset;
+            assign avmm_reg_if.instance_number = to_fiu.instance_number;
+
+            ofs_plat_avalon_mem_rdwr_if_reg_simple
+              #(
+                .N_REG_STAGES(ADD_TIMING_REG_STAGES),
+                .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
+                )
+              conn_reg
+               (
+                .mem_master(avmm_afu_clk_if),
+                .mem_slave(avmm_reg_if)
+                );
+
+            //
+            // Now the actual clock crossing. First we must calculate the number
+            // of extra slots required due to timing register stages.
+            //
+
+            // A few extra stages to avoid off-by-one errors. There is plenty of
+            // space in the FIFO, so this has no performance consequences.
+            localparam NUM_EXTRA_STAGES = (ADD_TIMING_REG_STAGES != 0) ? 4 : 0;
+
+            // Set the almost full threshold to satisfy the buffering pipeline depth
+            // plus the depth of the waitrequest pipeline plus a little extra to
+            // avoid having to worry about off-by-one errors.
+            localparam NUM_ALMFULL_SLOTS = ADD_TIMING_REG_STAGES +
+                                           NUM_WAITREQUEST_STAGES +
+                                           NUM_EXTRA_STAGES;
+
             ofs_plat_avalon_mem_rdwr_if_async_shim
               #(
-                .RD_RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES)
+                .RD_COMMAND_FIFO_DEPTH(8 + NUM_ALMFULL_SLOTS),
+                .RD_RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES),
+                .WR_COMMAND_FIFO_DEPTH(8 + NUM_ALMFULL_SLOTS),
+                .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
                 )
               cross_clk
                (
-                .mem_master(avmm_afu_clk_if),
+                .mem_master(avmm_reg_if),
                 .mem_slave(avmm_fiu_clk_if)
                 );
         end

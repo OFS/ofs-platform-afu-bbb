@@ -55,7 +55,12 @@ module ofs_plat_host_chan_GROUP_as_ccip
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? By default, CCI-P is unordered.
+    parameter SORT_READ_RESPONSES = 0,
+    parameter SORT_WRITE_RESPONSES = 0
     )
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
@@ -95,7 +100,131 @@ module ofs_plat_host_chan_GROUP_as_ccip
         return n_stages;
     endfunction
 
+    // Is some shim instantiated?
+    localparam SHIM_CCIP_IFC = ADD_TIMING_REG_STAGES +
+                               SORT_READ_RESPONSES +
+                               SORT_WRITE_RESPONSES;
+
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
+
+
+    // ====================================================================
+    //  Register the FIU side of the interface?
+    // ====================================================================
+
+    ofs_plat_host_ccip_if reg_ccip_if();
+    t_ofs_plat_power_state reg_ccip_pwrState;
+
+    generate
+        if (SHIM_CCIP_IFC == 0)
+        begin : ns
+            // No shims instantiated. No FIU side register required.
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_fiu,
+                .to_afu(reg_ccip_if)
+                );
+
+            assign reg_ccip_pwrState = fiu_pwrState;
+        end
+        else
+        begin : sh
+            // Before shims add some FIU-side register stages for timing.
+            localparam NUM_PRE_SHIM_REG_STAGES =
+                (ccip_cfg_pkg::SUGGESTED_TIMING_REG_STAGES != 0) ?
+                    ccip_cfg_pkg::SUGGESTED_TIMING_REG_STAGES : 1;
+
+            ofs_plat_shim_ccip_reg
+              #(
+                .N_REG_STAGES(NUM_PRE_SHIM_REG_STAGES)
+                )
+              reg_ccip_conn
+               (
+                .to_fiu(to_fiu),
+                .fiu_pwrState(fiu_pwrState),
+
+                .to_afu(reg_ccip_if),
+                .afu_pwrState(reg_ccip_pwrState)
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //  Sort write responses in request order?
+    // ====================================================================
+
+    ofs_plat_host_ccip_if wr_ccip_if();
+
+    generate
+        if (SORT_WRITE_RESPONSES == 0)
+        begin : nws
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_fiu(reg_ccip_if),
+                .to_afu(wr_ccip_if)
+                );
+        end
+        else
+        begin : ws
+            //
+            // Later stages depend on CCI-P write responses always being packed: a
+            // single write response per multi-line write request. Make sure that
+            // is true.
+            //
+            ofs_plat_host_ccip_if eop_ccip_if();
+            ofs_plat_shim_ccip_detect_eop
+              #(
+                .MAX_ACTIVE_WR_REQS(ccip_GROUP_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
+                )
+              eop
+               (
+                .to_fiu(reg_ccip_if),
+                .to_afu(eop_ccip_if)
+                );
+
+            // Sort write responses
+            ofs_plat_shim_ccip_rob_wr
+              #(
+                .MAX_ACTIVE_WR_REQS(ccip_GROUP_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
+                )
+              rob_wr
+               (
+                .to_fiu(eop_ccip_if),
+                .to_afu(wr_ccip_if)
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //  Sort read responses in request order?
+    // ====================================================================
+
+    ofs_plat_host_ccip_if rd_ccip_if();
+
+    generate
+        if (SORT_READ_RESPONSES == 0)
+        begin : nrs
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_fiu(wr_ccip_if),
+                .to_afu(rd_ccip_if)
+                );
+        end
+        else
+        begin : rs
+            ofs_plat_shim_ccip_rob_rd
+              #(
+                .MAX_ACTIVE_RD_REQS(ccip_GROUP_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
+                )
+              rob_rd
+               (
+                .to_fiu(wr_ccip_if),
+                .to_afu(rd_ccip_if)
+                );
+        end
+    endgenerate
 
 
     // ====================================================================
@@ -110,42 +239,16 @@ module ofs_plat_host_chan_GROUP_as_ccip
         if (ADD_CLOCK_CROSSING == 0)
         begin : nc
             // No clock crossing
-            assign afu_clk_ccip_if.clk = to_fiu.clk;
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_fiu(rd_ccip_if),
+                .to_afu(afu_clk_ccip_if)
+                );
 
-            assign afu_clk_ccip_if.reset = to_fiu.reset;
-            assign to_fiu.sTx = afu_clk_ccip_if.sTx;
-            assign afu_clk_ccip_if.sRx = to_fiu.sRx;
-
-            assign afu_clk_ccip_pwrState = fiu_pwrState;
-            assign afu_clk_ccip_if.error = to_fiu.error;
-
-            assign afu_clk_ccip_if.instance_number = to_fiu.instance_number;
+            assign afu_clk_ccip_pwrState = reg_ccip_pwrState;
         end
         else
         begin : ofs_plat_clock_crossing
-            // Before crossing add some FIU-side register stages for timing.
-            ofs_plat_host_ccip_if reg_ccip_if();
-            t_ofs_plat_power_state reg_cp2af_pwrState;
-
-            // How many register stages should be inserted for timing?
-            // At least one stage, perhaps more.
-            localparam NUM_PRE_CROSS_REG_STAGES =
-                (ccip_cfg_pkg::SUGGESTED_TIMING_REG_STAGES != 0) ?
-                    ccip_cfg_pkg::SUGGESTED_TIMING_REG_STAGES : 1;
-
-            ofs_plat_shim_ccip_reg
-              #(
-                .N_REG_STAGES(NUM_PRE_CROSS_REG_STAGES)
-                )
-            ccip_pre_cross_reg
-               (
-                .to_fiu(to_fiu),
-                .fiu_pwrState(fiu_pwrState),
-
-                .to_afu(reg_ccip_if),
-                .afu_pwrState(reg_cp2af_pwrState)
-                );
-
             // Cross to the target clock
             ofs_plat_shim_ccip_async
               #(
@@ -153,8 +256,8 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 )
               ccip_async_shim
                (
-                .to_fiu(reg_ccip_if),
-                .fiu_pwrState(reg_cp2af_pwrState),
+                .to_fiu(rd_ccip_if),
+                .fiu_pwrState(reg_ccip_pwrState),
 
                 .afu_clk(afu_clk),
                 .to_afu(afu_clk_ccip_if),

@@ -157,7 +157,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
                     (NUM_TIMING_REG_STAGES <= 16 ? 4 : (NUM_TIMING_REG_STAGES >> 2)));
 
             // A few extra stages to avoid off-by-one errors. There is plenty of
-            // space in FIFO, so this has no performance consequences.
+            // space in the FIFO, so this has no performance consequences.
             localparam NUM_EXTRA_STAGES = (NUM_TIMING_REG_STAGES != 0) ? 4 : 0;
 
             // Set the almost full threshold to satisfy the buffering pipeline depth

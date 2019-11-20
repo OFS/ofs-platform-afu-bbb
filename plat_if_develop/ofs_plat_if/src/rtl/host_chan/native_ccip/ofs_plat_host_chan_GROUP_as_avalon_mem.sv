@@ -347,21 +347,25 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     output t_ofs_plat_power_state afu_pwrState
     );
 
-    ofs_plat_host_ccip_if reg_ccip_if();
-    t_ofs_plat_power_state reg_fiu_pwrState;
+    //
+    // Avalon requires both read and write responses to be ordered the same
+    // as requests.
+    //
+    ofs_plat_host_ccip_if sorted_ccip_if();
+    t_ofs_plat_power_state sorted_fiu_pwrState;
 
-    ofs_plat_shim_ccip_reg
+    ofs_plat_host_chan_GROUP_as_ccip
       #(
-        // At least one register stage
-        .N_REG_STAGES((ADD_TIMING_REG_STAGES == 0) ? 1 : ADD_TIMING_REG_STAGES)
+        .SORT_READ_RESPONSES(1),
+        .SORT_WRITE_RESPONSES(1)
         )
-      ccip_reg
+      ccip_sort
        (
         .to_fiu,
         .fiu_pwrState,
 
-        .to_afu(reg_ccip_if),
-        .afu_pwrState(reg_fiu_pwrState)
+        .to_afu(sorted_ccip_if),
+        .afu_pwrState(sorted_fiu_pwrState)
         );
 
     //
@@ -370,53 +374,9 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     ofs_plat_host_ccip_if host_mem_ccip_if();
     ofs_plat_shim_ccip_split_mmio split_mmio
        (
-        .to_fiu(reg_ccip_if),
+        .to_fiu(sorted_ccip_if),
         .host_mem(host_mem_ccip_if),
         .mmio(ccip_mmio)
-        );
-
-    //
-    // Later stages depend on CCI-P write responses always being packed: a
-    // single write response per multi-line write request. Make sure that
-    // is true.
-    //
-    ofs_plat_host_ccip_if eop_ccip_if();
-    ofs_plat_shim_ccip_detect_eop
-      #(
-        .MAX_ACTIVE_WR_REQS(ccip_GROUP_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
-        )
-      eop
-       (
-        .to_fiu(host_mem_ccip_if),
-        .to_afu(eop_ccip_if)
-        );
-
-    //
-    // Sort write responses.
-    //
-    ofs_plat_host_ccip_if rob_wr_ccip_if();
-    ofs_plat_shim_ccip_rob_wr
-      #(
-        .MAX_ACTIVE_WR_REQS(ccip_GROUP_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
-        )
-      rob_wr
-       (
-        .to_fiu(eop_ccip_if),
-        .to_afu(rob_wr_ccip_if)
-        );
-
-    //
-    // Sort read responses.
-    //
-    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) sorted_ccip_if();
-    ofs_plat_shim_ccip_rob_rd
-      #(
-        .MAX_ACTIVE_RD_REQS(ccip_GROUP_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
-        )
-      rob_rd
-       (
-        .to_fiu(rob_wr_ccip_if),
-        .to_afu(sorted_ccip_if)
         );
 
     //
@@ -429,7 +389,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     always @(posedge to_fiu.clk)
     begin
         ofs_plat_avalon_host_mem_afu_reset[0] <= to_fiu.reset;
-        ofs_plat_avalon_host_mem_afu_pwrState[0] <= reg_fiu_pwrState;
+        ofs_plat_avalon_host_mem_afu_pwrState[0] <= sorted_fiu_pwrState;
     end
 
     always @(posedge afu_clk)
@@ -444,11 +404,12 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     ofs_plat_map_ccip_as_avalon_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .MAX_ACTIVE_RD_LINES(ccip_GROUP_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
+        .MAX_ACTIVE_RD_LINES(ccip_GROUP_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0]),
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
         )
       av_host_mem
        (
-        .to_fiu(sorted_ccip_if),
+        .to_fiu(host_mem_ccip_if),
         .host_mem_to_afu,
         .afu_clk,
         .afu_reset(ofs_plat_avalon_host_mem_afu_reset[3])

@@ -62,7 +62,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
               #(
                 .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
                 .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+                .WAIT_REQUEST_ALLOWANCE(N_WAITREQUEST_STAGES)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
@@ -91,8 +92,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
 
                     if (mem_slave.reset)
                     begin
-                        mem_pipe[s-1].read <= 1'b0;
-                        mem_pipe[s-1].write <= 1'b0;
+                        mem_pipe[s-1].rd_read <= 1'b0;
+                        mem_pipe[s-1].wr_write <= 1'b0;
                     end
                 end
 
@@ -129,8 +130,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
                 mem_master.wr_waitrequest = mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES];
 
                 `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_comb(mem_pipe[N_REG_STAGES], mem_master);
-                mem_pipe[N_REG_STAGES].read = mem_master.read && ! mem_master.rd_waitrequest;
-                mem_pipe[N_REG_STAGES].write = mem_master.write && ! mem_master.wr_waitrequest;
+                mem_pipe[N_REG_STAGES].rd_read = mem_master.rd_read && ! mem_master.rd_waitrequest;
+                mem_pipe[N_REG_STAGES].wr_write = mem_master.wr_write && ! mem_master.wr_waitrequest;
             end
         end
     endgenerate
