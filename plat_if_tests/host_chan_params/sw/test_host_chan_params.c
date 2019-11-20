@@ -321,20 +321,20 @@ testSmallRegions(
                 if (expected_sum != actual_sum)
                 {
                     num_errors += 1;
-                    printf("\n    Read ERROR expected sum 0x%08x found 0x%08x\n",
+                    printf("\n - FAIL: read ERROR expected sum 0x%08x found 0x%08x\n",
                            expected_sum, actual_sum);
                 }
                 else if ((expected_hash != actual_hash) &&
                          s_eng_bufs[e].ordered_read_responses)
                 {
                     num_errors += 1;
-                    printf("\n    Read ERROR expected hash 0x%08x found 0x%08x\n",
+                    printf("\n - FAIL: read ERROR expected hash 0x%08x found 0x%08x\n",
                            expected_hash, actual_hash);
                 }
                 else if (! writes_ok)
                 {
                     num_errors += 1;
-                    printf("\n    Write ERROR line index 0x%x\n", write_error_line);
+                    printf("\n - FAIL: write ERROR line index 0x%x\n", write_error_line);
                 }
                 else
                 {
@@ -441,7 +441,7 @@ runBandwidth(
     uint64_t write_lines = csrEngRead(s_csr_handle, 0, 3);
     if (!read_lines && !write_lines)
     {
-        printf("ERROR: No memory traffic detected!\n");
+        printf("  FAIL: no memory traffic detected!\n");
         return 1;
     }
 
@@ -551,7 +551,10 @@ testHostChanParams(
             else
             {
                 burst_size += 1;
-                if (burst_size == 5) burst_size = s_eng_bufs[e].max_burst_size;
+                if ((burst_size < s_eng_bufs[e].max_burst_size) && (burst_size == 5))
+                {
+                    burst_size = s_eng_bufs[e].max_burst_size;
+                }
             }
         }
     }

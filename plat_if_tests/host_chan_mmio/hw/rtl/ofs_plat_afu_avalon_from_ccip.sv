@@ -101,7 +101,11 @@ module ofs_plat_afu
       av_host_mmio64
        (
         .to_fiu(ccip_to_mmio),
-        .mmio_to_afu(mmio64_to_afu)
+        .mmio_to_afu(mmio64_to_afu),
+
+        // Not used (no clock crossing)
+        .afu_clk(),
+        .afu_reset()
         );
 
 
@@ -123,7 +127,11 @@ module ofs_plat_afu
       av_host_mmio512
        (
         .to_fiu(ccip_to_mmio),
-        .mmio_to_afu(mmio512_wr_to_afu)
+        .mmio_to_afu(mmio512_wr_to_afu),
+
+        // Not used (no clock crossing)
+        .afu_clk(),
+        .afu_reset()
         );
 
 

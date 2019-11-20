@@ -164,7 +164,11 @@ module host_mem_rdwr_engine
     always_comb
     begin
         csrs.rd_data[0] = { 24'h0,
-                            1'b0,		   // Read responses not ordered
+`ifdef TEST_PARAM_SORT_RD_RESP
+                            1'b1,		   // Read responses are sorted
+`else
+                            1'b0,                  // Read responses are not sorted
+`endif
                             1'b1,                  // Write resopnse count is lines
                             3'b0,                  // Engine type (CCI-P)
                             csrs.status_active,

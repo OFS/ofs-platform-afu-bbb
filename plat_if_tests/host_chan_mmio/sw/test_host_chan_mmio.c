@@ -67,6 +67,17 @@ static char *mmio_if_type[] =
 //
 // ========================================================================
 
+static uint32_t
+mmio_read32(fpga_handle accel_handle, uint64_t word_idx)
+{
+    uint32_t v;
+    fpga_result r;
+
+    r = fpgaReadMMIO32(accel_handle, 0, sizeof(v) * word_idx, &v);
+    assert(FPGA_OK == r);
+    return v;
+}
+
 static uint64_t
 mmio_read64(fpga_handle accel_handle, uint64_t word_idx)
 {
@@ -125,6 +136,26 @@ testHostChanMMIO(
         printf("AFU MMIO interface: unknown\n");
     printf("AFU pClk frequency: %ld MHz\n", (afu_status >> 16) & 0xffff);
 
+    // Simple test of 32 bit reads, making sure the proper half of 64 bit
+    // registers is returned.
+    printf("\nTesting 32 bit MMIO reads:\n");
+    uint64_t afu_idl = mmio_read64(accel_handle, 1);
+    uint32_t afu_idl_l32 = mmio_read32(accel_handle, 2);
+    uint32_t afu_idl_h32 = mmio_read32(accel_handle, 3);
+    if ((uint32_t)afu_idl != afu_idl_l32)
+    {
+        printf("  FAIL idx 2: expected 0x%08x, found 0x%08x\n",
+               (uint32_t)afu_idl, afu_idl_l32);
+        goto error;
+    }
+    if ((afu_idl >> 32) != afu_idl_h32)
+    {
+        printf("  FAIL idx 3, expected 0x%08lx, found 0x%08x\n",
+               afu_idl >> 32, afu_idl_h32);
+        goto error;
+    }
+    printf("  PASS - 2 tests\n");
+
     // Values to write
     uint64_t data[8];
     data[0] = 0x0706050403020100;
@@ -160,7 +191,7 @@ testHostChanMMIO(
 
         if (rd_v != wr_v)
         {
-            printf("  idx 0x%lx, value 0x%08x, 64-bit space, incorrect value: 0x%08lx\n",
+            printf("  FAIL - idx 0x%lx, value 0x%08x, 64-bit space, incorrect value: 0x%08lx\n",
                    idx, wr_v, rd_v);
             goto error;
         }
@@ -169,7 +200,7 @@ testHostChanMMIO(
         expect_idx = (idx >> 1);
         if (rd_idx != expect_idx)
         {
-            printf("  idx 0x%lx, 64-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 64-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
                    idx, rd_idx, expect_idx);
             goto error;
         }
@@ -178,7 +209,7 @@ testHostChanMMIO(
         expect_mask = (0xf << (4 * (idx & 1)));
         if (rd_mask != expect_mask)
         {
-            printf("  idx 0x%lx, 64-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 64-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
                    idx, rd_mask, expect_mask);
             goto error;
         }
@@ -194,7 +225,7 @@ testHostChanMMIO(
 
         if (rd_v != wr_v)
         {
-            printf("  idx 0x%lx, value 0x%08x, 512-bit space, incorrect value: 0x%08lx\n",
+            printf("  FAIL - idx 0x%lx, value 0x%08x, 512-bit space, incorrect value: 0x%08lx\n",
                    idx, wr_v, rd_v);
             goto error;
         }
@@ -203,7 +234,7 @@ testHostChanMMIO(
         expect_idx = (idx >> 4);
         if (rd_idx != expect_idx)
         {
-            printf("  idx 0x%lx, 512-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 512-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
                    idx, rd_idx, expect_idx);
             goto error;
         }
@@ -212,7 +243,7 @@ testHostChanMMIO(
         expect_mask = ((uint64_t)0xf << ((8 * mmio512_offset64) + (4 * (idx & 1))));
         if (rd_mask != expect_mask)
         {
-            printf("  idx 0x%lx, 512-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 512-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
                    idx, rd_mask, expect_mask);
             goto error;
         }
@@ -221,7 +252,7 @@ testHostChanMMIO(
         idx += 53;
     }
 
-    printf("    PASS - %d tests\n", num_tests);
+    printf("  PASS - %d tests\n", num_tests);
 
     printf("\nTesting 64 bit MMIO writes:\n");
 
@@ -244,7 +275,7 @@ testHostChanMMIO(
 
         if (rd_v != wr_v)
         {
-            printf("  idx 0x%lx, value 0x%08lx, 64-bit space, incorrect value: 0x%08lx\n",
+            printf("  FAIL - idx 0x%lx, value 0x%08lx, 64-bit space, incorrect value: 0x%08lx\n",
                    idx, wr_v, rd_v);
             goto error;
         }
@@ -253,7 +284,7 @@ testHostChanMMIO(
         expect_idx = idx;
         if (rd_idx != expect_idx)
         {
-            printf("  idx 0x%lx, 64-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 64-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
                    idx, rd_idx, expect_idx);
             goto error;
         }
@@ -262,7 +293,7 @@ testHostChanMMIO(
         expect_mask = 0xff;
         if (rd_mask != expect_mask)
         {
-            printf("  idx 0x%lx, 64-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 64-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
                    idx, rd_mask, expect_mask);
             goto error;
         }
@@ -275,7 +306,7 @@ testHostChanMMIO(
 
         if (rd_v != wr_v)
         {
-            printf("  idx 0x%lx, value 0x%08lx, 512-bit space, incorrect value: 0x%08lx\n",
+            printf("  FAIL - idx 0x%lx, value 0x%08lx, 512-bit space, incorrect value: 0x%08lx\n",
                    idx, wr_v, rd_v);
             goto error;
         }
@@ -293,7 +324,7 @@ testHostChanMMIO(
         expect_mask = ((uint64_t)0xff << (8 * mmio512_offset64));
         if (rd_mask != expect_mask)
         {
-            printf("  idx 0x%lx, 512-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
+            printf("  FAIL - idx 0x%lx, 512-bit space, incorrect mask: 0x%lx, expected 0x%lx\n",
                    idx, rd_mask, expect_mask);
             goto error;
         }
@@ -302,7 +333,7 @@ testHostChanMMIO(
         idx += 53;
     }
 
-    printf("    PASS - %d tests\n", num_tests);
+    printf("  PASS - %d tests\n", num_tests);
 
     printf("\nTesting 512 bit MMIO writes:\n");
 
@@ -319,7 +350,7 @@ testHostChanMMIO(
         (prev_rd_idx != mmio_read64(accel_handle, 0x30)) ||
         (prev_rd_mask != mmio_read64(accel_handle, 0x31)))
     {
-        printf("  512 bit MMIO write should not reach the 64 bit MMIO FPGA interface!\n");
+        printf("  FAIL - 512 bit MMIO write should not reach the 64 bit MMIO FPGA interface!\n");
         goto error;
     }
 
@@ -329,7 +360,7 @@ testHostChanMMIO(
         uint64_t rd_v = mmio_read64(accel_handle, 0x40 + i);
         if (data[i] != rd_v)
         {
-            printf("  idx 0x%lx [%d], value 0x%08lx, 512-bit space, incorrect value: 0x%08lx\n",
+            printf("  FAIL - idx 0x%lx [%d], value 0x%08lx, 512-bit space, incorrect value: 0x%08lx\n",
                    idx, i, data[i], rd_v);
             goto error;
         }
@@ -341,7 +372,7 @@ testHostChanMMIO(
     // Is the index correct (in 512 bit space?)
     if (m512_idx != idx)
     {
-        printf("  idx 0x%lx, 512-bit space, incorrect index: 0x%lx\n",
+        printf("  FAIL - idx 0x%lx, 512-bit space, incorrect index: 0x%lx\n",
                idx, m512_idx);
         goto error;
     }
@@ -349,12 +380,12 @@ testHostChanMMIO(
     // Is the mask correct?
     if (m512_mask != ~(uint64_t)0)
     {
-        printf("  idx 0x%lx, 512-bit space, incorrect mask: 0x%lx\n",
+        printf("  FAIL - idx 0x%lx, 512-bit space, incorrect mask: 0x%lx\n",
                idx, m512_mask);
         goto error;
     }
 
-    printf("    PASS\n");
+    printf("  PASS\n");
 
     return 0;
 

@@ -52,7 +52,11 @@ module ofs_plat_afu
     ofs_plat_avalon_mem_rdwr_if
       #(
         `HOST_CHAN_AVALON_MEM_PARAMS,
+`ifdef TEST_PARAM_BURST_CNT_WIDTH
+        .BURST_CNT_WIDTH(`TEST_PARAM_BURST_CNT_WIDTH),
+`else
         .BURST_CNT_WIDTH(7),
+`endif
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         host_mem_to_afu();

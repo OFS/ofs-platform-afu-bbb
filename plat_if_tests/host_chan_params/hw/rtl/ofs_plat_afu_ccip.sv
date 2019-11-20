@@ -61,6 +61,9 @@ module ofs_plat_afu
 `ifdef TEST_PARAM_AFU_CLK
         .ADD_CLOCK_CROSSING(1),
 `endif
+`ifdef TEST_PARAM_SORT_RD_RESP
+        .SORT_READ_RESPONSES(1),
+`endif
 `ifdef TEST_PARAM_AFU_REG_STAGES
         .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
 `endif
@@ -109,7 +112,11 @@ module ofs_plat_afu
       av_host_mmio
        (
         .to_fiu(ccip_to_mmio),
-        .mmio_to_afu(mmio64_to_afu)
+        .mmio_to_afu(mmio64_to_afu),
+
+        // Not used (no clock crossing)
+        .afu_clk(),
+        .afu_reset()
         );
 
 

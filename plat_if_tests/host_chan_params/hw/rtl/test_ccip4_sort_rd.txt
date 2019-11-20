@@ -1,0 +1,5 @@
+# Sort read responses
++define+TEST_PARAM_SORT_RD_RESP=1
++define+TEST_PARAM_AFU_REG_STAGES=0
+
+C:sources_ccip.txt
