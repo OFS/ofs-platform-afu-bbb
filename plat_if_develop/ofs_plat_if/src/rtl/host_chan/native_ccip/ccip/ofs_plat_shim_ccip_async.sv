@@ -59,14 +59,12 @@ module ofs_plat_shim_ccip_async
     // Blue Bitstream Interface
     // ---------------------------------- //
     ofs_plat_host_ccip_if.to_fiu to_fiu,
-    input t_ofs_plat_power_state fiu_pwrState,
 
     // ---------------------------------- //
     // Green Bitstream interface
     // ---------------------------------- //
     input logic afu_clk,
     ofs_plat_host_ccip_if.to_afu to_afu,
-    output t_ofs_plat_power_state afu_pwrState,
 
     // ---------------------------------- //
     // Error vector (afu_clk domain)
@@ -104,39 +102,39 @@ module ofs_plat_shim_ccip_async
     //
     // Reset synchronizer
     //
-    (* preserve *) logic reset[3:0] = '{1'b1, 1'b1, 1'b1, 1'b1};
-    assign to_afu.reset = reset[3];
+    ofs_plat_prim_clock_crossing_reset
+      reset_cc
+       (
+        .clk_src(to_fiu.clk),
+        .clk_dst(afu_clk),
+        .reset_in(to_fiu.reset),
+        .reset_out(to_afu.reset)
+        );
 
-    always @(posedge to_fiu.clk)
-    begin
-        reset[0] <= to_fiu.reset;
-    end
-
-    always @(posedge afu_clk)
-    begin
-        reset[3:1] <= reset[2:0];
-    end
+    logic reset_async;
+    ofs_plat_prim_clock_crossing_reset_async
+      reset_async_cc
+       (
+        .clk(to_fiu.clk),
+        .reset_in(to_fiu.reset),
+        .reset_out(reset_async)
+        );
 
 
     //
-    // Power state and error synchronizer
+    // Error synchronizer
     //
-    (* preserve *) t_ofs_plat_power_state pwrState[3:0];
-    (* preserve *) logic error[3:0];
-    assign afu_pwrState = pwrState[3];
-    assign to_afu.error = error[3];
-
-    always_ff @(posedge to_fiu.clk)
-    begin
-        pwrState[0] <= fiu_pwrState;
-        error[0] <= to_fiu.error;
-    end
-
-    always_ff @(posedge afu_clk)
-    begin
-        pwrState[3:1] <= pwrState[2:0];
-        error[3:1] <= error[2:0];
-    end
+    ofs_plat_prim_clock_crossing_reg
+      #(
+        .WIDTH(1)
+        )
+      error_cc
+       (
+        .clk_src(to_fiu.clk),
+        .clk_dst(afu_clk),
+        .r_in(to_fiu.error),
+        .r_out(to_afu.error)
+        );
 
 
     // Stop all traffic when a buffer error is detected.  This tends to be much easier
@@ -189,7 +187,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c0tx_rdreq),
         .wrclk(afu_clk),
         .rdclk(to_fiu.clk),
-        .aclr(reset[0]),
+        .aclr(reset_async),
         .q(c0tx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -281,7 +279,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c1tx_rdreq),
         .wrclk(afu_clk),
         .rdclk(to_fiu.clk),
-        .aclr(reset[0]),
+        .aclr(reset_async),
         .q({c1tx_dout_hdr, c1tx_dout_data}),
         .rdusedw(),
         .wrusedw(),
@@ -346,7 +344,7 @@ module ofs_plat_shim_ccip_async
             end
         end
 
-        if (reset[0])
+        if (to_fiu.reset)
         begin
             c1tx_in_partial_packet <= 1'b0;
         end
@@ -415,7 +413,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c2tx_rdreq),
         .wrclk(afu_clk),
         .rdclk(to_fiu.clk),
-        .aclr(reset[0]),
+        .aclr(reset_async),
         .q(c2tx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -459,7 +457,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c0rx_rdreq),
         .wrclk(to_fiu.clk),
         .rdclk(afu_clk),
-        .aclr(reset[0]),
+        .aclr(reset_async),
         .q(c0rx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -511,7 +509,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c1rx_rdreq),
         .wrclk(to_fiu.clk),
         .rdclk(afu_clk),
-        .aclr(reset[0]),
+        .aclr(reset_async),
         .q(c1rx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -568,7 +566,7 @@ module ofs_plat_shim_ccip_async
 
     always_ff @(posedge to_fiu.clk)
     begin
-        if (reset[0])
+        if (to_fiu.reset)
         begin
             async_shim_error_fiu <= 2'b0;
         end
@@ -585,15 +583,17 @@ module ofs_plat_shim_ccip_async
     end
 
     // Transfer FIU-side errors to the afu_clk domain
-    logic [1:0] async_shim_error_afu, async_shim_error_afu_q;
-
-    always_ff @(posedge afu_clk)
-    begin
-        async_shim_error_afu <= async_shim_error_fiu;
-        async_shim_error_afu_q <= async_shim_error_afu;
-        async_shim_error[4:3] <= async_shim_error_afu_q;
-    end
-
+    ofs_plat_prim_clock_crossing_reg
+      #(
+        .WIDTH(2)
+        )
+      shim_error_cc
+       (
+        .clk_src(to_fiu.clk),
+        .clk_dst(afu_clk),
+        .r_in(async_shim_error_fiu),
+        .r_out(async_shim_error[4:3])
+        );
 
     // synthesis translate_off
     always_ff @(posedge afu_clk)
@@ -680,7 +680,7 @@ module ofs_plat_shim_ccip_async
             // fiu_if counts
             always_ff @(posedge to_fiu.clk)
             begin
-                if (reset[0])
+                if (to_fiu.reset)
                 begin
                     fiu_c0tx_cnt <= 0;
                     fiu_c1tx_cnt <= 0;

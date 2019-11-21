@@ -137,14 +137,18 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
                 )
                 mem_cross();
 
-            // Synchronize a reset with the target clock
-            (* preserve *) logic [2:0] local_mem_reset_pipe = 3'b111;
+            assign mem_cross.clk = tgt_mem_afu_clk;
+            assign mem_cross.instance_number = to_fiu.instance_number;
 
-            always @(posedge tgt_mem_afu_clk)
-            begin
-                local_mem_reset_pipe[0] <= to_fiu.reset;
-                local_mem_reset_pipe[2:1] <= local_mem_reset_pipe[1:0];
-            end
+            // Synchronize a reset with the target clock
+            ofs_plat_prim_clock_crossing_reset
+             reset_cc
+               (
+                .clk_src(to_fiu.clk),
+                .clk_dst(mem_cross.clk),
+                .reset_in(to_fiu.reset),
+                .reset_out(mem_cross.reset)
+                );
 
             // We assume that a single waitrequest signal can propagate faster
             // than the entire bus, so limit the number of stages.
@@ -166,12 +170,6 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             localparam NUM_ALMFULL_SLOTS = NUM_TIMING_REG_STAGES +
                                            NUM_WAITREQUEST_STAGES +
                                            NUM_EXTRA_STAGES;
-
-            // Clock crossing bridge
-            assign mem_cross.clk = tgt_mem_afu_clk;
-            assign mem_cross.reset = local_mem_reset_pipe[2];
-            // Debugging signal
-            assign mem_cross.instance_number = to_fiu.instance_number;
 
             ofs_plat_avalon_mem_if_async_shim
               #(

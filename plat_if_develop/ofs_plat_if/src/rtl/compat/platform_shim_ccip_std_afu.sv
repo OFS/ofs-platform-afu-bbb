@@ -137,7 +137,6 @@ module platform_shim_ccip_std_afu_hssi
     // Instance of a CCI-P interface. The interface wraps usual CCI-P
     // sRx and sTx structs as well as the associated clock and reset.
     ofs_plat_host_ccip_if ccip_to_afu();
-    t_ofs_plat_power_state afu_pwrState;
 
     // These names may be in `PLATFORM_PARAM_CCI_P_CLOCK
     logic pClk;
@@ -178,16 +177,25 @@ module platform_shim_ccip_std_afu_hssi
 
 `ifdef PLATFORM_PARAM_CCI_P_CLOCK_IS_DEFAULT
          // Default clock
-        .afu_clk(1'b0),
+        .afu_clk(1'b0)
 `else
          // Updated CCI-P clock requested
-        .afu_clk(`PLATFORM_PARAM_CCI_P_CLOCK),
+        .afu_clk(`PLATFORM_PARAM_CCI_P_CLOCK)
 `endif
-
-        .fiu_pwrState(plat_ifc.pwrState),
-        .afu_pwrState(afu_pwrState)
         );
 
+    t_ofs_plat_power_state afu_pwrState;
+    ofs_plat_prim_clock_crossing_reg
+      #(
+        .WIDTH($bits(t_ofs_plat_power_state))
+        )
+      map_pwrState
+       (
+        .clk_src(plat_ifc.clocks.pClk),
+        .clk_dst(ccip_to_afu.clk),
+        .r_in(plat_ifc.pwrState),
+        .r_out(afu_pwrState)
+        );
 
     // ====================================================================
     //

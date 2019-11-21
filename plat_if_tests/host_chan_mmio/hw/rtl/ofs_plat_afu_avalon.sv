@@ -71,8 +71,6 @@ module ofs_plat_afu
         )
         mmio512_wr_to_afu();
 
-    t_ofs_plat_power_state afu_pwrState;
-
     // Map FIU interface to Avalon host memory and both MMIO ports
     ofs_plat_host_chan_as_avalon_mem_with_dual_mmio
       #(
@@ -86,10 +84,7 @@ module ofs_plat_afu
         .mmio_wr_to_afu(mmio512_wr_to_afu),
 
         // Use default clock
-        .afu_clk(),
-
-        .fiu_pwrState(plat_ifc.pwrState),
-        .afu_pwrState(afu_pwrState)
+        .afu_clk()
         );
 
 

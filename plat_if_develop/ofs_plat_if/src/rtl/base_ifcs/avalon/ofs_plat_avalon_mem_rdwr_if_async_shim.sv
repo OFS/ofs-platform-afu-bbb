@@ -165,12 +165,15 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     logic wr_response_not_valid;
     logic wr_response_full;
 
-    // Define a name for use in timing constraints
-    (* preserve *) logic ofs_plat_avalon_mem_rdwr_slave_reset = 1'b1;
-    always @(posedge mem_slave.clk)
-    begin
-        ofs_plat_avalon_mem_rdwr_slave_reset <= mem_slave.reset;
-    end
+    // Dummy reset clock crossing to keep Quartus happy
+    logic slave_reset;
+    ofs_plat_prim_clock_crossing_reset_async
+      reset_cc
+       (
+        .clk(mem_slave.clk),
+        .reset_in(mem_slave.reset),
+        .reset_out(slave_reset)
+        );
 
     ofs_plat_utils_dc_fifo
       #(
@@ -179,7 +182,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         )
       avmm_cross_wr_response
        (
-        .aclr(ofs_plat_avalon_mem_rdwr_slave_reset),
+        .aclr(slave_reset),
         .data(mem_slave.wr_response),
         .rdclk(mem_master.clk),
         // dcfifo has "underflow_checking" on, so safe to hold rdreq

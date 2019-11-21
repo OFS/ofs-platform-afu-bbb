@@ -69,11 +69,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk,
-
-    // Map pwrState to the target clock domain.
-    input  t_ofs_plat_power_state fiu_pwrState,
-    output t_ofs_plat_power_state afu_pwrState
+    input  logic afu_clk
     );
 
     ofs_plat_host_ccip_if ccip_mmio();
@@ -88,9 +84,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem
         .to_fiu,
         .host_mem_to_afu,
         .ccip_mmio,
-        .afu_clk,
-        .fiu_pwrState,
-        .afu_pwrState
+        .afu_clk
         );
 
     assign ccip_mmio.sTx = t_if_ccip_Tx'(0);
@@ -123,11 +117,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk,
-
-    // Map pwrState to the target clock domain.
-    input  t_ofs_plat_power_state fiu_pwrState,
-    output t_ofs_plat_power_state afu_pwrState
+    input  logic afu_clk
     );
 
     ofs_plat_host_ccip_if ccip_mmio();
@@ -142,9 +132,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
         .to_fiu,
         .host_mem_to_afu,
         .ccip_mmio,
-        .afu_clk,
-        .fiu_pwrState,
-        .afu_pwrState
+        .afu_clk
         );
 
     // Internal MMIO Avalon interface
@@ -210,11 +198,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk,
-
-    // Map pwrState to the target clock domain.
-    input  t_ofs_plat_power_state fiu_pwrState,
-    output t_ofs_plat_power_state afu_pwrState
+    input  logic afu_clk
     );
 
     ofs_plat_host_ccip_if ccip_mmio();
@@ -229,9 +213,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
         .to_fiu,
         .host_mem_to_afu,
         .ccip_mmio,
-        .afu_clk,
-        .fiu_pwrState,
-        .afu_pwrState
+        .afu_clk
         );
 
     // Internal MMIO Avalon interface
@@ -340,11 +322,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk,
-
-    // Map pwrState to the target clock domain.
-    input  t_ofs_plat_power_state fiu_pwrState,
-    output t_ofs_plat_power_state afu_pwrState
+    input  logic afu_clk
     );
 
     //
@@ -352,7 +330,6 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     // as requests.
     //
     ofs_plat_host_ccip_if sorted_ccip_if();
-    t_ofs_plat_power_state sorted_fiu_pwrState;
 
     ofs_plat_host_chan_GROUP_as_ccip
       #(
@@ -362,10 +339,8 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
       ccip_sort
        (
         .to_fiu,
-        .fiu_pwrState,
-
         .to_afu(sorted_ccip_if),
-        .afu_pwrState(sorted_fiu_pwrState)
+        .afu_clk()
         );
 
     //
@@ -380,23 +355,18 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
         );
 
     //
-    // Reset and pwrState synchronizers
+    // Reset synchronizer
     //
-    (* preserve *) logic ofs_plat_avalon_host_mem_afu_reset[3:0] = '{1'b1, 1'b1, 1'b1, 1'b1};
-    (* preserve *) t_ofs_plat_power_state ofs_plat_avalon_host_mem_afu_pwrState[3:0];
-    assign afu_pwrState = ofs_plat_avalon_host_mem_afu_pwrState[3];
+    logic afu_reset;
 
-    always @(posedge to_fiu.clk)
-    begin
-        ofs_plat_avalon_host_mem_afu_reset[0] <= to_fiu.reset;
-        ofs_plat_avalon_host_mem_afu_pwrState[0] <= sorted_fiu_pwrState;
-    end
-
-    always @(posedge afu_clk)
-    begin
-        ofs_plat_avalon_host_mem_afu_reset[3:1] <= ofs_plat_avalon_host_mem_afu_reset[2:0];
-        ofs_plat_avalon_host_mem_afu_pwrState[3:1] <= ofs_plat_avalon_host_mem_afu_pwrState[2:0];
-    end
+    ofs_plat_prim_clock_crossing_reset
+      reset_cc
+       (
+        .clk_src(to_fiu.clk),
+        .clk_dst(afu_clk),
+        .reset_in(to_fiu.reset),
+        .reset_out(afu_reset)
+        );
 
     //
     // Now we can map to Avalon.
@@ -412,7 +382,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
         .to_fiu(host_mem_ccip_if),
         .host_mem_to_afu,
         .afu_clk,
-        .afu_reset(ofs_plat_avalon_host_mem_afu_reset[3])
+        .afu_reset
         );
 
 endmodule // ofs_plat_host_chan_GROUP_as_avalon_mem

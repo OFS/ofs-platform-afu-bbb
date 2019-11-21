@@ -51,7 +51,6 @@ module ofs_plat_afu
     // Instance of a CCI-P interface. The interface wraps usual CCI-P
     // sRx and sTx structs as well as the associated clock and reset.
     ofs_plat_host_ccip_if ccip_to_afu();
-    t_ofs_plat_power_state afu_pwrState;
 
     // Use the platform-provided module to map the primary host interface
     // to CCI-P. The "primary" interface is the port that includes the
@@ -74,13 +73,10 @@ module ofs_plat_afu
         .to_afu(ccip_to_afu),
 
 `ifdef TEST_PARAM_AFU_CLK
-        .afu_clk(`TEST_PARAM_AFU_CLK),
+        .afu_clk(`TEST_PARAM_AFU_CLK)
 `else
-        .afu_clk(),
+        .afu_clk()
 `endif
-
-        .fiu_pwrState(plat_ifc.pwrState),
-        .afu_pwrState(afu_pwrState)
         );
 
 
@@ -117,6 +113,27 @@ module ofs_plat_afu
         // Not used (no clock crossing)
         .afu_clk(),
         .afu_reset()
+        );
+
+
+    // ====================================================================
+    //
+    //  Map pwrState to the AFU clock domain
+    //
+    // ====================================================================
+
+    t_ofs_plat_power_state afu_pwrState;
+
+    ofs_plat_prim_clock_crossing_reg
+      #(
+        .WIDTH($bits(t_ofs_plat_power_state))
+        )
+      map_pwrState
+       (
+        .clk_src(plat_ifc.clocks.pClk),
+        .clk_dst(ccip_to_afu.clk),
+        .r_in(plat_ifc.pwrState),
+        .r_out(afu_pwrState)
         );
 
 

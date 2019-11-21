@@ -69,8 +69,6 @@ module ofs_plat_afu
         )
         mmio64_to_afu();
 
-    t_ofs_plat_power_state afu_pwrState;
-
     ofs_plat_host_chan_as_avalon_mem_with_mmio
       #(
 `ifdef TEST_PARAM_AFU_CLK
@@ -87,13 +85,31 @@ module ofs_plat_afu
         .mmio_to_afu(mmio64_to_afu),
 
 `ifdef TEST_PARAM_AFU_CLK
-        .afu_clk(`TEST_PARAM_AFU_CLK),
+        .afu_clk(`TEST_PARAM_AFU_CLK)
 `else
-        .afu_clk(),
+        .afu_clk()
 `endif
+        );
 
-        .fiu_pwrState(plat_ifc.pwrState),
-        .afu_pwrState(afu_pwrState)
+
+    // ====================================================================
+    //
+    //  Map pwrState to the AFU clock domain
+    //
+    // ====================================================================
+
+    t_ofs_plat_power_state afu_pwrState;
+
+    ofs_plat_prim_clock_crossing_reg
+      #(
+        .WIDTH($bits(t_ofs_plat_power_state))
+        )
+      map_pwrState
+       (
+        .clk_src(plat_ifc.clocks.pClk),
+        .clk_dst(host_mem_to_afu.clk),
+        .r_in(plat_ifc.pwrState),
+        .r_out(afu_pwrState)
         );
 
 

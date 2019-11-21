@@ -174,11 +174,14 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
 
     // "reset" is already synchronous in "fclk", but Quartus sometimes has trouble
     // figuring this out.
-    (* preserve *) logic reset_fclk = 1'b1;
-    always @(posedge fclk)
-    begin
-        reset_fclk <= reset;
-    end
+    logic reset_fclk;
+    ofs_plat_prim_clock_crossing_reset_async
+      reset_cc
+       (
+        .clk(fclk),
+        .reset_in(reset),
+        .reset_out(reset_fclk)
+        );
 
     assign mmio_to_afu.clk = (ADD_CLOCK_CROSSING == 0) ? fclk : afu_clk;
     assign mmio_to_afu.reset = (ADD_CLOCK_CROSSING == 0) ? reset : afu_reset;

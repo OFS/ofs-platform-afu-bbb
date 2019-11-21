@@ -68,11 +68,7 @@ module ofs_plat_host_chan_GROUP_as_ccip
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk,
-
-    // Map pwrState to the target clock domain.
-    input  t_ofs_plat_power_state fiu_pwrState,
-    output t_ofs_plat_power_state afu_pwrState
+    input  logic afu_clk
     );
 
     //
@@ -113,7 +109,6 @@ module ofs_plat_host_chan_GROUP_as_ccip
     // ====================================================================
 
     ofs_plat_host_ccip_if reg_ccip_if();
-    t_ofs_plat_power_state reg_ccip_pwrState;
 
     generate
         if (SHIM_CCIP_IFC == 0)
@@ -124,8 +119,6 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 .to_fiu,
                 .to_afu(reg_ccip_if)
                 );
-
-            assign reg_ccip_pwrState = fiu_pwrState;
         end
         else
         begin : sh
@@ -141,10 +134,7 @@ module ofs_plat_host_chan_GROUP_as_ccip
               reg_ccip_conn
                (
                 .to_fiu(to_fiu),
-                .fiu_pwrState(fiu_pwrState),
-
-                .to_afu(reg_ccip_if),
-                .afu_pwrState(reg_ccip_pwrState)
+                .to_afu(reg_ccip_if)
                 );
         end
     endgenerate
@@ -233,7 +223,6 @@ module ofs_plat_host_chan_GROUP_as_ccip
 
     // CCI-P signals in the AFU's requested clock domain
     ofs_plat_host_ccip_if afu_clk_ccip_if();
-    t_ofs_plat_power_state afu_clk_ccip_pwrState;
 
     generate
         if (ADD_CLOCK_CROSSING == 0)
@@ -244,8 +233,6 @@ module ofs_plat_host_chan_GROUP_as_ccip
                 .to_fiu(rd_ccip_if),
                 .to_afu(afu_clk_ccip_if)
                 );
-
-            assign afu_clk_ccip_pwrState = reg_ccip_pwrState;
         end
         else
         begin : ofs_plat_clock_crossing
@@ -257,11 +244,9 @@ module ofs_plat_host_chan_GROUP_as_ccip
               ccip_async_shim
                (
                 .to_fiu(rd_ccip_if),
-                .fiu_pwrState(reg_ccip_pwrState),
 
                 .afu_clk(afu_clk),
                 .to_afu(afu_clk_ccip_if),
-                .afu_pwrState(afu_clk_ccip_pwrState),
 
                 .async_shim_error()
                 );
@@ -292,10 +277,7 @@ module ofs_plat_host_chan_GROUP_as_ccip
       ccip_reg
        (
         .to_fiu(afu_clk_ccip_if),
-        .fiu_pwrState(afu_clk_ccip_pwrState),
-
-        .to_afu(to_afu),
-        .afu_pwrState(afu_pwrState)
+        .to_afu(to_afu)
         );
 
 endmodule // ofs_plat_host_chan_as_ccip

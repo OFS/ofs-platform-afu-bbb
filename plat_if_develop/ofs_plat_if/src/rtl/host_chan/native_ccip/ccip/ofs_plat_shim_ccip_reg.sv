@@ -49,11 +49,9 @@ module ofs_plat_shim_ccip_reg
    (
     // FIU side
     ofs_plat_host_ccip_if.to_fiu to_fiu,
-    input  t_ofs_plat_power_state fiu_pwrState,   // CCI-P AFU Power State
 
     // AFU side
-    ofs_plat_host_ccip_if.to_afu to_afu,
-    output t_ofs_plat_power_state afu_pwrState
+    ofs_plat_host_ccip_if.to_afu to_afu
     );
 
     logic clk;
@@ -155,18 +153,15 @@ module ofs_plat_shim_ccip_reg
 
 
         //
-        // Register power state and error signals
+        // Register error signals
         //
         if (REGISTER_ERROR && N_REG_STAGES)
         begin : reg_err
-            (* altera_attribute = {"-name AUTO_SHIFT_REGISTER_RECOGNITION OFF; -name PRESERVE_REGISTER ON"} *)
-            t_ofs_plat_power_state reg_cp2af_pwrState[N_REG_STAGES];
             (* altera_attribute = {"-name AUTO_SHIFT_REGISTER_RECOGNITION OFF; -name PRESERVE_REGISTER ON"} *)
             logic reg_cp2af_error[N_REG_STAGES];
 
             always_ff @(posedge clk)
             begin
-                reg_cp2af_pwrState[0] <= fiu_pwrState;
                 reg_cp2af_error[0] <= to_fiu.error;
             end
 
@@ -175,17 +170,14 @@ module ofs_plat_shim_ccip_reg
             begin
                 always_ff @(posedge clk)
                 begin
-                    reg_cp2af_pwrState[s+1] <= reg_cp2af_pwrState[s];
                     reg_cp2af_error[s+1] <= reg_cp2af_error[s];
                 end
             end
 
-            assign afu_pwrState = reg_cp2af_pwrState[N_REG_STAGES - 1];
             assign to_afu.error = reg_cp2af_error[N_REG_STAGES - 1];
         end
         else
         begin : wire_err
-            assign afu_pwrState = fiu_pwrState;
             assign to_afu.error = to_fiu.error;
         end
     endgenerate
