@@ -206,6 +206,26 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     endgenerate
 
     //
+    // Add a register stage for timing next to the burst mapper.
+    //
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        )
+      avmm_fiu_reg_if();
+
+    assign avmm_fiu_reg_if.clk = clk;
+    assign avmm_fiu_reg_if.reset = reset;
+    assign avmm_fiu_reg_if.instance_number = to_fiu.instance_number;
+
+    ofs_plat_avalon_mem_rdwr_if_reg
+      f_reg
+       (
+        .mem_master(avmm_fiu_clk_if),
+        .mem_slave(avmm_fiu_reg_if)
+        );
+
+    //
     // The AFU has set the burst count width of host_mem_to_afu to whatever
     // is expected by the AFU. CCI-P requires bursts no larger than 4 lines.
     // The bursts must also be naturally aligned. Transform host_mem_to_afu
@@ -230,7 +250,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         )
       map_bursts
        (
-        .mem_master(avmm_fiu_clk_if),
+        .mem_master(avmm_fiu_reg_if),
         .mem_slave(avmm_fiu_burst_if),
 
         // The AFU interface requires one response per AFU-sized burst.

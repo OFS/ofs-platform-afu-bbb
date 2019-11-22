@@ -79,7 +79,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     typedef logic [MASTER_BURST_WIDTH-1 : 0] t_master_burst_cnt;
 
     generate
-        if (! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH))
+        if ((! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
+            (MASTER_BURST_WIDTH == 1))
         begin : nb
             // There is no alignment requirement and slave can handle all
             // master burst sizes. Just wire the two interfaces together.
