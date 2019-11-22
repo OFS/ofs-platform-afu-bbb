@@ -336,7 +336,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
             to_fiu.sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
             to_fiu.sTx.c1.hdr.mdata[0] <= fiu_burst_expects_response;
 
-            if (! avmm_fiu_burst_if.wr_request)
+            if (! avmm_fiu_burst_if.wr_function)
             begin
                 // Normal write
                 to_fiu.sTx.c1.hdr.address <= avmm_fiu_burst_if.wr_address;

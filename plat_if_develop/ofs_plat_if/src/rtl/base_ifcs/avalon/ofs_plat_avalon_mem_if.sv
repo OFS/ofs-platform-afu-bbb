@@ -238,7 +238,6 @@ interface ofs_plat_avalon_mem_if
             end
         end
 
-        // wr_request must be set and may not interrupt a burst
         if (! reset && write)
         begin
             if (wr_sop && (^address === 1'bx))

@@ -139,7 +139,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     // New request -- the last one is complete
                     mem_slave.rd_read <= mem_master.rd_read;
                     mem_slave.rd_byteenable <= mem_master.rd_byteenable;
-                    mem_slave.rd_request <= mem_master.rd_request;
+                    mem_slave.rd_function <= mem_master.rd_function;
                 end
 
                 if (reset)
@@ -204,7 +204,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.wr_write <= mem_master.wr_write;
                     mem_slave.wr_writedata <= mem_master.wr_writedata;
                     mem_slave.wr_byteenable <= mem_master.wr_byteenable;
-                    mem_slave.wr_request <= mem_master.wr_request;
+                    mem_slave.wr_function <= mem_master.wr_function;
                 end
 
                 if (reset)

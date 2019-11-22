@@ -61,11 +61,11 @@
     MEM_SLAVE.rd_burstcount = MEM_MASTER.rd_burstcount; \
     MEM_SLAVE.rd_byteenable = MEM_MASTER.rd_byteenable; \
     MEM_SLAVE.rd_address = MEM_MASTER.rd_address; \
-    MEM_SLAVE.rd_request = MEM_MASTER.rd_request; \
+    MEM_SLAVE.rd_function = MEM_MASTER.rd_function; \
     MEM_SLAVE.wr_burstcount = MEM_MASTER.wr_burstcount; \
     MEM_SLAVE.wr_writedata = MEM_MASTER.wr_writedata; \
     MEM_SLAVE.wr_address = MEM_MASTER.wr_address; \
-    MEM_SLAVE.wr_request = MEM_MASTER.wr_request; \
+    MEM_SLAVE.wr_function = MEM_MASTER.wr_function; \
     MEM_SLAVE.wr_write = MEM_MASTER.wr_write; \
     MEM_SLAVE.wr_byteenable = MEM_MASTER.wr_byteenable
 
@@ -74,11 +74,11 @@
     MEM_SLAVE.rd_burstcount <= MEM_MASTER.rd_burstcount; \
     MEM_SLAVE.rd_byteenable <= MEM_MASTER.rd_byteenable; \
     MEM_SLAVE.rd_address <= MEM_MASTER.rd_address; \
-    MEM_SLAVE.rd_request <= MEM_MASTER.rd_request; \
+    MEM_SLAVE.rd_function <= MEM_MASTER.rd_function; \
     MEM_SLAVE.wr_burstcount <= MEM_MASTER.wr_burstcount; \
     MEM_SLAVE.wr_writedata <= MEM_MASTER.wr_writedata; \
     MEM_SLAVE.wr_address <= MEM_MASTER.wr_address; \
-    MEM_SLAVE.wr_request <= MEM_MASTER.wr_request; \
+    MEM_SLAVE.wr_function <= MEM_MASTER.wr_function; \
     MEM_SLAVE.wr_write <= MEM_MASTER.wr_write; \
     MEM_SLAVE.wr_byteenable <= MEM_MASTER.wr_byteenable
 
@@ -117,11 +117,11 @@
     MEM_SLAVE.rd_burstcount = '0; \
     MEM_SLAVE.rd_byteenable = '0; \
     MEM_SLAVE.rd_address = '0; \
-    MEM_SLAVE.rd_request = '0; \
+    MEM_SLAVE.rd_function = '0; \
     MEM_SLAVE.wr_burstcount = '0; \
     MEM_SLAVE.wr_writedata = '0; \
     MEM_SLAVE.wr_address = '0; \
-    MEM_SLAVE.wr_request = '0; \
+    MEM_SLAVE.wr_function = '0; \
     MEM_SLAVE.wr_write = 1'b0; \
     MEM_SLAVE.wr_byteenable = '0
 
@@ -130,11 +130,11 @@
     MEM_SLAVE.rd_burstcount <= '0; \
     MEM_SLAVE.rd_byteenable <= '0; \
     MEM_SLAVE.rd_address <= '0; \
-    MEM_SLAVE.rd_request <= '0; \
+    MEM_SLAVE.rd_function <= '0; \
     MEM_SLAVE.wr_burstcount <= '0; \
     MEM_SLAVE.wr_writedata <= '0; \
     MEM_SLAVE.wr_address <= '0; \
-    MEM_SLAVE.wr_request <= '0; \
+    MEM_SLAVE.wr_function <= '0; \
     MEM_SLAVE.wr_write <= 1'b0; \
     MEM_SLAVE.wr_byteenable <= '0
 

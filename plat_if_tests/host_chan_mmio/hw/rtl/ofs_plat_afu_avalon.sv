@@ -122,12 +122,12 @@ module ofs_plat_afu
     assign host_mem_to_afu.rd_read = '0;
     assign host_mem_to_afu.rd_burstcount = '0;
     assign host_mem_to_afu.rd_byteenable = '0;
-    assign host_mem_to_afu.rd_request = '0;
+    assign host_mem_to_afu.rd_function = '0;
     assign host_mem_to_afu.wr_address = '0;
     assign host_mem_to_afu.wr_write = '0;
     assign host_mem_to_afu.wr_burstcount = '0;
     assign host_mem_to_afu.wr_writedata = '0;
     assign host_mem_to_afu.wr_byteenable = '0;
-    assign host_mem_to_afu.wr_request = '0;
+    assign host_mem_to_afu.wr_function = '0;
 
 endmodule // ofs_plat_afu

@@ -79,9 +79,9 @@ interface ofs_plat_avalon_mem_rdwr_if
     logic rd_read;
     logic [BURST_CNT_WIDTH-1:0] rd_burstcount;
     logic [DATA_N_BYTES-1:0] rd_byteenable;
-    // rd_request is non-standard. It is currently reserved and should be set to
-    // zero. See wr_request for a more detailed explanation.
-    logic rd_request;
+    // rd_function is non-standard. It is currently reserved and should be set to
+    // zero. See wr_function for a more detailed explanation.
+    logic rd_function;
 
 
     // Write bus
@@ -94,20 +94,20 @@ interface ofs_plat_avalon_mem_rdwr_if
     logic [BURST_CNT_WIDTH-1:0] wr_burstcount;
     logic [DATA_WIDTH-1:0] wr_writedata;
     logic [DATA_N_BYTES-1:0] wr_byteenable;
-    // wr_request is non-standard. When used as a host channel to host memory, the
+    // wr_function is non-standard. When used as a host channel to host memory, the
     // Avalon ordered bus does not map well to either AXI or CCI-P, which allow
     // out-of-order completion. On some platforms, the semantics of Avalon ordering
     // may be redefined to permit stores to be reordered in the FIU. (Despite this,
     // writeresponsevalid always returns in request order so that responses can be
-    // matched with requests.) Setting the wr_request flag indicates a command to
-    // the FIU. Currently, the only command is a write fence. When wr_request is
+    // matched with requests.) Setting the wr_function flag indicates a command to
+    // the FIU. Currently, the only command is a write fence. When wr_function is
     // set the wr_address field must be all zeros. Non-zero addresses are reserved
     // for future use.
     //
-    // The simplest way to pass rd_request or wr_request through standard Avalon
+    // The simplest way to pass rd_function or wr_function through standard Avalon
     // networks that lack the port is by widening the address field by one bit and
     // sending request in parallel through the address port.
-    logic wr_request;
+    logic wr_function;
 
 
     // Debugging state.  This will typically be driven to a constant by the
@@ -132,7 +132,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output rd_read,
         output rd_burstcount,
         output rd_byteenable,
-        output rd_request,
+        output rd_function,
 
         // Write bus
         input  wr_waitrequest,
@@ -144,7 +144,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_burstcount,
         output wr_writedata,
         output wr_byteenable,
-        output wr_request,
+        output wr_function,
 
         // Debugging
         input instance_number
@@ -166,7 +166,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output rd_read,
         output rd_burstcount,
         output rd_byteenable,
-        output rd_request,
+        output rd_function,
 
         // Write bus
         input  wr_waitrequest,
@@ -178,7 +178,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_burstcount,
         output wr_writedata,
         output wr_byteenable,
-        output wr_request,
+        output wr_function,
 
         // Debugging
         output instance_number
@@ -203,7 +203,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
-        input  rd_request,
+        input  rd_function,
 
         // Write bus
         output wr_waitrequest,
@@ -215,7 +215,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_burstcount,
         input  wr_writedata,
         input  wr_byteenable,
-        input  wr_request,
+        input  wr_function,
 
         // Debugging
         input  instance_number
@@ -237,7 +237,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
-        input  rd_request,
+        input  rd_function,
 
         // Write bus
         output wr_waitrequest,
@@ -249,7 +249,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_burstcount,
         input  wr_writedata,
         input  wr_byteenable,
-        input  wr_request,
+        input  wr_function,
 
         // Debugging
         output instance_number
@@ -314,14 +314,14 @@ interface ofs_plat_avalon_mem_rdwr_if
                 $fatal(2, "** ERROR ** %m: rd_burstcount undefined during a read, currently 0x%x", rd_burstcount);
             end
 
-            // rd_request must always be 0
-            if (rd_request !== 1'b0)
+            // rd_function must always be 0
+            if (rd_function !== 1'b0)
             begin
-                $fatal(2, "** ERROR ** %m: rd_request must be 0, currently %0d", rd_request);
+                $fatal(2, "** ERROR ** %m: rd_function must be 0, currently %0d", rd_function);
             end
         end
 
-        // wr_request must be set and may not interrupt a burst
+        // wr_function must be set and may not interrupt a burst
         if (! reset && wr_write)
         begin
             if (wr_sop && (^wr_address === 1'bx))
@@ -334,26 +334,26 @@ interface ofs_plat_avalon_mem_rdwr_if
                 $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", wr_burstcount);
             end
 
-            if (wr_request === 'x)
+            if (wr_function === 'x)
             begin
-                $fatal(2, "** ERROR ** %m: wr_request is uninitialized during a write");
+                $fatal(2, "** ERROR ** %m: wr_function is uninitialized during a write");
             end
 
-            if (wr_request == 1'b1)
+            if (wr_function == 1'b1)
             begin
                 if (! wr_sop)
                 begin
-                    $fatal(2, "** ERROR ** %m: wr_request may not be set in the middle of a burst");
+                    $fatal(2, "** ERROR ** %m: wr_function may not be set in the middle of a burst");
                 end
 
                 if (wr_address != 0)
                 begin
-                    $fatal(2, "** ERROR ** %m: wr_address (0x%x) must be 0 when wr_request is set", wr_address);
+                    $fatal(2, "** ERROR ** %m: wr_address (0x%x) must be 0 when wr_function is set", wr_address);
                 end
 
                 if (wr_burstcount != 1)
                 begin
-                    $fatal(2, "** ERROR ** %m: wr_burstcount (0x%x) must be 1 when wr_request is set", wr_burstcount);
+                    $fatal(2, "** ERROR ** %m: wr_burstcount (0x%x) must be 1 when wr_function is set", wr_burstcount);
                 end
             end
         end
@@ -398,7 +398,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            ((wr_request == 1'b0) ? "" : "fence "),
+                            ((wr_function == 1'b0) ? "" : "fence "),
                             wr_address,
                             (wr_sop ? "sop " : ""),
                             wr_burstcount,

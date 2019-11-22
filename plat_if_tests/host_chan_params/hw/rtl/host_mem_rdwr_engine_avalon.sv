@@ -219,7 +219,7 @@ module host_mem_rdwr_engine
         host_mem_if.rd_read = (state_run && ! rd_done);
         host_mem_if.rd_burstcount = rd_req_burst_len;
         host_mem_if.rd_byteenable = ~64'b0;
-        host_mem_if.rd_request = 1'b0;
+        host_mem_if.rd_function = 1'b0;
     end
 
     always_ff @(posedge clk)
@@ -295,14 +295,14 @@ module host_mem_rdwr_engine
         host_mem_if.wr_write = (state_run && (! wr_done || ! wr_fence_done)) || ! wr_sop;
         host_mem_if.wr_burstcount = wr_flits_left;
         host_mem_if.wr_byteenable = ~64'b0;
-        host_mem_if.wr_request = 1'b0;
+        host_mem_if.wr_function = 1'b0;
 
         // Emit a write fence at the end
         if (wr_done && ! wr_fence_done)
         begin
             host_mem_if.wr_address = t_addr'(0);
             host_mem_if.wr_burstcount = t_burst_cnt'(1);
-            host_mem_if.wr_request = 1'b1;
+            host_mem_if.wr_function = 1'b1;
         end
 
         host_mem_if.wr_writedata = t_data'(0);
@@ -391,7 +391,7 @@ module host_mem_rdwr_engine
         incr_rd_resp <= host_mem_if.rd_readdatavalid;
 
         incr_wr_req <= host_mem_if.wr_write && ! host_mem_if.wr_waitrequest &&
-                       (host_mem_if.wr_request || (host_mem_if.wr_burstcount == wr_req_burst_len));
+                       (host_mem_if.wr_function || (host_mem_if.wr_burstcount == wr_req_burst_len));
         incr_wr_req_lines <= host_mem_if.wr_write && ! host_mem_if.wr_waitrequest;
         incr_wr_resp <= host_mem_if.wr_writeresponsevalid;
         incr_wr_resp_lines <= host_mem_if.wr_writeresponsevalid ?
