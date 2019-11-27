@@ -1,0 +1,3 @@
++define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.uClk_usr
+
+C:sources_avalon.txt

@@ -28,22 +28,18 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __HASH32_H__
-#define __HASH32_H__
+#ifndef __TEST_LOCAL_MEM_PARAMS_H__
+#define __TEST_LOCAL_MEM_PARAMS_H__
 
-#include <stdint.h>
+#include <opae/fpga.h>
+#include "tests_common.h"
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+int
+testLocalMemParams(
+    int argc,
+    char *argv[],
+    fpga_handle accel_handle,
+    t_csr_handle_p csr_handle,
+    bool is_ase);
 
-extern const uint32_t HASH32_DEFAULT_INIT;
-
-// This code matches the hash32 RTL. It isn't fast.
-uint32_t hash32(uint32_t cur_hash, uint32_t data);
-
-#ifdef __cplusplus
-}
-#endif
-#endif // __HASH32_H__
+#endif // __TEST_LOCAL_MEM_PARAMS_H__

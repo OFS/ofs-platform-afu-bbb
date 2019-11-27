@@ -4,3 +4,4 @@ clock_counter.sdc
 counter_multicycle.sv
 csr_mgr.sv
 hash32.sv
+test_data.sv

@@ -1,0 +1,7 @@
++define+TEST_PARAM_IFC_AVALON
+
+local_mem_params.json
+C:../../../common/hw/rtl/sources.txt
+ofs_plat_afu_avalon.sv
+afu.sv
+local_mem_engine_avalon.sv

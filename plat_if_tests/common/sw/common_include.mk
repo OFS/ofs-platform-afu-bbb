@@ -66,7 +66,7 @@ LDFLAGS  += -L$(DESTDIR)$(prefix)/lib -Wl,-rpath-link -Wl,$(prefix)/lib -Wl,-rpa
             -L$(DESTDIR)$(prefix)/lib64 -Wl,-rpath-link -Wl,$(prefix)/lib64 -Wl,-rpath -Wl,$(DESTDIR)$(prefix)/lib64
 endif
 
-COMMON_SRCS = connect.c csr_mgr.c hash32.c
+COMMON_SRCS = connect.c csr_mgr.c hash32.c test_data.c
 
 LDFLAGS += -luuid
 
