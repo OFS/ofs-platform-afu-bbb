@@ -96,6 +96,171 @@ testDumpEngineState(
 }
 
 
+static void
+configEngRead(
+    uint32_t e,
+    bool enabled,
+    uint32_t burst_size,
+    uint32_t num_bursts,
+    uint32_t start_addr
+)
+{
+    assert(burst_size <= 0xffff);
+    assert(num_bursts <= 0xffff);
+    assert(start_addr <= 0xffff);
+
+    csrEngWrite(s_csr_handle, e, 0,
+                ((uint64_t)enabled << 48) |
+                ((uint64_t)num_bursts << 32) |
+                (start_addr << 16) |
+                burst_size);
+}
+
+
+static void
+configEngWrite(
+    uint32_t e,
+    bool enabled,
+    uint32_t burst_size,
+    uint32_t num_bursts,
+    uint32_t start_addr,
+    uint64_t data_seed
+)
+{
+    assert(burst_size <= 0xffff);
+    assert(num_bursts <= 0xffff);
+    assert(start_addr <= 0xffff);
+
+    csrEngWrite(s_csr_handle, e, 1,
+                ((uint64_t)enabled << 48) |
+                ((uint64_t)num_bursts << 32) |
+                (start_addr << 16) |
+                burst_size);
+
+    // Write data seed
+    csrEngWrite(s_csr_handle, e, 2, data_seed);
+}
+
+
+//
+// Run engines (tests must be configured already with fixed numbers
+// of bursts. Returns after all the engines are quiet.
+//
+static int
+runEnginesTest(
+    uint64_t emask
+)
+{
+    assert(emask != 0);
+
+    // Start your engines
+    csrEnableEngines(s_csr_handle, emask);
+
+    // Wait for engines to complete. Checking csrGetEnginesEnabled()
+    // resolves a race between the request to start an engine
+    // and the engine active flag going high. Execution is done when
+    // the engine is enabled and the active flag goes low.
+    struct timespec wait_time;
+    // Poll less often in simulation
+    wait_time.tv_sec = (s_is_ase ? 1 : 0);
+    wait_time.tv_nsec = 1000000;
+    int trips = 0;
+    while (true)
+    {
+        uint64_t eng_enabled = csrGetEnginesEnabled(s_csr_handle);
+        uint64_t eng_active = csrGetEnginesActive(s_csr_handle);
+
+        // Done once the engine has been enabled and it is
+        // no longer active.
+        if (eng_enabled && ! eng_active) break;
+
+        trips += 1;
+        if (trips == 10)
+        {
+            printf(" - HANG!\n\n");
+            printf("Aborting - enabled mask 0x%lx, active mask 0x%lx\n",
+                   eng_enabled, eng_active);
+            return 1;
+        }
+
+        nanosleep(&wait_time, NULL);
+    }
+
+    // Stop the engines
+    csrDisableEngines(s_csr_handle, emask);
+    return 0;
+}
+
+
+static int
+testBankWiring(
+    uint32_t num_engines
+)
+{
+    int num_errors = 0;
+    uint64_t all_eng_mask = ((uint64_t)1 << num_engines) - 1;
+
+    printf("Testing bank wiring:\n");
+
+    // Write unique patterns to all memory banks. We will later read
+    // them back to prove that the banks are wired correctly.
+    // Write to two address regions in each bank to confirm the
+    // address logic.
+    srand(1);
+    for (uint32_t p = 0; p < 2; p += 1)
+    {
+        uint32_t start_addr = (p ? 0xa00 : 0);
+
+        for (uint32_t e = 0; e < num_engines; e += 1)
+        {
+            configEngWrite(e, true, 2, 2, start_addr, rand());
+            configEngRead(e, false, 0, 0, 0);
+        }
+
+        // Start the engines
+        runEnginesTest(all_eng_mask);
+    }
+
+    // Read the values and confirm hashes
+    srand(1);
+    for (uint32_t p = 0; p < 2; p += 1)
+    {
+        uint32_t start_addr = (p ? 0xa00 : 0);
+
+        for (uint32_t e = 0; e < num_engines; e += 1)
+        {
+            configEngRead(e, true, 2, 2, start_addr);
+            configEngWrite(e, false, 0, 0, 0, 0);
+        }
+
+        // Start the engines
+        runEnginesTest(all_eng_mask);
+
+        // Check hashes
+        for (uint32_t e = 0; e < num_engines; e += 1)
+        {
+            uint64_t expected_hash = testDataChkGen(64, rand(), 4);
+            uint64_t hw_hash = csrEngRead(s_csr_handle, e, 5);
+
+            printf("  Engine %d, addr 0x%x", e, start_addr);
+            if (hw_hash == expected_hash)
+            {
+                printf(" - PASS (0x%016lx)\n", hw_hash);
+            }
+            else
+            {
+                num_errors += 1;
+                printf(" - FAIL\n");
+                printf("    0x%016lx, expected 0x%016lx\n", hw_hash, expected_hash);
+            }
+        }
+    }
+
+    printf("\n");
+    return num_errors;
+}
+
+
 static int
 testSmallRegions(
     uint32_t e
@@ -107,12 +272,17 @@ testSmallRegions(
     uint64_t max_burst_size = s_eng_bufs[e].max_burst_size;
     printf("Testing engine %d, maximum burst size %ld:\n", e, max_burst_size);
 
+    srand(1 + e);
+
     uint64_t burst_size = 1;
     while (burst_size <= max_burst_size)
     {
         uint64_t num_bursts = 1;
         while (num_bursts < 20)
         {
+            uint64_t seed = rand();
+            uint64_t expected_hash, hw_hash;
+
             //
             // Test only writes (mode 1), only reads (mode 2) and
             // read+write (mode 3).
@@ -122,67 +292,33 @@ testSmallRegions(
                 char *mode_str = "R+W:  ";
                 if (mode == 1)
                     mode_str = "Write:";
-                if (mode == 2)
-                {
+                else if (mode == 2)
                     mode_str = "Read: ";
-                }
 
                 printf("  %s %2ld bursts of %2ld lines", mode_str,
                        num_bursts, burst_size);
 
-                // Configure engine burst details
-                csrEngWrite(s_csr_handle, e, 0,
-                            ((uint64_t)((mode & 2) ? 1 : 0) << 48) |
-                            (num_bursts << 32) | burst_size);
-                csrEngWrite(s_csr_handle, e, 1,
-                            ((uint64_t)((mode & 1) ? 1 : 0) << 48) |
-                            (num_bursts << 32) | burst_size);
-                // Write data seed
-                csrEngWrite(s_csr_handle, e, 2, e + 0xf00);
+                // Configure reads
+                configEngRead(e, mode & 2, burst_size, num_bursts, 0);
 
-                // Start your engines
-                csrEnableEngines(s_csr_handle, (uint64_t)1 << e);
+                // Configure writes. Use address 0 for just a write and
+                // address 0xf00 for simultaneous read+write.
+                uint64_t wr_seed = rand();
+                uint32_t wr_start_addr = ((mode == 3) ? 0xf00 : 0);
+                configEngWrite(e, mode & 1, burst_size, num_bursts,
+                               wr_start_addr, wr_seed);
 
-                // Compute expected hash while the hardware is running
-                uint64_t expected_hash =
-                    testDataChkGen(64, e + 0xf00, num_bursts * burst_size);
-
-                // Wait for engine to complete. Checking csrGetEnginesEnabled()
-                // resolves a race between the request to start an engine
-                // and the engine active flag going high. Execution is done when
-                // the engine is enabled and the active flag goes low.
-                struct timespec wait_time;
-                // Poll less often in simulation
-                wait_time.tv_sec = (s_is_ase ? 1 : 0);
-                wait_time.tv_nsec = 1000000;
-                int trips = 0;
-                while (true)
+                if (runEnginesTest((uint64_t)1 << e))
                 {
-                    uint64_t eng_enabled = csrGetEnginesEnabled(s_csr_handle);
-                    uint64_t eng_active = csrGetEnginesActive(s_csr_handle);
-
-                    // Done once the engine has been enabled and it is
-                    // no longer active.
-                    if (eng_enabled && ! eng_active) break;
-
-                    trips += 1;
-                    if (trips == 10)
-                    {
-                        printf(" - HANG!\n\n");
-                        printf("Aborting - enabled mask 0x%lx, active mask 0x%lx\n",
-                               eng_enabled, eng_active);
-                        testDumpEngineState(e);
-                        num_errors += 1;
-                        goto fail;
-                    }
-
-                    nanosleep(&wait_time, NULL);
+                    testDumpEngineState(e);
+                    num_errors += 1;
+                    goto fail;
                 }
 
-                // Stop the engine
-                csrDisableEngines(s_csr_handle, (uint64_t)1 << e);
+                // Compute expected hash
+                expected_hash = testDataChkGen(64, seed, num_bursts * burst_size);
 
-                uint64_t hw_hash = csrEngRead(s_csr_handle, e, 5);
+                hw_hash = csrEngRead(s_csr_handle, e, 5);
                 if ((mode == 1) || (expected_hash == hw_hash))
                 {
                     printf(" - PASS\n");
@@ -191,9 +327,35 @@ testSmallRegions(
                 {
                     num_errors += 1;
                     printf(" - FAIL\n");
-                    printf("  0x%016lx, expected 0x%016lx\n", hw_hash, expected_hash);
+                    printf("    0x%016lx, expected 0x%016lx\n", hw_hash, expected_hash);
                 }
+
+                // Update hash if a write was done
+                if (mode & 1) seed = wr_seed;
             }
+
+
+            //
+            // Test the write from the final R+W, looking at start address 0xf00.
+            //
+            configEngRead(e, true, burst_size, num_bursts, 0xf00);
+            configEngWrite(e, false, 0, 0, 0, 0);
+            if (runEnginesTest((uint64_t)1 << e))
+            {
+                testDumpEngineState(e);
+                num_errors += 1;
+                goto fail;
+            }
+
+            expected_hash = testDataChkGen(64, seed, num_bursts * burst_size);
+            hw_hash = csrEngRead(s_csr_handle, e, 5);
+            if (expected_hash != hw_hash)
+            {
+                printf("    R+W readback failed: 0x%016lx, expected 0x%016lx\n",
+                       hw_hash, expected_hash);
+                num_errors += 1;
+            }
+
 
             num_bursts = (num_bursts * 2) + 1;
         }
@@ -234,15 +396,8 @@ configBandwidth(
 {
     // Configure engine burst details. Set the number of bursts to 0,
     // indicating unlimited I/O until time expires.
-    csrEngWrite(s_csr_handle, e, 0,
-                ((uint64_t)do_reads << 48) | burst_size);
-    csrEngWrite(s_csr_handle, e, 1,
-                ((uint64_t)do_writes << 48) |
-                (0x2000 << 16) |
-                burst_size);
-
-    // Write data seed (will be ignored)
-    csrEngWrite(s_csr_handle, e, 2, e);
+    configEngRead(e, do_reads, burst_size, 0, 0);
+    configEngWrite(e, do_writes, burst_size, 0, 0x2000, e);
 
     return 0;
 }
@@ -371,6 +526,13 @@ testLocalMemParams(
     }
     printf("\n");
     
+    if (testBankWiring(num_engines))
+    {
+        // Quit on error
+        result = 1;
+        goto done;
+    }
+
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
         if (testSmallRegions(e))

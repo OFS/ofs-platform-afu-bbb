@@ -40,18 +40,6 @@ module ofs_plat_afu
     ofs_plat_if plat_ifc
     );
 
-    //
-    // Drive the AFU with the clock from the first memory bank by default.
-    // 
-    logic afu_clk;
-`ifdef TEST_PARAM_AFU_CLK
-    assign afu_clk = `TEST_PARAM_AFU_CLK;
-    localparam USE_DEFAULT_CLOCK = 0;
-`else
-    assign afu_clk = plat_ifc.local_mem.banks[0].clk;
-    localparam USE_DEFAULT_CLOCK = 1;
-`endif
-
     // ====================================================================
     //
     //  Get an Avalon host channel collection from the platform.
@@ -85,7 +73,8 @@ module ofs_plat_afu
         .host_mem_to_afu,
         .mmio_to_afu(mmio64_to_afu),
 
-        .afu_clk
+
+        .afu_clk(plat_ifc.clocks.uClk_usr)
         );
 
     // Not using host memory
@@ -127,24 +116,106 @@ module ofs_plat_afu
         )
       local_mem_to_afu[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 
+`ifdef TEST_PARAM_AFU_CLK_MGMT
+    // AFU manages clock crossing
+    localparam AUTO_CLOCK_CROSSING = 0;
+`else
+    // PIM manages clock crossing
+    localparam AUTO_CLOCK_CROSSING = 1;
+`endif
+
     // Map each bank individually
     genvar b;
     generate
         for (b = 0; b < local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
         begin : mb
-            ofs_plat_local_mem_as_avalon_mem
-              #(
-                // Add a clock crossing unless this is bank 0 and the AFU is
-                // using the default (bank 0) clock as the primary clock.
-                .ADD_CLOCK_CROSSING(((USE_DEFAULT_CLOCK == 1) && (b == 0)) ? 0 : 1),
-                .ADD_TIMING_REG_STAGES(2)
-                )
-              shim
-               (
-                .tgt_mem_afu_clk(afu_clk),
-                .to_fiu(plat_ifc.local_mem.banks[b]),
-                .to_afu(local_mem_to_afu[b])
-                );
+            if (AUTO_CLOCK_CROSSING)
+            begin
+                // Handle the clock crossing in the OFS module.
+                ofs_plat_local_mem_as_avalon_mem
+                  #(
+                    .ADD_CLOCK_CROSSING(1),
+                    // Vary the number of register stages for testing.
+                    .ADD_TIMING_REG_STAGES(b)
+                    )
+                  shim
+                   (
+                    .tgt_mem_afu_clk(host_mem_to_afu.clk),
+                    .to_fiu(plat_ifc.local_mem.banks[b]),
+                    .to_afu(local_mem_to_afu[b])
+                    );
+            end
+            else
+            begin
+                // Don't use the OFS-provided clock crossing. We still
+                // need a clock crossing, but the test here confirms that
+                // ofs_plat_local_mem_as_avalon_mem() does the right thing
+                // when not crossing.
+                ofs_plat_avalon_mem_if
+                  #(
+                    `OFS_PLAT_LOCAL_MEM_AS_AVALON_IF_PARAMS
+                    )
+                  local_mem_if();
+
+                ofs_plat_local_mem_as_avalon_mem
+                  #(
+                    .ADD_CLOCK_CROSSING(0),
+                    // Vary the number of register stages for testing.
+                    .ADD_TIMING_REG_STAGES(b)
+                    )
+                  shim
+                   (
+                    .tgt_mem_afu_clk(host_mem_to_afu.clk),
+                    .to_fiu(plat_ifc.local_mem.banks[b]),
+                    .to_afu(local_mem_if)
+                    );
+
+                //
+                // The rest of the code here consumes the PIM-generated Avalon
+                // interface. It adds a clock crossing and some buffering. The
+                // test uses the PIM modules because they are available, though
+                // AFU designers are free to use non-PIM equivalent modules.
+                //
+
+                // Manage the clock crossing
+                ofs_plat_avalon_mem_if
+                  #(
+                    `OFS_PLAT_LOCAL_MEM_AS_AVALON_IF_PARAMS
+                    )
+                  local_mem_cross_if();
+
+                assign local_mem_cross_if.clk = host_mem_to_afu.clk;
+                assign local_mem_cross_if.instance_number = local_mem_if.instance_number;
+
+                // Synchronize a reset with the target clock
+                ofs_plat_prim_clock_crossing_reset
+                  reset_cc
+                   (
+                    .clk_src(local_mem_if.clk),
+                    .clk_dst(local_mem_cross_if.clk),
+                    .reset_in(local_mem_if.reset),
+                    .reset_out(local_mem_cross_if.reset)
+                    );
+
+                // Clock crossing
+                ofs_plat_avalon_mem_if_async_shim
+                  mem_async_shim
+                   (
+                    .mem_slave(local_mem_if),
+                    .mem_master(local_mem_cross_if)
+                    );
+
+                // Add register stages for timing
+                ofs_plat_avalon_mem_if_reg_slave_clk
+                  #(
+                    .N_REG_STAGES(2)
+                    )
+                  mem_pipe
+                   (
+                    .mem_slave(local_mem_cross_if),
+                    .mem_master(local_mem_to_afu[b])
+                    );
+            end
         end
     endgenerate
 

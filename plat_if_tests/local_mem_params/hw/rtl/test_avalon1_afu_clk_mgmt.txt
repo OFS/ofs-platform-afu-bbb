@@ -1,0 +1,4 @@
+# AFU will manage local memory clock crossing
++define+TEST_PARAM_AFU_CLK_MGMT
+
+C:sources_avalon.txt
