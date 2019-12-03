@@ -41,8 +41,8 @@ module ofs_plat_avalon_mem_if_connect
 
     always_comb
     begin
-        `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
-        `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
+        `OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
+        `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
 endmodule // ofs_plat_avalon_mem_if_connect
@@ -63,8 +63,8 @@ module ofs_plat_avalon_mem_if_connect_slave_clk
 
     always_comb
     begin
-        `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
-        `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
+        `OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
+        `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
 endmodule // ofs_plat_avalon_mem_if_connect_slave_clk
@@ -85,8 +85,8 @@ module ofs_plat_avalon_mem_if_connect_master_clk
 
     always_comb
     begin
-        `ofs_plat_avalon_mem_if_from_master_to_slave_comb(mem_slave, mem_master);
-        `ofs_plat_avalon_mem_if_from_slave_to_master_comb(mem_master, mem_slave);
+        `OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
+        `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
 endmodule // ofs_plat_avalon_mem_if_connect_slave_clk

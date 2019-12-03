@@ -35,7 +35,7 @@
 // Macro for replicating properties of an ofs_plat_avalon_mem_if when
 // defininig another instance of the interface.
 //
-`define ofs_plat_avalon_mem_if_replicate_params(AVALON_IF) \
+`define OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(AVALON_IF) \
     .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
     .DATA_WIDTH(AVALON_IF.DATA_WIDTH_), \
     .BURST_CNT_WIDTH(AVALON_IF.BURST_CNT_WIDTH_)
@@ -52,7 +52,7 @@
 // fields.
 //
 
-`define ofs_plat_avalon_mem_if_from_master_to_slave_comb(MEM_SLAVE, MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(MEM_SLAVE, MEM_MASTER) \
     MEM_SLAVE.burstcount = MEM_MASTER.burstcount; \
     MEM_SLAVE.writedata = MEM_MASTER.writedata; \
     MEM_SLAVE.address = MEM_MASTER.address; \
@@ -60,7 +60,7 @@
     MEM_SLAVE.read = MEM_MASTER.read; \
     MEM_SLAVE.byteenable = MEM_MASTER.byteenable
 
-`define ofs_plat_avalon_mem_if_from_master_to_slave_ff(MEM_SLAVE, MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
     MEM_SLAVE.burstcount <= MEM_MASTER.burstcount; \
     MEM_SLAVE.writedata <= MEM_MASTER.writedata; \
     MEM_SLAVE.address <= MEM_MASTER.address; \
@@ -71,7 +71,7 @@
 
 // Note these do not set clk, reset or instance_number since those
 // fields may be handled specially.
-`define ofs_plat_avalon_mem_if_from_slave_to_master_comb(MEM_MASTER, MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.waitrequest = MEM_SLAVE.waitrequest; \
     MEM_MASTER.readdata = MEM_SLAVE.readdata; \
     MEM_MASTER.readdatavalid = MEM_SLAVE.readdatavalid; \
@@ -79,7 +79,7 @@
 
 // Note the lack of waitrequest in the non-blocking assignment. The
 // ready/enable protocol must be handled explicitly.
-`define ofs_plat_avalon_mem_if_from_slave_to_master_ff(MEM_MASTER, MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_FF(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.readdata <= MEM_SLAVE.readdata; \
     MEM_MASTER.readdatavalid <= MEM_SLAVE.readdatavalid; \
     MEM_MASTER.response <= MEM_SLAVE.response
@@ -91,7 +91,7 @@
 // about multiple drivers.
 //
 
-`define ofs_plat_avalon_mem_if_init_master_comb(MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_IF_INIT_MASTER_COMB(MEM_MASTER) \
     MEM_MASTER.burstcount = '0; \
     MEM_MASTER.writedata = '0; \
     MEM_MASTER.address = '0; \
@@ -99,7 +99,7 @@
     MEM_MASTER.read = 1'b0; \
     MEM_MASTER.byteenable = '0
 
-`define ofs_plat_avalon_mem_if_init_master_ff(MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_IF_INIT_MASTER_FF(MEM_MASTER) \
     MEM_MASTER.burstcount <= '0; \
     MEM_MASTER.writedata <= '0; \
     MEM_MASTER.address <= '0; \
@@ -107,13 +107,13 @@
     MEM_MASTER.read <= 1'b0; \
     MEM_MASTER.byteenable <= '0
 
-`define ofs_plat_avalon_mem_if_init_slave_comb(MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_IF_INIT_SLAVE_COMB(MEM_SLAVE) \
     MEM_SLAVE.waitrequest = 1'b0; \
     MEM_SLAVE.readdata = '0; \
     MEM_SLAVE.readdatavalid = 1'b0; \
     MEM_SLAVE.response = 2'b0
 
-`define ofs_plat_avalon_mem_if_init_slave_ff(MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_IF_INIT_SLAVE_FF(MEM_SLAVE) \
     MEM_SLAVE.waitrequest <= 1'b0; \
     MEM_SLAVE.readdata <= '0; \
     MEM_SLAVE.readdatavalid <= 1'b0; \

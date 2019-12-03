@@ -28,8 +28,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_IF_VH__
-`define __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_IF_VH__
+`ifndef __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_MEM_VH__
+`define __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_MEM_VH__
 
 //
 // Templates for defining parameters of possible local memory interface classes.
@@ -40,17 +40,31 @@
 //
 
 //
-//  Local memory as an Avalon interface. Typical definition:
+// Local memory as an Avalon interface with all but the burst count
+// defined. The AFU is expected to specify its desired burst count
+// and the PIM will instantiate a gearbox to translate from AFU bursts
+// to platform bursts. See below for a macro variant that specifies
+// the platform-specific burst size.
 //
-//     ofs_plat_avalon_mem_if
-//       #(
-//         `OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_IF_PARAMS
-//         )
-//       local_mem_to_afu[local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+// A single interface may be defined or, more commonly, a vector
+// of interfaces -- one per bank:
 //
-`define OFS_PLAT_LOCAL_MEM_GROUP_AS_AVALON_IF_PARAMS \
+//   ofs_plat_avalon_mem_if
+//     #(
+//       `LOCAL_MEM_GROUP_AVALON_MEM_PARAMS
+//       )
+//     local_mem_to_afu[local_mem_GROUP_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+//
+`define LOCAL_MEM_GROUP_AVALON_MEM_PARAMS \
+    .ADDR_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
+    .DATA_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_DATA_WIDTH)
+
+//
+// Variant of the standard parameters, including burst count width.
+//
+`define LOCAL_MEM_GROUP_AVALON_MEM_PARAMS_DEFAULT \
     .ADDR_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
     .BURST_CNT_WIDTH(local_mem_GROUP_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
 
-`endif // __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_IF_VH__
+`endif // __OFS_PLAT_LOCAL_MEM_GROUP_AVALON_MEM_VH__

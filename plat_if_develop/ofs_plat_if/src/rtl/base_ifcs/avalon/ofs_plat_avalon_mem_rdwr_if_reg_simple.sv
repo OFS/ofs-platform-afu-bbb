@@ -87,8 +87,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
                     mem_pipe[s].rd_waitrequest <= 1'b1;
                     mem_pipe[s].wr_waitrequest <= 1'b1;
 
-                    `ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_ff(mem_pipe[s], mem_pipe[s-1]);
-                    `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_ff(mem_pipe[s-1], mem_pipe[s]);
+                    `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_FF(mem_pipe[s], mem_pipe[s-1]);
+                    `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_FF(mem_pipe[s-1], mem_pipe[s]);
 
                     if (mem_slave.reset)
                     begin
@@ -125,11 +125,11 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
             // Map mem_master to the last stage (wired)
             always_comb
             begin
-                `ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_comb(mem_master, mem_pipe[N_REG_STAGES]);
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_pipe[N_REG_STAGES]);
                 mem_master.rd_waitrequest = mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES];
                 mem_master.wr_waitrequest = mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES];
 
-                `ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_comb(mem_pipe[N_REG_STAGES], mem_master);
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(mem_pipe[N_REG_STAGES], mem_master);
                 mem_pipe[N_REG_STAGES].rd_read = mem_master.rd_read && ! mem_master.rd_waitrequest;
                 mem_pipe[N_REG_STAGES].wr_write = mem_master.wr_write && ! mem_master.wr_waitrequest;
             end

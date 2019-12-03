@@ -112,7 +112,7 @@ module ofs_plat_afu
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
-        `OFS_PLAT_LOCAL_MEM_AS_AVALON_IF_PARAMS
+        `LOCAL_MEM_AVALON_MEM_PARAMS_DEFAULT
         )
       local_mem_to_afu[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 
@@ -153,7 +153,7 @@ module ofs_plat_afu
                 // when not crossing.
                 ofs_plat_avalon_mem_if
                   #(
-                    `OFS_PLAT_LOCAL_MEM_AS_AVALON_IF_PARAMS
+                    `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(local_mem_to_afu[b])
                     )
                   local_mem_if();
 
@@ -180,7 +180,7 @@ module ofs_plat_afu
                 // Manage the clock crossing
                 ofs_plat_avalon_mem_if
                   #(
-                    `OFS_PLAT_LOCAL_MEM_AS_AVALON_IF_PARAMS
+                    `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(local_mem_to_afu[b])
                     )
                   local_mem_cross_if();
 

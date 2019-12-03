@@ -35,12 +35,12 @@
 // Macros for replicating properties of an ofs_plat_avalon_mem_rdwr_if when
 // defininig another instance of the interface.
 //
-`define ofs_plat_avalon_mem_rdwr_if_replicate_params(AVALON_IF) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(AVALON_IF) \
     .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
     .DATA_WIDTH(AVALON_IF.DATA_WIDTH_), \
     .BURST_CNT_WIDTH(AVALON_IF.BURST_CNT_WIDTH_)
 
-`define ofs_plat_avalon_mem_rdwr_if_replicate_mem_params(AVALON_IF) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(AVALON_IF) \
     .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
     .DATA_WIDTH(AVALON_IF.DATA_WIDTH_)
 
@@ -56,7 +56,7 @@
 // fields.
 //
 
-`define ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_comb(MEM_SLAVE, MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(MEM_SLAVE, MEM_MASTER) \
     MEM_SLAVE.rd_read = MEM_MASTER.rd_read; \
     MEM_SLAVE.rd_burstcount = MEM_MASTER.rd_burstcount; \
     MEM_SLAVE.rd_byteenable = MEM_MASTER.rd_byteenable; \
@@ -69,7 +69,7 @@
     MEM_SLAVE.wr_write = MEM_MASTER.wr_write; \
     MEM_SLAVE.wr_byteenable = MEM_MASTER.wr_byteenable
 
-`define ofs_plat_avalon_mem_rdwr_if_from_master_to_slave_ff(MEM_SLAVE, MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
     MEM_SLAVE.rd_read <= MEM_MASTER.rd_read; \
     MEM_SLAVE.rd_burstcount <= MEM_MASTER.rd_burstcount; \
     MEM_SLAVE.rd_byteenable <= MEM_MASTER.rd_byteenable; \
@@ -85,7 +85,7 @@
 
 // Note these do not set clk, reset or instance_number since those
 // fields may be handled specially.
-`define ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_comb(MEM_MASTER, MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_COMB(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.rd_waitrequest = MEM_SLAVE.rd_waitrequest; \
     MEM_MASTER.rd_readdata = MEM_SLAVE.rd_readdata; \
     MEM_MASTER.rd_readdatavalid = MEM_SLAVE.rd_readdatavalid; \
@@ -96,7 +96,7 @@
 
 // Note the lack of waitrequest in the non-blocking assignment. The
 // ready/enable protocol must be handled explicitly.
-`define ofs_plat_avalon_mem_rdwr_if_from_slave_to_master_ff(MEM_MASTER, MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_FF(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.rd_waitrequest <= MEM_SLAVE.rd_waitrequest; \
     MEM_MASTER.rd_readdata <= MEM_SLAVE.rd_readdata; \
     MEM_MASTER.rd_readdatavalid <= MEM_SLAVE.rd_readdatavalid; \
@@ -112,7 +112,7 @@
 // about multiple drivers.
 //
 
-`define ofs_plat_avalon_mem_rdwr_if_init_master_comb(MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_COMB(MEM_MASTER) \
     MEM_SLAVE.rd_read = 1'b0; \
     MEM_SLAVE.rd_burstcount = '0; \
     MEM_SLAVE.rd_byteenable = '0; \
@@ -125,7 +125,7 @@
     MEM_SLAVE.wr_write = 1'b0; \
     MEM_SLAVE.wr_byteenable = '0
 
-`define ofs_plat_avalon_mem_rdwr_if_init_master_ff(MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_FF(MEM_MASTER) \
     MEM_SLAVE.rd_read <= 1'b0; \
     MEM_SLAVE.rd_burstcount <= '0; \
     MEM_SLAVE.rd_byteenable <= '0; \
@@ -138,7 +138,7 @@
     MEM_SLAVE.wr_write <= 1'b0; \
     MEM_SLAVE.wr_byteenable <= '0
 
-`define ofs_plat_avalon_mem_rdwr_if_init_slave_comb(MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_COMB(MEM_SLAVE) \
     MEM_MASTER.rd_waitrequest = 1'b0; \
     MEM_MASTER.rd_readdata = '0; \
     MEM_MASTER.rd_readdatavalid = 1'b0; \
@@ -147,7 +147,7 @@
     MEM_MASTER.wr_writeresponsevalid = 1'b0; \
     MEM_MASTER.wr_response = '0
 
-`define ofs_plat_avalon_mem_rdwr_if_init_slave_ff(MEM_SLAVE) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_FF(MEM_SLAVE) \
     MEM_MASTER.rd_waitrequest <= 1'b0; \
     MEM_MASTER.rd_readdata <= '0; \
     MEM_MASTER.rd_readdatavalid <= 1'b0; \

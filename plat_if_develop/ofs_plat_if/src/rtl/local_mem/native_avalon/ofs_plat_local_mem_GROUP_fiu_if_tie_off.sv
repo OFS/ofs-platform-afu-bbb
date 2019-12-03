@@ -42,7 +42,7 @@ module ofs_plat_local_mem_GROUP_fiu_if_tie_off
 
     always_comb
     begin
-        `ofs_plat_avalon_mem_if_init_master_comb(bank);
+        `OFS_PLAT_AVALON_MEM_IF_INIT_MASTER_COMB(bank);
     end
 
 endmodule // ofs_plat_local_mem_GROUP_fiu_if_tie_off

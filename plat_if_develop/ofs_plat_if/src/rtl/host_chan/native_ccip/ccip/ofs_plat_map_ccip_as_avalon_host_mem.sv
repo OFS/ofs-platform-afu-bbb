@@ -87,7 +87,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
       avmm_afu_clk_if();
 
@@ -109,7 +109,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
       avmm_fiu_clk_if();
 
@@ -154,7 +154,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
             ofs_plat_avalon_mem_rdwr_if
               #(
-                `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu),
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu),
                 .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
                 )
               avmm_reg_if();
@@ -210,7 +210,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `ofs_plat_avalon_mem_rdwr_if_replicate_params(host_mem_to_afu)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
       avmm_fiu_reg_if();
 
@@ -234,7 +234,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     ofs_plat_avalon_mem_rdwr_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
-        `ofs_plat_avalon_mem_rdwr_if_replicate_mem_params(host_mem_to_afu),
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
         .BURST_CNT_WIDTH(3)
         )
       avmm_fiu_burst_if();

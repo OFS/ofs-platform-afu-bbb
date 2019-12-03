@@ -138,7 +138,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
     // Internal MMIO Avalon interface
     ofs_plat_avalon_mem_if
       #(
-        `ofs_plat_avalon_mem_if_replicate_params(mmio_to_afu)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mmio_to_afu)
         )
       mmio_if();
 
