@@ -109,10 +109,18 @@ module ofs_plat_afu
     //
     // ====================================================================
 
+`ifdef TEST_PARAM_BURST_CNT_WIDTH_DELTA
+    localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH +
+                                    `TEST_PARAM_BURST_CNT_WIDTH_DELTA;
+`else
+    localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH;
+`endif
+
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
-        `LOCAL_MEM_AVALON_MEM_PARAMS_DEFAULT
+        `LOCAL_MEM_AVALON_MEM_PARAMS,
+        .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
         )
       local_mem_to_afu[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 

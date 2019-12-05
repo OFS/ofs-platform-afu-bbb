@@ -1,0 +1,4 @@
+# Test with master burst larger than slave burst
++define+TEST_PARAM_BURST_CNT_WIDTH_DELTA=1
+
+C:sources_avalon.txt

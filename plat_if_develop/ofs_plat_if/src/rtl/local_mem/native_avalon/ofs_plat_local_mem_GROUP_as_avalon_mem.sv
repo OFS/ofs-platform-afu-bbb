@@ -66,6 +66,69 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
     );
 
     // ====================================================================
+    //
+    // First stage: the AFU's burst counter may be a different size than
+    // the FIU's counter. If the AFU counter is larger then map AFU bursts
+    // to FIU-sized chunks.
+    //
+    // ====================================================================
+
+    ofs_plat_avalon_mem_if
+      #(
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
+        )
+      afu_burst_if();
+
+    generate
+        if (to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)
+        begin : nb
+            // AFU's burst count is no larger than the FIU's. Just wire
+            // the connection to the next stage.
+            ofs_plat_avalon_mem_if_connect_slave_clk conn
+               (
+                .mem_slave(to_fiu),
+                .mem_master(afu_burst_if)
+                );
+        end
+        else
+        begin : b
+            // AFU bursts counts may be too large for the FIU.
+            // First add a timing register stage to the FIU side.
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+                )
+              fiu_reg_if();
+
+            localparam NUM_BURST_REG_STAGES =
+                (`OFS_PLAT_PARAM_LOCAL_MEM_SUGGESTED_TIMING_REG_STAGES > 0) ?
+                    `OFS_PLAT_PARAM_LOCAL_MEM_SUGGESTED_TIMING_REG_STAGES : 1;
+
+            ofs_plat_avalon_mem_if_reg_slave_clk
+              #(
+                .N_REG_STAGES(NUM_BURST_REG_STAGES)
+                )
+              conn
+               (
+                .mem_slave(to_fiu),
+                .mem_master(fiu_reg_if)
+                );
+
+            assign afu_burst_if.clk = to_fiu.clk;
+            assign afu_burst_if.reset = to_fiu.reset;
+            assign afu_burst_if.instance_number = to_fiu.instance_number;
+
+            ofs_plat_avalon_mem_if_map_bursts burst
+               (
+                .mem_slave(fiu_reg_if),
+                .mem_master(afu_burst_if)
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //
     // While clocking and register stage insertion are logically
     // independent, considering them together leads to an important
     // optimization. The clock crossing FIFO has a large buffer that
@@ -75,6 +138,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
     //
     // When there is no clock crossing FIFO, all register stages must
     // honor the waitrequest protocol.
+    //
     // ====================================================================
 
     //
@@ -102,9 +166,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(to_fiu.ADDR_WIDTH_),
-        .DATA_WIDTH(to_fiu.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
         )
         afu_mem_if();
 
@@ -120,7 +182,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
                 )
               mem_pipe
                (
-                .mem_slave(to_fiu),
+                .mem_slave(afu_burst_if),
                 .mem_master(afu_mem_if)
                 );
         end
@@ -131,9 +193,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             //
             ofs_plat_avalon_mem_if
               #(
-                .ADDR_WIDTH(to_fiu.ADDR_WIDTH_),
-                .DATA_WIDTH(to_fiu.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_)
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
                 )
                 mem_cross();
 
@@ -177,7 +237,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
                 )
               mem_async_shim
                (
-                .mem_slave(to_fiu),
+                .mem_slave(afu_burst_if),
                 .mem_master(mem_cross)
                 );
 

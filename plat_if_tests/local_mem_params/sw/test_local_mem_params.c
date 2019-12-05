@@ -218,7 +218,15 @@ testBankWiring(
         }
 
         // Start the engines
-        runEnginesTest(all_eng_mask);
+        if (runEnginesTest(all_eng_mask))
+        {
+            for (uint32_t e = 0; e < num_engines; e += 1)
+            {
+                testDumpEngineState(e);
+            }
+            num_errors += 1;
+            goto fail;
+        }
     }
 
     // Read the values and confirm hashes
@@ -234,7 +242,15 @@ testBankWiring(
         }
 
         // Start the engines
-        runEnginesTest(all_eng_mask);
+        if (runEnginesTest(all_eng_mask))
+        {
+            for (uint32_t e = 0; e < num_engines; e += 1)
+            {
+                testDumpEngineState(e);
+            }
+            num_errors += 1;
+            goto fail;
+        }
 
         // Check hashes
         for (uint32_t e = 0; e < num_engines; e += 1)
@@ -257,6 +273,7 @@ testBankWiring(
     }
 
     printf("\n");
+  fail:
     return num_errors;
 }
 
