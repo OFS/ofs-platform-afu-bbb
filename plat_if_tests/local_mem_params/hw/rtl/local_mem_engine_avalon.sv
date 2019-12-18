@@ -87,8 +87,12 @@ module local_mem_engine
 
     logic clk;
     assign clk = local_mem_if.clk;
-    logic reset;
-    assign reset = local_mem_if.reset;
+
+    logic reset = 1'b1;
+    always @(posedge clk)
+    begin
+        reset <= local_mem_if.reset;
+    end
 
     typedef logic [local_mem_if.BURST_CNT_WIDTH-1 : 0] t_burst_cnt;
 
@@ -254,6 +258,7 @@ module local_mem_engine
     // Generate write requests
     //
     t_burst_cnt wr_flits_left;
+    logic wr_eop;
     logic wr_sop;
     t_data wr_data;
 
@@ -270,14 +275,16 @@ module local_mem_engine
             // Advance one line, reduce the flit count by one
             wr_cur_addr <= wr_cur_addr + t_addr'(1);
             wr_flits_left <= wr_flits_left - t_burst_cnt'(1);
+            wr_eop <= (wr_flits_left == t_burst_cnt'(2));
             wr_sop <= 1'b0;
 
             // Done with all flits in the burst?
-            if (wr_flits_left == t_burst_cnt'(1))
+            if (wr_eop)
             begin
                 wr_num_burst_reqs_left <= wr_num_burst_reqs_left - 1;
                 wr_done <= ! wr_unlimited && (wr_num_burst_reqs_left == t_num_burst_reqs'(1));
                 wr_flits_left <= wr_req_burst_len;
+                wr_eop <= (wr_req_burst_len == t_burst_cnt'(1));
                 wr_sop <= 1'b1;
             end
         end
@@ -286,6 +293,7 @@ module local_mem_engine
         begin
             wr_cur_addr <= t_addr'(wr_start_addr);
             wr_flits_left <= wr_req_burst_len;
+            wr_eop <= (wr_req_burst_len == t_burst_cnt'(1));
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
         end
@@ -352,7 +360,7 @@ module local_mem_engine
             begin
                 // Did a write. Switch to read if reads are active and the
                 // current write burst is complete.
-                arb_do_read <= ! rd_done && (wr_flits_left == t_burst_cnt'(1));
+                arb_do_read <= ! rd_done && (wr_eop);
             end
         end
 

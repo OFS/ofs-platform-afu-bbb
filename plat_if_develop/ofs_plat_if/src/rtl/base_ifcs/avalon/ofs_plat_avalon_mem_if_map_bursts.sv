@@ -105,7 +105,8 @@ module ofs_plat_avalon_mem_if_map_bursts
             // may be accepted as long as the slave's waitrequest is clear.
             // Writes accept requests only in the SOP beat of slave bursts.
             logic s_accept_req;
-            assign s_accept_req = ! mem_slave.waitrequest && s_wr_sop;
+            assign s_accept_req = ! mem_slave.waitrequest && s_wr_sop &&
+                                  (mem_slave.write || mem_slave.read);
 
             // Map burst counts in the master to one or more bursts in the slave.
             ofs_plat_prim_burstcount_mapping_gearbox

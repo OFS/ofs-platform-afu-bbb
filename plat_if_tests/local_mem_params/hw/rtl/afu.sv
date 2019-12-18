@@ -46,6 +46,15 @@ module afu
     input  t_ofs_plat_power_state pwrState
     );
 
+    logic clk;
+    assign clk = mmio64_if.clk;
+
+    logic reset = 1'b1;
+    always @(posedge clk)
+    begin
+        reset <= mmio64_if.reset;
+    end
+
     localparam NUM_ENGINES = local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS;
 
     engine_csr_if eng_csr_glob();
@@ -113,8 +122,8 @@ module afu
         )
       csr_mgr
        (
-        .clk(mmio64_if.clk),
-        .reset(mmio64_if.reset),
+        .clk,
+        .reset,
         .pClk,
 
         .wr_write(mmio64_if.write),

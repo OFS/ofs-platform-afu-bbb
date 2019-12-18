@@ -3,5 +3,6 @@ clock_counter.sv
 clock_counter.sdc
 counter_multicycle.sv
 csr_mgr.sv
+fifo2.sv
 hash32.sv
 test_data.sv
