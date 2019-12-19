@@ -1,0 +1,6 @@
+# Test with master burst larger than slave burst and a slow clock,
+# which could lead to underflow in the burst mapper.
++define+TEST_PARAM_BURST_CNT_WIDTH_DELTA=1
++define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.pClkDiv4
+
+C:sources_avalon.txt

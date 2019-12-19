@@ -74,7 +74,11 @@ module ofs_plat_afu
         .mmio_to_afu(mmio64_to_afu),
 
 
+`ifdef TEST_PARAM_AFU_CLK
+        .afu_clk(`TEST_PARAM_AFU_CLK)
+`else
         .afu_clk(plat_ifc.clocks.uClk_usr)
+`endif
         );
 
     // Not using host memory
