@@ -211,14 +211,27 @@ testExpectedWrites(
 
 static int
 testSmallRegions(
-    uint32_t e
+    uint32_t num_engines,
+    uint64_t emask
 )
 {
     int num_errors = 0;
 
-    // What is the maximum burst size for the engine? It is encoded in CSR 0.
-    uint64_t max_burst_size = s_eng_bufs[e].max_burst_size;
-    printf("Testing engine %d, maximum burst size %ld:\n", e, max_burst_size);
+    // What is the maximum burst size for the engines? It is encoded in CSR 0.
+    uint64_t max_burst_size = 1024;
+    bool natural_bursts = false;
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        if (emask & ((uint64_t)1 << e))
+        {
+            if (max_burst_size > s_eng_bufs[e].max_burst_size)
+                max_burst_size = s_eng_bufs[e].max_burst_size;
+
+            natural_bursts |= s_eng_bufs[e].natural_bursts;
+        }
+    }
+
+    printf("Testing emask 0x%lx, maximum burst size %ld:\n", emask, max_burst_size);
 
     uint64_t burst_size = 1;
     while (burst_size <= max_burst_size)
@@ -232,17 +245,32 @@ testSmallRegions(
             //
             for (int mode = 1; mode <= 3; mode += 1)
             {
-                // Read buffer base address (0 disables reads)
-                if (mode & 1)
-                    csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_iova / CL(1));
-                else
-                    csrEngWrite(s_csr_handle, e, 0, 0);
+                for (uint32_t e = 0; e < num_engines; e += 1)
+                {
+                    if (emask & ((uint64_t)1 << e))
+                    {
+                        // Read buffer base address (0 disables reads)
+                        if (mode & 1)
+                            csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_iova / CL(1));
+                        else
+                            csrEngWrite(s_csr_handle, e, 0, 0);
 
-                // Write buffer base address (0 disables writes)
-                if (mode & 2)
-                    csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_iova / CL(1));
-                else
-                    csrEngWrite(s_csr_handle, e, 1, 0);
+                        // Write buffer base address (0 disables writes)
+                        if (mode & 2)
+                            csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_iova / CL(1));
+                        else
+                            csrEngWrite(s_csr_handle, e, 1, 0);
+
+                        // Clear the write buffer
+                        memset((void*)s_eng_bufs[e].wr_buf, 0, MB(2));
+
+                        // Configure engine burst details
+                        csrEngWrite(s_csr_handle, e, 2,
+                                    (num_bursts << 32) | burst_size);
+                        csrEngWrite(s_csr_handle, e, 3,
+                                    (num_bursts << 32) | burst_size);
+                    }
+                }
 
                 char *mode_str = "R+W:  ";
                 if (mode == 1)
@@ -250,35 +278,13 @@ testSmallRegions(
                 if (mode == 2)
                 {
                     mode_str = "Write:";
-                    // Clear the write buffer
-                    memset((void*)s_eng_bufs[e].wr_buf, 0, MB(2));
                 }
 
                 printf("  %s %2ld bursts of %2ld lines", mode_str,
                        num_bursts, burst_size);
 
-                // Configure engine burst details
-                csrEngWrite(s_csr_handle, e, 2,
-                            (num_bursts << 32) | burst_size);
-                csrEngWrite(s_csr_handle, e, 3,
-                            (num_bursts << 32) | burst_size);
-
                 // Start your engines
-                csrEnableEngines(s_csr_handle, (uint64_t)1 << e);
-
-                // Compute the expected hash and sum while the engine runs
-                uint32_t expected_hash = 0;
-                uint32_t expected_sum = 0;
-                if (mode & 1)
-                {
-                    expected_hash = computeExpectedReadHash(
-                        (uint16_t*)s_eng_bufs[e].rd_buf,
-                        num_bursts, burst_size);
-
-                    expected_sum = computeExpectedReadSum(
-                        (uint16_t*)s_eng_bufs[e].rd_buf,
-                        num_bursts, burst_size);
-                }
+                csrEnableEngines(s_csr_handle, emask);
 
                 // Wait for engine to complete. Checking csrGetEnginesEnabled()
                 // resolves a race between the request to start an engine
@@ -295,57 +301,79 @@ testSmallRegions(
                 }
 
                 // Stop the engine
-                csrDisableEngines(s_csr_handle, (uint64_t)1 << e);
+                csrDisableEngines(s_csr_handle, emask);
 
-                // Get the actual hash
-                uint32_t actual_hash = 0;
-                uint32_t actual_sum = 0;
-                if (mode & 1)
+                bool pass = true;
+                for (uint32_t e = 0; e < num_engines; e += 1)
                 {
-                    uint64_t check_val = csrEngRead(s_csr_handle, e, 5);
-                    actual_hash = (uint32_t)check_val;
-                    actual_sum = check_val >> 32;
+                    if (emask & ((uint64_t)1 << e))
+                    {
+                        // Compute the expected hash and sum
+                        uint32_t expected_hash = 0;
+                        uint32_t expected_sum = 0;
+                        if (mode & 1)
+                        {
+                            expected_hash = computeExpectedReadHash(
+                                (uint16_t*)s_eng_bufs[e].rd_buf,
+                                num_bursts, burst_size);
+
+                            expected_sum = computeExpectedReadSum(
+                                (uint16_t*)s_eng_bufs[e].rd_buf,
+                                num_bursts, burst_size);
+                        }
+
+                        // Get the actual hash
+                        uint32_t actual_hash = 0;
+                        uint32_t actual_sum = 0;
+                        if (mode & 1)
+                        {
+                            uint64_t check_val = csrEngRead(s_csr_handle, e, 5);
+                            actual_hash = (uint32_t)check_val;
+                            actual_sum = check_val >> 32;
+                        }
+
+                        // Test that writes arrived
+                        bool writes_ok = true;
+                        uint32_t write_error_line;
+                        if (mode & 2)
+                        {
+                            writes_ok = testExpectedWrites(
+                                (uint64_t*)s_eng_bufs[e].wr_buf,
+                                s_eng_bufs[e].wr_buf_iova / CL(1),
+                                num_bursts, burst_size, &write_error_line);
+                        }
+
+                        if (expected_sum != actual_sum)
+                        {
+                            pass = false;
+                            num_errors += 1;
+                            printf("\n - FAIL %d: read ERROR expected sum 0x%08x found 0x%08x\n",
+                                   e, expected_sum, actual_sum);
+                        }
+                        else if ((expected_hash != actual_hash) &&
+                                 s_eng_bufs[e].ordered_read_responses)
+                        {
+                            pass = false;
+                            num_errors += 1;
+                            printf("\n - FAIL %d: read ERROR expected hash 0x%08x found 0x%08x\n",
+                                   e, expected_hash, actual_hash);
+                        }
+                        else if (! writes_ok)
+                        {
+                            pass = false;
+                            num_errors += 1;
+                            printf("\n - FAIL %d: write ERROR line index 0x%x\n", e, write_error_line);
+                        }
+                    }
                 }
 
-                // Test that writes arrived
-                bool writes_ok = true;
-                uint32_t write_error_line;
-                if (mode & 2)
-                {
-                    writes_ok = testExpectedWrites(
-                        (uint64_t*)s_eng_bufs[e].wr_buf,
-                        s_eng_bufs[e].wr_buf_iova / CL(1),
-                        num_bursts, burst_size, &write_error_line);
-                }
-
-                if (expected_sum != actual_sum)
-                {
-                    num_errors += 1;
-                    printf("\n - FAIL: read ERROR expected sum 0x%08x found 0x%08x\n",
-                           expected_sum, actual_sum);
-                }
-                else if ((expected_hash != actual_hash) &&
-                         s_eng_bufs[e].ordered_read_responses)
-                {
-                    num_errors += 1;
-                    printf("\n - FAIL: read ERROR expected hash 0x%08x found 0x%08x\n",
-                           expected_hash, actual_hash);
-                }
-                else if (! writes_ok)
-                {
-                    num_errors += 1;
-                    printf("\n - FAIL: write ERROR line index 0x%x\n", write_error_line);
-                }
-                else
-                {
-                    printf(" - PASS\n");
-                }
+                if (pass) printf(" - PASS\n");
             }
 
             num_bursts = (num_bursts * 2) + 1;
         }
 
-        if (s_eng_bufs[e].natural_bursts)
+        if (natural_bursts)
         {
             // Natural burst sizes -- test powers of 2
             burst_size <<= 1;
@@ -403,6 +431,7 @@ configBandwidth(
 //
 static int
 runBandwidth(
+    uint32_t num_engines,
     uint64_t emask
 )
 {
@@ -437,8 +466,17 @@ runBandwidth(
     }
 
     uint64_t cycles = csrGetClockCycles(s_csr_handle);
-    uint64_t read_lines = csrEngRead(s_csr_handle, 0, 2);
-    uint64_t write_lines = csrEngRead(s_csr_handle, 0, 3);
+    uint64_t read_lines = 0;
+    uint64_t write_lines = 0;
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        if (emask & ((uint64_t)1 << e))
+        {
+            read_lines += csrEngRead(s_csr_handle, e, 2);
+            write_lines += csrEngRead(s_csr_handle, e, 3);
+        }
+    }
+
     if (!read_lines && !write_lines)
     {
         printf("  FAIL: no memory traffic detected!\n");
@@ -520,9 +558,10 @@ testHostChanParams(
     }
     printf("\n");
     
+    // Test each engine separately
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
-        if (testSmallRegions(e))
+        if (testSmallRegions(num_engines, (uint64_t)1 << e))
         {
             // Quit on error
             result = 1;
@@ -530,6 +569,18 @@ testHostChanParams(
         }
     }
 
+    // Test all the engines at once
+    if (num_engines > 1)
+    {
+        if (testSmallRegions(num_engines, ((uint64_t)1 << num_engines) - 1))
+        {
+            // Quit on error
+            result = 1;
+            goto done;
+        }
+    }
+
+    // Bandwidth test each engine individually
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
         uint64_t burst_size = 1;
@@ -540,7 +591,7 @@ testHostChanParams(
             for (int mode = 1; mode <= 3; mode += 1)
             {
                 configBandwidth(e, burst_size, mode);
-                runBandwidth((uint64_t)1 << e);
+                runBandwidth(num_engines, (uint64_t)1 << e);
             }
 
             if (s_eng_bufs[e].natural_bursts)
@@ -556,6 +607,21 @@ testHostChanParams(
                     burst_size = s_eng_bufs[e].max_burst_size;
                 }
             }
+        }
+    }
+
+    // Bandwidth test all engines together
+    if (num_engines > 1)
+    {
+        printf("\nTesting all engines, max burst size:\n");
+
+        for (int mode = 1; mode <= 3; mode += 1)
+        {
+            for (uint32_t e = 0; e < num_engines; e += 1)
+            {
+                configBandwidth(e, s_eng_bufs[e].max_burst_size, mode);
+            }
+            runBandwidth(num_engines, ((uint64_t)1 << num_engines) - 1);
         }
     }
 

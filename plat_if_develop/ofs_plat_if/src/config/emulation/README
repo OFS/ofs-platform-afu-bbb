@@ -1,0 +1,4 @@
+Configuration files here describe emulated platforms, generally used for
+testing features of the PIM. They describe hardware configurations not
+actually available, often implemented by multiplexing multiple emulated
+ports on top of a single physical port.

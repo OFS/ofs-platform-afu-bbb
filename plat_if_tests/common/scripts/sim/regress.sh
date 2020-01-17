@@ -45,17 +45,17 @@ sim_args="-a $afu -s $sim -p $platform -r $rtl_sim_dir -m $mem_model"
 test_name=`basename "${afu}"`
 if [ "$variant" != "" ]; then
     sim_args="${sim_args} -v $variant"
-    test_name="${test_name}_${variant/.txt/}"
+    test_name="${test_name}__${variant/.txt/}"
 fi
 
 rm -rf "${rtl_sim_dir}"
 # Construct and compile the ASE simulator instance
 ${SCRIPT_DIR_PATH}/setup_sim.sh ${sim_args}
 # Run ASE in the background
-run_sim 2>&1 | tee "${test_name}.hw.log" &
+run_sim 2>&1 | tee "${log_dir}/${test_name}.hw.log" &
 # Run the connected software in the foreground
-${SCRIPT_DIR_PATH}/run_app.sh "$@" 2>&1 | tee "${test_name}.sw.log"
-echo $? > "${test_name}.sw.status"
+${SCRIPT_DIR_PATH}/run_app.sh "$@" 2>&1 | tee "${log_dir}/${test_name}.sw.log"
+echo $? > "${log_dir}/${test_name}.sw.status"
 
 # Done.  Force ASE to exit.
 kill_sim

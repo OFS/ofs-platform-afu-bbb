@@ -11,7 +11,7 @@ usage() {
    echo "Usage: $0 -a <afu dir> -r <rtl simulation dir>" 1>&2
    echo "                       [-s <vcs|modelsim|questa>] [-p <platform>] [-v <variant>]" 1>&2
    echo "                       [-b <opae base dir>] [-i <opae install path>]" 1>&2
-   echo "                       [-m <EMIF_MODEL_BASIC|EMIF_MODEL_ADVANCED> memory model]" 1>&2
+   echo "                       [-l <log dir>]" 1>&2
    exit 1
 }
 
@@ -38,7 +38,7 @@ parse_args() {
    fi
 
    local OPTIND
-   while getopts ":a:r:s:b:p:v:f:i:m:" o; do
+   while getopts ":a:r:s:b:p:v:f:i:l:" o; do
       case "${o}" in
          a)
             a=${OPTARG}
@@ -58,11 +58,11 @@ parse_args() {
          v)
             v=${OPTARG}
             ;;
-         m)
-            m=${OPTARG}            
-            ;;
          i)
             i=${OPTARG}
+            ;;
+         l)
+            l=${OPTARG}
             ;;
       esac
    done
@@ -75,9 +75,9 @@ parse_args() {
    platform=${p}
    rtl_sim_dir=${r}
    sim=${s}
-   mem_model=${m}
    opae_base=${b}
    opae_install=${i}
+   log_dir=${l}
 
    rtl_filelist="${rtl}/filelist.txt"
    if [ "${variant}" != "" ]; then
@@ -96,6 +96,10 @@ parse_args() {
       usage;
    fi
 
+   if [ -z "${log_dir}" ]; then
+      log_dir="."
+   fi
+
    if [ -z "$sim" ]; then
       echo "No RTL simulator detected or specified with -s."
       echo ""
@@ -106,12 +110,7 @@ parse_args() {
       usage;
    fi
 
-   if [[ ! $mem_model ]]; then
-      # use default
-      mem_model=EMIF_MODEL_BASIC
-   fi
-
-   echo "afu=$afu, rtl=$rtl, app_base=$app_base, sim=$sim, mem_model=$mem_model, variant=$variant, platform=$platform"
+   echo "afu=$afu, rtl=$rtl, app_base=$app_base, sim=$sim, variant=$variant, platform=$platform"
    echo "rtl_sim_dir=$rtl_sim_dir"
 }
 
@@ -146,8 +145,6 @@ setup_sim_dir() {
       echo "MENT_VLOG_OPT += $add_macros" >> ase_sources.mk
       echo "MENT_VSIM_OPT += $add_macros" >> ase_sources.mk
    fi
-
-   echo "ASE_DISCRETE_EMIF_MODEL=$mem_model" >> ase_sources.mk
 
    popd
 }
@@ -270,7 +267,7 @@ build_app() {
    set -x
    pushd $app_base
    # Build the software application
-   make clean
+   #make clean
    if [[ $opae_install ]]; then
       # non-RPM flow
       echo "Non-RPM Flow"

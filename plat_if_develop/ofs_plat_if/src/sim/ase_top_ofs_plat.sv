@@ -65,6 +65,13 @@ module ase_top_ofs_plat
     // CCI-P emulator (defined in the ASE core library)
     //
 
+    // Construct the primary ASE CCI-P interface
+    ofs_plat_host_ccip_if ccip_fiu();
+
+    assign ccip_fiu.clk = pClk;
+    assign ccip_fiu.reset = plat_ifc.softReset;
+    assign ccip_fiu.instance_number = 0;
+
     ccip_emulator ccip_emulator
        (
         .pClk,
@@ -75,14 +82,67 @@ module ase_top_ofs_plat
         // Output signals, mapped to the platform interface
         .pck_cp2af_softReset(plat_ifc.softReset),
         .pck_cp2af_pwrState(plat_ifc.pwrState),
-        .pck_cp2af_error(plat_ifc.host_chan.ports[0].error),
-        .pck_af2cp_sTx(plat_ifc.host_chan.ports[0].sTx),
-        .pck_cp2af_sRx(plat_ifc.host_chan.ports[0].sRx)
+        .pck_cp2af_error(ccip_fiu.error),
+        .pck_af2cp_sTx(ccip_fiu.sTx),
+        .pck_cp2af_sRx(ccip_fiu.sRx)
         );
 
-    assign plat_ifc.host_chan.ports[0].clk = pClk;
-    assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
-    assign plat_ifc.host_chan.ports[0].instance_number = 0;
+    // Map the ASE CCI-P interface to the number of CCI-P interfaces
+    // we must emulate for the simulated platform. ASE's core library
+    // can only instantiate a single ccip_emulator, so we must multiplex
+    // it if more than one interface is needed.
+    //
+    // This code currently supports up to two groups of ports.
+    localparam NUM_AFU_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+                               + `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+`endif
+                               ;
+
+    ofs_plat_host_ccip_if ccip_afu[NUM_AFU_PORTS]();
+
+    ofs_plat_shim_ccip_mux
+      #(
+        .NUM_AFU_PORTS(NUM_AFU_PORTS)
+        )
+      ccip_mux
+       (
+        .to_fiu(ccip_fiu),
+        .to_afu(ccip_afu)
+        );
+
+    genvar p;
+    generate
+        // First group of CCI-P ports
+        for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS; p = p + 1)
+        begin : hc_0
+            ofs_plat_shim_ccip_reg
+              #(
+                .N_REG_STAGES(0)
+                )
+              ccip_conn
+               (
+                .to_fiu(ccip_afu[p]),
+                .to_afu(plat_ifc.host_chan.ports[p])
+                );
+        end
+
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+        // Second group of ports
+        for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS; p = p + 1)
+        begin : hc_1
+            ofs_plat_shim_ccip_reg
+              #(
+                .N_REG_STAGES(0)
+                )
+              ccip_conn
+               (
+                .to_fiu(ccip_afu[p + `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS]),
+                .to_afu(plat_ifc.host_chan_g1.ports[p])
+                );
+        end
+`endif
+    endgenerate
 
 
     //

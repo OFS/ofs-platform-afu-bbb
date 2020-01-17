@@ -82,13 +82,14 @@ module ofs_plat_afu
 
     // Split CCI-P into a pair of CCI-P interfaces: one for host memory
     // and the other for MMIO.
-    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) host_mem_to_afu();
+    localparam NUM_PORTS_G0 = plat_ifc.host_chan.NUM_PORTS_;
+    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) host_mem_to_afu[NUM_PORTS_G0]();
     ofs_plat_host_ccip_if ccip_to_mmio();
 
     ofs_plat_shim_ccip_split_mmio ccip_split
        (
         .to_fiu(ccip_to_afu),
-        .host_mem(host_mem_to_afu),
+        .host_mem(host_mem_to_afu[0]),
         .mmio(ccip_to_mmio)
         );
 
@@ -114,6 +115,70 @@ module ofs_plat_afu
         .afu_clk(),
         .afu_reset()
         );
+
+    // Are there any more ports in group 0? Map them to host_mem_to_afu.
+    genvar p;
+    generate
+        for (p = 1; p < NUM_PORTS_G0; p = p + 1)
+        begin : hc_g0
+            ofs_plat_host_chan_as_ccip
+              #(
+`ifdef TEST_PARAM_SORT_RD_RESP
+                .SORT_READ_RESPONSES(1),
+`endif
+`ifdef TEST_PARAM_AFU_REG_STAGES
+                .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES),
+`endif
+                .ADD_CLOCK_CROSSING(1)
+                )
+              ccip
+               (
+                .to_fiu(plat_ifc.host_chan.ports[p]),
+                .to_afu(host_mem_to_afu[p]),
+
+                .afu_clk(host_mem_to_afu[0].clk)
+                );
+        end
+    endgenerate
+
+    //
+    // If there is a second group of host channel ports map them too.
+    //
+`ifndef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+
+    localparam NUM_PORTS_G1 = 0;
+    ofs_plat_host_ccip_if host_mem_g1_to_afu[1]();
+
+`else
+
+    localparam NUM_PORTS_G1 = plat_ifc.host_chan_g1.NUM_PORTS_;
+    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN))
+        host_mem_g1_to_afu[NUM_PORTS_G1]();
+
+    generate
+        for (p = 0; p < NUM_PORTS_G1; p = p + 1)
+        begin : hc_g1
+            ofs_plat_host_chan_g1_as_ccip
+              #(
+`ifdef TEST_PARAM_SORT_RD_RESP
+                .SORT_READ_RESPONSES(1),
+`endif
+`ifdef TEST_PARAM_AFU_REG_STAGES
+                .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES),
+`endif
+                .ADD_CLOCK_CROSSING(1)
+                )
+              ccip
+               (
+                .to_fiu(plat_ifc.host_chan_g1.ports[p]),
+                .to_afu(host_mem_g1_to_afu[p]),
+
+                .afu_clk(host_mem_to_afu[0].clk)
+                );
+        end
+    endgenerate
+
+`endif // OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
 
 
     // ====================================================================
@@ -145,11 +210,12 @@ module ofs_plat_afu
 
     ofs_plat_if_tie_off_unused
       #(
-        // Masks are bit masks, with bit 0 corresponding to port/bank zero.
-        // Set a bit in the mask when a port is IN USE by the design.
-        // This way, the AFU does not need to know about every available
-        // device. By default, devices are tied off.
-        .HOST_CHAN_IN_USE_MASK(1)
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+        // If host channel group 1 ports exist, they are all connected
+        .HOST_CHAN_G1_IN_USE_MASK(-1),
+`endif
+        // All host channel group 0 ports are connected
+        .HOST_CHAN_IN_USE_MASK(-1)
         )
         tie_off(plat_ifc);
 
@@ -160,9 +226,15 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    afu afu
+    afu
+     #(
+       .NUM_PORTS_G0(NUM_PORTS_G0),
+       .NUM_PORTS_G1(NUM_PORTS_G1)
+       )
+     afu_impl
       (
        .host_mem_if(host_mem_to_afu),
+       .host_mem_g1_if(host_mem_g1_to_afu),
        .mmio64_if(mmio64_to_afu),
        .pClk(plat_ifc.clocks.pClk),
        .pwrState(afu_pwrState)

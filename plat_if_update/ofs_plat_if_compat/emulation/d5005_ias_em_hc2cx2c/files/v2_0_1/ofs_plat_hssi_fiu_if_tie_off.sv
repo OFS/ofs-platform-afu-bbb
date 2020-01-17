@@ -28,34 +28,29 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
+//
+// Tie off a single hssi_if port.
+//
+
 `include "ofs_plat_if.vh"
 
-//
-// Definition of the host channel interface between the platform (blue bits)
-// and the AFU (green bits). This is the fixed interface that crosses the
-// PR boundary.
-//
-// The default parameter state must define a configuration that matches
-// the hardware.
-//=
-//= _GROUP is replaced with the group number by the gen_ofs_plat_if script
-//= as it generates a platform-specific build/platform/ofs_plat_if tree.
-//
-interface ofs_plat_host_chan_GROUP_fiu_if
-  #(
-    parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_GROUP_NUM_PORTS
+module ofs_plat_hssi_fiu_if_tie_off
+   (
+    pr_hssi_if.to_fiu port
     );
 
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new interface from an existing
-    // interface's parameters.
-    localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
+    always_comb
+    begin
+        port.a2f_tx_parallel_data = '0;
+        port.a2f_rx_bitslip = '0;
+        port.a2f_rx_fifo_rd_en = '0;
+        port.a2f_rx_seriallpbken = '0;
+        port.a2f_channel_reset = '0;
+        port.a2f_tx_analogreset = '0;
+        port.a2f_tx_digitalreset = '0;
+        port.a2f_rx_analogreset = '0;
+        port.a2f_rx_digitalreset = '0;
+    end
 
-    ofs_plat_host_ccip_if
-      #(
-        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
-        )
-        ports[NUM_PORTS]();
-
-endinterface // ofs_plat_host_chan_GROUP_fiu_if
+endmodule // ofs_plat_hssi_fiu_if_tie_off

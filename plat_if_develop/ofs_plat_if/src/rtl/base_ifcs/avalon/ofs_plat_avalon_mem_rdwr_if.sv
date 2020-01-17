@@ -147,7 +147,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_function,
 
         // Debugging
-        input instance_number
+        input  instance_number
         );
 
     // Same as normal to_slave, but sets clk and reset
