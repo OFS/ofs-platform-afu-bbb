@@ -34,15 +34,15 @@
 
 module ofs_plat_avalon_mem_rdwr_if_async_shim
   #(
-    parameter RD_COMMAND_FIFO_DEPTH = 8,
-    parameter RD_RESPONSE_FIFO_DEPTH = 8,
-
-    parameter WR_COMMAND_FIFO_DEPTH = 8,
-    parameter WR_RESPONSE_FIFO_DEPTH = 8,
-
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
     // requests can be received after mem_master.waitrequest is asserted.
-    parameter COMMAND_ALMFULL_THRESHOLD = 0
+    parameter COMMAND_ALMFULL_THRESHOLD = 0,
+
+    parameter RD_COMMAND_FIFO_DEPTH = 8 + COMMAND_ALMFULL_THRESHOLD,
+    parameter RD_RESPONSE_FIFO_DEPTH = 8,
+
+    parameter WR_COMMAND_FIFO_DEPTH = 8 + COMMAND_ALMFULL_THRESHOLD,
+    parameter WR_RESPONSE_FIFO_DEPTH = 8
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,

@@ -196,7 +196,8 @@ class ofs_plat_cfg(object):
             native_def_sect = c + '.' + native_class
             if (self.defaults.has_section(native_def_sect)):
                 found_defaults = True
-                merged.update(OrderedDict(self.defaults.items(native_def_sect)))
+                merged.update(
+                    OrderedDict(self.defaults.items(native_def_sect)))
 
             if (not found_defaults):
                 # Error! No defaults exist for the implementation.

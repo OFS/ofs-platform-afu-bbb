@@ -183,8 +183,8 @@ class ofs_template(object):
         the section."""
 
         # Special case when native_class is 'none'. Leave it blank.
-        native_class_str = ' (' + \
-            self.plat_cfg.section_native_class(section) + ')'
+        native_class = self.plat_cfg.section_native_class(section)
+        native_class_str = ' (' + native_class + ')'
         if (native_class_str == ' (none)'):
             native_class_str = ''
 
@@ -196,6 +196,10 @@ class ofs_template(object):
 // ========================================================================
 
 '''.format(section, native_class_str)
+
+        if (native_class_str != '' and section_prefix != 'DEFINE'):
+            str = str + '`define OFS_PLAT_PARAM_{0}_IS_{1} 1\n'.format(
+                section_prefix, native_class.upper())
 
         for opt in self.plat_cfg.options(section):
             if (opt == 'native_class' and native_class_str == ''):

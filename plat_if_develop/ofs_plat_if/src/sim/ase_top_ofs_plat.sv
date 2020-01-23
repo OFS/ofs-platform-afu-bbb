@@ -95,7 +95,16 @@ module ase_top_ofs_plat
     // This code currently supports up to two groups of ports.
     localparam NUM_AFU_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+  `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_CCIP
                                + `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
+  `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON_RDWR
+                               // Transform only 1 port to Avalon and multiplex
+                               // it. This is much less resource intensive, since
+                               // CCI-P to Avalon requires sorting responses.
+                               + 1
+  `else
+        *** ERROR *** Unsupported native interface!
+  `endif
 `endif
                                ;
 
@@ -128,7 +137,8 @@ module ase_top_ofs_plat
         end
 
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
-        // Second group of ports
+  `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_CCIP
+        // Emulate a second group of CCI-P ports
         for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS; p = p + 1)
         begin : hc_1
             ofs_plat_shim_ccip_reg
@@ -141,6 +151,41 @@ module ase_top_ofs_plat
                 .to_afu(plat_ifc.host_chan_g1.ports[p])
                 );
         end
+  `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON_RDWR
+        // Emulate a secondary group of Avalon split read/write ports.
+
+        // Begin by transforming the CCI-P port to a single Avalon port.
+        ofs_plat_avalon_mem_rdwr_if
+          #(
+            .ADDR_WIDTH(plat_ifc.host_chan_g1.ports[0].ADDR_WIDTH_),
+            .DATA_WIDTH(plat_ifc.host_chan_g1.ports[0].DATA_WIDTH_),
+            .BURST_CNT_WIDTH(plat_ifc.host_chan_g1.ports[0].BURST_CNT_WIDTH_)
+            )
+            avmm_shared_slave_if();
+
+        ofs_plat_host_chan_as_avalon_mem
+          ccip_to_avmm
+           (
+            .to_fiu(ccip_afu[`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS]),
+            .host_mem_to_afu(avmm_shared_slave_if),
+            .afu_clk()
+            );
+
+        // Multiplex the single Avalon slave into the platform's ports
+        ofs_plat_avalon_mem_rdwr_if_mux
+          #(
+            .NUM_MASTER_PORTS(`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS),
+            .RD_TRACKER_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_MAX_BW_ACTIVE_LINES_RD),
+            .WR_TRACKER_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_MAX_BW_ACTIVE_LINES_WR)
+            )
+          avmm_mux
+           (
+            .mem_slave(avmm_shared_slave_if),
+            .mem_master(plat_ifc.host_chan_g1.ports)
+            );
+  `else
+        *** ERROR *** Unsupported native interface!
+  `endif
 `endif
     endgenerate
 

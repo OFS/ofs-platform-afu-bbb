@@ -29,40 +29,39 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Export a platform local_mem interface to an AFU as an Avalon memory.
+// Export an Avalon split-bus read/write interface to an AFU, given an
+// FIU interface that is already the same interface. The module here
+// offers clock crossing and extra register stages.
 //
-// The "as Avalon" abstraction here allows an AFU to request the memory
-// using a particular interface. The platform may offer multiple interfaces
-// to the same underlying PR wires, instantiating protocol conversion
-// shims as needed.
-//
-
-//
-// This version of ofs_plat_local_mem_as_avalon_mem works on platforms
-// where the native interface is already Avalon.
+// MMIO is not implemented through native Avalon interfaces.
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_local_mem_GROUP_as_avalon_mem
+//
+// Host memory as Avalon (no MMIO).
+//
+module ofs_plat_host_chan_GROUP_as_avalon_mem
   #(
-    // When non-zero, add a clock crossing to move the AFU interface
-    // to the passed in tgt_mem_afu_clk.
+    // When non-zero, add a clock crossing to move the AFU
+    // interface to the clock/reset pair passed in afu_clk/afu_reset.
     parameter ADD_CLOCK_CROSSING = 0,
 
-    // Add extra pipeline stages, typically for timing.
+    // Add extra pipeline stages to the FIU side, typically for timing.
+    // Note that these stages contribute to the latency of receiving
+    // almost full and requests in these registers continue to flow
+    // when almost full is asserted. Beware of adding too many stages
+    // and losing requests on transitions to almost full.
     parameter ADD_TIMING_REG_STAGES = 0
     )
    (
-    // AFU clock for memory when a clock crossing is requested
-    input  logic tgt_mem_afu_clk,
+    ofs_plat_avalon_mem_rdwr_if.to_slave to_fiu,
 
-    // The ports are named "to_fiu" and "to_afu" despite the Avalon
-    // to_slave/to_master naming because the PIM port naming is a
-    // bus-independent abstraction. At top-level, PIM ports are
-    // always to_fiu and to_afu.
-    ofs_plat_avalon_mem_if.to_slave to_fiu,
-    ofs_plat_avalon_mem_if.to_master_clk to_afu
+    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
+    // is non-zero.
+    input  logic afu_clk
     );
 
     // ====================================================================
@@ -73,18 +72,18 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
     //
     // ====================================================================
 
-    ofs_plat_avalon_mem_if
+    ofs_plat_avalon_mem_rdwr_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
       afu_burst_if();
 
     generate
-        if (to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)
+        if (host_mem_to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)
         begin : nb
             // AFU's burst count is no larger than the FIU's. Just wire
             // the connection to the next stage.
-            ofs_plat_avalon_mem_if_connect_slave_clk conn
+            ofs_plat_avalon_mem_rdwr_if_connect_slave_clk conn
                (
                 .mem_slave(to_fiu),
                 .mem_master(afu_burst_if)
@@ -94,17 +93,17 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
         begin : b
             // AFU bursts counts may be too large for the FIU.
             // First add a timing register stage to the FIU side.
-            ofs_plat_avalon_mem_if
+            ofs_plat_avalon_mem_rdwr_if
               #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(to_fiu)
                 )
               fiu_reg_if();
 
             localparam NUM_BURST_REG_STAGES =
-                (`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_SUGGESTED_TIMING_REG_STAGES > 0) ?
-                    `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_SUGGESTED_TIMING_REG_STAGES : 1;
+                (`OFS_PLAT_PARAM_HOST_CHAN_GROUP_SUGGESTED_TIMING_REG_STAGES > 0) ?
+                    `OFS_PLAT_PARAM_HOST_CHAN_GROUP_SUGGESTED_TIMING_REG_STAGES : 1;
 
-            ofs_plat_avalon_mem_if_reg_slave_clk
+            ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
               #(
                 .N_REG_STAGES(NUM_BURST_REG_STAGES)
                 )
@@ -118,7 +117,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             assign afu_burst_if.reset = to_fiu.reset;
             assign afu_burst_if.instance_number = to_fiu.instance_number;
 
-            ofs_plat_avalon_mem_if_map_bursts burst
+            ofs_plat_avalon_mem_rdwr_if_map_bursts burst
                (
                 .mem_slave(fiu_reg_if),
                 .mem_master(afu_burst_if)
@@ -153,9 +152,9 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
         if (ADD_CLOCK_CROSSING)
         begin
             // Use at least the recommended number of stages
-            if (`OFS_PLAT_PARAM_LOCAL_MEM_GROUP_SUGGESTED_TIMING_REG_STAGES > n_stages)
+            if (`OFS_PLAT_PARAM_HOST_CHAN_GROUP_SUGGESTED_TIMING_REG_STAGES > n_stages)
             begin
-                n_stages = `OFS_PLAT_PARAM_LOCAL_MEM_GROUP_SUGGESTED_TIMING_REG_STAGES;
+                n_stages = `OFS_PLAT_PARAM_HOST_CHAN_GROUP_SUGGESTED_TIMING_REG_STAGES;
             end
         end
 
@@ -164,9 +163,9 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
 
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
 
-    ofs_plat_avalon_mem_if
+    ofs_plat_avalon_mem_rdwr_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
         afu_mem_if();
 
@@ -176,7 +175,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             //
             // No clock crossing, maybe register stages.
             //
-            ofs_plat_avalon_mem_if_reg_slave_clk
+            ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
@@ -212,14 +211,14 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             //
             // Cross to the specified clock.
             //
-            ofs_plat_avalon_mem_if
+            ofs_plat_avalon_mem_rdwr_if
               #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu),
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu),
                 .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
                 )
                 mem_cross();
 
-            assign mem_cross.clk = tgt_mem_afu_clk;
+            assign mem_cross.clk = afu_clk;
             assign mem_cross.instance_number = to_fiu.instance_number;
 
             // Synchronize a reset with the target clock
@@ -232,8 +231,9 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
                 .reset_out(mem_cross.reset)
                 );
 
-            ofs_plat_avalon_mem_if_async_shim
+            ofs_plat_avalon_mem_rdwr_if_async_shim
               #(
+                .RD_RESPONSE_FIFO_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_GROUP_MAX_BW_ACTIVE_LINES_RD),
                 .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
                 )
               mem_async_shim
@@ -246,7 +246,7 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
             // In this case the register stages are a simple pipeline because
             // the clock crossing FIFO reserves space for these stages to drain
             // after waitrequest is asserted.
-            ofs_plat_avalon_mem_if_reg_simple
+            ofs_plat_avalon_mem_rdwr_if_reg_simple
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES),
                 .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
@@ -264,11 +264,12 @@ module ofs_plat_local_mem_GROUP_as_avalon_mem
         end
     endgenerate
 
-    // Make the final connection to the to_afu instance, including passing the clock.
-    ofs_plat_avalon_mem_if_connect_slave_clk conn_to_afu
+    // Make the final connection to the host_mem_to_afu instance, including
+    // passing the clock.
+    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk conn_to_afu
        (
         .mem_slave(afu_mem_if),
-        .mem_master(to_afu)
+        .mem_master(host_mem_to_afu)
         );
 
-endmodule // ofs_plat_local_mem_GROUP_as_avalon_mem
+endmodule // ofs_plat_host_chan_GROUP_as_avalon_mem

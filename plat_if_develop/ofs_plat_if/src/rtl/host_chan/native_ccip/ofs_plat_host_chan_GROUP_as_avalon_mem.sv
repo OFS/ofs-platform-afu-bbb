@@ -67,7 +67,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem
 
     ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
 
-    // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
     input  logic afu_clk
     );
@@ -115,7 +115,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_mmio
     ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
     ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
 
-    // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
     input  logic afu_clk
     );
@@ -196,7 +196,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_with_dual_mmio
     ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
     ofs_plat_avalon_mem_if.to_slave_clk mmio_wr_to_afu,
 
-    // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
     input  logic afu_clk
     );
@@ -320,7 +320,7 @@ module ofs_plat_host_chan_GROUP_as_avalon_mem_impl
     // Export a CCI-P port for MMIO mapping
     ofs_plat_host_ccip_if.to_afu ccip_mmio,
 
-    // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
     input  logic afu_clk
     );

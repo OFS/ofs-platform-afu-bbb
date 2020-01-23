@@ -221,6 +221,7 @@ module host_mem_rdwr_engine
     //
     logic rd_valid;
     assign rd_valid = state_run && ! rd_done && ! host_mem_if.sRx.c0TxAlmFull;
+    logic [7:0] rd_mdata;
 
     always_ff @(posedge clk)
     begin
@@ -230,6 +231,7 @@ module host_mem_rdwr_engine
         host_mem_if.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
         host_mem_if.sTx.c0.hdr.cl_len <= t_ccip_clLen'(rd_req_burst_len - t_burst_cnt'(1));
         host_mem_if.sTx.c0.hdr.address <= rd_base_addr | (rd_cur_addr_low & base_addr_low_mask);
+        host_mem_if.sTx.c0.hdr.mdata <= t_ccip_mdata'(rd_mdata);
 
         if (reset)
         begin
@@ -245,6 +247,7 @@ module host_mem_rdwr_engine
             rd_cur_addr_low <= rd_cur_addr_low + rd_req_burst_len;
             rd_num_burst_reqs_left <= rd_num_burst_reqs_left - 1;
             rd_done <= ! rd_unlimited && (rd_num_burst_reqs_left == t_num_burst_reqs'(1));
+            rd_mdata <= rd_mdata + 8'b1;
         end
 
         if (state_reset)
@@ -253,6 +256,7 @@ module host_mem_rdwr_engine
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
+            rd_mdata <= '0;
         end
 
         if (reset || state_reset)
@@ -303,6 +307,7 @@ module host_mem_rdwr_engine
     t_burst_cnt wr_flits_left;
     logic wr_sop;
     logic wr_fence_done;
+    logic [7:0] wr_mdata;
 
     logic wr_valid;
     assign wr_valid = ((state_run && (! wr_done || ! wr_fence_done)) || ! wr_sop) &&
@@ -317,6 +322,7 @@ module host_mem_rdwr_engine
         host_mem_if.sTx.c1.hdr.address <= wr_base_addr | (wr_cur_addr_low & base_addr_low_mask);
         host_mem_if.sTx.c1.hdr.cl_len <= t_ccip_clLen'(wr_req_burst_len - t_burst_cnt'(1));
         host_mem_if.sTx.c1.hdr.sop <= wr_sop;
+        host_mem_if.sTx.c1.hdr.mdata <= t_ccip_mdata'(wr_mdata);
 
         // Emit a write fence at the end
         if (wr_done && ! wr_fence_done)
@@ -349,6 +355,7 @@ module host_mem_rdwr_engine
                 wr_done <= ! wr_unlimited && (wr_num_burst_reqs_left == t_num_burst_reqs'(1));
                 wr_flits_left <= wr_req_burst_len;
                 wr_sop <= 1'b1;
+                wr_mdata <= wr_mdata + 8'b1;
             end
         end
 
@@ -363,6 +370,7 @@ module host_mem_rdwr_engine
             wr_flits_left <= wr_req_burst_len;
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
+            wr_mdata <= '0;
         end
 
         if (reset || state_reset)

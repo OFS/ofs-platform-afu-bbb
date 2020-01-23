@@ -33,7 +33,7 @@ SCRIPTNAME="$(basename -- "$0")"
 SCRIPT_DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd -P)"
 
 function usage {
-    echo "Usage: ${SCRIPTNAME} <S10 SX PAC dir>"
+    echo "Usage: ${SCRIPTNAME} <-c config .ini file> <S10 SX PAC dir>"
     exit 1
 }
 
@@ -43,7 +43,27 @@ function not_release {
     exit 1
 }
 
-tgt_dir="$1"
+parse_args() {
+   cfg_file=
+
+   local OPTIND
+   while getopts ":c:" opts; do
+      case "${opts}" in
+         c)
+            cfg_file=${OPTARG}
+            ;;
+      esac
+   done
+   shift $((OPTIND-1))
+
+   tgt_dir="$1"
+}
+
+parse_args "$@"
+
+if [ "$cfg_file" == "" ]; then
+    usage
+fi
 if [ "$tgt_dir" == "" ]; then
     usage
 fi
@@ -59,6 +79,22 @@ OFS_PLAT_SRC=`"${SCRIPT_DIR}"/../../common/find_ofs_plat_dir.sh`
 if [ "${OFS_PLAT_SRC}" == "" ]; then
     exit 1
 fi
+
+# Find the configuration file
+if [ -f "$cfg_file" ]; then
+    cfg_file=$(realpath "$cfg_file")
+else
+    if [ -f "${OFS_PLAT_SRC}"/src/config/emulation/"${cfg_file}" ]; then
+        cfg_file="${OFS_PLAT_SRC}"/src/config/emulation/"${cfg_file}"
+    elif [ -f "${OFS_PLAT_SRC}"/src/config/"${cfg_file}" ]; then
+        cfg_file="${OFS_PLAT_SRC}"/src/config/"${cfg_file}"
+    else
+        echo "Can't find .ini file: ${cfg_file}"
+        exit 1
+    fi
+fi
+
+echo "Using: $cfg_file"
 
 cd "$tgt_dir"
 if [ ! -f hw/lib/platform/platform_db/s10_pac_dc_hssi.json ]; then
@@ -93,7 +129,7 @@ cp -f "${SCRIPT_DIR}"/files/platform_db/s10_pac_dc_hssi.json hw/lib/platform/pla
 
 # Generate ofs_plat_if tree
 rm -rf hw/lib/build/platform/ofs_plat_if
-"${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_if -c "${OFS_PLAT_SRC}"/src/config/emulation/d5005_pac_ias_${REL_VER}_em_hc2cx2c.ini -t hw/lib/build/platform/ofs_plat_if -v
+"${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_if -c "${cfg_file}" -t hw/lib/build/platform/ofs_plat_if -v
 
 # Copy the HSSI interface file to ofs_plat_if. Also make it an .sv file instead
 # if a .vh include file. First, rename it away from the original location in
