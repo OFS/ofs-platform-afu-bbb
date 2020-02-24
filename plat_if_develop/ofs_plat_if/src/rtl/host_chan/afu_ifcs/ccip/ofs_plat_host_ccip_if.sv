@@ -104,6 +104,29 @@ interface ofs_plat_host_ccip_if
 
     // synthesis translate_off
 
+    always_ff @(negedge clk)
+    begin
+        if (! reset)
+        begin
+            if (sTx.c0.valid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sTx.c0.valid is uninitialized!");
+            if (sTx.c1.valid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sTx.c1.valid is uninitialized!");
+            if (sTx.c2.mmioRdValid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sTx.c2.mmioRdValid is uninitialized!");
+
+            if (sRx.c0.rspValid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sRx.c0.rspValid is uninitialized!");
+            if (sRx.c0.mmioRdValid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sRx.c0.mmioRdValid is uninitialized!");
+            if (sRx.c0.mmioWrValid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sRx.c0.mmioWrValid is uninitialized!");
+
+            if (sRx.c1.rspValid === 1'bx)
+                $fatal(2, "** ERROR ** %m: sRx.c1.rspValid is uninitialized!");
+        end
+    end
+
     // Print Channel function
     function string print_channel (logic [1:0] vc_sel);
         case (vc_sel)

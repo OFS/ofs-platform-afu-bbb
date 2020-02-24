@@ -83,6 +83,9 @@ module ofs_plat_map_ccip_as_avalon_mmio
         .afu_reset
         );
 
+    assign to_fiu.sTx.c0 = t_if_ccip_c0_Tx'(0);
+    assign to_fiu.sTx.c1 = t_if_ccip_c1_Tx'(0);
+
 endmodule // ofs_plat_map_ccip_as_avalon_mmio
 
 

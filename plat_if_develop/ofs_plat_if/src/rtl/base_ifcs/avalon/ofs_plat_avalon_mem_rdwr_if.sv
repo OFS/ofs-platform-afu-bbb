@@ -302,6 +302,18 @@ interface ofs_plat_avalon_mem_rdwr_if
     // Validate signals
     always_ff @(negedge clk)
     begin
+        if (! reset)
+        begin
+            if (rd_read === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: rd_read is uninitialized!");
+            end
+            if (wr_write === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: wr_write is uninitialized!");
+            end
+        end
+
         if (! reset && rd_read)
         begin
             if (^rd_address === 1'bx)

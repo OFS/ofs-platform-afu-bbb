@@ -220,34 +220,46 @@ interface ofs_plat_avalon_mem_if
     // Validate signals
     always_ff @(negedge clk)
     begin
-        if (! reset && read && write)
+        if (! reset)
         begin
-            $fatal(2, "** ERROR ** %m: Both read and write are asserted!");
-        end
-
-        if (! reset && read)
-        begin
-            if (^address === 1'bx)
+            if (read && write)
             begin
-                $fatal(2, "** ERROR ** %m: address undefined during a read, currently 0x%x", address);
+                $fatal(2, "** ERROR ** %m: Both read and write are asserted!");
             end
 
-            if (^burstcount === 1'bx)
+            if (read === 1'bx)
             begin
-                $fatal(2, "** ERROR ** %m: burstcount undefined during a read, currently 0x%x", burstcount);
+                $fatal(2, "** ERROR ** %m: read is uninitialized!");
             end
-        end
-
-        if (! reset && write)
-        begin
-            if (wr_sop && (^address === 1'bx))
+            if (write === 1'bx)
             begin
-                $fatal(2, "** ERROR ** %m: address undefined during a write SOP, currently 0x%x", address);
+                $fatal(2, "** ERROR ** %m: write is uninitialized!");
             end
 
-            if (wr_sop && (^burstcount === 1'bx))
+            if (read)
             begin
-                $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", burstcount);
+                if (^address === 1'bx)
+                begin
+                    $fatal(2, "** ERROR ** %m: address undefined during a read, currently 0x%x", address);
+                end
+
+                if (^burstcount === 1'bx)
+                begin
+                    $fatal(2, "** ERROR ** %m: burstcount undefined during a read, currently 0x%x", burstcount);
+                end
+            end
+
+            if (write)
+            begin
+                if (wr_sop && (^address === 1'bx))
+                begin
+                    $fatal(2, "** ERROR ** %m: address undefined during a write SOP, currently 0x%x", address);
+                end
+
+                if (wr_sop && (^burstcount === 1'bx))
+                begin
+                    $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", burstcount);
+                end
             end
         end
     end

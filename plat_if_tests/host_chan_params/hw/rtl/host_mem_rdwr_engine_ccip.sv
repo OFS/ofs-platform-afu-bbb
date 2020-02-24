@@ -102,6 +102,9 @@ module host_mem_rdwr_engine
     logic reset;
     assign reset = host_mem_if.reset;
 
+    // C2 unused (MMIO is handled in a different interface)
+    assign host_mem_if.sTx.c2 = t_if_ccip_c2_Tx'(0);
+
     typedef logic [$bits(t_ccip_clLen) : 0] t_burst_cnt;
 
     // Address is to a line
