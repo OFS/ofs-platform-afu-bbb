@@ -157,9 +157,9 @@ module ase_top_ofs_plat
         // Begin by transforming the CCI-P port to a single Avalon port.
         ofs_plat_avalon_mem_rdwr_if
           #(
-            .ADDR_WIDTH(plat_ifc.host_chan_g1.ports[0].ADDR_WIDTH_),
-            .DATA_WIDTH(plat_ifc.host_chan_g1.ports[0].DATA_WIDTH_),
-            .BURST_CNT_WIDTH(plat_ifc.host_chan_g1.ports[0].BURST_CNT_WIDTH_)
+            .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_ADDR_WIDTH),
+            .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_DATA_WIDTH),
+            .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_BURST_CNT_WIDTH)
             )
             avmm_shared_slave_if();
 
