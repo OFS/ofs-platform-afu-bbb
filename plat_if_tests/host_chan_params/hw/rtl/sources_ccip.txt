@@ -1,7 +1,7 @@
 +define+TEST_PARAM_IFC_CCIP
 
 host_chan_params.json
-C:../../../common/hw/rtl/sources.txt
+
+C:sources_base.txt
 ofs_plat_afu_ccip.sv
 afu.sv
-host_mem_rdwr_engine_ccip.sv

@@ -80,8 +80,10 @@
 module csr_mgr
   #(
     parameter NUM_ENGINES = 1,
+    parameter DFH_MMIO_NEXT_ADDR = 0,
     parameter MMIO_ADDR_WIDTH = 16,
-    parameter MMIO_DATA_WIDTH = 64
+    parameter MMIO_DATA_WIDTH = 64,
+    parameter MMIO_TID_WIDTH = 9
     )
    (
     input  logic clk,
@@ -97,8 +99,10 @@ module csr_mgr
 
     input  logic rd_read,
     input  logic [MMIO_ADDR_WIDTH-1 : 0] rd_address,
+    input  logic [MMIO_TID_WIDTH-1 : 0] rd_tid_in,
     output logic rd_readdatavalid,
     output logic [MMIO_DATA_WIDTH-1 : 0] rd_readdata,
+    output logic [MMIO_TID_WIDTH-1 : 0] rd_tid_out,
 
     // Global engine interface (write only)
     engine_csr_if.csr_mgr eng_csr_glob,
@@ -110,6 +114,7 @@ module csr_mgr
     typedef logic [$clog2(NUM_ENGINES)-1 : 0] t_engine_idx;
     typedef logic [MMIO_ADDR_WIDTH-1 : 0] t_mmio_addr;
     typedef logic [MMIO_DATA_WIDTH-1 : 0] t_mmio_value;
+    typedef logic [MMIO_TID_WIDTH-1 : 0] t_mmio_tid;
 
     // The CSR manager uses only a subset of the MMIO space
     typedef logic [11:0] t_csr_idx;
@@ -142,6 +147,7 @@ module csr_mgr
     // to a single register. This splits the multiplexing into two cycles.
     logic read_req_q;
     t_csr_idx read_idx_q;
+    t_mmio_tid read_tid_q;
     t_mmio_value eng_csr_data_q[NUM_ENGINES];
     t_mmio_value eng_csr_glob_data_q;
 
@@ -154,6 +160,7 @@ module csr_mgr
         begin : r_addr
             read_req_q <= rd_read;
             read_idx_q <= t_csr_idx'(rd_address);
+            read_tid_q <= rd_tid_in;
 
             if (reset)
             begin
@@ -190,8 +197,10 @@ module csr_mgr
                     dfh_afu_id_q <= 64'b0;
                     // Feature type is AFU
                     dfh_afu_id_q[63:60] <= 4'h1;
-                    // End of list (last entry in list)
-                    dfh_afu_id_q[40] <= 1'b1;
+                    // End of list (last entry in list)?
+                    dfh_afu_id_q[40] <= (DFH_MMIO_NEXT_ADDR == 0);
+                    // Next feature
+                    dfh_afu_id_q[39:16] <= 24'(DFH_MMIO_NEXT_ADDR);
                 end
 
             // AFU_ID_L
@@ -227,6 +236,7 @@ module csr_mgr
     always_ff @(posedge clk)
     begin
         rd_readdatavalid <= read_req_q;
+        rd_tid_out <= read_tid_q;
 
         casez (read_idx_q)
             // AFU DFH (device feature header) and AFU ID

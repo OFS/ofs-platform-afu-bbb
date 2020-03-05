@@ -1,0 +1,4 @@
+# Common sources used by all tests
+C:../../../common/hw/rtl/sources.txt
+host_mem_rdwr_engine_avalon.sv
+host_mem_rdwr_engine_ccip.sv

@@ -6,7 +6,9 @@ COPT     ?= -g -O2
 CPPFLAGS ?= -std=c++11
 CXX      ?= g++
 LDFLAGS  ?=
-VPATH    ?= ../../common/sw
+COMMON_PATH ?= ../../common/sw
+
+vpath %.c $(COMMON_PATH)
 
 ifeq (,$(CFLAGS))
 CFLAGS = $(COPT)
@@ -46,8 +48,8 @@ CFLAGS +=-D_FORTIFY_SOURCE=2
 CFLAGS +=-Wformat -Wformat-security
 
 # Include files from common source directory
-CFLAGS += -I../../common/sw
-CPPFLAGS += -I../../common/sw
+CFLAGS += -I$(COMMON_PATH)
+CPPFLAGS += -I$(COMMON_PATH)
 
 ifeq (,$(DESTDIR))
 ifneq (,$(prefix))

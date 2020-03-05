@@ -83,7 +83,7 @@
 
 `default_nettype none
 
-module host_mem_rdwr_engine
+module host_mem_rdwr_engine_avalon
   #(
     parameter ENGINE_NUMBER = 0
     )
@@ -108,7 +108,7 @@ module host_mem_rdwr_engine
     localparam DATA_WIDTH = host_mem_if.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
-    localparam ADDR_LOW_WIDTH = 15;
+    localparam ADDR_LOW_WIDTH = 32;
     typedef logic [ADDR_LOW_WIDTH-1 : 0] t_addr_low;
 
     localparam COUNTER_WIDTH = 48;
@@ -446,4 +446,4 @@ module host_mem_rdwr_engine
         .value(wr_bursts_resp)
         );
 
-endmodule // host_mem_rdwr_engine
+endmodule // host_mem_rdwr_engine_avalon

@@ -132,8 +132,10 @@ module afu
 
         .rd_read(mmio64_if.read),
         .rd_address(mmio64_if.address),
+        .rd_tid_in('x),
         .rd_readdatavalid(mmio64_if.readdatavalid),
         .rd_readdata(mmio64_if.readdata),
+        .rd_tid_out(),
 
         .eng_csr_glob,
         .eng_csr

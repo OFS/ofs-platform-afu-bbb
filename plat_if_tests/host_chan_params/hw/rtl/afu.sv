@@ -108,7 +108,11 @@ module afu
         // Group 0 engines, one per port
         for (p = 0; p < NUM_PORTS_G0; p = p + 1)
         begin : g0
-            host_mem_rdwr_engine
+`ifdef TEST_PARAM_IFC_CCIP
+            host_mem_rdwr_engine_ccip
+`else
+            host_mem_rdwr_engine_avalon
+`endif
               #(
                 .ENGINE_NUMBER(p)
                 )
@@ -122,7 +126,11 @@ module afu
         // Group 1 engines follow group 0
         for (p = 0; p < NUM_PORTS_G1; p = p + 1)
         begin : g1
-            host_mem_rdwr_engine
+`ifdef TEST_PARAM_IFC_CCIP
+            host_mem_rdwr_engine_ccip
+`else
+            host_mem_rdwr_engine_avalon
+`endif
               #(
                 .ENGINE_NUMBER(NUM_PORTS_G0 + p)
                 )
@@ -158,8 +166,10 @@ module afu
 
         .rd_read(mmio64_if.read),
         .rd_address(mmio64_if.address),
+        .rd_tid_in('x),
         .rd_readdatavalid(mmio64_if.readdatavalid),
         .rd_readdata(mmio64_if.readdata),
+        .rd_tid_out(),
 
         .eng_csr_glob,
         .eng_csr
