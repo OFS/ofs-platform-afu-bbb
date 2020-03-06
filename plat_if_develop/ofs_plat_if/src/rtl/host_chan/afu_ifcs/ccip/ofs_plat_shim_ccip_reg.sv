@@ -141,6 +141,10 @@ module ofs_plat_shim_ccip_reg
                 always_ff @(posedge clk)
                 begin
                     reg_cp2af_sRx[s+1] <= reg_cp2af_sRx[s];
+
+                    // Don't put a long delay on almost full
+                    reg_cp2af_sRx[s+1].c0TxAlmFull <= reg_cp2af_sRx[0].c0TxAlmFull;
+                    reg_cp2af_sRx[s+1].c1TxAlmFull <= reg_cp2af_sRx[0].c1TxAlmFull;
                 end
             end
 

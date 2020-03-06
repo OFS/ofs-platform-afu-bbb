@@ -301,8 +301,8 @@ module ofs_plat_shim_ccip_mux
                 ofs_plat_prim_fifo_lutram
                   #(
                     .N_DATA_BITS(1 + $bits(t_if_ccip_c1_Tx)),
-                    .N_ENTRIES(CCIP_TX_ALMOST_FULL_THRESHOLD + 4),
-                    .THRESHOLD(CCIP_TX_ALMOST_FULL_THRESHOLD),
+                    .N_ENTRIES(CCIP_TX_ALMOST_FULL_THRESHOLD + 8),
+                    .THRESHOLD(CCIP_TX_ALMOST_FULL_THRESHOLD + 4),
                     .REGISTER_OUTPUT(1)
                     )
                   fifo_in
