@@ -82,7 +82,7 @@ fi
 
 # Find the configuration file
 if [ -f "$cfg_file" ]; then
-    cfg_file=$(realpath "$cfg_file")
+    cfg_file=$(readlink -f "$cfg_file")
 else
     if [ -f "${OFS_PLAT_SRC}"/src/config/emulation/"${cfg_file}" ]; then
         cfg_file="${OFS_PLAT_SRC}"/src/config/emulation/"${cfg_file}"
