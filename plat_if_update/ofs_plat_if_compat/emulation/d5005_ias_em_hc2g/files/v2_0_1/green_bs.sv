@@ -385,7 +385,7 @@ module green_bs
 
     genvar b;
     generate
-        for (b = 0; b < NUM_FIU_LOCAL_MEM_BANKS; b = b + 1)
+        for (b = 0; b < `OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS; b = b + 1)
         begin : lm_pipe
             // Reset synchronizer
             green_bs_resync
@@ -442,6 +442,17 @@ module green_bs
                 .m0_read          (pr_local_mem[b].read),
                 .m0_byteenable    (pr_local_mem[b].byteenable)
                 );
+        end
+
+        // Tie off memory banks not used in the emulated platform
+        for (b = `OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS; b < NUM_FIU_LOCAL_MEM_BANKS; b = b + 1)
+        begin : lm_tie
+            assign pr_local_mem[b].burstcount = '0;
+            assign pr_local_mem[b].writedata = '0;
+            assign pr_local_mem[b].address = '0;
+            assign pr_local_mem[b].write = 1'b0;
+            assign pr_local_mem[b].read = 1'b0;
+            assign pr_local_mem[b].byteenable = '0;
         end
     endgenerate
 `endif // INCLUDE_DDR4

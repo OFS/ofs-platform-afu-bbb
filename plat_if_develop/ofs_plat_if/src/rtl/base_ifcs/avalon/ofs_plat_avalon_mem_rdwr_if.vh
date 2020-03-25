@@ -113,48 +113,48 @@
 //
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_COMB(MEM_MASTER) \
-    MEM_SLAVE.rd_read = 1'b0; \
-    MEM_SLAVE.rd_burstcount = '0; \
-    MEM_SLAVE.rd_byteenable = '0; \
-    MEM_SLAVE.rd_address = '0; \
-    MEM_SLAVE.rd_function = '0; \
-    MEM_SLAVE.wr_burstcount = '0; \
-    MEM_SLAVE.wr_writedata = '0; \
-    MEM_SLAVE.wr_address = '0; \
-    MEM_SLAVE.wr_function = '0; \
-    MEM_SLAVE.wr_write = 1'b0; \
-    MEM_SLAVE.wr_byteenable = '0
+    MEM_MASTER.rd_read = 1'b0; \
+    MEM_MASTER.rd_burstcount = '0; \
+    MEM_MASTER.rd_byteenable = '0; \
+    MEM_MASTER.rd_address = '0; \
+    MEM_MASTER.rd_function = '0; \
+    MEM_MASTER.wr_burstcount = '0; \
+    MEM_MASTER.wr_writedata = '0; \
+    MEM_MASTER.wr_address = '0; \
+    MEM_MASTER.wr_function = '0; \
+    MEM_MASTER.wr_write = 1'b0; \
+    MEM_MASTER.wr_byteenable = '0
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_FF(MEM_MASTER) \
-    MEM_SLAVE.rd_read <= 1'b0; \
-    MEM_SLAVE.rd_burstcount <= '0; \
-    MEM_SLAVE.rd_byteenable <= '0; \
-    MEM_SLAVE.rd_address <= '0; \
-    MEM_SLAVE.rd_function <= '0; \
-    MEM_SLAVE.wr_burstcount <= '0; \
-    MEM_SLAVE.wr_writedata <= '0; \
-    MEM_SLAVE.wr_address <= '0; \
-    MEM_SLAVE.wr_function <= '0; \
-    MEM_SLAVE.wr_write <= 1'b0; \
-    MEM_SLAVE.wr_byteenable <= '0
+    MEM_MASTER.rd_read <= 1'b0; \
+    MEM_MASTER.rd_burstcount <= '0; \
+    MEM_MASTER.rd_byteenable <= '0; \
+    MEM_MASTER.rd_address <= '0; \
+    MEM_MASTER.rd_function <= '0; \
+    MEM_MASTER.wr_burstcount <= '0; \
+    MEM_MASTER.wr_writedata <= '0; \
+    MEM_MASTER.wr_address <= '0; \
+    MEM_MASTER.wr_function <= '0; \
+    MEM_MASTER.wr_write <= 1'b0; \
+    MEM_MASTER.wr_byteenable <= '0
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_COMB(MEM_SLAVE) \
-    MEM_MASTER.rd_waitrequest = 1'b0; \
-    MEM_MASTER.rd_readdata = '0; \
-    MEM_MASTER.rd_readdatavalid = 1'b0; \
-    MEM_MASTER.rd_response = '0; \
-    MEM_MASTER.wr_waitrequest = 1'b0; \
-    MEM_MASTER.wr_writeresponsevalid = 1'b0; \
-    MEM_MASTER.wr_response = '0
+    MEM_SLAVE.rd_waitrequest = 1'b0; \
+    MEM_SLAVE.rd_readdata = '0; \
+    MEM_SLAVE.rd_readdatavalid = 1'b0; \
+    MEM_SLAVE.rd_response = '0; \
+    MEM_SLAVE.wr_waitrequest = 1'b0; \
+    MEM_SLAVE.wr_writeresponsevalid = 1'b0; \
+    MEM_SLAVE.wr_response = '0
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_FF(MEM_SLAVE) \
-    MEM_MASTER.rd_waitrequest <= 1'b0; \
-    MEM_MASTER.rd_readdata <= '0; \
-    MEM_MASTER.rd_readdatavalid <= 1'b0; \
-    MEM_MASTER.rd_response <= '0; \
-    MEM_MASTER.wr_waitrequest <= 1'b0; \
-    MEM_MASTER.wr_writeresponsevalid <= 1'b0; \
-    MEM_MASTER.wr_response <= '0
+    MEM_SLAVE.rd_waitrequest <= 1'b0; \
+    MEM_SLAVE.rd_readdata <= '0; \
+    MEM_SLAVE.rd_readdatavalid <= 1'b0; \
+    MEM_SLAVE.rd_response <= '0; \
+    MEM_SLAVE.wr_waitrequest <= 1'b0; \
+    MEM_SLAVE.wr_writeresponsevalid <= 1'b0; \
+    MEM_SLAVE.wr_response <= '0
 
 
 `endif // __OFS_PLAT_AVALON_MEM_RDWR_IF_VH__
