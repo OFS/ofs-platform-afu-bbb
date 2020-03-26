@@ -123,13 +123,14 @@ if [ ! -f hw/lib/build/platform/green_bs.sv.orig ]; then
 fi
 cp "${SCRIPT_DIR}/files/${REL_VER}/green_bs.sv" hw/lib/build/platform/
 
-# Copy platform DB
-echo "Updating hw/lib/platform/platform_db..."
-cp -f "${SCRIPT_DIR}"/files/platform_db/s10_pac_dc_hssi.json hw/lib/platform/platform_db/s10_pac_dc_hssi.json
-
 # Generate ofs_plat_if tree
 rm -rf hw/lib/build/platform/ofs_plat_if
 "${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_if -c "${cfg_file}" -t hw/lib/build/platform/ofs_plat_if -v
+
+# Copy platform DB
+echo "Updating hw/lib/platform/platform_db..."
+MEM_NUM_BANKS=$(grep 'LOCAL_MEM_NUM_BANKS ' hw/lib/build/platform/ofs_plat_if/rtl/ofs_plat_if_top_config.vh | sed -e 's/.*BANKS //')
+sed -e "s/__REPLACE_WITH_MEM_NUM_BANKS__/${MEM_NUM_BANKS}/" "${SCRIPT_DIR}"/files/platform_db/s10_pac_dc_hssi.json > hw/lib/platform/platform_db/s10_pac_dc_hssi.json
 
 # Copy the HSSI interface file to ofs_plat_if. Also make it an .sv file instead
 # if a .vh include file. First, rename it away from the original location in

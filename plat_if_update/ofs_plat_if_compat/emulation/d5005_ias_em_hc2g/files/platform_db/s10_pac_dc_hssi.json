@@ -82,7 +82,7 @@
             "interface": "avalon_mm",
             "optional": true,
             "vector": true,
-            "max-entries": 4,
+            "max-entries": __REPLACE_WITH_MEM_NUM_BANKS__,
             "params":
                {
                  "addr-width": "`OFS_PLAT_PARAM_LOCAL_MEM_ADDR_WIDTH",
