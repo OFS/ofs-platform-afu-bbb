@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,50 +29,42 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Wrapper interface for passing all top-level interfaces into an AFU.
-// Every platform must provide this interface.
+// Generic ready/enable pipeline register.
 //
 
-`ifndef __OFS_PLAT_IF_VH__
-`define __OFS_PLAT_IF_VH__
+module ofs_plat_prim_ready_enable_reg
+  #(
+    parameter N_DATA_BITS = 32
+    )
+   (
+    input  logic clk,
+    input  logic reset,
 
-`include "ofs_plat_if_top_config.vh"
-`include "ofs_plat_host_ccip_if.vh"
-`include "ofs_plat_avalon_mem_if.vh"
-`include "ofs_plat_avalon_mem_rdwr_if.vh"
-`include "ofs_plat_axi_mem_if.vh"
+    input  logic enable_from_src,
+    input  logic [N_DATA_BITS-1 : 0] data_from_src,
+    output logic ready_to_src,
 
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
-  `include "ofs_plat_host_chan_wrapper.vh"
-`endif
+    output logic enable_to_dst,
+    output logic [N_DATA_BITS-1 : 0] data_to_dst,
+    input  logic ready_from_dst
+    );
 
-`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
-  `include "ofs_plat_local_mem_wrapper.vh"
-`endif
+    // This primitive can only implement systolic pipeline. The ready
+    // signal controls the entire pipeline.
+    assign ready_to_src = ready_from_dst;
 
-// Compatibility mode for OPAE SDK's Platform Interface Manager
-`ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
-  `include "platform_shim_ccip_std_afu.vh"
-`endif
+    always_ff @(posedge clk)
+    begin
+        if (ready_from_dst)
+        begin
+            enable_to_dst <= enable_from_src;
+            data_to_dst <= data_from_src;
+        end
 
-//
-// Clocks provided to the AFU. All conforming platforms provide at least
-// 5 primary clocks: pClk, pClkDiv2, pClkDiv4, uClk_usr and uClk_usrDiv2.
-// Divided clocks are all aligned to their primary clocks.
-//
-typedef struct packed
-{
-    logic pClk;
-    logic pClkDiv2;
-    logic pClkDiv4;
-    logic uClk_usr;
-    logic uClk_usrDiv2;
-}
-t_ofs_plat_clocks;
+        if (reset)
+        begin
+            enable_to_dst <= 1'b0;
+        end
+    end
 
-//
-// Two-bit power state, originally defined in CCI-P.
-//
-typedef logic [1:0] t_ofs_plat_power_state;
-
-`endif // __OFS_PLAT_IF_VH__
+endmodule // ofs_plat_prim_ready_enable_reg
