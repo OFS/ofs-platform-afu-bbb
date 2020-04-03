@@ -88,7 +88,7 @@ module ofs_plat_axi_mem_if_reg_simple
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : pms
                 assign mem_pipe[s].clk = mem_slave.clk;
-                assign mem_pipe[s].reset = mem_slave.reset;
+                assign mem_pipe[s].reset_n = mem_slave.reset_n;
 
                 always_ff @(posedge mem_slave.clk)
                 begin
@@ -99,7 +99,7 @@ module ofs_plat_axi_mem_if_reg_simple
 
                     `OFS_PLAT_AXI_MEM_IF_FROM_MASTER_TO_SLAVE_FF(mem_pipe[s-1], mem_pipe[s]);
 
-                    if (mem_slave.reset)
+                    if (!mem_slave.reset_n)
                     begin
                         mem_pipe[s-1].awvalid <= 1'b0;
                         mem_pipe[s-1].wvalid <= 1'b0;
@@ -124,16 +124,16 @@ module ofs_plat_axi_mem_if_reg_simple
             begin
                 // Shift the ready pipelines
                 awready_pipe[N_READY_STAGES:1] <=
-                    mem_slave.reset ? {N_READY_STAGES{1'b0}} :
-                                      awready_pipe[N_READY_STAGES-1:0];
+                    mem_slave.reset_n ? awready_pipe[N_READY_STAGES-1:0] :
+                                        {N_READY_STAGES{1'b0}};
 
                 wready_pipe[N_READY_STAGES:1] <=
-                    mem_slave.reset ? {N_READY_STAGES{1'b0}} :
-                                      wready_pipe[N_READY_STAGES-1:0];
+                    mem_slave.reset_n ? wready_pipe[N_READY_STAGES-1:0] :
+                                        {N_READY_STAGES{1'b0}};
 
                 arready_pipe[N_READY_STAGES:1] <=
-                    mem_slave.reset ? {N_READY_STAGES{1'b0}} :
-                                      arready_pipe[N_READY_STAGES-1:0];
+                    mem_slave.reset_n ? arready_pipe[N_READY_STAGES-1:0] :
+                                        {N_READY_STAGES{1'b0}};
             end
 
 
@@ -155,7 +155,7 @@ module ofs_plat_axi_mem_if_reg_simple
                   r
                    (
                     .clk(mem_slave.clk),
-                    .reset(mem_slave.reset),
+                    .reset(!mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s-1].bvalid),
                     .data_from_src(mem_pipe[s-1].b),

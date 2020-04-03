@@ -29,13 +29,14 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Generic ready/enable pipeline register. This implementation is a simple,
-// systolic pipeline with control shared by all registers in a chain.
-// For a version that breaks apart control flow into separate stages
-// see ofs_plat_prim_ready_enable_fifo().
+// Generic ready/enable pipeline stage. This implementation shares the same
+// interface as the systolic version (ofs_plat_prim_ready_enable_reg), but
+// internally adds a FIFO. This adds a register between ready_from_dst and
+// ready_to_src, thus breaking control flow into shorter and simpler logic
+// at the expense of area.
 //
 
-module ofs_plat_prim_ready_enable_reg
+module ofs_plat_prim_ready_enable_fifo
   #(
     parameter N_DATA_BITS = 32
     )
@@ -52,22 +53,26 @@ module ofs_plat_prim_ready_enable_reg
     input  logic ready_from_dst
     );
 
-    // This primitive can only implement systolic pipeline. The ready
-    // signal controls the entire pipeline.
-    assign ready_to_src = ready_from_dst;
+    //
+    // Using the FIFO2 here generates logic that is essentially equivalent
+    // to the Quartus Avalon bridge's management of the request bus.
+    //
+    ofs_plat_prim_fifo2
+      #(
+        .N_DATA_BITS(N_DATA_BITS)
+        )
+      f
+       (
+        .clk,
+        .reset,
 
-    always_ff @(posedge clk)
-    begin
-        if (ready_from_dst)
-        begin
-            enable_to_dst <= enable_from_src;
-            data_to_dst <= data_from_src;
-        end
+        .enq_data(data_from_src),
+        .enq_en(enable_from_src && ready_to_src),
+        .notFull(ready_to_src),
 
-        if (reset)
-        begin
-            enable_to_dst <= 1'b0;
-        end
-    end
+        .first(data_to_dst),
+        .deq_en(enable_to_dst && ready_from_dst),
+        .notEmpty(enable_to_dst)
+        );
 
-endmodule // ofs_plat_prim_ready_enable_reg
+endmodule // ofs_plat_prim_ready_enable_fifo

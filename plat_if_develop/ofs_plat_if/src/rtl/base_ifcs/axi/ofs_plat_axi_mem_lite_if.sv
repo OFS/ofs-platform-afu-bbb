@@ -101,7 +101,7 @@ interface ofs_plat_axi_mem_lite_if
 
     // Shared
     wire clk;
-    logic reset;
+    logic reset_n;
 
     // Write address channel
     typedef struct packed {
@@ -177,7 +177,7 @@ interface ofs_plat_axi_mem_lite_if
     modport to_slave
        (
         input  clk,
-        input  reset,
+        input  reset_n,
 
         // Write address channel
         output aw, awvalid,
@@ -203,11 +203,11 @@ interface ofs_plat_axi_mem_lite_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset
+    // Same as normal to_slave, but sets clk and reset_n
     modport to_slave_clk
        (
         output clk,
-        output reset,
+        output reset_n,
 
         // Write address channel
         output aw, awvalid,
@@ -240,7 +240,7 @@ interface ofs_plat_axi_mem_lite_if
     modport to_master
        (
         input  clk,
-        input  reset,
+        input  reset_n,
 
         // Write address channel
         input  aw, awvalid,
@@ -266,11 +266,11 @@ interface ofs_plat_axi_mem_lite_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset
+    // Same as normal to_master, but sets clk and reset_n
     modport to_master_clk
        (
         output clk,
-        output reset,
+        output reset_n,
 
         // Write address channel
         input  aw, awvalid,
@@ -324,7 +324,7 @@ interface ofs_plat_axi_mem_lite_if
             forever @(posedge clk)
             begin
                 // Write address
-                if (! reset && awvalid && awready)
+                if (reset_n && awvalid && awready)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d AW addr 0x%x size 0x%x id 0x%x prot 0x%x user 0x%x\n",
                             $time,
@@ -334,7 +334,7 @@ interface ofs_plat_axi_mem_lite_if
                 end
 
                 // Write data
-                if (! reset && wvalid && wready)
+                if (reset_n && wvalid && wready)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d W  data 0x%x strb 0x%x user 0x%x\n",
                             $time,
@@ -344,7 +344,7 @@ interface ofs_plat_axi_mem_lite_if
                 end
 
                 // Write response
-                if (! reset && bvalid && bready)
+                if (reset_n && bvalid && bready)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d B  resp 0x%x id 0x%x user 0x%x\n",
                             $time,
@@ -354,7 +354,7 @@ interface ofs_plat_axi_mem_lite_if
                 end
 
                 // Read address
-                if (! reset && arvalid && arready)
+                if (reset_n && arvalid && arready)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d AR addr 0x%x size 0x%x id 0x%x prot 0x%x user 0x%x\n",
                             $time,
@@ -364,7 +364,7 @@ interface ofs_plat_axi_mem_lite_if
                 end
 
                 // Read data
-                if (! reset && rvalid && rready)
+                if (reset_n && rvalid && rready)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d R  resp 0x%x id 0x%x data 0x%x user 0x%x\n",
                             $time,

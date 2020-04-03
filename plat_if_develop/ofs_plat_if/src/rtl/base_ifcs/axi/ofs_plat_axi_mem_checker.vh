@@ -38,7 +38,7 @@
 // Validate signals
 always_ff @(negedge clk)
 begin
-    if (! reset)
+    if (reset_n)
     begin
         if (awvalid === 1'bx)
         begin
@@ -63,7 +63,7 @@ begin
         end
     end
 
-    if (! reset && awvalid)
+    if (reset_n && awvalid)
     begin
         if (^aw.id === 1'bx)
         begin
@@ -91,7 +91,7 @@ begin
         end
     end
 
-    if (! reset && wvalid)
+    if (reset_n && wvalid)
     begin
         if (^w.strb === 1'bx)
         begin
@@ -104,7 +104,7 @@ begin
         end
     end
 
-    if (! reset && bvalid)
+    if (reset_n && bvalid)
     begin
         if (^b.id === 1'bx)
         begin
@@ -122,7 +122,7 @@ begin
         end
     end
 
-    if (! reset && arvalid)
+    if (reset_n && arvalid)
     begin
         if (^ar.id === 1'bx)
         begin
@@ -150,7 +150,7 @@ begin
         end
     end
 
-    if (! reset && rvalid)
+    if (reset_n && rvalid)
     begin
         if (^r.id === 1'bx)
         begin

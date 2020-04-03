@@ -289,4 +289,4 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
         end
     endgenerate
 
-endmodule // ofs_plat_avalon_mem_rdwr_if_connect
+endmodule // ofs_plat_avalon_mem_rdwr_if_map_bursts

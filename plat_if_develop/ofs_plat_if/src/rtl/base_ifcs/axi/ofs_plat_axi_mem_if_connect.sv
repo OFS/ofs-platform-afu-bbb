@@ -56,7 +56,7 @@ module ofs_plat_axi_mem_if_connect_slave_clk
     );
 
     assign mem_master.clk = mem_slave.clk;
-    assign mem_master.reset = mem_slave.reset;
+    assign mem_master.reset_n = mem_slave.reset_n;
 
     // Debugging signal
     assign mem_master.instance_number = mem_slave.instance_number;
@@ -78,7 +78,7 @@ module ofs_plat_axi_mem_if_connect_master_clk
     );
 
     assign mem_slave.clk = mem_master.clk;
-    assign mem_slave.reset = mem_master.reset;
+    assign mem_slave.reset_n = mem_master.reset_n;
 
     // Debugging signal
     assign mem_slave.instance_number = mem_master.instance_number;
