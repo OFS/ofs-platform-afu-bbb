@@ -162,8 +162,15 @@ def gen_fim_interface():
         base_class, group_num = plat_cfg.parse_section_name(s)
         native_class = plat_cfg.section_native_class(s)
 
+        # Normally, the template comes from a directory named by the
+        # base class. Some interfaces may use generic templates.
+        template_class = plat_cfg.section_template_class(s)
+        if not template_class:
+            template_class = base_class
+
         # Copy sources for base/native class
         ofsc.copy_class(src=args.source, tgt=args.target,
+                        template_class=template_class,
                         base_class=base_class,
                         native_class=native_class,
                         group_num=group_num, verbose=args.verbose)
