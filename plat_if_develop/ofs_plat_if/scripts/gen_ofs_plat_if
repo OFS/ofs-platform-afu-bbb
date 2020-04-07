@@ -233,9 +233,8 @@ def gen_platform_addenda():
     qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
                                      os.path.join(args.target, 'par')],
                                verbose=args.verbose)
-    qsf_src_cfg.emit_qsf_sources(args.target,
-                                 'par/platform_if_addenda.qsf',
-                                 './platform/ofs_plat_if')
+    qsf_src_cfg.emit_qsf_sources(os.path.join(args.target, 'par'),
+                                 'platform_if_addenda.qsf')
 
 
 def copy_tree(src, dst):
