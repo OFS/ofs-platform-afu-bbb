@@ -129,6 +129,17 @@ class ofs_plat_cfg(object):
 
         return self.config.get(section, 'native_class')
 
+    def section_template_class(self, section):
+        """Return the template_class of a section. For standard classes,
+        such as local memory, the template class is the same as the base
+        class. Some platforms with unusual interfaces may start by copying
+        generic templates using a "template_class" parameter."""
+
+        if self.config.has_option(section, 'template_class'):
+            return self.config.get(section, 'template_class')
+        else:
+            return None
+
     def section_instance_noun(self, section):
         """The "instance noun" for a section is the noun used to name
         multiple instances of the class, such as "ports" or "banks". The
@@ -198,14 +209,8 @@ class ofs_plat_cfg(object):
                 found_defaults = True
                 merged.update(
                     OrderedDict(self.defaults.items(native_def_sect)))
-
-            if (not found_defaults):
-                # Error! No defaults exist for the implementation.
-                msg = 'The defaults.ini file must provide defaults for ' + \
-                    'platform section {0}.\n'.format(s) + \
-                    ' Either section {0} or {1}'.format(c, native_def_sect) + \
-                    ' must be present in defaults.ini'
-                self.__errorExit(msg)
+            else:
+                native_def_sect = None
 
             # Incorporate platform-specific parameters
             merged.update(OrderedDict(self.config.items(s)))
