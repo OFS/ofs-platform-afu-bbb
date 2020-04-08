@@ -219,7 +219,11 @@ module ase_top_ofs_plat
             assign plat_ifc.local_mem.banks[b].reset = plat_ifc.softReset;
             assign plat_ifc.local_mem.banks[b].instance_number = b;
 
-            assign plat_ifc.local_mem.banks[b].response = 2'b0;
+            assign plat_ifc.local_mem.banks[b].response = '0;
+
+            // Write response not implemented
+            assign plat_ifc.local_mem.banks[b].writeresponsevalid = 1'b0;
+            assign plat_ifc.local_mem.banks[b].writeresponse = '0;
         end
     endgenerate
 `endif

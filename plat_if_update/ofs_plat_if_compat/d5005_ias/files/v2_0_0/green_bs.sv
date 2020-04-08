@@ -331,6 +331,10 @@ module green_bs
                 .m0_read          (pr_local_mem[b].read),
                 .m0_byteenable    (pr_local_mem[b].byteenable)
                 );
+
+            assign plat_ifc.local_mem.banks[b].response = '0;
+            assign plat_ifc.local_mem.banks[b].writeresponsevalid = 1'b0;
+            assign plat_ifc.local_mem.banks[b].writeresponse = '0;
         end
     endgenerate
 `endif // INCLUDE_DDR4

@@ -251,6 +251,13 @@ module green_bs
             .m0_read          (DDR4b_read),
             .m0_byteenable    (DDR4b_byteenable)
     );
+
+    assign plat_ifc.local_mem.banks[0].response = '0;
+    assign plat_ifc.local_mem.banks[0].writeresponsevalid = 1'b0;
+    assign plat_ifc.local_mem.banks[0].writeresponse = '0;
+    assign plat_ifc.local_mem.banks[1].response = '0;
+    assign plat_ifc.local_mem.banks[1].writeresponsevalid = 1'b0;
+    assign plat_ifc.local_mem.banks[1].writeresponse = '0;
 `endif
 
 

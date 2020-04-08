@@ -113,6 +113,15 @@ module ofs_plat_avalon_mem_if_reg
                     .m0_debugaccess()
                     );
 
+                // The Avalon bridge doesn't handle write response, but
+                // it's simple since the ofs_plat_avalon_mem_if interface
+                // keeps write and read responses separate.
+                always_ff @(posedge mem_slave.clk)
+                begin
+                    mem_pipe[s].writeresponsevalid <= mem_pipe[s - 1].writeresponsevalid;
+                    mem_pipe[s].writeresponse <= mem_pipe[s - 1].writeresponse;
+                end
+
                 // Debugging signal
                 assign mem_pipe[s].instance_number = mem_pipe[s-1].instance_number;
             end

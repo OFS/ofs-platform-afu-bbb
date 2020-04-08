@@ -42,6 +42,7 @@ interface ofs_plat_avalon_mem_if
     parameter ADDR_WIDTH = 0,
     parameter DATA_WIDTH = 0,
     parameter BURST_CNT_WIDTH = 0,
+    parameter RESPONSE_WIDTH = 2,
 
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by
@@ -56,6 +57,7 @@ interface ofs_plat_avalon_mem_if
     localparam ADDR_WIDTH_ = $bits(logic [ADDR_WIDTH:0]) - 1;
     localparam DATA_WIDTH_ = $bits(logic [DATA_WIDTH:0]) - 1;
     localparam BURST_CNT_WIDTH_ = $bits(logic [BURST_CNT_WIDTH:0]) - 1;
+    localparam RESPONSE_WIDTH_ = $bits(logic [RESPONSE_WIDTH:0]) - 1;
 
     // Number of bytes in a data line
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
@@ -65,9 +67,21 @@ interface ofs_plat_avalon_mem_if
 
     // Signals
     logic waitrequest;
-    logic [DATA_WIDTH-1:0] readdata;
+
     logic readdatavalid;
-    logic [1:0] response;
+    logic [DATA_WIDTH-1:0] readdata;
+    logic [RESPONSE_WIDTH-1:0] response;
+
+    // Many slaves will not implement write responses. Responses are typically
+    // needed only when the commit points of writes relative to other events may
+    // vary. Local memory, for example, typically does not implement them.
+    // In this interface, read and write responses are completely separate
+    // and both may be valid in the same cycle. The writeresponse field
+    // holds the write response payload. This separation is necessary since
+    // write responses from slaves are optional, making it impossible to
+    // calculate reserved space required in clock crossing FIFOs, etc.
+    logic writeresponsevalid;
+    logic [RESPONSE_WIDTH-1:0] writeresponse;
 
     logic [ADDR_WIDTH-1:0] address;
     logic write;
@@ -89,9 +103,11 @@ interface ofs_plat_avalon_mem_if
         input  reset,
 
         input  waitrequest,
-        input  readdata,
         input  readdatavalid,
+        input  readdata,
         input  response,
+        input  writeresponsevalid,
+        input  writeresponse,
 
         output address,
         output write,
@@ -111,9 +127,11 @@ interface ofs_plat_avalon_mem_if
         output reset,
 
         input  waitrequest,
-        input  readdata,
         input  readdatavalid,
+        input  readdata,
         input  response,
+        input  writeresponsevalid,
+        input  writeresponse,
 
         output address,
         output write,
@@ -136,9 +154,11 @@ interface ofs_plat_avalon_mem_if
         input  reset,
 
         output waitrequest,
-        output readdata,
         output readdatavalid,
+        output readdata,
         output response,
+        output writeresponsevalid,
+        output writeresponse,
 
         input  address,
         input  write,
@@ -158,9 +178,11 @@ interface ofs_plat_avalon_mem_if
         output reset,
 
         output waitrequest,
-        output readdata,
         output readdatavalid,
+        output readdata,
         output response,
+        output writeresponsevalid,
+        output writeresponse,
 
         input  address,
         input  write,
@@ -288,7 +310,7 @@ interface ofs_plat_avalon_mem_if
                 // Read response
                 if (! reset && readdatavalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (%d)\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (0x%x)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
@@ -308,6 +330,16 @@ interface ofs_plat_avalon_mem_if
                             burstcount,
                             byteenable,
                             writedata);
+                end
+
+                // Write response
+                if (! reset && writeresponsevalid)
+                begin
+                    $fwrite(log_fd, "%m: %t %s %0d write resp (0x%x)\n",
+                            $time,
+                            ofs_plat_log_pkg::instance_name[LOG_CLASS],
+                            instance_number,
+                            writeresponse);
                 end
             end
         end
