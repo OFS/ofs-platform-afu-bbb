@@ -28,37 +28,21 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`include "ofs_plat_if.vh"
+`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
+`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
 
 //
-// Definition of the host channel interface between the platform (blue bits)
-// and the AFU (green bits). This is the fixed interface that crosses the
-// PR boundary.
+// Macros for setting parameters to Avalon interfaces.
 //
-// The default parameter state must define a configuration that matches
-// the hardware.
-//=
-//= _xGROUPx is replaced with the group number by the gen_ofs_plat_if script
-//= as it generates a platform-specific build/platform/ofs_plat_if tree.
-//
-interface ofs_plat_host_chan_xGROUPx_fiu_if
-  #(
-    parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_NUM_PORTS
-    );
 
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new interface from an existing
-    // interface's parameters.
-    localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
+// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
+// transform bursts into legal platform requests.
+`define HOST_CHAN_XGROUPX_AVALON_MEM_PARAMS \
+    .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_ADDR_WIDTH), \
+    .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_DATA_WIDTH)
 
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE),
-        .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_ADDR_WIDTH),
-        .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_DATA_WIDTH),
-        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_BURST_CNT_WIDTH)
-        )
-        ports[NUM_PORTS]();
+`define HOST_CHAN_XGROUPX_AVALON_MEM_RDWR_PARAMS \
+    .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_ADDR_WIDTH), \
+    .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_DATA_WIDTH)
 
-endinterface // ofs_plat_host_chan_xGROUPx_fiu_if
+`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__

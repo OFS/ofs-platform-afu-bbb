@@ -53,7 +53,7 @@ module ofs_plat_afu
     // Host memory AFU master
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `HOST_CHAN_AVALON_MEM_PARAMS,
+        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
 `ifdef TEST_PARAM_BURST_CNT_WIDTH
         .BURST_CNT_WIDTH(`TEST_PARAM_BURST_CNT_WIDTH),
 `else
@@ -71,7 +71,7 @@ module ofs_plat_afu
         )
         mmio64_to_afu();
 
-    ofs_plat_host_chan_as_avalon_mem_with_mmio
+    ofs_plat_host_chan_as_avalon_mem_rdwr_with_mmio
       #(
 `ifdef TEST_PARAM_AFU_CLK
         .ADD_CLOCK_CROSSING(1),
@@ -98,7 +98,7 @@ module ofs_plat_afu
     generate
         for (p = 1; p < NUM_PORTS_G0; p = p + 1)
         begin : hc_g0
-            ofs_plat_host_chan_as_avalon_mem
+            ofs_plat_host_chan_as_avalon_mem_rdwr
               #(
 `ifdef TEST_PARAM_AFU_REG_STAGES
                 .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES),
@@ -123,7 +123,7 @@ module ofs_plat_afu
     localparam NUM_PORTS_G1 = 0;
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `HOST_CHAN_AVALON_MEM_PARAMS,
+        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
         .BURST_CNT_WIDTH(3)
         )
         host_mem_g1_to_afu[1]();
@@ -133,7 +133,7 @@ module ofs_plat_afu
     localparam NUM_PORTS_G1 = plat_ifc.host_chan_g1.NUM_PORTS_;
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `HOST_CHAN_G1_AVALON_MEM_PARAMS,
+        `HOST_CHAN_G1_AVALON_MEM_RDWR_PARAMS,
 `ifdef TEST_PARAM_BURST_CNT_WIDTH
         .BURST_CNT_WIDTH(`TEST_PARAM_BURST_CNT_WIDTH),
 `else
@@ -146,7 +146,7 @@ module ofs_plat_afu
     generate
         for (p = 0; p < NUM_PORTS_G1; p = p + 1)
         begin : hc_g1
-            ofs_plat_host_chan_g1_as_avalon_mem
+            ofs_plat_host_chan_g1_as_avalon_mem_rdwr
               #(
 `ifdef TEST_PARAM_AFU_REG_STAGES
                 .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES),

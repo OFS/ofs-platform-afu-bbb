@@ -28,25 +28,26 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM_RDWR__
+`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM_RDWR__
 
 //
-// Tie off a single hssi_if port.
+// Macros for setting parameters to Avalon split-bus read/write interfaces.
 //
 
-`include "ofs_plat_if.vh"
+// CCI-P to Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
+// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
+// transform bursts into legal CCI-P requests.
+`define HOST_CHAN_XGROUPX_AVALON_MEM_RDWR_PARAMS \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
+    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
-module ofs_plat_hssi_fiu_if_tie_off
-   (
-    pr_hssi_if.to_fiu port
-    );
+// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. Transform the address
+// width from the CCI-P DWORD index to the specified bus width.
+`define HOST_CHAN_XGROUPX_AVALON_MMIO_PARAMS(BUSWIDTH) \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
+    .DATA_WIDTH(BUSWIDTH), \
+    .BURST_CNT_WIDTH(1)
 
-    always_comb
-    begin
-        port.a2f_tx_parallel_data = '0;
-        port.a2f_rx_bitslip = '0;
-        port.a2f_rx_fifo_rd_en = '0;
-        port.a2f_rx_seriallpbken = '0;
-        port.a2f_channel_reset = '0;
-    end
 
-endmodule // ofs_plat_hssi_fiu_if_tie_off
+`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM_RDWR__

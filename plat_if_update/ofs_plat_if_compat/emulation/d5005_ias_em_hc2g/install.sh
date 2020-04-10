@@ -113,7 +113,8 @@ fi
 if grep -q byte-en-supported hw/lib/platform/platform_db/s10_pac_dc_hssi.json.orig; then
     REL_VER=v2_0_1
 else
-    REL_VER=v2_0_0
+    echo "Emulation not supported on Darby Creek release v2.0.0"
+    exit 1
 fi
 
 # Copy updated green_bs.sv

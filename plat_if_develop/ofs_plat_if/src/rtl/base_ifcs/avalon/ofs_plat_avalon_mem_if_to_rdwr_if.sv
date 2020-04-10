@@ -28,17 +28,39 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
-`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
-
 //
-// Macros for setting parameters to Avalon interfaces.
+// Map a normal Avalon memory master to a split-bus Avalon slave.
 //
 
-// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
-// transform bursts into legal platform requests.
-`define HOST_CHAN_XGROUPX_AVALON_MEM_PARAMS \
-    .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_ADDR_WIDTH), \
-    .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_DATA_WIDTH)
+`include "ofs_plat_if.vh"
 
-`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
+module ofs_plat_avalon_mem_if_to_rdwr_if
+   (
+    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master
+    );
+
+    always_comb
+    begin
+        mem_master.waitrequest = mem_slave.rd_waitrequest || mem_slave.wr_waitrequest;
+        mem_master.readdatavalid = mem_slave.rd_readdatavalid;
+        mem_master.readdata = mem_slave.rd_readdata;
+        mem_master.response = mem_slave.rd_response;
+        mem_master.writeresponsevalid = mem_slave.wr_writeresponsevalid;
+        mem_master.writeresponse = mem_slave.wr_response;
+
+        mem_slave.rd_address = mem_master.address;
+        mem_slave.rd_read = mem_master.read && !mem_master.waitrequest;
+        mem_slave.rd_burstcount = mem_master.burstcount;
+        mem_slave.rd_byteenable = mem_master.byteenable;
+        mem_slave.rd_function = '0;
+
+        mem_slave.wr_address = mem_master.address;
+        mem_slave.wr_write = mem_master.write && !mem_master.waitrequest;
+        mem_slave.wr_burstcount = mem_master.burstcount;
+        mem_slave.wr_writedata = mem_master.writedata;
+        mem_slave.wr_byteenable = mem_master.byteenable;
+        mem_slave.wr_function = '0;
+    end
+
+endmodule // ofs_plat_avalon_mem_if_to_rdwr_if

@@ -49,7 +49,7 @@ module ofs_plat_afu
     // Host memory AFU master
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `HOST_CHAN_AVALON_MEM_PARAMS,
+        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
         .BURST_CNT_WIDTH(1)
         )
         host_mem_to_afu();
@@ -62,7 +62,7 @@ module ofs_plat_afu
         )
         mmio64_to_afu();
 
-    ofs_plat_host_chan_as_avalon_mem_with_mmio
+    ofs_plat_host_chan_as_avalon_mem_rdwr_with_mmio
       #(
         .ADD_CLOCK_CROSSING(1),
         .ADD_TIMING_REG_STAGES(1)
@@ -165,7 +165,8 @@ module ofs_plat_afu
                 // when not crossing.
                 ofs_plat_avalon_mem_if
                   #(
-                    `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(local_mem_to_afu[b])
+                    `LOCAL_MEM_AVALON_MEM_PARAMS,
+                    .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
                     )
                   local_mem_if();
 
@@ -192,7 +193,8 @@ module ofs_plat_afu
                 // Manage the clock crossing
                 ofs_plat_avalon_mem_if
                   #(
-                    `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(local_mem_to_afu[b])
+                    `LOCAL_MEM_AVALON_MEM_PARAMS,
+                    .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
                     )
                   local_mem_cross_if();
 
