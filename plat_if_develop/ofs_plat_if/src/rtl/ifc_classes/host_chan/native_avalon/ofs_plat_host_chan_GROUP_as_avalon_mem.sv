@@ -29,9 +29,9 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Export an Avalon split-bus read/write interface to an AFU, given an
-// FIU interface that is already the same interface. The module here
-// offers clock crossing and extra register stages.
+// Export an Avalon interface to an AFU, given an FIU interface that is
+// already the same interface. The module here offers clock crossing and
+// extra register stages.
 //
 // MMIO is not implemented through native Avalon interfaces.
 //
@@ -55,14 +55,16 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     parameter ADD_TIMING_REG_STAGES = 0
     )
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave to_fiu,
+    ofs_plat_avalon_mem_if.to_slave to_fiu,
 
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_if.to_master_clk host_mem_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
     input  logic afu_clk
     );
+
+    localparam FIU_BURST_CNT_WIDTH = to_fiu.BURST_CNT_WIDTH_;
 
     // ====================================================================
     //
@@ -72,9 +74,9 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     //
     // ====================================================================
 
-    ofs_plat_avalon_mem_rdwr_if
+    ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
       afu_burst_if();
 
@@ -83,7 +85,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
         begin : nb
             // AFU's burst count is no larger than the FIU's. Just wire
             // the connection to the next stage.
-            ofs_plat_avalon_mem_rdwr_if_connect_slave_clk conn
+            ofs_plat_avalon_mem_if_connect_slave_clk conn
                (
                 .mem_slave(to_fiu),
                 .mem_master(afu_burst_if)
@@ -91,11 +93,15 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
         end
         else
         begin : b
-            // AFU bursts counts may be too large for the FIU.
+            //
+            // AFU bursts counts may be too large for the FIU. Map large
+            // requests to smaller requests.
+            //
+
             // First add a timing register stage to the FIU side.
-            ofs_plat_avalon_mem_rdwr_if
+            ofs_plat_avalon_mem_if
               #(
-                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(to_fiu)
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
                 )
               fiu_reg_if();
 
@@ -103,7 +109,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 (`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES > 0) ?
                     `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES : 1;
 
-            ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
+            ofs_plat_avalon_mem_if_reg_slave_clk
               #(
                 .N_REG_STAGES(NUM_BURST_REG_STAGES)
                 )
@@ -113,14 +119,89 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 .mem_master(fiu_reg_if)
                 );
 
+            //
+            // Squash extra write responses from smaller slave bursts. Only the
+            // final response will reach the AFU.
+            //
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+                )
+              fiu_burst_if();
+
+            assign fiu_burst_if.clk = to_fiu.clk;
+            assign fiu_burst_if.reset = to_fiu.reset;
+            assign fiu_burst_if.instance_number = to_fiu.instance_number;
+
+            logic fiu_burst_if_sop;
+            logic wr_slave_burst_expects_response;
+
+            // Track SOP write beats (there is one response per SOP)
+            ofs_plat_prim_burstcount_sop_tracker
+              #(
+                .BURST_CNT_WIDTH(FIU_BURST_CNT_WIDTH)
+                )
+              sop_tracker
+               (
+                .clk(to_fiu.clk),
+                .reset(to_fiu.reset),
+                .flit_valid(fiu_burst_if.write && !fiu_burst_if.waitrequest),
+                .burstcount(fiu_burst_if.burstcount),
+                .sop(fiu_burst_if_sop),
+                .eop()
+                );
+
+            // One bit FIFO tracker indicating whether a write response should be
+            // forwarded to the AFU.
+            logic wr_resp_fifo_notFull;
+            logic wr_resp_expected;
+
+            ofs_plat_prim_fifo_lutram
+              #(
+                .N_DATA_BITS(1),
+                .N_ENTRIES(128),
+                .REGISTER_OUTPUT(1)
+                )
+              wr_resp_fifo
+               (
+                .clk(to_fiu.clk),
+                .reset(to_fiu.reset),
+                .enq_data(wr_slave_burst_expects_response),
+                .enq_en(fiu_burst_if_sop && fiu_burst_if.write &&
+                        !fiu_burst_if.waitrequest),
+                .notFull(wr_resp_fifo_notFull),
+                .almostFull(),
+                .first(wr_resp_expected),
+                .deq_en(fiu_reg_if.writeresponsevalid),
+                .notEmpty()
+                );
+
+            always_comb
+            begin
+                `OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(fiu_reg_if,
+                                                                  fiu_burst_if);
+
+                fiu_burst_if.waitrequest = fiu_reg_if.waitrequest;
+                fiu_burst_if.readdatavalid = fiu_reg_if.readdatavalid;
+                fiu_burst_if.readdata = fiu_reg_if.readdata;
+                fiu_burst_if.response = fiu_reg_if.response;
+                fiu_burst_if.writeresponsevalid = fiu_reg_if.writeresponsevalid &&
+                                                  wr_resp_expected;
+                fiu_burst_if.writeresponse = fiu_reg_if.writeresponse;
+            end
+
+            //
+            // Map from master bursts to slave bursts
+            //
             assign afu_burst_if.clk = to_fiu.clk;
             assign afu_burst_if.reset = to_fiu.reset;
             assign afu_burst_if.instance_number = to_fiu.instance_number;
 
-            ofs_plat_avalon_mem_rdwr_if_map_bursts burst
+            ofs_plat_avalon_mem_if_map_bursts burst
                (
-                .mem_slave(fiu_reg_if),
-                .mem_master(afu_burst_if)
+                .mem_slave(fiu_burst_if),
+                .mem_master(afu_burst_if),
+                .wr_slave_burst_expects_response
                 );
         end
     endgenerate
@@ -163,9 +244,9 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
 
-    ofs_plat_avalon_mem_rdwr_if
+    ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
         afu_mem_if();
 
@@ -175,7 +256,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             //
             // No clock crossing, maybe register stages.
             //
-            ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
+            ofs_plat_avalon_mem_if_reg_slave_clk
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
@@ -211,9 +292,9 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             //
             // Cross to the specified clock.
             //
-            ofs_plat_avalon_mem_rdwr_if
+            ofs_plat_avalon_mem_if
               #(
-                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu),
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(host_mem_to_afu),
                 .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
                 )
                 mem_cross();
@@ -231,9 +312,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 .reset_out(mem_cross.reset)
                 );
 
-            ofs_plat_avalon_mem_rdwr_if_async_shim
+            ofs_plat_avalon_mem_if_async_shim
               #(
-                .RD_RESPONSE_FIFO_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD),
                 .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
                 )
               mem_async_shim
@@ -246,7 +326,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             // In this case the register stages are a simple pipeline because
             // the clock crossing FIFO reserves space for these stages to drain
             // after waitrequest is asserted.
-            ofs_plat_avalon_mem_rdwr_if_reg_simple
+            ofs_plat_avalon_mem_if_reg_simple
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES),
                 .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
@@ -266,7 +346,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
     // Make the final connection to the host_mem_to_afu instance, including
     // passing the clock.
-    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk conn_to_afu
+    ofs_plat_avalon_mem_if_connect_slave_clk conn_to_afu
        (
         .mem_slave(afu_mem_if),
         .mem_master(host_mem_to_afu)

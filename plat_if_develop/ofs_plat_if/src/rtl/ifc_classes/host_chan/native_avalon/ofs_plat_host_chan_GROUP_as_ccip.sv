@@ -39,7 +39,7 @@
 
 //
 // This version of ofs_plat_host_chan_as_ccip works only on platforms
-// where the native interface is Avalon split read/write.
+// where the native interface is Avalon.
 //
 
 `include "ofs_plat_if.vh"
@@ -64,7 +64,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     parameter SORT_WRITE_RESPONSES = 0
     )
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave to_fiu,
+    ofs_plat_avalon_mem_if.to_slave to_fiu,
     ofs_plat_host_ccip_if.to_afu to_afu,
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
@@ -75,7 +75,8 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     import ofs_plat_ccip_if_funcs_pkg::*;
 
     //
-    // Apply clock crossing and register stages to the FIU Avalon interface.
+    // Expose the native Avalon interface as a split-bus read/write Avalon
+    // interface. Also apply clock crossing and register stages.
     //
     ofs_plat_avalon_mem_rdwr_if
       #(
@@ -88,7 +89,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     // Use the base native Avalon to Avalon mapper to instantiate clock crossing
     // and register stages, if requested.
     //
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem
+    ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)

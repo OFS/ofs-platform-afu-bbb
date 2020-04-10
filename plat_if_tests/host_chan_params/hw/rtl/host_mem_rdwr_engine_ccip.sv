@@ -85,7 +85,8 @@
 
 module host_mem_rdwr_engine_ccip
   #(
-    parameter ENGINE_NUMBER = 0
+    parameter ENGINE_NUMBER = 0,
+    parameter WRITE_FENCE_SUPPORTED = 1
     )
    (
     // Host memory (CCI-P)
@@ -379,7 +380,7 @@ module host_mem_rdwr_engine_ccip
         if (reset || state_reset)
         begin
             wr_done <= (wr_base_addr == t_addr'(0));
-            wr_fence_done <= (wr_base_addr == t_addr'(0));
+            wr_fence_done <= (wr_base_addr == t_addr'(0)) || (WRITE_FENCE_SUPPORTED == 0);
             wr_sop <= 1'b1;
         end
     end

@@ -28,23 +28,37 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
-//
-// Tie off a single host channel interface port.
-//
-//
-
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_xGROUPx_fiu_if_tie_off
-   (
-    ofs_plat_avalon_mem_rdwr_if.to_slave port
+//
+// Definition of the host channel interface between the platform (blue bits)
+// and the AFU (green bits). This is the fixed interface that crosses the
+// PR boundary.
+//
+// The default parameter state must define a configuration that matches
+// the hardware.
+//=
+//= _xGROUPx is replaced with the group number by the gen_ofs_plat_if script
+//= as it generates a platform-specific build/platform/ofs_plat_if tree.
+//
+interface ofs_plat_host_chan_xGROUPx_fiu_if
+  #(
+    parameter ENABLE_LOG = 0,
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_NUM_PORTS
     );
 
-    always_comb
-    begin
-        port.rd_read = 1'b0;
-        port.wr_write = 1'b0;
-    end
+    // A hack to work around compilers complaining of circular dependence
+    // incorrectly when trying to make a new interface from an existing
+    // interface's parameters.
+    localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
 
-endmodule // ofs_plat_host_chan_xGROUPx_fiu_if_tie_off
+    ofs_plat_avalon_mem_if
+      #(
+        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE),
+        .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_ADDR_WIDTH),
+        .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_DATA_WIDTH),
+        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_BURST_CNT_WIDTH)
+        )
+        ports[NUM_PORTS]();
+
+endinterface // ofs_plat_host_chan_xGROUPx_fiu_if

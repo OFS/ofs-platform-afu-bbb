@@ -96,6 +96,56 @@ module ofs_plat_avalon_mem_if_async_shim
         .m0_debugaccess()
         );
 
+    //
+    // The standard Avalon clock crossing bridge doesn't pass write responses.
+    // Use a simple dual clock FIFO. Since the data in the FIFO is quite narrow
+    // and the number of writes in flight is fixed by controller queues, we
+    // don't count available queue slots and assume that the FIFO will never
+    // overflow.
+    //
+    logic wr_response_not_valid;
+    logic wr_response_full;
+
+    // Dummy reset clock crossing to keep Quartus happy
+    logic slave_reset;
+    ofs_plat_prim_clock_crossing_reset_async
+      reset_cc
+       (
+        .clk(mem_slave.clk),
+        .reset_in(mem_slave.reset),
+        .reset_out(slave_reset)
+        );
+
+    ofs_plat_utils_dc_fifo
+      #(
+        .DATA_WIDTH($bits(t_response)),
+        .DEPTH_RADIX(12)
+        )
+      avmm_cross_wr_response
+       (
+        .aclr(slave_reset),
+        .data(mem_slave.writeresponse),
+        .rdclk(mem_master.clk),
+        // dcfifo has "underflow_checking" on, so safe to hold rdreq
+        .rdreq(1'b1),
+        .wrclk(mem_slave.clk),
+        .wrreq(mem_slave.writeresponsevalid),
+        .q(mem_master.writeresponse),
+        .rdempty(wr_response_not_valid),
+        .rdfull(),
+        .rdusedw(),
+        .wrempty(),
+        .wrfull(wr_response_full),
+        .wralmfull(),
+        .wrusedw()
+        );
+
+    always_ff @(posedge mem_master.clk)
+    begin
+        mem_master.writeresponsevalid <= ~wr_response_not_valid && ~mem_master.reset;
+    end
+
+
     // Compute mem_master.waitrequest
     generate
         if (COMMAND_ALMFULL_THRESHOLD == 0)

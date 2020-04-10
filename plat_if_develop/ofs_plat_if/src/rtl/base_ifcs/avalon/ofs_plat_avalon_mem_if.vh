@@ -73,16 +73,20 @@
 // fields may be handled specially.
 `define OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.waitrequest = MEM_SLAVE.waitrequest; \
-    MEM_MASTER.readdata = MEM_SLAVE.readdata; \
     MEM_MASTER.readdatavalid = MEM_SLAVE.readdatavalid; \
-    MEM_MASTER.response = MEM_SLAVE.response
+    MEM_MASTER.readdata = MEM_SLAVE.readdata; \
+    MEM_MASTER.response = MEM_SLAVE.response; \
+    MEM_MASTER.writeresponsevalid = MEM_SLAVE.writeresponsevalid; \
+    MEM_MASTER.writeresponse = MEM_SLAVE.writeresponse
 
 // Note the lack of waitrequest in the non-blocking assignment. The
 // ready/enable protocol must be handled explicitly.
 `define OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_FF(MEM_MASTER, MEM_SLAVE) \
-    MEM_MASTER.readdata <= MEM_SLAVE.readdata; \
     MEM_MASTER.readdatavalid <= MEM_SLAVE.readdatavalid; \
-    MEM_MASTER.response <= MEM_SLAVE.response
+    MEM_MASTER.readdata <= MEM_SLAVE.readdata; \
+    MEM_MASTER.response <= MEM_SLAVE.response; \
+    MEM_MASTER.writeresponsevalid <= MEM_SLAVE.writeresponsevalid; \
+    MEM_MASTER.writeresponse <= MEM_SLAVE.writeresponse
 
 
 //
@@ -109,15 +113,19 @@
 
 `define OFS_PLAT_AVALON_MEM_IF_INIT_SLAVE_COMB(MEM_SLAVE) \
     MEM_SLAVE.waitrequest = 1'b0; \
-    MEM_SLAVE.readdata = '0; \
     MEM_SLAVE.readdatavalid = 1'b0; \
-    MEM_SLAVE.response = 2'b0
+    MEM_SLAVE.readdata = '0; \
+    MEM_SLAVE.response = '0; \
+    MEM_SLAVE.writeresponsevalid = 1'b0; \
+    MEM_SLAVE.writeresponse = '0
 
 `define OFS_PLAT_AVALON_MEM_IF_INIT_SLAVE_FF(MEM_SLAVE) \
     MEM_SLAVE.waitrequest <= 1'b0; \
-    MEM_SLAVE.readdata <= '0; \
     MEM_SLAVE.readdatavalid <= 1'b0; \
-    MEM_SLAVE.response <= 2'b0
+    MEM_SLAVE.readdata <= '0; \
+    MEM_SLAVE.response <= '0; \
+    MEM_SLAVE.writeresponsevalid <= 1'b0; \
+    MEM_SLAVE.writeresponse <= '0
 
 
 `endif // __OFS_PLAT_AVALON_MEM_IF_VH__

@@ -39,17 +39,17 @@
 
 //
 // There are three public variants:
-//  - ofs_plat_host_chan_xGROUPx_as_avalon_mem - host memory only.
-//  - ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_mmio - host memory and
+//  - ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr - host memory only.
+//  - ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio - host memory and
 //    a single read/write MMIO interface.
-//  - ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_dual_mmio - host memory,
+//  - ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio - host memory,
 //    read/write MMIO and a second write-only MMIO interface.
 //
 
 //
-// Host memory as Avalon (no MMIO).
+// Host memory as Avalon split-bus read/write (no MMIO).
 //
-module ofs_plat_host_chan_xGROUPx_as_avalon_mem
+module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset pair passed in afu_clk/afu_reset.
@@ -74,7 +74,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
     ofs_plat_host_ccip_if ccip_mmio();
 
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem_impl
+    ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
      #(
        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -89,14 +89,14 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
     assign ccip_mmio.sTx = t_if_ccip_Tx'(0);
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem
+endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
 
 
 //
 // Host memory and FPGA MMIO master as Avalon. The width of the MMIO
 // port is determined by the parameters bound to mmio_to_afu.
 //
-module ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_mmio
+module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset pair passed in afu_clk/afu_reset.
@@ -122,7 +122,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_mmio
 
     ofs_plat_host_ccip_if ccip_mmio();
 
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem_impl
+    ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -168,7 +168,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_mmio
         .mem_slave(mmio_to_afu)
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_mmio
+endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
 
 
 //
@@ -176,7 +176,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_mmio
 // The widths of the MMIO ports are determined by the interface parameters
 // to mmio_to_afu and mmio_wr_to_afu.
 //
-module ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_dual_mmio
+module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset pair passed in afu_clk/afu_reset.
@@ -203,7 +203,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_dual_mmio
 
     ofs_plat_host_ccip_if ccip_mmio();
 
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem_impl
+    ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
      #(
        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -286,7 +286,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_dual_mmio
         .mem_slave(mmio_wr_to_afu)
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_dual_mmio
+endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
 
 
 // ========================================================================
@@ -299,7 +299,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_with_dual_mmio
 // Map CCI-P to target clock and then to the host memory Avalon interface.
 // Also return the CCI-P ports needed for mapping MMIO to Avalon.
 //
-module ofs_plat_host_chan_xGROUPx_as_avalon_mem_impl
+module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset pair passed in afu_clk/afu_reset.
@@ -385,4 +385,4 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_impl
         .afu_reset
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem
+endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr

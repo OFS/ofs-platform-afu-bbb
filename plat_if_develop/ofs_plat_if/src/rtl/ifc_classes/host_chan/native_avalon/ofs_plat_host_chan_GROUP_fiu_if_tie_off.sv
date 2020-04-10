@@ -28,26 +28,23 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
-`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
 
 //
-// Macros for setting parameters to Avalon interfaces.
+// Tie off a single host channel interface port.
+//
 //
 
-// CCI-P to Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
-// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
-// transform bursts into legal CCI-P requests.
-`define HOST_CHAN_XGROUPX_AVALON_MEM_PARAMS \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
-    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
+`include "ofs_plat_if.vh"
 
-// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. Transform the address
-// width from the CCI-P DWORD index to the specified bus width.
-`define HOST_CHAN_XGROUPX_AVALON_MMIO_PARAMS(BUSWIDTH) \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
-    .DATA_WIDTH(BUSWIDTH), \
-    .BURST_CNT_WIDTH(1)
+module ofs_plat_host_chan_xGROUPx_fiu_if_tie_off
+   (
+    ofs_plat_avalon_mem_if.to_slave port
+    );
 
+    always_comb
+    begin
+        port.read = 1'b0;
+        port.write = 1'b0;
+    end
 
-`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM__
+endmodule // ofs_plat_host_chan_xGROUPx_fiu_if_tie_off

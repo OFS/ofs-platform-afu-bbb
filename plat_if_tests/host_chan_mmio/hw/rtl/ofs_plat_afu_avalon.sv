@@ -49,7 +49,7 @@ module ofs_plat_afu
     // Host memory AFU master
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `HOST_CHAN_AVALON_MEM_PARAMS,
+        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
         .BURST_CNT_WIDTH(4),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
@@ -72,7 +72,7 @@ module ofs_plat_afu
         mmio512_wr_to_afu();
 
     // Map FIU interface to Avalon host memory and both MMIO ports
-    ofs_plat_host_chan_as_avalon_mem_with_dual_mmio
+    ofs_plat_host_chan_as_avalon_mem_rdwr_with_dual_mmio
       #(
         .ADD_TIMING_REG_STAGES(2)
         )

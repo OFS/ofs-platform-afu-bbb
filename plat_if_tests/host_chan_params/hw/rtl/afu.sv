@@ -132,6 +132,10 @@ module afu
             host_mem_rdwr_engine_avalon
 `endif
               #(
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON
+                // Simple Avalon ports don't support write fences
+                .WRITE_FENCE_SUPPORTED(0),
+`endif
                 .ENGINE_NUMBER(NUM_PORTS_G0 + p)
                 )
               eng
