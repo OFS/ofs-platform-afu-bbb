@@ -47,6 +47,10 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     // interface to the clock/reset pair passed in afu_clk/afu_reset.
     parameter ADD_CLOCK_CROSSING = 0,
 
+    // Size of the read response buffer instantiated when a clock crossing
+    // as required.
+    parameter MAX_ACTIVE_RD_LINES = 512,
+
     // Add extra pipeline stages to the FIU side, typically for timing.
     // Note that these stages contribute to the latency of receiving
     // almost full and requests in these registers continue to flow
@@ -314,9 +318,11 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
             ofs_plat_avalon_mem_if_async_shim
               #(
+                .COMMAND_FIFO_DEPTH(8 + NUM_ALMFULL_SLOTS),
+                .RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES),
                 .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
                 )
-              mem_async_shim
+              cross_clk
                (
                 .mem_slave(afu_burst_if),
                 .mem_master(mem_cross)

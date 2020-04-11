@@ -35,6 +35,7 @@
 module ofs_plat_avalon_mem_if_async_shim
   #(
     parameter COMMAND_FIFO_DEPTH = 128,
+    parameter RESPONSE_FIFO_DEPTH = 256,
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
     // requests can be received after mem_master.waitrequest is asserted.
     parameter COMMAND_ALMFULL_THRESHOLD = 0
@@ -59,7 +60,7 @@ module ofs_plat_avalon_mem_if_async_shim
         .HDL_ADDR_WIDTH(mem_slave.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
-        .RESPONSE_FIFO_DEPTH(2 ** (mem_slave.BURST_CNT_WIDTH + 1))
+        .RESPONSE_FIFO_DEPTH(RESPONSE_FIFO_DEPTH)
         )
       avmm_cross
        (
