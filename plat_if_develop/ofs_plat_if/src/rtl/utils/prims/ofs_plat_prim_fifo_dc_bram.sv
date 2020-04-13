@@ -43,7 +43,7 @@ module ofs_plat_prim_fifo_dc_bram
     parameter THRESHOLD = 1
     )
    (
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic                     wr_clk,
     input  logic [N_DATA_BITS-1 : 0] enq_data,
@@ -72,7 +72,7 @@ module ofs_plat_prim_fifo_dc_bram
         // BRAM FIFO has valid data.
         notEmpty <= (notEmpty && ! deq_en) || ! dc_empty;
 
-        if (reset)
+        if (!reset_n)
         begin
             notEmpty <= 1'b0;
         end
@@ -86,7 +86,7 @@ module ofs_plat_prim_fifo_dc_bram
         )
       dcfifo
        (
-        .aclr(reset),
+        .aclr(!reset_n),
 
         .wrclk(wr_clk),
         .data(enq_data),
@@ -109,7 +109,7 @@ module ofs_plat_prim_fifo_dc_bram
 
     always_ff @(posedge wr_clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             assert (! (dc_full && enq_en)) else
                 $fatal(2, "** ERROR ** %m: ENQ to full SCFIFO");
@@ -118,7 +118,7 @@ module ofs_plat_prim_fifo_dc_bram
 
     always_ff @(posedge rd_clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             assert (notEmpty || ! deq_en) else
                 $fatal(2, "** ERROR ** %m: DEQ from empty SCFIFO");

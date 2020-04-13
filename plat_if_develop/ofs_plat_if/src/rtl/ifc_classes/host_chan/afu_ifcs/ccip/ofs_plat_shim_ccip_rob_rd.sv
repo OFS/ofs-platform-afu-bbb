@@ -73,13 +73,13 @@ module ofs_plat_shim_ccip_rob_rd
     assign to_afu.clk = to_fiu.clk;
 
     assign to_afu.error = to_fiu.error;
-    assign to_afu.reset = to_fiu.reset;
+    assign to_afu.reset_n = to_fiu.reset_n;
     assign to_afu.instance_number = to_fiu.instance_number;
 
-    logic reset = 1'b1;
+    logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset <= to_fiu.reset;
+        reset_n <= to_fiu.reset_n;
     end
 
     // Index of a request
@@ -166,7 +166,7 @@ module ofs_plat_shim_ccip_rob_rd
       rd_rob
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .alloc(n_alloc),
         .allocMeta({ to_afu.sTx.c0.hdr.cl_len, to_afu.sTx.c0.hdr.mdata }),
@@ -188,7 +188,7 @@ module ofs_plat_shim_ccip_rob_rd
     logic rd_rob_deq_en_q;
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             rd_rob_deq_en_q <= 1'b0;
             rd_rob_data_rdy <= 1'b0;
@@ -207,7 +207,7 @@ module ofs_plat_shim_ccip_rob_rd
     // SOP must follow EOP
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             rd_rob_sop <= 1'b1;
         end

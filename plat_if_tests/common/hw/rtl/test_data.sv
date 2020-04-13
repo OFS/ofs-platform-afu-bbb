@@ -44,7 +44,7 @@ module test_data_gen
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic gen_next,
     input  logic [63:0] seed,
@@ -80,7 +80,7 @@ module test_data_gen
             end
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             // Replicate DATA_INIT into data and XOR rotations of the seed
             // into each 64-bit word.
@@ -109,7 +109,7 @@ module test_data_chk
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic new_data_en,
     input  logic [DATA_WIDTH-1 : 0] new_data,
@@ -141,7 +141,7 @@ module test_data_chk
             hash32 hash_read_resps
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .en(hash32_en),
                 .new_data(hash32_new_data[b]),
                 .value(hash32_value[b])

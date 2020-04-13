@@ -52,7 +52,7 @@
 module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -69,7 +69,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     ofs_plat_host_ccip_if ccip_mmio();
@@ -84,7 +85,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
         .to_fiu,
         .host_mem_to_afu,
         .ccip_mmio,
-        .afu_clk
+        .afu_clk,
+        .afu_reset_n
         );
 
     assign ccip_mmio.sTx = t_if_ccip_Tx'(0);
@@ -99,7 +101,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
 module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -117,7 +119,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     ofs_plat_host_ccip_if ccip_mmio();
@@ -132,7 +135,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
         .to_fiu,
         .host_mem_to_afu,
         .ccip_mmio,
-        .afu_clk
+        .afu_clk,
+        .afu_reset_n
         );
 
     // Internal MMIO Avalon interface
@@ -154,7 +158,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
         .mmio_to_afu(mmio_if),
 
         .afu_clk(host_mem_to_afu.clk),
-        .afu_reset(host_mem_to_afu.reset)
+        .afu_reset_n(host_mem_to_afu.reset_n)
         );
 
     // Add register stages, as requested. Force an extra one for timing.
@@ -179,7 +183,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_mmio
 module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -198,7 +202,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     ofs_plat_host_ccip_if ccip_mmio();
@@ -213,7 +218,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
         .to_fiu,
         .host_mem_to_afu,
         .ccip_mmio,
-        .afu_clk
+        .afu_clk,
+        .afu_reset_n
         );
 
     // Internal MMIO Avalon interface
@@ -237,7 +243,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
         .mmio_to_afu(mmio_if),
 
         .afu_clk(host_mem_to_afu.clk),
-        .afu_reset(host_mem_to_afu.reset)
+        .afu_reset_n(host_mem_to_afu.reset_n)
         );
 
     // Add register stages, as requested. Force an extra one for timing.
@@ -272,7 +278,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
         .mmio_to_afu(mmio_wr_if),
 
         .afu_clk(host_mem_to_afu.clk),
-        .afu_reset(host_mem_to_afu.reset)
+        .afu_reset_n(host_mem_to_afu.reset_n)
         );
 
     // Add register stages, as requested. Force an extra one for timing.
@@ -302,7 +308,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_with_dual_mmio
 module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -322,7 +328,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     //
@@ -340,7 +347,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
        (
         .to_fiu,
         .to_afu(sorted_ccip_if),
-        .afu_clk()
+        .afu_clk(),
+        .afu_reset_n()
         );
 
     //
@@ -352,20 +360,6 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
         .to_fiu(sorted_ccip_if),
         .host_mem(host_mem_ccip_if),
         .mmio(ccip_mmio)
-        );
-
-    //
-    // Reset synchronizer
-    //
-    logic afu_reset;
-
-    ofs_plat_prim_clock_crossing_reset
-      reset_cc
-       (
-        .clk_src(to_fiu.clk),
-        .clk_dst(afu_clk),
-        .reset_in(to_fiu.reset),
-        .reset_out(afu_reset)
         );
 
     //
@@ -382,7 +376,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
         .to_fiu(host_mem_ccip_if),
         .host_mem_to_afu,
         .afu_clk,
-        .afu_reset
+        .afu_reset_n
         );
 
 endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr

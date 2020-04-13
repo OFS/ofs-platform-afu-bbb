@@ -64,9 +64,9 @@ module ofs_plat_shim_ccip_detect_eop
     assign clk = to_fiu.clk;
     assign to_afu.clk = to_fiu.clk;
 
-    logic reset;
-    assign reset = to_fiu.reset;
-    assign to_afu.reset = to_fiu.reset;
+    logic reset_n;
+    assign reset_n = to_fiu.reset_n;
+    assign to_afu.reset_n = to_fiu.reset_n;
 
     assign to_afu.instance_number = to_fiu.instance_number;
 
@@ -111,7 +111,7 @@ module ofs_plat_shim_ccip_detect_eop
       c1_tracker
        (
         .clk,
-        .reset,
+        .reset_n,
         .rdy(wr_rsp_mon_rdy),
 
         .req_en(ccip_c1Tx_isWriteReq(to_afu.sTx.c1)),
@@ -185,7 +185,7 @@ module ofs_plat_shim_ccip_detect_eop_track_flits
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     output logic rdy,
 
     // New request to track
@@ -232,7 +232,7 @@ module ofs_plat_shim_ccip_detect_eop_track_flits
       packet_len
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .raddr(rspIdx),
         .T1_rdata(T1_rspLen),
@@ -247,7 +247,7 @@ module ofs_plat_shim_ccip_detect_eop_track_flits
         reqIdx_q <= reqIdx;
         req_en_q <= req_en;
         reqLen_q <= reqLen;
-        if (reset)
+        if (!reset_n)
         begin
             req_en_q <= 1'b0;
         end
@@ -275,7 +275,7 @@ module ofs_plat_shim_ccip_detect_eop_track_flits
       flit_cnt
        (
         .clk,
-        .reset,
+        .reset_n,
         .rdy,
 
         .raddr(rspIdx),
@@ -297,7 +297,7 @@ module ofs_plat_shim_ccip_detect_eop_track_flits
         T2_rsp_en <= T1_rsp_en;
         T2_wdata <= T1_wdata;
 
-        if (reset)
+        if (!reset_n)
         begin
             T1_rsp_en <= 1'b0;
             T2_rsp_en <= 1'b0;

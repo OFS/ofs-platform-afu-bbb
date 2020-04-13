@@ -63,7 +63,7 @@ interface ofs_plat_avalon_mem_if
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
 
     wire clk;
-    logic reset;
+    logic reset_n;
 
     // Signals
     logic waitrequest;
@@ -100,7 +100,7 @@ interface ofs_plat_avalon_mem_if
     modport to_slave
        (
         input  clk,
-        input  reset,
+        input  reset_n,
 
         input  waitrequest,
         input  readdatavalid,
@@ -120,11 +120,11 @@ interface ofs_plat_avalon_mem_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset
+    // Same as normal to_slave, but sets clk and reset_n
     modport to_slave_clk
        (
         output clk,
-        output reset,
+        output reset_n,
 
         input  waitrequest,
         input  readdatavalid,
@@ -151,7 +151,7 @@ interface ofs_plat_avalon_mem_if
     modport to_master
        (
         input  clk,
-        input  reset,
+        input  reset_n,
 
         output waitrequest,
         output readdatavalid,
@@ -171,11 +171,11 @@ interface ofs_plat_avalon_mem_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset
+    // Same as normal to_master, but sets clk and reset_n
     modport to_master_clk
        (
         output clk,
-        output reset,
+        output reset_n,
 
         output waitrequest,
         output readdatavalid,
@@ -233,7 +233,7 @@ interface ofs_plat_avalon_mem_if
             end
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             wr_bursts_rem <= 0;
         end
@@ -242,7 +242,7 @@ interface ofs_plat_avalon_mem_if
     // Validate signals
     always_ff @(negedge clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             if (read && write)
             begin
@@ -296,7 +296,7 @@ interface ofs_plat_avalon_mem_if
             forever @(posedge clk)
             begin
                 // Read request
-                if (! reset && read && ! waitrequest)
+                if (reset_n && read && !waitrequest)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x mask 0x%x\n",
                             $time,
@@ -308,7 +308,7 @@ interface ofs_plat_avalon_mem_if
                 end
 
                 // Read response
-                if (! reset && readdatavalid)
+                if (reset_n && readdatavalid)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (0x%x)\n",
                             $time,
@@ -319,7 +319,7 @@ interface ofs_plat_avalon_mem_if
                 end
 
                 // Write request
-                if (! reset && write && ! waitrequest)
+                if (reset_n && write && !waitrequest)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
                             $time,
@@ -333,7 +333,7 @@ interface ofs_plat_avalon_mem_if
                 end
 
                 // Write response
-                if (! reset && writeresponsevalid)
+                if (reset_n && writeresponsevalid)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write resp (0x%x)\n",
                             $time,

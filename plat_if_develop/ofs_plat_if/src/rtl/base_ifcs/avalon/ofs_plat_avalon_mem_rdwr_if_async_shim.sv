@@ -83,10 +83,10 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
       avmm_cross_rd
        (
         .s0_clk(mem_master.clk),
-        .s0_reset(mem_master.reset),
+        .s0_reset(!mem_master.reset_n),
 
         .m0_clk(mem_slave.clk),
-        .m0_reset(mem_slave.reset),
+        .m0_reset(!mem_slave.reset_n),
 
         .s0_waitrequest(cmd_rd_waitrequest),
         .s0_readdata({mem_master.rd_response, mem_master.rd_readdata}),
@@ -126,10 +126,10 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
       avmm_cross_wr
        (
         .s0_clk(mem_master.clk),
-        .s0_reset(mem_master.reset),
+        .s0_reset(!mem_master.reset_n),
 
         .m0_clk(mem_slave.clk),
-        .m0_reset(mem_slave.reset),
+        .m0_reset(!mem_slave.reset_n),
 
         .s0_waitrequest(cmd_wr_waitrequest),
         .s0_readdata(),
@@ -165,14 +165,14 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     logic wr_response_not_valid;
     logic wr_response_full;
 
-    // Dummy reset clock crossing to keep Quartus happy
-    logic slave_reset;
+    // Dummy reset_n clock crossing to keep Quartus happy
+    logic slave_reset_n;
     ofs_plat_prim_clock_crossing_reset_async
       reset_cc
        (
         .clk(mem_slave.clk),
-        .reset_in(mem_slave.reset),
-        .reset_out(slave_reset)
+        .reset_in(mem_slave.reset_n),
+        .reset_out(slave_reset_n)
         );
 
     ofs_plat_utils_dc_fifo
@@ -182,7 +182,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         )
       avmm_cross_wr_response
        (
-        .aclr(slave_reset),
+        .aclr(!slave_reset_n),
         .data(mem_slave.wr_response),
         .rdclk(mem_master.clk),
         // dcfifo has "underflow_checking" on, so safe to hold rdreq
@@ -201,7 +201,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
 
     always_ff @(posedge mem_master.clk)
     begin
-        mem_master.wr_writeresponsevalid <= ~wr_response_not_valid && ~mem_master.reset;
+        mem_master.wr_writeresponsevalid <= !wr_response_not_valid && mem_master.reset_n;
     end
 
 
@@ -220,7 +220,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
             // asserted.
             always_ff @(posedge mem_master.clk)
             begin
-                if (mem_master.reset)
+                if (!mem_master.reset_n)
                 begin
                     mem_master.rd_waitrequest <= 1'b1;
                     mem_master.wr_waitrequest <= 1'b1;
@@ -243,13 +243,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
                 // cmd_space_avail forced back-pressure too late or it was
                 // ignored.
 
-                if (~mem_master.reset && cmd_wr_waitrequest && mem_master.wr_write)
+                if (mem_master.reset_n && cmd_wr_waitrequest && mem_master.wr_write)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped write transaction",
                            mem_master.instance_number);
                 end
 
-                if (~mem_master.reset && cmd_rd_waitrequest && mem_master.rd_read)
+                if (mem_master.reset_n && cmd_rd_waitrequest && mem_master.rd_read)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped read transaction",
                            mem_master.instance_number);

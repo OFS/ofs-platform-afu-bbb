@@ -44,7 +44,7 @@
 module ofs_plat_host_chan_xGROUPx_as_avalon_mem
   #(
     // When non-zero, add a clock crossing to move the AFU
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Size of the read response buffer instantiated when a clock crossing
@@ -65,7 +65,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     localparam FIU_BURST_CNT_WIDTH = to_fiu.BURST_CNT_WIDTH_;
@@ -134,7 +135,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
               fiu_burst_if();
 
             assign fiu_burst_if.clk = to_fiu.clk;
-            assign fiu_burst_if.reset = to_fiu.reset;
+            assign fiu_burst_if.reset_n = to_fiu.reset_n;
             assign fiu_burst_if.instance_number = to_fiu.instance_number;
 
             logic fiu_burst_if_sop;
@@ -148,7 +149,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
               sop_tracker
                (
                 .clk(to_fiu.clk),
-                .reset(to_fiu.reset),
+                .reset_n(to_fiu.reset_n),
                 .flit_valid(fiu_burst_if.write && !fiu_burst_if.waitrequest),
                 .burstcount(fiu_burst_if.burstcount),
                 .sop(fiu_burst_if_sop),
@@ -169,7 +170,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
               wr_resp_fifo
                (
                 .clk(to_fiu.clk),
-                .reset(to_fiu.reset),
+                .reset_n(to_fiu.reset_n),
                 .enq_data(wr_slave_burst_expects_response),
                 .enq_en(fiu_burst_if_sop && fiu_burst_if.write &&
                         !fiu_burst_if.waitrequest),
@@ -198,7 +199,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             // Map from master bursts to slave bursts
             //
             assign afu_burst_if.clk = to_fiu.clk;
-            assign afu_burst_if.reset = to_fiu.reset;
+            assign afu_burst_if.reset_n = to_fiu.reset_n;
             assign afu_burst_if.instance_number = to_fiu.instance_number;
 
             ofs_plat_avalon_mem_if_map_bursts burst
@@ -304,17 +305,18 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 mem_cross();
 
             assign mem_cross.clk = afu_clk;
+            assign mem_cross.reset_n = afu_reset_n;
             assign mem_cross.instance_number = to_fiu.instance_number;
 
-            // Synchronize a reset with the target clock
-            ofs_plat_prim_clock_crossing_reset
-             reset_cc
-               (
-                .clk_src(to_fiu.clk),
-                .clk_dst(mem_cross.clk),
-                .reset_in(to_fiu.reset),
-                .reset_out(mem_cross.reset)
-                );
+            // synthesis translate_off
+            always_ff @(negedge afu_clk)
+            begin
+                if (afu_reset_n === 1'bx)
+                begin
+                    $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
+                end
+            end
+            // synthesis translate_on
 
             ofs_plat_avalon_mem_if_async_shim
               #(
@@ -344,7 +346,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 );
 
             assign afu_mem_if.clk = mem_cross.clk;
-            assign afu_mem_if.reset = mem_cross.reset;
+            assign afu_mem_if.reset_n = mem_cross.reset_n;
             // Debugging signal
             assign afu_mem_if.instance_number = mem_cross.instance_number;
         end

@@ -39,7 +39,7 @@ module ofs_plat_prim_burstcount_sop_tracker
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     // Process a flit (update counters)
     input  logic flit_valid,
@@ -69,7 +69,7 @@ module ofs_plat_prim_burstcount_sop_tracker
             end
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             flits_rem <= t_burstcount'(0);
             sop <= 1'b1;

@@ -44,7 +44,7 @@
 module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
   #(
     // When non-zero, add a clock crossing to move the AFU
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -61,7 +61,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     // Apply clock crossing and burst mapping to the Avalon slave.
@@ -80,7 +81,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
        (
         .to_fiu,
         .host_mem_to_afu(afu_avmm_if),
-        .afu_clk
+        .afu_clk,
+        .afu_reset_n
         );
 
     // Export the simple Avalon interface as a split-bus interface.
@@ -98,7 +100,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
         );
 
     assign afu_mem_rdwr_if.clk = afu_avmm_if.clk;
-    assign afu_mem_rdwr_if.reset = afu_avmm_if.reset;
+    assign afu_mem_rdwr_if.reset_n = afu_avmm_if.reset_n;
     assign afu_mem_rdwr_if.instance_number = afu_avmm_if.instance_number;
 
     // Make the final connection to the host_mem_to_afu instance, including

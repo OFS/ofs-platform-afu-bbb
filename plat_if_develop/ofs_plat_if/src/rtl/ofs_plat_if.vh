@@ -37,6 +37,7 @@
 `define __OFS_PLAT_IF_VH__
 
 `include "ofs_plat_if_top_config.vh"
+`include "ofs_plat_clocks.vh"
 `include "ofs_plat_host_ccip_if.vh"
 `include "ofs_plat_avalon_mem_if.vh"
 `include "ofs_plat_avalon_mem_rdwr_if.vh"
@@ -53,21 +54,6 @@
 `ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
   `include "platform_shim_ccip_std_afu.vh"
 `endif
-
-//
-// Clocks provided to the AFU. All conforming platforms provide at least
-// 5 primary clocks: pClk, pClkDiv2, pClkDiv4, uClk_usr and uClk_usrDiv2.
-// Divided clocks are all aligned to their primary clocks.
-//
-typedef struct packed
-{
-    logic pClk;
-    logic pClkDiv2;
-    logic pClkDiv4;
-    logic uClk_usr;
-    logic uClk_usrDiv2;
-}
-t_ofs_plat_clocks;
 
 //
 // Two-bit power state, originally defined in CCI-P.

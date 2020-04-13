@@ -37,7 +37,7 @@
 module ofs_plat_utils_ccip_track_multi_write
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     // Channel to monitor
     input  t_if_ccip_c1_Tx c1Tx,
@@ -68,7 +68,7 @@ module ofs_plat_utils_ccip_track_multi_write
     // Track the beat number
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             nextBeatNum <= t_ccip_clNum'(0);
             packetActive <= 1'b0;

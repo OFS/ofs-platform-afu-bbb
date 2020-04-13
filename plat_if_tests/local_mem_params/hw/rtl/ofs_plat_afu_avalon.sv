@@ -34,6 +34,8 @@
 
 `include "ofs_plat_if.vh"
 
+`define RESET_FROM_CLK(clk) clk``_reset_n
+
 module ofs_plat_afu
    (
     // All platform wires, wrapped in one interface.
@@ -75,9 +77,11 @@ module ofs_plat_afu
 
 
 `ifdef TEST_PARAM_AFU_CLK
-        .afu_clk(`TEST_PARAM_AFU_CLK)
+        .afu_clk(`TEST_PARAM_AFU_CLK),
+        .afu_reset_n(`RESET_FROM_CLK(`TEST_PARAM_AFU_CLK))
 `else
-        .afu_clk(plat_ifc.clocks.uClk_usr)
+        .afu_clk(plat_ifc.clocks.uClk_usr),
+        .afu_reset_n(plat_ifc.clocks.uClk_usr_reset_n)
 `endif
         );
 
@@ -152,7 +156,8 @@ module ofs_plat_afu
                     )
                   shim
                    (
-                    .tgt_mem_afu_clk(host_mem_to_afu.clk),
+                    .afu_clk(host_mem_to_afu.clk),
+                    .afu_reset_n(host_mem_to_afu.reset_n),
                     .to_fiu(plat_ifc.local_mem.banks[b]),
                     .to_afu(local_mem_to_afu[b])
                     );
@@ -178,7 +183,8 @@ module ofs_plat_afu
                     )
                   shim
                    (
-                    .tgt_mem_afu_clk(host_mem_to_afu.clk),
+                    .afu_clk(host_mem_to_afu.clk),
+                    .afu_reset_n(host_mem_to_afu.reset_n),
                     .to_fiu(plat_ifc.local_mem.banks[b]),
                     .to_afu(local_mem_if)
                     );
@@ -207,8 +213,8 @@ module ofs_plat_afu
                    (
                     .clk_src(local_mem_if.clk),
                     .clk_dst(local_mem_cross_if.clk),
-                    .reset_in(local_mem_if.reset),
-                    .reset_out(local_mem_cross_if.reset)
+                    .reset_in(local_mem_if.reset_n),
+                    .reset_out(local_mem_cross_if.reset_n)
                     );
 
                 // Clock crossing

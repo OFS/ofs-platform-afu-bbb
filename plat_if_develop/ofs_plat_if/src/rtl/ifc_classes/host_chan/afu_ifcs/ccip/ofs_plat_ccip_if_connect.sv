@@ -40,7 +40,7 @@ module ofs_plat_ccip_if_connect
     );
 
     assign to_afu.clk = to_fiu.clk;
-    assign to_afu.reset = to_fiu.reset;
+    assign to_afu.reset_n = to_fiu.reset_n;
 
     assign to_fiu.sTx = to_afu.sTx;
     assign to_afu.sRx = to_fiu.sRx;

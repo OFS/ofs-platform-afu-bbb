@@ -34,7 +34,7 @@ module hash32
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     input  logic en,
     input  logic [31:0] new_data,
     output logic [31:0] value
@@ -42,7 +42,7 @@ module hash32
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             value <= INITIAL_VALUE;
         end

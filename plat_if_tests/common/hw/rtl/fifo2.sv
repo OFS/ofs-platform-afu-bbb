@@ -39,7 +39,7 @@ module fifo2
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [N_DATA_BITS-1 : 0] enq_data,
     input  logic enq_en,
@@ -57,7 +57,7 @@ module fifo2
       f
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .enq_data,
         .enq_en,
@@ -83,7 +83,7 @@ module fifo2_peek
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [N_DATA_BITS-1 : 0] enq_data,
     input  logic enq_en,
@@ -130,7 +130,7 @@ module fifo2_peek
             data[0] <= enq_data;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             valid <= 2'b0;
         end
@@ -139,7 +139,7 @@ module fifo2_peek
     // synthesis translate_off
     always_ff @(posedge clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             assert (! (enq_en && valid[0])) else
                 $fatal(2, "** ERROR ** %m: ENQ to full FIFO!");

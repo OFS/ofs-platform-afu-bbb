@@ -104,19 +104,24 @@ module green_bs
     ofs_plat_if plat_ifc();
 
     // Clocks
-    assign plat_ifc.clocks.pClk = Clk_400;
-    assign plat_ifc.clocks.pClkDiv2 = Clk_200;
-    assign plat_ifc.clocks.pClkDiv4 = Clk_100;
-    assign plat_ifc.clocks.uClk_usr = uClk_usr;
-    assign plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
+    ofs_plat_std_clocks_gen_resets_from_active_high clocks
+       (
+        .pClk(Clk_400),
+        .pClk_reset(SoftReset),
+        .pClkDiv2(Clk_200),
+        .pClkDiv4(Clk_100),
+        .uClk_usr(uClk_usr),
+        .uClk_usrDiv2(uClk_usrDiv2),
+        .clocks(plat_ifc.clocks)
+        );
 
     // Reset, etc.
-    assign plat_ifc.softReset = SoftReset;
+    assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
     assign plat_ifc.pwrState = pck_cp2af_pwrState;
 
     // Host CCI-P port
     assign plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
-    assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
+    assign plat_ifc.host_chan.ports[0].reset_n = plat_ifc.softReset_n;
     assign plat_ifc.host_chan.ports[0].instance_number = 0;
     assign plat_ifc.host_chan.ports[0].error = pck_cp2af_error;
     assign plat_ifc.host_chan.ports[0].sRx = bus_ccip_Rx;
@@ -192,9 +197,9 @@ module green_bs
     );
 
     assign plat_ifc.local_mem.banks[0].clk = DDR4a_USERCLK;
-    assign plat_ifc.local_mem.banks[0].reset = DDR4a_softReset;
+    assign plat_ifc.local_mem.banks[0].reset_n = !DDR4a_softReset;
     assign plat_ifc.local_mem.banks[1].clk = DDR4b_USERCLK;
-    assign plat_ifc.local_mem.banks[1].reset = DDR4b_softReset;
+    assign plat_ifc.local_mem.banks[1].reset_n = !DDR4b_softReset;
 
     ddr_avmm_bridge #(
             .DATA_WIDTH        (512),

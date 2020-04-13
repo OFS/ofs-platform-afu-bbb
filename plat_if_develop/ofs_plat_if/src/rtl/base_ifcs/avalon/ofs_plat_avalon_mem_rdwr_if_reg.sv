@@ -75,7 +75,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : p
                 assign mem_pipe[s].clk = mem_slave.clk;
-                assign mem_pipe[s].reset = mem_slave.reset;
+                assign mem_pipe[s].reset_n = mem_slave.reset_n;
 
                 ofs_plat_utils_avalon_mm_bridge
                   #(
@@ -86,7 +86,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                   bridge_rd
                    (
                     .clk(mem_pipe[s].clk),
-                    .reset(mem_pipe[s].reset),
+                    .reset(!mem_pipe[s].reset_n),
 
                     .s0_waitrequest(mem_pipe[s].rd_waitrequest),
                     .s0_readdata(mem_pipe[s].rd_readdata),
@@ -122,7 +122,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                   bridge_wr
                    (
                     .clk(mem_pipe[s].clk),
-                    .reset(mem_pipe[s].reset),
+                    .reset(!mem_pipe[s].reset_n),
 
                     .s0_waitrequest(mem_pipe[s].wr_waitrequest),
                     .s0_readdata(),
@@ -165,7 +165,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
 endmodule // ofs_plat_avalon_mem_rdwr_if_reg
 
 
-// Same as standard connection, but pass clk and reset from slave to master
+// Same as standard connection, but pass clk and reset_n from slave to master
 module ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
   #(
     // Number of stages to add when registering inputs or outputs
@@ -185,7 +185,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
       mem_reg();
 
     assign mem_reg.clk = mem_slave.clk;
-    assign mem_reg.reset = mem_slave.reset;
+    assign mem_reg.reset_n = mem_slave.reset_n;
     // Debugging signal
     assign mem_reg.instance_number = mem_slave.instance_number;
 
@@ -209,7 +209,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
 endmodule // ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
 
 
-// Same as standard connection, but pass clk and reset from master to slave
+// Same as standard connection, but pass clk and reset_n from master to slave
 module ofs_plat_avalon_mem_rdwr_if_reg_master_clk
   #(
     // Number of stages to add when registering inputs or outputs
@@ -229,7 +229,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_master_clk
       mem_reg();
 
     assign mem_reg.clk = mem_master.clk;
-    assign mem_reg.reset = mem_master.reset;
+    assign mem_reg.reset_n = mem_master.reset_n;
     // Debugging signal
     assign mem_reg.instance_number = mem_master.instance_number;
 

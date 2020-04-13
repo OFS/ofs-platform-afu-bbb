@@ -38,7 +38,7 @@ module counter_multicycle
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     input  logic [NUM_BITS-1 : 0] incr_by,
     output logic [NUM_BITS-1 : 0] value
     );
@@ -57,7 +57,7 @@ module counter_multicycle
         value[HALF_BITS-1 : 0] <= low_half;
         value[NUM_BITS-1 : HALF_BITS] <= value[NUM_BITS-1 : HALF_BITS] + carry;
 
-        if (reset)
+        if (!reset_n)
         begin
             value <= 0;
             low_half <= 0;
@@ -67,7 +67,7 @@ module counter_multicycle
     // synthesis translate_off
     always_ff @(posedge clk)
     begin
-        if (! reset && |(incr_by[NUM_BITS-1 : HALF_BITS]))
+        if (reset_n && |(incr_by[NUM_BITS-1 : HALF_BITS]))
         begin
             $fatal(2, "** ERROR ** %m: The upper half of incr_by is ignored (0x%h)!", incr_by);
         end

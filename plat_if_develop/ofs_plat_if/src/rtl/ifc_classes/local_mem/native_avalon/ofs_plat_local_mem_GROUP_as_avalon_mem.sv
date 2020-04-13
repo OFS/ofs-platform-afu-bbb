@@ -47,7 +47,7 @@
 module ofs_plat_local_mem_xGROUPx_as_avalon_mem
   #(
     // When non-zero, add a clock crossing to move the AFU interface
-    // to the passed in tgt_mem_afu_clk.
+    // to the passed in afu_clk.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages, typically for timing.
@@ -55,7 +55,8 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
     )
    (
     // AFU clock for memory when a clock crossing is requested
-    input  logic tgt_mem_afu_clk,
+    input  logic afu_clk,
+    input  logic afu_reset_n,
 
     // The ports are named "to_fiu" and "to_afu" despite the Avalon
     // to_slave/to_master naming because the PIM port naming is a
@@ -115,7 +116,7 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
                 );
 
             assign afu_burst_if.clk = to_fiu.clk;
-            assign afu_burst_if.reset = to_fiu.reset;
+            assign afu_burst_if.reset_n = to_fiu.reset_n;
             assign afu_burst_if.instance_number = to_fiu.instance_number;
 
             ofs_plat_avalon_mem_if_map_bursts burst
@@ -219,18 +220,19 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
                 )
                 mem_cross();
 
-            assign mem_cross.clk = tgt_mem_afu_clk;
+            assign mem_cross.clk = afu_clk;
+            assign mem_cross.reset_n = afu_reset_n;
             assign mem_cross.instance_number = to_fiu.instance_number;
 
-            // Synchronize a reset with the target clock
-            ofs_plat_prim_clock_crossing_reset
-             reset_cc
-               (
-                .clk_src(to_fiu.clk),
-                .clk_dst(mem_cross.clk),
-                .reset_in(to_fiu.reset),
-                .reset_out(mem_cross.reset)
-                );
+            // synthesis translate_off
+            always_ff @(negedge afu_clk)
+            begin
+                if (afu_reset_n === 1'bx)
+                begin
+                    $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
+                end
+            end
+            // synthesis translate_on
 
             ofs_plat_avalon_mem_if_async_shim
               #(
@@ -258,7 +260,7 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
                 );
 
             assign afu_mem_if.clk = mem_cross.clk;
-            assign afu_mem_if.reset = mem_cross.reset;
+            assign afu_mem_if.reset_n = mem_cross.reset_n;
             // Debugging signal
             assign afu_mem_if.instance_number = mem_cross.instance_number;
         end

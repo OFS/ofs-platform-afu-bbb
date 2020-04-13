@@ -48,17 +48,25 @@ module ase_top_ofs_plat
     // Construct the simulated platform interface wrapper which will be passed
     // to the AFU.
     ofs_plat_if#(.ENABLE_LOG(1)) plat_ifc();
+    logic softReset;
 
 
     //
     // Clocks
     //
 
-    assign plat_ifc.clocks.pClk = pClk;
-    assign plat_ifc.clocks.pClkDiv2 = pClkDiv2;
-    assign plat_ifc.clocks.pClkDiv4 = pClkDiv4;
-    assign plat_ifc.clocks.uClk_usr = uClk_usr;
-    assign plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
+    ofs_plat_std_clocks_gen_resets_from_active_high clocks
+       (
+        .pClk,
+        .pClk_reset(softReset),
+        .pClkDiv2,
+        .pClkDiv4,
+        .uClk_usr,
+        .uClk_usrDiv2,
+        .clocks(plat_ifc.clocks)
+        );
+
+    assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
 
 
     //
@@ -69,7 +77,7 @@ module ase_top_ofs_plat
     ofs_plat_host_ccip_if ccip_fiu();
 
     assign ccip_fiu.clk = pClk;
-    assign ccip_fiu.reset = plat_ifc.softReset;
+    assign ccip_fiu.reset_n = plat_ifc.softReset_n;
     assign ccip_fiu.instance_number = 0;
 
     ccip_emulator ccip_emulator
@@ -80,7 +88,7 @@ module ase_top_ofs_plat
         .uClk_usr,
         .uClk_usrDiv2,
         // Output signals, mapped to the platform interface
-        .pck_cp2af_softReset(plat_ifc.softReset),
+        .pck_cp2af_softReset(softReset),
         .pck_cp2af_pwrState(plat_ifc.pwrState),
         .pck_cp2af_error(ccip_fiu.error),
         .pck_af2cp_sTx(ccip_fiu.sTx),
@@ -167,7 +175,8 @@ module ase_top_ofs_plat
            (
             .to_fiu(ccip_afu[`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS]),
             .host_mem_to_afu(avmm_shared_slave_if),
-            .afu_clk()
+            .afu_clk(),
+            .afu_reset_n()
             );
 
         // Multiplex the single Avalon slave into the required number of ports
@@ -201,7 +210,7 @@ module ase_top_ofs_plat
                 );
 
             assign plat_ifc.host_chan_g1.ports[p].clk = avmm_port_slave_if[p].clk;
-            assign plat_ifc.host_chan_g1.ports[p].reset = avmm_port_slave_if[p].reset;
+            assign plat_ifc.host_chan_g1.ports[p].reset_n = avmm_port_slave_if[p].reset_n;
             assign plat_ifc.host_chan_g1.ports[p].instance_number = avmm_port_slave_if[p].instance_number;
         end
   `else
@@ -219,7 +228,7 @@ module ase_top_ofs_plat
     localparam NUM_LOCAL_MEM_BANKS = plat_ifc.local_mem.NUM_BANKS;
     logic mem_banks_clk[NUM_LOCAL_MEM_BANKS];
 
-    ase_sim_local_mem_avmm
+    ase_sim_local_mem_ofs_avmm
       #(
         .NUM_BANKS(NUM_LOCAL_MEM_BANKS),
         .ADDR_WIDTH(local_mem_cfg_pkg::LOCAL_MEM_ADDR_WIDTH),
@@ -237,7 +246,7 @@ module ase_top_ofs_plat
         for (b = 0; b < NUM_LOCAL_MEM_BANKS; b = b + 1)
         begin : b_reset
             assign plat_ifc.local_mem.banks[b].clk = mem_banks_clk[b];
-            assign plat_ifc.local_mem.banks[b].reset = plat_ifc.softReset;
+            assign plat_ifc.local_mem.banks[b].reset_n = plat_ifc.softReset_n;
             assign plat_ifc.local_mem.banks[b].instance_number = b;
 
             assign plat_ifc.local_mem.banks[b].response = '0;

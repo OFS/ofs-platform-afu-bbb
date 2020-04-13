@@ -44,7 +44,7 @@ module ofs_plat_prim_fifo_bram
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [N_DATA_BITS-1 : 0] enq_data,
     input  logic                     enq_en,
@@ -71,7 +71,7 @@ module ofs_plat_prim_fifo_bram
         // BRAM FIFO has valid data.
         notEmpty <= (notEmpty && ! deq_en) || ! sc_empty;
 
-        if (reset)
+        if (!reset_n)
         begin
             notEmpty <= 1'b0;
         end
@@ -96,7 +96,7 @@ module ofs_plat_prim_fifo_bram
       scfifo_component
        (
         .clock(clk),
-        .sclr(reset),
+        .sclr(!reset_n),
 
         .data(enq_data),
         .wrreq(enq_en),
@@ -117,7 +117,7 @@ module ofs_plat_prim_fifo_bram
 
     always_ff @(posedge clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             assert (! (sc_full && enq_en)) else
                 $fatal(2, "** ERROR ** %m: ENQ to full SCFIFO");

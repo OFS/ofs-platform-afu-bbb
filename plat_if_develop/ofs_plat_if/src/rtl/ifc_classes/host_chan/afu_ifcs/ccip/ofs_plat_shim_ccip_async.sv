@@ -64,6 +64,7 @@ module ofs_plat_shim_ccip_async
     // Green Bitstream interface
     // ---------------------------------- //
     input logic afu_clk,
+    input logic afu_reset_n,
     ofs_plat_host_ccip_if.to_afu to_afu,
 
     // ---------------------------------- //
@@ -98,26 +99,25 @@ module ofs_plat_shim_ccip_async
 
     assign to_afu.instance_number = to_fiu.instance_number;
     assign to_afu.clk = afu_clk;
+    assign to_afu.reset_n = afu_reset_n;
 
-    //
-    // Reset synchronizer
-    //
-    ofs_plat_prim_clock_crossing_reset
-      reset_cc
-       (
-        .clk_src(to_fiu.clk),
-        .clk_dst(afu_clk),
-        .reset_in(to_fiu.reset),
-        .reset_out(to_afu.reset)
-        );
+    // synthesis translate_off
+    always_ff @(negedge afu_clk)
+    begin
+        if (afu_reset_n === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
+        end
+    end
+    // synthesis translate_on
 
-    logic reset_async;
+    logic reset_n_async;
     ofs_plat_prim_clock_crossing_reset_async
       reset_async_cc
        (
         .clk(to_fiu.clk),
-        .reset_in(to_fiu.reset),
-        .reset_out(reset_async)
+        .reset_in(to_fiu.reset_n),
+        .reset_out(reset_n_async)
         );
 
 
@@ -187,7 +187,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c0tx_rdreq),
         .wrclk(afu_clk),
         .rdclk(to_fiu.clk),
-        .aclr(reset_async),
+        .aclr(!reset_n_async),
         .q(c0tx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -221,7 +221,7 @@ module ofs_plat_shim_ccip_async
       c0req_credit_counter
         (
          .clk(afu_clk),
-         .reset(to_afu.reset),
+         .reset_n(to_afu.reset_n),
          .c0Tx(afu_sTx_q.c0),
          .c0Rx(afu_sRx_next.c0),
          .cnt(c0req_cnt)
@@ -279,7 +279,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c1tx_rdreq),
         .wrclk(afu_clk),
         .rdclk(to_fiu.clk),
-        .aclr(reset_async),
+        .aclr(!reset_n_async),
         .q({c1tx_dout_hdr, c1tx_dout_data}),
         .rdusedw(),
         .wrusedw(),
@@ -344,7 +344,7 @@ module ofs_plat_shim_ccip_async
             end
         end
 
-        if (to_fiu.reset)
+        if (!to_fiu.reset_n)
         begin
             c1tx_in_partial_packet <= 1'b0;
         end
@@ -360,7 +360,7 @@ module ofs_plat_shim_ccip_async
       c1req_credit_counter
        (
         .clk(afu_clk),
-        .reset(to_afu.reset),
+        .reset_n(to_afu.reset_n),
         .c1Tx(afu_sTx_q.c1),
         .c1Rx(afu_sRx_next.c1),
         .cnt(c1req_cnt)
@@ -413,7 +413,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c2tx_rdreq),
         .wrclk(afu_clk),
         .rdclk(to_fiu.clk),
-        .aclr(reset_async),
+        .aclr(!reset_n_async),
         .q(c2tx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -457,7 +457,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c0rx_rdreq),
         .wrclk(to_fiu.clk),
         .rdclk(afu_clk),
-        .aclr(reset_async),
+        .aclr(!reset_n_async),
         .q(c0rx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -509,7 +509,7 @@ module ofs_plat_shim_ccip_async
         .rdreq(c1rx_rdreq),
         .wrclk(to_fiu.clk),
         .rdclk(afu_clk),
-        .aclr(reset_async),
+        .aclr(!reset_n_async),
         .q(c1rx_dout),
         .rdusedw(),
         .wrusedw(),
@@ -544,7 +544,7 @@ module ofs_plat_shim_ccip_async
      */
     always_ff @(posedge afu_clk)
     begin
-        if (to_afu.reset)
+        if (!to_afu.reset_n)
         begin
             async_shim_error[2:0] <= 3'b0;
         end
@@ -566,7 +566,7 @@ module ofs_plat_shim_ccip_async
 
     always_ff @(posedge to_fiu.clk)
     begin
-        if (to_fiu.reset)
+        if (!to_fiu.reset_n)
         begin
             async_shim_error_fiu <= 2'b0;
         end
@@ -654,7 +654,7 @@ module ofs_plat_shim_ccip_async
             // afu_if counts
             always_ff @(posedge afu_clk)
             begin
-                if (to_afu.reset)
+                if (!to_afu.reset_n)
                 begin
                     afu_c0tx_cnt <= 0;
                     afu_c1tx_cnt <= 0;
@@ -680,7 +680,7 @@ module ofs_plat_shim_ccip_async
             // fiu_if counts
             always_ff @(posedge to_fiu.clk)
             begin
-                if (to_fiu.reset)
+                if (!to_fiu.reset_n)
                 begin
                     fiu_c0tx_cnt <= 0;
                     fiu_c1tx_cnt <= 0;

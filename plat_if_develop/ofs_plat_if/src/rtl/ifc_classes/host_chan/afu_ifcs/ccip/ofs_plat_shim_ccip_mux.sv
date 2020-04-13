@@ -42,7 +42,7 @@
 //   High bits of incoming AFU Tx header mdata must be zero.
 //   $clog2(NUM_AFU_PORTS) high mdata bits are used to route FIU responses
 //   back to the proper AFU. It is up to the AFU to guarantee these bits
-//   are zero. They will be overwritten here and reset to 0 in responses.
+//   are zero. They will be overwritten here and reset_n to 0 in responses.
 //
 // *** WARNING ***
 //
@@ -74,16 +74,16 @@ module ofs_plat_shim_ccip_mux
         for (p = 0; p < NUM_AFU_PORTS; p = p + 1)
         begin : r
             assign to_afu[p].clk = to_fiu.clk;
-            assign to_afu[p].reset = to_fiu.reset;
+            assign to_afu[p].reset_n = to_fiu.reset_n;
             assign to_afu[p].error = to_fiu.error;
             assign to_afu[p].instance_number = to_fiu.instance_number + p;
         end
     endgenerate
 
-    logic reset = 1'b1;
+    logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset <= to_fiu.reset;
+        reset_n <= to_fiu.reset_n;
     end
 
     //
@@ -130,7 +130,7 @@ module ofs_plat_shim_ccip_mux
                     // High bits of incoming Tx mdata must be 0. This is where
                     // the index of the AFU will be stored so responses are
                     // routed to the correct AFU.
-                    if (! reset && to_afu[p].sTx.c0.valid)
+                    if (reset_n && to_afu[p].sTx.c0.valid)
                     begin
                         assert (to_afu[p].sTx.c0.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] ==
                                 t_port_idx'(0)) else
@@ -149,7 +149,7 @@ module ofs_plat_shim_ccip_mux
                   fifo_in
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .enq_data(to_afu[p].sTx.c0),
                     .enq_en(to_afu[p].sTx.c0.valid),
                     .notFull(),
@@ -174,7 +174,7 @@ module ofs_plat_shim_ccip_mux
               arb
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .ena(! to_fiu.sRx.c0TxAlmFull),
                 .request(afu_c0Tx_notEmpty),
                 .grant(afu_c0Tx_deq_en),
@@ -194,7 +194,7 @@ module ofs_plat_shim_ccip_mux
 
                 to_fiu.sTx.c0 <= fiu_c0Tx;
 
-                if (reset)
+                if (!reset_n)
                 begin
                     to_fiu.sTx.c0.valid <= 1'b0;
                 end
@@ -267,7 +267,7 @@ module ofs_plat_shim_ccip_mux
                     // High bits of incoming Tx mdata must be 0. This is where
                     // the index of the AFU will be stored so responses are
                     // routed to the correct AFU.
-                    if (! reset && to_afu[p].sTx.c1.valid)
+                    if (reset_n && to_afu[p].sTx.c1.valid)
                     begin
                         assert (to_afu[p].sTx.c1.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] ==
                                 t_port_idx'(0)) else
@@ -290,7 +290,7 @@ module ofs_plat_shim_ccip_mux
                 ofs_plat_utils_ccip_track_multi_write track_eop
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .c1Tx(to_afu[p].sTx.c1),
                     .c1Tx_en(1'b1),
                     .eop(is_eop),
@@ -308,7 +308,7 @@ module ofs_plat_shim_ccip_mux
                   fifo_in
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .enq_data({ is_eop, to_afu[p].sTx.c1 }),
                     .enq_en(to_afu[p].sTx.c1.valid),
                     .notFull(),
@@ -335,7 +335,7 @@ module ofs_plat_shim_ccip_mux
               arb
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .ena(is_sop && ! to_fiu.sRx.c1TxAlmFull),
                 .request(afu_c1Tx_notEmpty),
                 .grant(arb_grant),
@@ -389,7 +389,7 @@ module ofs_plat_shim_ccip_mux
 
                 to_fiu.sTx.c1 <= fiu_c1Tx;
 
-                if (reset)
+                if (!reset_n)
                 begin
                     is_sop <= 1'b1;
                     to_fiu.sTx.c1.valid <= 1'b0;

@@ -63,7 +63,8 @@ module ofs_plat_afu
         .to_afu(ccip_to_afu),
 
         // Use default clock
-        .afu_clk()
+        .afu_clk(),
+        .afu_reset_n()
         );
 
 
@@ -101,7 +102,7 @@ module ofs_plat_afu
 
         // Not used (no clock crossing)
         .afu_clk(),
-        .afu_reset()
+        .afu_reset_n()
         );
 
 
@@ -127,7 +128,7 @@ module ofs_plat_afu
 
         // Not used (no clock crossing)
         .afu_clk(),
-        .afu_reset()
+        .afu_reset_n()
         );
 
 

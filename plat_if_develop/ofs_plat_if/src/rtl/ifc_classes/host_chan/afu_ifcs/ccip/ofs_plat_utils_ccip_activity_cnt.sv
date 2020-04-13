@@ -41,7 +41,7 @@ module ofs_plat_utils_ccip_c0_active_cnt
     )
    (
     input logic clk,
-    input logic reset,
+    input logic reset_n,
 
     input t_if_ccip_c0_Tx c0Tx,
     input t_if_ccip_c0_Rx c0Rx,
@@ -80,7 +80,7 @@ module ofs_plat_utils_ccip_c0_active_cnt
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             cnt <= t_active_cnt'(0);
         end
@@ -99,7 +99,7 @@ module ofs_plat_utils_ccip_c1_active_cnt
     )
    (
     input logic clk,
-    input logic reset,
+    input logic reset_n,
 
     input t_if_ccip_c1_Tx c1Tx,
     input t_if_ccip_c1_Rx c1Rx,
@@ -145,7 +145,7 @@ module ofs_plat_utils_ccip_c1_active_cnt
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             cnt <= t_active_cnt'(0);
         end

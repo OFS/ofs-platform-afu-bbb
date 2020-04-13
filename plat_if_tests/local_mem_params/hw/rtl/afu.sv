@@ -49,10 +49,10 @@ module afu
     logic clk;
     assign clk = mmio64_if.clk;
 
-    logic reset = 1'b1;
+    logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset <= mmio64_if.reset;
+        reset_n <= mmio64_if.reset_n;
     end
 
     localparam NUM_ENGINES = local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS;
@@ -123,7 +123,7 @@ module afu
       csr_mgr
        (
         .clk,
-        .reset,
+        .reset_n,
         .pClk,
 
         .wr_write(mmio64_if.write),

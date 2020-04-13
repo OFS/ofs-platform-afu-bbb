@@ -41,7 +41,7 @@ interface ofs_plat_host_ccip_if
     );
 
     wire clk;
-    logic reset;    // ACTIVE HIGH
+    logic reset_n;
 
     // CCI-P Protocol Error Detected
     logic error;
@@ -64,7 +64,7 @@ interface ofs_plat_host_ccip_if
     modport to_fiu
        (
         input  clk,
-        input  reset,
+        input  reset_n,
         input  error,
         input  sRx,
         output sTx,
@@ -76,7 +76,7 @@ interface ofs_plat_host_ccip_if
     modport to_fiu_ro
        (
         input  clk,
-        input  reset,
+        input  reset_n,
         input  error,
         input  sRx,
 
@@ -89,7 +89,7 @@ interface ofs_plat_host_ccip_if
     modport to_afu
        (
         output clk,
-        output reset,
+        output reset_n,
         output error,
         output sRx,
         input  sTx,
@@ -106,7 +106,7 @@ interface ofs_plat_host_ccip_if
 
     always_ff @(negedge clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             if (sTx.c0.valid === 1'bx)
                 $fatal(2, "** ERROR ** %m: sTx.c0.valid is uninitialized!");
@@ -211,7 +211,7 @@ interface ofs_plat_host_ccip_if
             begin
                 // //////////////////////// C0 TX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* AFU -> MEM Read Request ******************/
-                if (! reset && sTx.c0.valid)
+                if (reset_n && sTx.c0.valid)
                 begin
                     $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s\t%x\t%x\n",
                             $time,
@@ -225,7 +225,7 @@ interface ofs_plat_host_ccip_if
 
                 //////////////////////// C1 TX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* AFU -> MEM Write Request *****************/
-                if (! reset && sTx.c1.valid)
+                if (reset_n && sTx.c1.valid)
                 begin
                     $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s\t%s\t%x\t%x\t%x",
                             $time,
@@ -248,7 +248,7 @@ interface ofs_plat_host_ccip_if
 
                 //////////////////////// C2 TX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* AFU -> MMIO Read Response *****************/
-                if (! reset && sTx.c2.mmioRdValid)
+                if (reset_n && sTx.c2.mmioRdValid)
                 begin
                     $fwrite(log_fd, "%m:\t%t\tMMIORdRsp\t%x\t%x\n",
                             $time,
@@ -258,7 +258,7 @@ interface ofs_plat_host_ccip_if
 
                 //////////////////////// C0 RX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* MEM -> AFU Read Response *****************/
-                if (! reset && sRx.c0.rspValid)
+                if (reset_n && sRx.c0.rspValid)
                 begin
                     $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s%s\t%x\t%x\n",
                             $time,
@@ -271,7 +271,7 @@ interface ofs_plat_host_ccip_if
                 end
 
                 /****************** MEM -> AFU Write Response *****************/
-                if (! reset && sRx.c1.rspValid)
+                if (reset_n && sRx.c1.rspValid)
                 begin
                     $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s\t%s\t%x\n",
                             $time,
@@ -283,7 +283,7 @@ interface ofs_plat_host_ccip_if
                 end
 
                 /******************* SW -> AFU Config Write *******************/
-                if (! reset && sRx.c0.mmioWrValid)
+                if (reset_n && sRx.c0.mmioWrValid)
                 begin
                     t_ccip_c0_ReqMmioHdr mmio_hdr;
                     mmio_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
@@ -297,7 +297,7 @@ interface ofs_plat_host_ccip_if
                 end
 
                 /******************* SW -> AFU Config Read *******************/
-                if (! reset && sRx.c0.mmioRdValid)
+                if (reset_n && sRx.c0.mmioRdValid)
                 begin
                     t_ccip_c0_ReqMmioHdr mmio_hdr;
                     mmio_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);

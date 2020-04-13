@@ -57,8 +57,6 @@ localparam CCIP_TX_ALMOST_FULL_THRESHOLD = 8;
 // pClk cycles by which an MMIO read response must be generated.
 localparam CCIP_MMIO_RD_TIMEOUT   = 65536;
 
-localparam CCIP_SYNC_RESET_POLARITY=1;       // Active High Reset
-
 // Base types
 //----------------------------------------------------------------------
 typedef logic [CCIP_CLADDR_WIDTH-1:0]   t_ccip_clAddr;

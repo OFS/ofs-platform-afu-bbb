@@ -63,31 +63,31 @@ module ofs_plat_shim_ccip_reg
     genvar s;
     generate
         //
-        // Register reset
+        // Register reset_n
         //
         if (REGISTER_RESET && N_REG_STAGES)
-        begin : reg_reset
+        begin : reg_reset_n
             (* altera_attribute = {"-name AUTO_SHIFT_REGISTER_RECOGNITION OFF; -name PRESERVE_REGISTER ON"} *)
-            logic reset[N_REG_STAGES] = '{N_REG_STAGES{1'b1}};
+            logic reset_n[N_REG_STAGES] = '{N_REG_STAGES{1'b0}};
 
             always @(posedge clk)
             begin
-                reset[0] <= to_fiu.reset;
+                reset_n[0] <= to_fiu.reset_n;
             end
 
             for (s = 0; s < N_REG_STAGES - 1; s = s + 1)
             begin
                 always @(posedge clk)
                 begin
-                    reset[s+1] <= reset[s];
+                    reset_n[s+1] <= reset_n[s];
                 end
             end
 
-            assign to_afu.reset = reset[N_REG_STAGES - 1];
+            assign to_afu.reset_n = reset_n[N_REG_STAGES - 1];
         end
         else
-        begin : wire_reset
-            assign to_afu.reset = to_fiu.reset;
+        begin : wire_reset_n
+            assign to_afu.reset_n = to_fiu.reset_n;
         end
 
 

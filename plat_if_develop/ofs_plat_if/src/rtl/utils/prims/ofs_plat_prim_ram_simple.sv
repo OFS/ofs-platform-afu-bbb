@@ -193,7 +193,7 @@ module osf_plat_prim_ram_simple_init
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     // Goes high after initialization complete and stays high.
     output logic rdy,
 
@@ -247,7 +247,7 @@ module osf_plat_prim_ram_simple_init
 
     always @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             rdy <= 1'b0;
             waddr_init <= t_addr'(0);

@@ -48,7 +48,7 @@ module ofs_plat_prim_fifo_lutram
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [N_DATA_BITS-1 : 0] enq_data,
     input  logic enq_en,
@@ -75,7 +75,7 @@ module ofs_plat_prim_fifo_lutram
       fifo
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data,
         .enq_en(enq_en && ! enq_bypass_en),
         .notFull,
@@ -126,7 +126,7 @@ module ofs_plat_prim_fifo_lutram
                     first_reg <= fifo_first;
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     first_reg_valid <= 1'b0;
                 end
@@ -148,7 +148,7 @@ module ofs_plat_prim_fifo_lutram_base
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [N_DATA_BITS-1 : 0] enq_data,
     input  logic enq_en,
@@ -174,7 +174,7 @@ module ofs_plat_prim_fifo_lutram_base
       data
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .raddr(first_idx),
         .rdata(first),
@@ -195,7 +195,7 @@ module ofs_plat_prim_fifo_lutram_base
       ctrl
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_idx,
         .enq_en,
         .notFull,
@@ -218,7 +218,7 @@ module ofs_plat_prim_fifo_lutram_ctrl
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     output logic [$clog2(N_ENTRIES)-1 : 0] enq_idx,
     input  logic enq_en,
@@ -243,7 +243,7 @@ module ofs_plat_prim_fifo_lutram_ctrl
     // Write pointer advances on ENQ
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             enq_idx <= 1'b0;
         end
@@ -256,7 +256,7 @@ module ofs_plat_prim_fifo_lutram_ctrl
     // Read pointer advances on DEQ
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             first_idx <= 1'b0;
         end
@@ -270,7 +270,7 @@ module ofs_plat_prim_fifo_lutram_ctrl
     // making debugging easier.
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             error <= 1'b0;
         end
@@ -298,7 +298,7 @@ module ofs_plat_prim_fifo_lutram_ctrl
         almostFull <= (valid_cnt_next >= t_counter'(N_ENTRIES - THRESHOLD)) || error;
         notEmpty <= (valid_cnt_next != t_counter'(0)) && ! error;
 
-        if (reset)
+        if (!reset_n)
         begin
             valid_cnt <= t_counter'(0);
             notEmpty <= 1'b0;

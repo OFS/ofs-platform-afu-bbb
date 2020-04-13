@@ -47,7 +47,7 @@
 module ofs_plat_host_chan_xGROUPx_as_ccip
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -69,7 +69,8 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     import ofs_plat_ccip_if_funcs_pkg::*;
@@ -98,16 +99,17 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
        (
         .to_fiu,
         .host_mem_to_afu(afu_avmm_if),
-        .afu_clk
+        .afu_clk,
+        .afu_reset_n
         );
 
     wire clk;
     assign clk = afu_avmm_if.clk;
     assign to_afu.clk = clk;
 
-    logic reset;
-    assign reset = afu_avmm_if.reset;
-    assign to_afu.reset = reset;
+    logic reset_n;
+    assign reset_n = afu_avmm_if.reset_n;
+    assign to_afu.reset_n = reset_n;
 
 
     //
@@ -131,7 +133,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
       fifo_c0_in
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data(to_afu.sTx.c0),
         .enq_en(to_afu.sTx.c0.valid),
         .notFull(),
@@ -166,7 +168,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
       fifo_c0_track
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data({ afu_c0Tx.hdr.cl_len, afu_c0Tx.hdr.mdata }),
         .enq_en(afu_c0Tx_deq_en),
         .notFull(afu_c0Tx_tracker_notFull),
@@ -208,7 +210,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
             afu_c0Rx_cl_num <= afu_c0Rx_cl_num + t_ccip_clNum'(1);
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             to_afu.sRx.c0.rspValid <= 1'b0;
             afu_c0Rx_cl_num <= t_ccip_clNum'(0);
@@ -240,7 +242,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
       fifo_c1_in
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data({ to_afu.sTx.c1.hdr.byte_start + to_afu.sTx.c1.hdr.byte_len,
                     to_afu.sTx.c1 }),
         .enq_en(to_afu.sTx.c1.valid),
@@ -301,7 +303,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
       fifo_c1_track
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data({ afu_c1Tx.hdr.req_type == eREQ_WRFENCE,
                     t_ccip_clNum'(afu_c1Tx.hdr.cl_len),
                     afu_c1Tx.hdr.mdata }),
@@ -326,7 +328,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         to_afu.sRx.c1.hdr.resp_type <= afu_c1Rx_isFence ? eRSP_WRFENCE : eRSP_WRLINE;
         to_afu.sRx.c1.hdr.mdata <= afu_c1Rx_mdata;
 
-        if (reset)
+        if (!reset_n)
         begin
             to_afu.sRx.c1.rspValid <= 1'b0;
         end
@@ -340,7 +342,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     // synthesis translate_off
     always_ff @(posedge clk)
     begin
-        if (! reset && to_afu.sTx.c2.mmioRdValid)
+        if (reset_n && to_afu.sTx.c2.mmioRdValid)
             $fatal(2, "** ERROR ** %m: MMIO read not supported in native AVMM host channels!");
     end
     // synthesis translate_on

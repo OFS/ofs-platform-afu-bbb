@@ -30,7 +30,7 @@
 
 //
 // A simple clock crossing register that can be used only with values that
-// change very slowly relative to both clocks. Signals such as reset or
+// change very slowly relative to both clocks. Signals such as reset_n or
 // a power event can be passed here and timing constraints will be generated
 // automatically.
 //
@@ -73,6 +73,9 @@ endmodule // ofs_plat_prim_clock_crossing_reg
 // for standard reset.
 //
 module ofs_plat_prim_clock_crossing_reset
+  #(
+    parameter ACTIVE_LOW = 1
+    )
    (
     input  logic clk_src,
     input  logic clk_dst,
@@ -84,7 +87,7 @@ module ofs_plat_prim_clock_crossing_reset
     ofs_plat_prim_clock_crossing_reg
       #(
         .WIDTH(1),
-        .INITIAL_VALUE(1'b1)
+        .INITIAL_VALUE(ACTIVE_LOW ? 1'b0 : 1'b1)
         )
       cc
        (
@@ -104,6 +107,9 @@ endmodule // ofs_plat_prim_clock_crossing_reset
 // resets on clock crossing FIFOs.
 //
 module ofs_plat_prim_clock_crossing_reset_async
+  #(
+    parameter ACTIVE_LOW = 1
+    )
    (
     input  logic clk,
 
@@ -111,7 +117,7 @@ module ofs_plat_prim_clock_crossing_reset_async
     output logic reset_out
     );
 
-    (* preserve *) logic ofs_plat_cc_reg_async = 1'b1;
+    (* preserve *) logic ofs_plat_cc_reg_async = (ACTIVE_LOW ? 1'b0 : 1'b1);
 
     always @(posedge clk)
     begin
