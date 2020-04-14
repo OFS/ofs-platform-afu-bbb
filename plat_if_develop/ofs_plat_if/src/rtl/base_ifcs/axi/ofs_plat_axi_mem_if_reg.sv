@@ -84,7 +84,7 @@ module ofs_plat_axi_mem_if_reg
                   aw
                    (
                     .clk(mem_slave.clk),
-                    .reset(!mem_slave.reset_n),
+                    .reset_n(mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s].awvalid),
                     .data_from_src(mem_pipe[s].aw),
@@ -102,7 +102,7 @@ module ofs_plat_axi_mem_if_reg
                   w
                    (
                     .clk(mem_slave.clk),
-                    .reset(!mem_slave.reset_n),
+                    .reset_n(mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s].wvalid),
                     .data_from_src(mem_pipe[s].w),
@@ -120,7 +120,7 @@ module ofs_plat_axi_mem_if_reg
                   b
                    (
                     .clk(mem_slave.clk),
-                    .reset(!mem_slave.reset_n),
+                    .reset_n(mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s-1].bvalid),
                     .data_from_src(mem_pipe[s-1].b),
@@ -138,7 +138,7 @@ module ofs_plat_axi_mem_if_reg
                   ar
                    (
                     .clk(mem_slave.clk),
-                    .reset(!mem_slave.reset_n),
+                    .reset_n(mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s].arvalid),
                     .data_from_src(mem_pipe[s].ar),
@@ -156,7 +156,7 @@ module ofs_plat_axi_mem_if_reg
                   r
                    (
                     .clk(mem_slave.clk),
-                    .reset(!mem_slave.reset_n),
+                    .reset_n(mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s-1].rvalid),
                     .data_from_src(mem_pipe[s-1].r),

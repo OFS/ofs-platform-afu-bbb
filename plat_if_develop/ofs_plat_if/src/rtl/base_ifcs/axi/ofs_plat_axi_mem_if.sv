@@ -216,7 +216,7 @@ interface ofs_plat_axi_mem_if
 
         // Read response data channel
         input  r, rvalid,
-        output rready,  
+        output rready,
 
         // Debugging
         input  instance_number
@@ -246,7 +246,7 @@ interface ofs_plat_axi_mem_if
 
         // Read response data channel
         input  r, rvalid,
-        output rready,  
+        output rready,
 
         // Debugging
         input  instance_number
@@ -279,7 +279,7 @@ interface ofs_plat_axi_mem_if
 
         // Read response data channel
         output r, rvalid,
-        input  rready,  
+        input  rready,
 
         // Debugging
         input  instance_number
@@ -309,7 +309,7 @@ interface ofs_plat_axi_mem_if
 
         // Read response data channel
         output r, rvalid,
-        input  rready,  
+        input  rready,
 
         // Debugging
         input  instance_number

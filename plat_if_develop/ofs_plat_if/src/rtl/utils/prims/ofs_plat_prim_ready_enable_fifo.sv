@@ -42,7 +42,7 @@ module ofs_plat_prim_ready_enable_fifo
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic enable_from_src,
     input  logic [N_DATA_BITS-1 : 0] data_from_src,
@@ -64,7 +64,7 @@ module ofs_plat_prim_ready_enable_fifo
       f
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .enq_data(data_from_src),
         .enq_en(enable_from_src && ready_to_src),

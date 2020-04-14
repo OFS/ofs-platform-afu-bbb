@@ -155,7 +155,7 @@ module ofs_plat_axi_mem_if_reg_simple
                   r
                    (
                     .clk(mem_slave.clk),
-                    .reset(!mem_slave.reset_n),
+                    .reset_n(mem_slave.reset_n),
 
                     .enable_from_src(mem_pipe[s-1].bvalid),
                     .data_from_src(mem_pipe[s-1].b),

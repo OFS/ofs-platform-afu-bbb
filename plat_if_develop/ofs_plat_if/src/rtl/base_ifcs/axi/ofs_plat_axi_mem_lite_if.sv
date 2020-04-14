@@ -165,7 +165,7 @@ interface ofs_plat_axi_mem_lite_if
 
     t_axi_mem_lite_r r;
     logic rvalid;
-    logic rready;  
+    logic rready;
 
     // Debugging state.  This will typically be driven to a constant by the
     // code that instantiates the interface object.
@@ -197,7 +197,7 @@ interface ofs_plat_axi_mem_lite_if
 
         // Read response data channel
         input  r, rvalid,
-        output rready,  
+        output rready,
 
         // Debugging
         input  instance_number
@@ -227,7 +227,7 @@ interface ofs_plat_axi_mem_lite_if
 
         // Read response data channel
         input  r, rvalid,
-        output rready,  
+        output rready,
 
         // Debugging
         input  instance_number
@@ -260,7 +260,7 @@ interface ofs_plat_axi_mem_lite_if
 
         // Read response data channel
         output r, rvalid,
-        input  rready,  
+        input  rready,
 
         // Debugging
         input  instance_number
@@ -290,7 +290,7 @@ interface ofs_plat_axi_mem_lite_if
 
         // Read response data channel
         output r, rvalid,
-        input  rready,  
+        input  rready,
 
         // Debugging
         input  instance_number

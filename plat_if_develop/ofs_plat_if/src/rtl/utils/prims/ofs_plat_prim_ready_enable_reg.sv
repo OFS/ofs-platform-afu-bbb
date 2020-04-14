@@ -41,7 +41,7 @@ module ofs_plat_prim_ready_enable_reg
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic enable_from_src,
     input  logic [N_DATA_BITS-1 : 0] data_from_src,
@@ -64,7 +64,7 @@ module ofs_plat_prim_ready_enable_reg
             data_to_dst <= data_from_src;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             enable_to_dst <= 1'b0;
         end
