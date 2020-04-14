@@ -38,7 +38,7 @@ module ofs_plat_prim_arb_rr
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic ena,
     input  logic [NUM_CLIENTS-1: 0] request,
@@ -81,7 +81,7 @@ module ofs_plat_prim_arb_rr
     // Record winner for next cycle's priority
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             base <= t_vec'(1);
         end

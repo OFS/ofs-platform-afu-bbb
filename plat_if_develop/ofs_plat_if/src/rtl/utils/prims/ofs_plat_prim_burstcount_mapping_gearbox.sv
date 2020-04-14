@@ -45,7 +45,7 @@ module ofs_plat_prim_burstcount_mapping_gearbox
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic m_new_req,
     input  logic [ADDR_WIDTH-1 : 0] m_addr,
@@ -154,7 +154,7 @@ module ofs_plat_prim_burstcount_mapping_gearbox
             s_addr <= s_addr + t_addr'(s_burstcount);
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             burstcount <= t_master_burst_cnt'(0);
             burstcount_masked <= t_master_burst_cnt'(0);

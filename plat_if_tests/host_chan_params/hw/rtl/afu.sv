@@ -161,7 +161,7 @@ module afu
       csr_mgr
        (
         .clk(mmio64_if.clk),
-        .reset(mmio64_if.reset),
+        .reset_n(mmio64_if.reset_n),
         .pClk,
 
         .wr_write(mmio64_if.write),

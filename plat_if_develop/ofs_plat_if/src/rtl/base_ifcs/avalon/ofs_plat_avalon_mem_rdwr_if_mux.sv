@@ -53,10 +53,10 @@ module ofs_plat_avalon_mem_rdwr_if_mux
     wire clk;
     assign clk = mem_slave.clk;
 
-    logic reset = 1'b1;
+    logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset <= mem_slave.reset;
+        reset_n <= mem_slave.reset_n;
     end
 
     // Avalon returns responses in order. The MUX will use FIFOs to route
@@ -101,14 +101,14 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                 );
 
             assign shared_if.clk = mem_slave.clk;
-            assign shared_if.reset = mem_slave.reset;
+            assign shared_if.reset_n = mem_slave.reset_n;
             assign shared_if.instance_number = mem_slave.instance_number;
 
-            // Fan out clock and reset to the master ports
+            // Fan out clock and reset_n to the master ports
             for (p = 0; p < NUM_MASTER_PORTS; p = p + 1)
             begin : ctrl
                 assign mem_master[p].clk = mem_slave.clk;
-                assign mem_master[p].reset = mem_slave.reset;
+                assign mem_master[p].reset_n = mem_slave.reset_n;
                 assign mem_master[p].instance_number = mem_slave.instance_number + p;
             end
 
@@ -152,7 +152,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                   rd_req_in
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .enq_data(rd_master_req),
                     .enq_en(mem_master[p].rd_read && rd_req_in_notFull),
                     .notFull(rd_req_in_notFull),
@@ -176,7 +176,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
               rd_arb
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .ena(! shared_if.rd_waitrequest && rd_tracker_notFull),
                 .request(rd_req_notEmpty),
                 .grant(rd_req_deq_en),
@@ -207,7 +207,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
               fifo_rd_track
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .enq_data({ shared_if.rd_burstcount, rd_grantIdx }),
                 .enq_en(shared_if.rd_read),
                 .notFull(rd_tracker_notFull),
@@ -238,7 +238,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
 
             always_ff @(posedge clk)
             begin
-                if (reset || rd_tracker_deq_en)
+                if (!reset_n || rd_tracker_deq_en)
                 begin
                     rd_track_flit_num <= t_burstcount'(1);
                 end
@@ -278,7 +278,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                   wr_req_in
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .enq_data({ mem_master[p].wr_writedata, wr_master_req }),
                     .enq_en(mem_master[p].wr_write && wr_req_in_notFull),
                     .notFull(wr_req_in_notFull),
@@ -305,7 +305,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
               wr_arb
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .ena(! shared_if.wr_waitrequest && wr_tracker_notFull && wr_sop),
                 .request(wr_req_notEmpty),
                 .grant(wr_grant_onehot/*wr_req_deq_en*/),
@@ -320,7 +320,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
               sop
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .flit_valid(shared_if.wr_write && ! shared_if.wr_waitrequest),
                 .burstcount(shared_if.wr_burstcount),
                 .sop(wr_sop),
@@ -376,7 +376,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
               fifo_wr_track
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .enq_data(wr_grantIdx),
                 .enq_en(wr_sop && (|(wr_grant_onehot))),
                 .notFull(wr_tracker_notFull),

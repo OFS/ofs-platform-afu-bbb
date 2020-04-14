@@ -154,6 +154,20 @@ module platform_shim_ccip_std_afu_hssi
         uClk_usrDiv2 = plat_ifc.clocks.uClk_usrDiv2;
     end
 
+    // Default reset associated with AFU clock
+    logic afu_reset_n;
+`ifdef PLATFORM_PARAM_CCI_P_CLOCK_IS_DEFAULT
+    assign afu_reset_n = plat_ifc.clocks.pClk_reset_n;
+`else
+    ofs_plat_prim_clock_crossing_reset afu_reset_gen
+       (
+        .clk_src(plat_ifc.clocks.pClk),
+        .clk_dst(`PLATFORM_PARAM_CCI_P_CLOCK),
+        .reset_in(plat_ifc.clocks.pClk_reset_n),
+        .reset_out(afu_reset_n)
+        );
+`endif
+
     // Use the platform-provided module to map the primary host interface
     // to CCI-P. The "primary" interface is the port that includes the
     // main OPAE-managed MMIO connection.
@@ -177,10 +191,12 @@ module platform_shim_ccip_std_afu_hssi
 
 `ifdef PLATFORM_PARAM_CCI_P_CLOCK_IS_DEFAULT
          // Default clock
-        .afu_clk(1'b0)
+        .afu_clk(1'b0),
+        .afu_reset_n
 `else
          // Updated CCI-P clock requested
-        .afu_clk(`PLATFORM_PARAM_CCI_P_CLOCK)
+        .afu_clk(`PLATFORM_PARAM_CCI_P_CLOCK),
+        .afu_reset_n
 `endif
         );
 
@@ -242,6 +258,19 @@ module platform_shim_ccip_std_afu_hssi
     generate
         for (b = 0; b < NUM_LOCAL_MEM_BANKS; b = b + 1)
         begin : mb
+
+            // Generate local memory reset in target clock domain if necessary
+`ifdef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK
+            logic local_mem_reset_n;
+            ofs_plat_prim_clock_crossing_reset local_mem_reset_gen
+               (
+                .clk_src(plat_ifc.local_mem.banks[b].clk),
+                .clk_dst(`PLATFORM_PARAM_LOCAL_MEMORY_CLOCK),
+                .reset_in(plat_ifc.local_mem.banks[b].reset_n),
+                .reset_out(local_mem_reset_n)
+                );
+`endif
+
             ofs_plat_local_mem_as_avalon_mem
               #(
 `ifndef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK_IS_DEFAULT
@@ -257,10 +286,12 @@ module platform_shim_ccip_std_afu_hssi
                (
 `ifdef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK_IS_DEFAULT
                 // Not used -- local memory clocks unchanged
-                .tgt_mem_afu_clk(1'b0),
+                .afu_clk(1'b0),
+                .afu_reset_n()
 `else
                 // Updated target for local memory clock
-                .tgt_mem_afu_clk(`PLATFORM_PARAM_LOCAL_MEMORY_CLOCK),
+                .afu_clk(`PLATFORM_PARAM_LOCAL_MEMORY_CLOCK),
+                .afu_reset_n(local_mem_reset_n),
 `endif
                 .to_fiu(plat_ifc.local_mem.banks[b]),
                 .to_afu(local_mem_to_afu[b])
@@ -272,7 +303,8 @@ module platform_shim_ccip_std_afu_hssi
                 local_mem[b].clk = plat_ifc.local_mem.banks[b].clk;
 
                 local_mem_clk[b] = local_mem_to_afu[b].clk;
-                local_mem_reset[b] = local_mem_to_afu[b].reset;
+                // Compatibility uses active high reset
+                local_mem_reset[b] = !local_mem_to_afu[b].reset_n;
                 local_mem_compat[b].bank_number = b;
 
                 local_mem_compat[b].waitrequest = local_mem_to_afu[b].waitrequest;
@@ -326,7 +358,8 @@ module platform_shim_ccip_std_afu_hssi
     logic afu_softReset_q = 1'b1;
     always @(posedge ccip_to_afu.clk)
     begin
-        afu_softReset_q <= ccip_to_afu.reset;
+        // Compatibility uses active high reset
+        afu_softReset_q <= !ccip_to_afu.reset_n;
     end
 
     `AFU_TOP_MODULE_NAME

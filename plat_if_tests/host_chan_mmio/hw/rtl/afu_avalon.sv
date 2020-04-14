@@ -70,8 +70,8 @@ module afu
 
     logic clk;
     assign clk = mmio64_if.clk;
-    logic reset;
-    assign reset = mmio64_if.reset;
+    logic reset_n;
+    assign reset_n = mmio64_if.reset_n;
 
     logic [127:0] afu_id = `AFU_ACCEL_UUID;
 
@@ -93,7 +93,7 @@ module afu
     begin
         waitrequest_vec <= { waitrequest_vec[14:0], waitrequest_vec[15] };
 
-        if (reset)
+        if (!reset_n)
         begin
             waitrequest_vec <= { ~15'b0, 1'b0 };
         end
@@ -131,7 +131,7 @@ module afu
             wr_addr_64 <= mmio64_if.address;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             wr_data_512 <= ~'0;
             wr_mask_512 <= ~'0;
@@ -160,7 +160,7 @@ module afu
         read_req_q <= mmio64_if.read && ! mmio64_if.waitrequest;
         read_idx_q <= t_csr_idx'(mmio64_if.address);
 
-        if (reset)
+        if (!reset_n)
         begin
             read_req_q <= 1'b0;
         end

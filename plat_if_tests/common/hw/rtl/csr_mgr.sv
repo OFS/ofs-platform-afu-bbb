@@ -87,7 +87,7 @@ module csr_mgr
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     // Passing in pClk allows us to compute the frequency of clk given a
     // known pClk frequency.
     input  logic pClk,
@@ -162,7 +162,7 @@ module csr_mgr
             read_idx_q <= t_csr_idx'(rd_address);
             read_tid_q <= rd_tid_in;
 
-            if (reset)
+            if (!reset_n)
             begin
                 read_req_q <= 1'b0;
             end
@@ -382,7 +382,7 @@ module csr_mgr
                     $display("%t: Stopping engine %0d", $time, e);
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     state_reset[e] <= 1'b0;
                     state_run[e] <= 1'b0;
@@ -391,7 +391,7 @@ module csr_mgr
         end
     endgenerate
 
-    logic cycle_counter_reset;
+    logic cycle_counter_reset_n;
     logic cycle_counter_enable;
     assign cycle_counter_enable = some_engine_is_active;
     logic [3:0] eng_reset_hold_cnt;
@@ -409,7 +409,7 @@ module csr_mgr
                     // If no engines are running yet then reset the cycle counters
                     if (! some_engine_is_enabled)
                     begin
-                        cycle_counter_reset <= 1'b1;
+                        cycle_counter_reset_n <= 1'b0;
                     end
                 end
             end
@@ -420,7 +420,7 @@ module csr_mgr
                 if (eng_reset_hold_cnt == 4'b0)
                 begin
                     state <= STATE_ENG_START;
-                    cycle_counter_reset <= 1'b0;
+                    cycle_counter_reset_n <= 1'b1;
                 end
             end
           STATE_ENG_START:
@@ -429,10 +429,10 @@ module csr_mgr
             end
         endcase // case (state)
             
-        if (reset)
+        if (!reset_n)
         begin
             state <= STATE_READY;
-            cycle_counter_reset <= 1'b1;
+            cycle_counter_reset_n <= 1'b0;
         end
     end
 
@@ -445,7 +445,7 @@ module csr_mgr
        (
         .clk,
         .count_clk(pClk),
-        .sync_reset(cycle_counter_reset),
+        .sync_reset_n(cycle_counter_reset_n),
         .enable(cycle_counter_enable),
         .count(num_pClk_cycles)
         );
@@ -455,7 +455,7 @@ module csr_mgr
        (
         .clk,
         .count_clk(clk),
-        .sync_reset(cycle_counter_reset),
+        .sync_reset_n(cycle_counter_reset_n),
         .enable(cycle_counter_enable),
         .count(num_clk_cycles)
         );

@@ -67,8 +67,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
     logic clk;
     assign clk = mem_slave.clk;
-    logic reset;
-    assign reset = mem_slave.reset;
+    logic reset_n;
+    assign reset_n = mem_slave.reset_n;
 
     localparam ADDR_WIDTH = mem_master.ADDR_WIDTH_;
     localparam DATA_WIDTH = mem_master.DATA_WIDTH_;
@@ -118,7 +118,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                rd_gearbox
                 (
                  .clk,
-                 .reset,
+                 .reset_n,
 
                  .m_new_req(rd_next),
                  .m_addr(mem_master.rd_address),
@@ -142,7 +142,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.rd_function <= mem_master.rd_function;
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     mem_slave.rd_read <= 1'b0;
                 end
@@ -176,7 +176,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                wr_gearbox
                 (
                  .clk,
-                 .reset,
+                 .reset_n,
 
                  .m_new_req(mem_master.wr_write && ! mem_slave.wr_waitrequest && m_wr_sop),
                  .m_addr(mem_master.wr_address),
@@ -207,7 +207,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.wr_function <= mem_master.wr_function;
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     mem_slave.wr_write <= 1'b0;
                 end
@@ -226,7 +226,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
               m_sop_tracker
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .flit_valid(mem_master.wr_write && ! mem_master.wr_waitrequest),
                 .burstcount(mem_master.wr_burstcount),
                 .sop(m_wr_sop),
@@ -240,7 +240,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
               s_sop_tracker
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .flit_valid(mem_slave.wr_write && ! mem_slave.wr_waitrequest),
                 .burstcount(mem_slave.wr_burstcount),
                 .sop(s_wr_sop),
@@ -278,7 +278,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     m_num_write_responses <= m_num_write_responses + 1;
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     m_num_writes <= 0;
                     m_num_write_responses <= 0;

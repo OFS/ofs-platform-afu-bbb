@@ -44,7 +44,7 @@ module ofs_plat_prim_lutram
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [$clog2(N_ENTRIES)-1 : 0] raddr,
     output logic [N_DATA_BITS-1 : 0] rdata,
@@ -145,7 +145,7 @@ module ofs_plat_prim_lutram_init
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     // Goes high after initialization complete and stays high.
     output logic rdy,
 
@@ -171,7 +171,7 @@ module ofs_plat_prim_lutram_init
       ram
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .raddr,
         .rdata,
@@ -200,7 +200,7 @@ module ofs_plat_prim_lutram_init
             rdy <= &(waddr_init);
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             rdy <= 1'b0;
             waddr_init <= 0;
@@ -229,7 +229,7 @@ module ofs_plat_prim_lutram_banked
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [$clog2(N_ENTRIES)-1 : 0] raddr,
     output logic [N_DATA_BITS-1 : 0] T1_rdata,
@@ -284,7 +284,7 @@ module ofs_plat_prim_lutram_banked
             ram
                (
                 .clk,
-                .reset,
+                .reset_n,
 
                 .raddr(b_raddr),
                 .rdata(rdata[p]),
@@ -395,7 +395,7 @@ module ofs_plat_prim_lutram_init_banked
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     output logic rdy,
 
     input  logic [$clog2(N_ENTRIES)-1 : 0] raddr,
@@ -420,7 +420,7 @@ module ofs_plat_prim_lutram_init_banked
       ram
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .raddr,
         .T1_rdata,
@@ -449,7 +449,7 @@ module ofs_plat_prim_lutram_init_banked
             rdy <= &(waddr_init);
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             rdy <= 1'b0;
             waddr_init <= 0;
@@ -474,7 +474,7 @@ module ofs_plat_prim_lutram_multiread
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     input  logic [$clog2(N_ENTRIES)-1 : 0] raddr[0 : N_READERS-1],
     output logic [N_DATA_BITS-1 : 0] rdata[0 : N_READERS-1],
@@ -495,7 +495,7 @@ module ofs_plat_prim_lutram_multiread
               b
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .raddr(raddr[p]),
                 .rdata(rdata[p]),
                 .waddr,
@@ -521,7 +521,7 @@ module ofs_plat_prim_lutram_multiread_init
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     // Goes high after initialization complete and stays high.
     output logic rdy,
 
@@ -547,7 +547,7 @@ module ofs_plat_prim_lutram_multiread_init
       ram
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .raddr,
         .rdata,
@@ -570,7 +570,7 @@ module ofs_plat_prim_lutram_multiread_init
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             rdy <= 1'b0;
             waddr_init <= 0;

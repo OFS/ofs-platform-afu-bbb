@@ -68,13 +68,13 @@ module ofs_plat_shim_ccip_rob_wr
     assign to_afu.clk = to_fiu.clk;
 
     assign to_afu.error = to_fiu.error;
-    assign to_afu.reset = to_fiu.reset;
+    assign to_afu.reset_n = to_fiu.reset_n;
     assign to_afu.instance_number = to_fiu.instance_number;
 
-    logic reset = 1'b1;
+    logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset <= to_fiu.reset;
+        reset_n <= to_fiu.reset_n;
     end
 
     // Index of a request
@@ -156,7 +156,7 @@ module ofs_plat_shim_ccip_rob_wr
       wr_rob
        (
         .clk,
-        .reset,
+        .reset_n,
 
         .alloc(do_alloc),
         .allocMeta(to_afu.sTx.c1.hdr.mdata),
@@ -178,7 +178,7 @@ module ofs_plat_shim_ccip_rob_wr
     logic wr_rob_deq_en_q;
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             wr_rob_deq_en_q <= 1'b0;
             wr_rob_rsp_rdy <= 1'b0;
@@ -215,7 +215,7 @@ module ofs_plat_shim_ccip_rob_wr
             wr_rob_allocIdx_prev <= wr_rob_allocIdx;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             wr_rob_allocIdx_prev <= 0;
         end

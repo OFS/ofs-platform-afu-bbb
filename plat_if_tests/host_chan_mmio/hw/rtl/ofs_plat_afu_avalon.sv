@@ -84,7 +84,8 @@ module ofs_plat_afu
         .mmio_wr_to_afu(mmio512_wr_to_afu),
 
         // Use default clock
-        .afu_clk()
+        .afu_clk(),
+        .afu_reset_n()
         );
 
 

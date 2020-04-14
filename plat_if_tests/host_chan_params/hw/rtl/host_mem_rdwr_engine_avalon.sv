@@ -98,8 +98,8 @@ module host_mem_rdwr_engine_avalon
 
     logic clk;
     assign clk = host_mem_if.clk;
-    logic reset;
-    assign reset = host_mem_if.reset;
+    logic reset_n;
+    assign reset_n = host_mem_if.reset_n;
 
     typedef logic [host_mem_if.BURST_CNT_WIDTH-1 : 0] t_burst_cnt;
 
@@ -203,7 +203,7 @@ module host_mem_rdwr_engine_avalon
         state_reset <= csrs.state_reset;
         state_run <= csrs.state_run;
 
-        if (reset)
+        if (!reset_n)
         begin
             state_reset <= 1'b0;
             state_run <= 1'b0;
@@ -241,7 +241,7 @@ module host_mem_rdwr_engine_avalon
             rd_unlimited <= ~(|(rd_num_burst_reqs));
         end
 
-        if (reset || state_reset)
+        if (!reset_n || state_reset)
         begin
             rd_done <= 1'b0 || (rd_base_addr == t_addr'(0));
         end
@@ -257,7 +257,7 @@ module host_mem_rdwr_engine_avalon
     hash32 hash_read_resps
        (
         .clk,
-        .reset(state_reset),
+        .reset_n(!state_reset),
         .en(hash32_en),
         .new_data(hash32_new_data),
         .value(hash32_value)
@@ -344,7 +344,7 @@ module host_mem_rdwr_engine_avalon
             wr_unlimited <= ~(|(wr_num_burst_reqs));
         end
 
-        if (reset || state_reset)
+        if (!reset_n || state_reset)
         begin
             wr_done <= (wr_base_addr == t_addr'(0));
             wr_fence_done <= (wr_base_addr == t_addr'(0)) || (WRITE_FENCE_SUPPORTED == 0);
@@ -402,7 +402,7 @@ module host_mem_rdwr_engine_avalon
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_req)),
         .value(rd_bursts_req)
         );
@@ -410,7 +410,7 @@ module host_mem_rdwr_engine_avalon
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req_lines
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_req_lines)),
         .value(rd_lines_req)
         );
@@ -418,7 +418,7 @@ module host_mem_rdwr_engine_avalon
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_resp
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_resp)),
         .value(rd_lines_resp)
         );
@@ -426,7 +426,7 @@ module host_mem_rdwr_engine_avalon
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_req
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_req)),
         .value(wr_bursts_req)
         );
@@ -434,7 +434,7 @@ module host_mem_rdwr_engine_avalon
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_req_lines
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_req_lines)),
         .value(wr_lines_req)
         );
@@ -442,7 +442,7 @@ module host_mem_rdwr_engine_avalon
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_resp
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_resp)),
         .value(wr_bursts_resp)
         );

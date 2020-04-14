@@ -49,7 +49,7 @@
 module ofs_plat_map_ccip_as_avalon_mmio
   #(
     // When non-zero, add a clock crossing to move the Avalon
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
@@ -61,9 +61,9 @@ module ofs_plat_map_ccip_as_avalon_mmio
     // Generated Avalon master for connecting to AFU MMIO slave
     ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
 
-    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    // Used for AFU clock/reset_n when ADD_CLOCK_CROSSING is nonzero
     input  logic afu_clk,
-    input  logic afu_reset
+    input  logic afu_reset_n
     );
 
     ofs_plat_map_ccip_as_avalon_mmio_impl
@@ -74,13 +74,13 @@ module ofs_plat_map_ccip_as_avalon_mmio
       ofs_av_mmio_impl
        (
         .clk(to_fiu.clk),
-        .reset(to_fiu.reset),
+        .reset_n(to_fiu.reset_n),
         .instance_number(to_fiu.instance_number),
         .sRx(to_fiu.sRx),
         .c2Tx(to_fiu.sTx.c2),
         .mmio_to_afu,
         .afu_clk,
-        .afu_reset
+        .afu_reset_n
         );
 
     assign to_fiu.sTx.c0 = t_if_ccip_c0_Tx'(0);
@@ -98,7 +98,7 @@ endmodule // ofs_plat_map_ccip_as_avalon_mmio
 module ofs_plat_map_ccip_as_avalon_mmio_wo
   #(
     // When non-zero, add a clock crossing to move the AValon
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     parameter MAX_OUTSTANDING_MMIO_RD_REQS = 64
@@ -110,9 +110,9 @@ module ofs_plat_map_ccip_as_avalon_mmio_wo
     // Generated Avalon master for connecting to AFU MMIO slave
     ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
 
-    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    // Used for AFU clock/reset_n when ADD_CLOCK_CROSSING is nonzero
     input  logic afu_clk,
-    input  logic afu_reset
+    input  logic afu_reset_n
     );
 
     ofs_plat_map_ccip_as_avalon_mmio_impl
@@ -124,13 +124,13 @@ module ofs_plat_map_ccip_as_avalon_mmio_wo
       ofs_av_mmio_impl
        (
         .clk(to_fiu.clk),
-        .reset(to_fiu.reset),
+        .reset_n(to_fiu.reset_n),
         .instance_number(to_fiu.instance_number),
         .sRx(to_fiu.sRx),
         .c2Tx(),
         .mmio_to_afu,
         .afu_clk,
-        .afu_reset
+        .afu_reset_n
         );
 
 endmodule // ofs_plat_map_ccip_as_avalon_mmio_wo
@@ -147,16 +147,16 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
     input  int unsigned instance_number,
     input  t_if_ccip_Rx sRx,
     output t_if_ccip_c2_Tx c2Tx,
 
     ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
 
-    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    // Used for AFU clock/reset_n when ADD_CLOCK_CROSSING is nonzero
     input  logic afu_clk,
-    input  logic afu_reset
+    input  logic afu_reset_n
     );
 
     logic fclk;
@@ -175,20 +175,30 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     end
     // synthesis translate_on
 
-    // "reset" is already synchronous in "fclk", but Quartus sometimes has trouble
+    // "reset_n" is already synchronous in "fclk", but Quartus sometimes has trouble
     // figuring this out.
-    logic reset_fclk;
+    logic reset_n_fclk;
     ofs_plat_prim_clock_crossing_reset_async
       reset_cc
        (
         .clk(fclk),
-        .reset_in(reset),
-        .reset_out(reset_fclk)
+        .reset_in(reset_n),
+        .reset_out(reset_n_fclk)
         );
 
     assign mmio_to_afu.clk = (ADD_CLOCK_CROSSING == 0) ? fclk : afu_clk;
-    assign mmio_to_afu.reset = (ADD_CLOCK_CROSSING == 0) ? reset : afu_reset;
+    assign mmio_to_afu.reset_n = (ADD_CLOCK_CROSSING == 0) ? reset_n : afu_reset_n;
     assign mmio_to_afu.instance_number = instance_number;
+
+    // synthesis translate_off
+    always_ff @(negedge mmio_to_afu.clk)
+    begin
+        if (mmio_to_afu.reset_n === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: mmio_to_afu.reset_n port is uninitialized!");
+        end
+    end
+    // synthesis translate_on
 
     // Index of the minimum addressable size (32 bit DWORD)
     localparam DWORD_IDX_BITS = $clog2(DATA_WIDTH / 32);
@@ -257,7 +267,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
         )
       req_in_fifo
        (
-        .reset(reset_fclk),
+        .reset_n(reset_n_fclk),
         .wr_clk(fclk),
         .enq_data({ sRx.c0.mmioWrValid, mmio_in_wr_data_fclk, mmio_in_hdr_fclk }),
         .enq_en(req_in_fifo_enq_en_fclk),
@@ -295,7 +305,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
               tid_in_fifo
                (
                 .clk(fclk),
-                .reset,
+                .reset_n,
                 .enq_data({ t_dword_idx'(mmio_in_hdr_fclk.address), mmio_in_hdr_fclk.tid }),
                 .enq_en(sRx.c0.mmioRdValid && ! error_fclk),
                 .notFull(tid_in_fifo_notFull_fclk),
@@ -321,7 +331,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
             error_fclk <= 1'b1;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             error_fclk <= !DATA_WIDTH_LEGAL;
         end
@@ -390,7 +400,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
             c2Tx.data[31:0] <= mmio_readdata_fclk[63:32];
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             c2Tx.mmioRdValid <= 1'b0;
         end
@@ -416,7 +426,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
                 )
             rsp_out_fifo
               (
-               .reset(reset_fclk),
+               .reset_n(reset_n_fclk),
                .wr_clk(mmio_to_afu.clk),
                .enq_data(mmio_to_afu.readdata),
                .enq_en(mmio_to_afu.readdatavalid),

@@ -48,7 +48,7 @@ module ofs_plat_avalon_mem_if_connect
 endmodule // ofs_plat_avalon_mem_if_connect
 
 
-// Same as standard connection, but pass clk and reset from slave to master
+// Same as standard connection, but pass clk and reset_n from slave to master
 module ofs_plat_avalon_mem_if_connect_slave_clk
    (
     ofs_plat_avalon_mem_if.to_slave mem_slave,
@@ -56,7 +56,7 @@ module ofs_plat_avalon_mem_if_connect_slave_clk
     );
 
     assign mem_master.clk = mem_slave.clk;
-    assign mem_master.reset = mem_slave.reset;
+    assign mem_master.reset_n = mem_slave.reset_n;
 
     // Debugging signal
     assign mem_master.instance_number = mem_slave.instance_number;
@@ -70,7 +70,7 @@ module ofs_plat_avalon_mem_if_connect_slave_clk
 endmodule // ofs_plat_avalon_mem_if_connect_slave_clk
 
 
-// Same as standard connection, but pass clk and reset from master to slave
+// Same as standard connection, but pass clk and reset_n from master to slave
 module ofs_plat_avalon_mem_if_connect_master_clk
    (
     ofs_plat_avalon_mem_if.to_slave_clk mem_slave,
@@ -78,7 +78,7 @@ module ofs_plat_avalon_mem_if_connect_master_clk
     );
 
     assign mem_slave.clk = mem_master.clk;
-    assign mem_slave.reset = mem_master.reset;
+    assign mem_slave.reset_n = mem_master.reset_n;
 
     // Debugging signal
     assign mem_slave.instance_number = mem_master.instance_number;

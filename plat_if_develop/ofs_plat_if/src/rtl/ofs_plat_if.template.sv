@@ -50,12 +50,13 @@ interface ofs_plat_if
     parameter ENABLE_LOG = 0
     );
 
-    // Required: Platform top-level clocks
-    wire t_ofs_plat_clocks clocks;
+    // Required: platform top-level clocks
+    wire t_ofs_plat_std_clocks clocks;
 
-    // Required: ACTIVE HIGH Soft Reset (clocked by pClk)
-    logic softReset;
-    // Required: AFU Power State (clocked by pClk)
+    // Required: active low soft reset (clocked by pClk). This reset
+    // is identical to clocks.pClk_reset_n.
+    logic softReset_n;
+    // Required: AFU power state (clocked by pClk)
     t_ofs_plat_power_state pwrState;
 
     // Each sub-interface is a wrapper around a single vector of ports or banks.

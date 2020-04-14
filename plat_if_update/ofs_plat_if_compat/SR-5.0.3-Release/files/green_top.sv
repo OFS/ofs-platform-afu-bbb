@@ -55,19 +55,24 @@ module green_top(
   ofs_plat_if plat_ifc();
 
   // Clocks
-  assign plat_ifc.clocks.pClk = pClk;
-  assign plat_ifc.clocks.pClkDiv2 = pClkDiv2;
-  assign plat_ifc.clocks.pClkDiv4 = pClkDiv4;
-  assign plat_ifc.clocks.uClk_usr = uClk_usr;
-  assign plat_ifc.clocks.uClk_usrDiv2 = uClk_usrDiv2;
+  ofs_plat_std_clocks_gen_resets_from_active_high clocks
+     (
+      .pClk,
+      .pClk_reset(pck_cp2af_softReset),
+      .pClkDiv2,
+      .pClkDiv4,
+      .uClk_usr,
+      .uClk_usrDiv2,
+      .clocks(plat_ifc.clocks)
+      );
 
   // Reset, etc.
-  assign plat_ifc.softReset = pck_cp2af_softReset;
+  assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
   assign plat_ifc.pwrState = pck_cp2af_pwrState;
 
   // Host CCI-P port
   assign plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
-  assign plat_ifc.host_chan.ports[0].reset = plat_ifc.softReset;
+  assign plat_ifc.host_chan.ports[0].reset_n = plat_ifc.softReset_n;
   assign plat_ifc.host_chan.ports[0].instance_number = 0;
   assign plat_ifc.host_chan.ports[0].error = pck_cp2af_error;
   assign plat_ifc.host_chan.ports[0].sRx = bus_ccip_Rx;

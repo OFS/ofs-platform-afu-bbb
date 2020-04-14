@@ -51,8 +51,8 @@ module ofs_plat_shim_ccip_split_mmio
     assign host_mem.clk = to_fiu.clk;
     assign mmio.clk = to_fiu.clk;
 
-    assign host_mem.reset = to_fiu.reset;
-    assign mmio.reset = to_fiu.reset;
+    assign host_mem.reset_n = to_fiu.reset_n;
+    assign mmio.reset_n = to_fiu.reset_n;
 
     assign host_mem.error = to_fiu.error;
     assign mmio.error = to_fiu.error;

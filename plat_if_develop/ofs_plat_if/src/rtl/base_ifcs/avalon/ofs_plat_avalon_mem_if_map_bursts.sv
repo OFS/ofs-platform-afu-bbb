@@ -67,8 +67,8 @@ module ofs_plat_avalon_mem_if_map_bursts
 
     logic clk;
     assign clk = mem_slave.clk;
-    logic reset;
-    assign reset = mem_slave.reset;
+    logic reset_n;
+    assign reset_n = mem_slave.reset_n;
 
     localparam ADDR_WIDTH = mem_master.ADDR_WIDTH_;
     localparam DATA_WIDTH = mem_master.DATA_WIDTH_;
@@ -132,7 +132,7 @@ module ofs_plat_avalon_mem_if_map_bursts
                gearbox
                 (
                  .clk,
-                 .reset,
+                 .reset_n,
 
                  .m_new_req,
                  .m_addr(mem_master.address),
@@ -156,7 +156,7 @@ module ofs_plat_avalon_mem_if_map_bursts
                     mem_slave.byteenable <= mem_master.byteenable;
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     mem_slave.read <= 1'b0;
                     mem_slave.write <= 1'b0;
@@ -198,7 +198,7 @@ module ofs_plat_avalon_mem_if_map_bursts
               m_sop_tracker
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .flit_valid(mem_master.write && ! mem_master.waitrequest),
                 .burstcount(mem_master.burstcount),
                 .sop(m_wr_sop),
@@ -212,7 +212,7 @@ module ofs_plat_avalon_mem_if_map_bursts
               s_sop_tracker
                (
                 .clk,
-                .reset,
+                .reset_n,
                 .flit_valid(mem_slave.write && ! mem_slave.waitrequest),
                 .burstcount(mem_slave.burstcount),
                 .sop(s_wr_sop),
@@ -247,7 +247,7 @@ module ofs_plat_avalon_mem_if_map_bursts
                     m_num_write_responses <= m_num_write_responses + 1;
                 end
 
-                if (reset)
+                if (!reset_n)
                 begin
                     m_num_writes <= 0;
                     m_num_write_responses <= 0;

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,55 +28,41 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+//
+// Standard clock types
+//
+
+`ifndef __OFS_PLAT_CLOCKS_VH__
+`define __OFS_PLAT_CLOCKS_VH__
 
 //
-// Track requests on a channel with flits broken down into packets. (E.g. an
-// Avalon write channel.) Detect SOP and EOP by tracking burst (packet) lengths.
+// Clocks provided to the AFU. All conforming platforms provide at least
+// 5 primary clocks: pClk, pClkDiv2, pClkDiv4, uClk_usr and uClk_usrDiv2.
+// Divided clocks are all aligned to their primary clocks.
 //
-module ofs_plat_prim_burstcount_sop_tracker
-  #(
-    parameter BURST_CNT_WIDTH = 0
-    )
-   (
-    input  logic clk,
-    input  logic reset_n,
+// Each clock has an associated reset that is synchronous in the clock's
+// domain. While an AFU could generate these resets, the platform provides
+// them so that FIM designers can choose whether to bind particular resets
+// to global wires or whether to provide resets on local logic. Resets
+// are active low.
+//
+typedef struct packed
+{
+    logic pClk;
+    logic pClk_reset_n;
 
-    // Process a flit (update counters)
-    input  logic flit_valid,
-    // Consumed only at SOP -- the length of the next burst
-    input  logic [BURST_CNT_WIDTH-1 : 0] burstcount,
+    logic pClkDiv2;
+    logic pClkDiv2_reset_n;
 
-    output logic sop,
-    output logic eop
-    );
+    logic pClkDiv4;
+    logic pClkDiv4_reset_n;
 
-    typedef logic [BURST_CNT_WIDTH-1:0] t_burstcount;
-    t_burstcount flits_rem;
+    logic uClk_usr;
+    logic uClk_usr_reset_n;
 
-    always_ff @(posedge clk)
-    begin
-        if (flit_valid)
-        begin
-            if (sop)
-            begin
-                flits_rem <= burstcount - t_burstcount'(1);
-                sop <= (burstcount == t_burstcount'(1));
-            end
-            else
-            begin
-                flits_rem <= flits_rem - t_burstcount'(1);
-                sop <= (flits_rem == t_burstcount'(1));
-            end
-        end
+    logic uClk_usrDiv2;
+    logic uClk_usrDiv2_reset_n;
+}
+t_ofs_plat_std_clocks;
 
-        if (!reset_n)
-        begin
-            flits_rem <= t_burstcount'(0);
-            sop <= 1'b1;
-        end
-    end
-
-    assign eop = (sop && (burstcount == t_burstcount'(1))) ||
-                 (!sop && (flits_rem == t_burstcount'(1)));
-
-endmodule // ofs_plat_prim_burstcount_sop_tracker
+`endif // __OFS_PLAT_CLOCKS_VH__

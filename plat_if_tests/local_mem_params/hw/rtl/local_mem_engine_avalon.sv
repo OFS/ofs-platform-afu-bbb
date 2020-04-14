@@ -88,10 +88,10 @@ module local_mem_engine
     logic clk;
     assign clk = local_mem_if.clk;
 
-    logic reset = 1'b1;
+    logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset <= local_mem_if.reset;
+        reset_n <= local_mem_if.reset_n;
     end
 
     typedef logic [local_mem_if.BURST_CNT_WIDTH-1 : 0] t_burst_cnt;
@@ -147,7 +147,7 @@ module local_mem_engine
             endcase // case (csrs.wr_idx)
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             rd_enabled <= 1'b0;
             wr_enabled <= 1'b0;
@@ -204,7 +204,7 @@ module local_mem_engine
         state_reset <= csrs.state_reset;
         state_run <= csrs.state_run;
 
-        if (reset)
+        if (!reset_n)
         begin
             state_reset <= 1'b0;
             state_run <= 1'b0;
@@ -233,7 +233,7 @@ module local_mem_engine
             rd_unlimited <= ~(|(rd_num_burst_reqs));
         end
 
-        if (reset || state_reset)
+        if (!reset_n || state_reset)
         begin
             rd_done <= ! rd_enabled;
         end
@@ -247,7 +247,7 @@ module local_mem_engine
       rd_chk
        (
         .clk,
-        .reset(state_reset),
+        .reset_n(!state_reset),
         .new_data_en(local_mem_if.readdatavalid),
         .new_data(local_mem_if.readdata),
         .hash(rd_data_hash)
@@ -298,7 +298,7 @@ module local_mem_engine
             wr_unlimited <= ~(|(wr_num_burst_reqs));
         end
 
-        if (reset || state_reset)
+        if (!reset_n || state_reset)
         begin
             wr_done <= ! wr_enabled;
             wr_sop <= 1'b1;
@@ -313,7 +313,7 @@ module local_mem_engine
       wr_data_gen
        (
         .clk,
-        .reset(state_reset),
+        .reset_n(!state_reset),
         .gen_next(do_write_line),
         .seed(wr_seed),
         .data(wr_data)
@@ -366,7 +366,7 @@ module local_mem_engine
 
         waitrequest_q <= local_mem_if.waitrequest;
 
-        if (reset || state_reset)
+        if (!reset_n || state_reset)
         begin
             arb_do_read <= rd_enabled;
         end
@@ -416,7 +416,7 @@ module local_mem_engine
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_req)),
         .value(rd_bursts_req)
         );
@@ -424,7 +424,7 @@ module local_mem_engine
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req_lines
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_req_lines)),
         .value(rd_lines_req)
         );
@@ -432,7 +432,7 @@ module local_mem_engine
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_resp
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_resp)),
         .value(rd_lines_resp)
         );
@@ -440,7 +440,7 @@ module local_mem_engine
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_req
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_req)),
         .value(wr_bursts_req)
         );
@@ -448,7 +448,7 @@ module local_mem_engine
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_req_lines
        (
         .clk,
-        .reset(reset || state_reset),
+        .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_req_lines)),
         .value(wr_lines_req)
         );

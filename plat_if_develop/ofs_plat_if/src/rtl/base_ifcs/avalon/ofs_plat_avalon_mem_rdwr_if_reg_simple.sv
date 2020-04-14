@@ -79,7 +79,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : p
                 assign mem_pipe[s].clk = mem_slave.clk;
-                assign mem_pipe[s].reset = mem_slave.reset;
+                assign mem_pipe[s].reset_n = mem_slave.reset_n;
 
                 always_ff @(posedge mem_slave.clk)
                 begin
@@ -90,7 +90,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
                     `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_FF(mem_pipe[s], mem_pipe[s-1]);
                     `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_FF(mem_pipe[s-1], mem_pipe[s]);
 
-                    if (mem_slave.reset)
+                    if (!mem_slave.reset_n)
                     begin
                         mem_pipe[s-1].rd_read <= 1'b0;
                         mem_pipe[s-1].wr_write <= 1'b0;
@@ -113,12 +113,12 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
             begin
                 // Shift the waitrequest pipeline
                 mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES:1] <=
-                    mem_slave.reset ? {N_WAITREQUEST_STAGES{1'b1}} :
-                                      mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0];
+                    mem_slave.reset_n ? mem_rd_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0] :
+                                        {N_WAITREQUEST_STAGES{1'b0}};
 
                 mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES:1] <=
-                    mem_slave.reset ? {N_WAITREQUEST_STAGES{1'b1}} :
-                                      mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0];
+                    mem_slave.reset_n ? mem_wr_waitrequest_pipe[N_WAITREQUEST_STAGES-1:0] :
+                                        {N_WAITREQUEST_STAGES{1'b0}};
             end
 
 

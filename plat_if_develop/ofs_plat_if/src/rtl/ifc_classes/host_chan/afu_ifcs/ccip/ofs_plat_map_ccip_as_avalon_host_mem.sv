@@ -38,7 +38,7 @@
 module ofs_plat_map_ccip_as_avalon_host_mem
   #(
     // When non-zero, add a clock crossing to move the AValon
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Size of the read response buffer instantiated when a clock crossing
@@ -54,9 +54,9 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // Generated Avalon host memory interface
     ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
 
-    // Used for AFU clock/reset when ADD_CLOCK_CROSSING is nonzero
+    // Used for AFU clock/reset_n when ADD_CLOCK_CROSSING is nonzero
     input  logic afu_clk,
-    input  logic afu_reset
+    input  logic afu_reset_n
     );
 
     import ofs_plat_ccip_if_funcs_pkg::*;
@@ -64,8 +64,8 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     logic clk;
     assign clk = to_fiu.clk;
 
-    logic reset;
-    assign reset = to_fiu.reset;
+    logic reset_n;
+    assign reset_n = to_fiu.reset_n;
 
     t_if_ccip_Rx sRx;
     assign sRx = to_fiu.sRx;
@@ -92,8 +92,18 @@ module ofs_plat_map_ccip_as_avalon_host_mem
       avmm_afu_clk_if();
 
     assign avmm_afu_clk_if.clk = (ADD_CLOCK_CROSSING == 0) ? clk : afu_clk;
-    assign avmm_afu_clk_if.reset = (ADD_CLOCK_CROSSING == 0) ? reset : afu_reset;
+    assign avmm_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? reset_n : afu_reset_n;
     assign avmm_afu_clk_if.instance_number = to_fiu.instance_number;
+
+    // synthesis translate_off
+    always_ff @(negedge avmm_afu_clk_if.clk)
+    begin
+        if (avmm_afu_clk_if.reset_n === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: avmm_afu_clk_if.reset_n port is uninitialized!");
+        end
+    end
+    // synthesis translate_on
 
     ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
       conn_afu_clk
@@ -114,7 +124,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
       avmm_fiu_clk_if();
 
     assign avmm_fiu_clk_if.clk = clk;
-    assign avmm_fiu_clk_if.reset = reset;
+    assign avmm_fiu_clk_if.reset_n = reset_n;
     assign avmm_fiu_clk_if.instance_number = to_fiu.instance_number;
 
     generate
@@ -160,7 +170,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
               avmm_reg_if();
 
             assign avmm_reg_if.clk = afu_clk;
-            assign avmm_reg_if.reset = afu_reset;
+            assign avmm_reg_if.reset_n = afu_reset_n;
             assign avmm_reg_if.instance_number = to_fiu.instance_number;
 
             ofs_plat_avalon_mem_rdwr_if_reg_simple
@@ -215,7 +225,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
       avmm_fiu_reg_if();
 
     assign avmm_fiu_reg_if.clk = clk;
-    assign avmm_fiu_reg_if.reset = reset;
+    assign avmm_fiu_reg_if.reset_n = reset_n;
     assign avmm_fiu_reg_if.instance_number = to_fiu.instance_number;
 
     ofs_plat_avalon_mem_rdwr_if_reg
@@ -240,7 +250,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
       avmm_fiu_burst_if();
 
     assign avmm_fiu_burst_if.clk = clk;
-    assign avmm_fiu_burst_if.reset = reset;
+    assign avmm_fiu_burst_if.reset_n = reset_n;
     assign avmm_fiu_burst_if.instance_number = to_fiu.instance_number;
 
     logic fiu_burst_expects_response;
@@ -288,7 +298,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         to_fiu.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
         to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.rd_burstcount - 3'b1);
 
-        if (reset)
+        if (!reset_n)
         begin
             to_fiu.sTx.c0.valid <= 1'b0;
         end
@@ -300,7 +310,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         avmm_fiu_burst_if.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);
         avmm_fiu_burst_if.rd_readdata <= sRx.c0.data;
 
-        if (reset)
+        if (!reset_n)
         begin
             avmm_fiu_burst_if.rd_readdatavalid <= 1'b0;
         end
@@ -378,7 +388,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
             end
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             to_fiu.sTx.c1.valid <= 1'b0;
             wr_sop <= 1'b1;
@@ -395,7 +405,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
             (ccip_c1Rx_isWriteRsp(sRx.c1) || ccip_c1Rx_isWriteFenceRsp(sRx.c1)) &&
             sRx.c1.hdr.mdata[0];
 
-        if (reset)
+        if (!reset_n)
         begin
             avmm_fiu_burst_if.wr_writeresponsevalid <= 1'b0;
         end

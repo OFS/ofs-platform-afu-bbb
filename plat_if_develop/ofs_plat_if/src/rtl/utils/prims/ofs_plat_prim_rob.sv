@@ -53,7 +53,7 @@ module ofs_plat_prim_rob
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     // Add one or more new entries in the ROB.  No payload, just control.
     // The ROB returns a handle -- the index where the payload should
@@ -93,7 +93,7 @@ module ofs_plat_prim_rob
       ctrl
        (
         .clk,
-        .reset,
+        .reset_n,
         .alloc,
         .notFull,
         .allocIdx,
@@ -181,7 +181,7 @@ module ofs_plat_prim_rob_ctrl
     )
    (
     input  logic clk,
-    input  logic reset,
+    input  logic reset_n,
 
     // Add one or more new entries in the ROB.  No payload, just control.
     // The ROB returns a handle -- the index where the payload should
@@ -226,7 +226,7 @@ module ofs_plat_prim_rob_ctrl
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (!reset_n)
         begin
             newest <= 0;
         end
@@ -252,7 +252,7 @@ module ofs_plat_prim_rob_ctrl
         end
         oldest_q <= oldest;
 
-        if (reset)
+        if (!reset_n)
         begin
             oldest <= 0;
         end
@@ -261,7 +261,7 @@ module ofs_plat_prim_rob_ctrl
     // synthesis translate_off
     always_ff @(negedge clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             assert(! deq_en || notEmpty) else
               $fatal(2, "** ERROR ** %m: Can't DEQ when EMPTY!");
@@ -298,7 +298,7 @@ module ofs_plat_prim_rob_ctrl
             valid_tag <= ~valid_tag;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             valid_tag <= 1'b1;
         end
@@ -356,7 +356,7 @@ module ofs_plat_prim_rob_ctrl
             test_valid_bank <= ~test_valid_bank;
         end
 
-        if (reset || ! validBits_rdy[0])
+        if (!reset_n || !validBits_rdy[0])
         begin
             test_valid_idx[0] <= 0;
             test_valid_idx[1] <= 0;
@@ -382,7 +382,7 @@ module ofs_plat_prim_rob_ctrl
                     // or there was at least one entry and it wasn't removed
                     (num_valid[0] && ! deq_en);
 
-        if (reset)
+        if (!reset_n)
         begin
             num_valid <= t_valid_cnt'(0);
             notEmpty <= 1'b0;
@@ -416,7 +416,7 @@ module ofs_plat_prim_rob_ctrl
                 validBits
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .rdy(validBits_rdy[p]),
 
                     .raddr(test_valid_idx[p]),
@@ -462,7 +462,7 @@ module ofs_plat_prim_rob_ctrl
                 validBits
                    (
                     .clk,
-                    .reset,
+                    .reset_n,
                     .rdy(validBits_rdy[p]),
 
                     .raddr(test_valid_idx[p]),

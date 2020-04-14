@@ -47,7 +47,7 @@
 module ofs_plat_host_chan_xGROUPx_as_ccip
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
-    // interface to the clock/reset pair passed in afu_clk/afu_reset.
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
@@ -68,7 +68,8 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
-    input  logic afu_clk
+    input  logic afu_clk,
+    input  logic afu_reset_n
     );
 
     //
@@ -245,7 +246,8 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
                (
                 .to_fiu(rd_ccip_if),
 
-                .afu_clk(afu_clk),
+                .afu_clk,
+                .afu_reset_n,
                 .to_afu(afu_clk_ccip_if),
 
                 .async_shim_error()

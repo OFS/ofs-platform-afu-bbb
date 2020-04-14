@@ -66,7 +66,7 @@ interface ofs_plat_avalon_mem_rdwr_if
 
     // Shared
     wire clk;
-    logic reset;
+    logic reset_n;
 
 
     // Read bus
@@ -120,7 +120,7 @@ interface ofs_plat_avalon_mem_rdwr_if
     modport to_slave
        (
         input  clk,
-        input  reset,
+        input  reset_n,
 
         // Read bus
         input  rd_waitrequest,
@@ -150,11 +150,11 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset
+    // Same as normal to_slave, but sets clk and reset_n
     modport to_slave_clk
        (
         output clk,
-        output reset,
+        output reset_n,
 
         // Read bus
         input  rd_waitrequest,
@@ -191,7 +191,7 @@ interface ofs_plat_avalon_mem_rdwr_if
     modport to_master
        (
         input  clk,
-        input  reset,
+        input  reset_n,
 
         // Read bus
         output rd_waitrequest,
@@ -221,11 +221,11 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset
+    // Same as normal to_master, but sets clk and reset_n
     modport to_master_clk
        (
         output clk,
-        output reset,
+        output reset_n,
 
         // Read bus
         output rd_waitrequest,
@@ -293,7 +293,7 @@ interface ofs_plat_avalon_mem_rdwr_if
             end
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             wr_bursts_rem <= 0;
         end
@@ -302,7 +302,7 @@ interface ofs_plat_avalon_mem_rdwr_if
     // Validate signals
     always_ff @(negedge clk)
     begin
-        if (! reset)
+        if (reset_n)
         begin
             if (rd_read === 1'bx)
             begin
@@ -314,7 +314,7 @@ interface ofs_plat_avalon_mem_rdwr_if
             end
         end
 
-        if (! reset && rd_read)
+        if (reset_n && rd_read)
         begin
             if (^rd_address === 1'bx)
             begin
@@ -334,7 +334,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         end
 
         // wr_function must be set and may not interrupt a burst
-        if (! reset && wr_write)
+        if (reset_n && wr_write)
         begin
             if (wr_sop && (^wr_address === 1'bx))
             begin
@@ -381,7 +381,7 @@ interface ofs_plat_avalon_mem_rdwr_if
             forever @(posedge clk)
             begin
                 // Read request
-                if (! reset && rd_read && (! rd_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
+                if (reset_n && rd_read && (!rd_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x\ mask 0x%x\n",
                             $time,
@@ -393,7 +393,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                 end
 
                 // Read response
-                if (! reset && rd_readdatavalid)
+                if (reset_n && rd_readdatavalid)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (%d)\n",
                             $time,
@@ -404,7 +404,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                 end
 
                 // Write request
-                if (! reset && wr_write && (! wr_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
+                if (reset_n && wr_write && (!wr_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write %s0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
                             $time,
@@ -418,7 +418,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             wr_writedata);
                 end
 
-                if (! reset && wr_writeresponsevalid)
+                if (reset_n && wr_writeresponsevalid)
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write resp (%d)\n",
                             $time,

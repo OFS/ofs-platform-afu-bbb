@@ -63,8 +63,8 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
 
     wire clk;
     assign clk = mem_slave.clk;
-    logic reset;
-    assign reset = mem_slave.reset;
+    logic reset_n;
+    assign reset_n = mem_slave.reset_n;
 
     //
     // Inbound requests from master
@@ -94,7 +94,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
       sop_tracker
        (
         .clk,
-        .reset,
+        .reset_n,
         .flit_valid(mem_master.wr_write && !mem_master.wr_waitrequest),
         .burstcount(mem_master.wr_burstcount),
         .sop(),
@@ -118,7 +118,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
       rd_req_fifo
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data(master_in_rd_req),
         .enq_en(mem_master.rd_read && !mem_master.rd_waitrequest),
         .notFull(rd_req_notFull),
@@ -140,7 +140,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
       wr_req_fifo
        (
         .clk,
-        .reset,
+        .reset_n,
         .enq_data(master_in_wr_req),
         .enq_en(mem_master.wr_write && !mem_master.wr_waitrequest),
         .notFull(wr_req_notFull),
@@ -152,7 +152,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     // synthesis translate_off
     always_ff @(negedge clk)
     begin
-        if (!reset && wr_req_notEmpty && wr_req.wr_function)
+        if (reset_n && wr_req_notEmpty && wr_req.wr_function)
         begin
             $fatal(2, "** ERROR ** %m: Write fence unsupported -- they can't be encoded in ofs_plat_avalon_mem_if!");
         end
@@ -173,7 +173,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
       arb
        (
         .clk,
-        .reset,
+        .reset_n,
         .ena(!mem_slave.waitrequest && !wr_burst_active),
         .request({ wr_req_notEmpty, rd_req_notEmpty }),
         .grant({ arb_grant_write, mem_slave.read }),
@@ -188,7 +188,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
             wr_burst_active <= !wr_req.eop;
         end
 
-        if (reset)
+        if (!reset_n)
         begin
             wr_burst_active <= 1'b0;
         end
