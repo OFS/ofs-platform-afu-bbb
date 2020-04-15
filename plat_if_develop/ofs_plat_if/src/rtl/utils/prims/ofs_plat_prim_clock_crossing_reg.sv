@@ -48,7 +48,8 @@ module ofs_plat_prim_clock_crossing_reg
     output logic [WIDTH-1 : 0] r_out
     );
 
-    (* preserve *) logic ofs_plat_cc_reg_vec[3:0] = { INITIAL_VALUE,
+    (* preserve *) logic [WIDTH-1:0] ofs_plat_cc_reg_vec[3:0] =
+                                                    { INITIAL_VALUE,
                                                       INITIAL_VALUE,
                                                       INITIAL_VALUE,
                                                       INITIAL_VALUE };

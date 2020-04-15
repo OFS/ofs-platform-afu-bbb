@@ -220,7 +220,7 @@ interface ofs_plat_avalon_mem_if
     // Track burst count
     always_ff @(posedge clk)
     begin
-        if (write && ! waitrequest)
+        if (write && (!waitrequest) || (WAIT_REQUEST_ALLOWANCE != 0))
         begin
             // Track write bursts in order to print "sop"
             if (wr_bursts_rem == 0)
@@ -242,7 +242,7 @@ interface ofs_plat_avalon_mem_if
     // Validate signals
     always_ff @(negedge clk)
     begin
-        if (reset_n)
+        if (reset_n && !waitrequest)
         begin
             if (read && write)
             begin
@@ -296,7 +296,7 @@ interface ofs_plat_avalon_mem_if
             forever @(posedge clk)
             begin
                 // Read request
-                if (reset_n && read && !waitrequest)
+                if (reset_n && read && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x mask 0x%x\n",
                             $time,
@@ -319,7 +319,7 @@ interface ofs_plat_avalon_mem_if
                 end
 
                 // Write request
-                if (reset_n && write && !waitrequest)
+                if (reset_n && write && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
                     $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
                             $time,

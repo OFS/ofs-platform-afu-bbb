@@ -314,7 +314,7 @@ interface ofs_plat_avalon_mem_rdwr_if
             end
         end
 
-        if (reset_n && rd_read)
+        if (reset_n && rd_read && !rd_waitrequest)
         begin
             if (^rd_address === 1'bx)
             begin
@@ -334,7 +334,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         end
 
         // wr_function must be set and may not interrupt a burst
-        if (reset_n && wr_write)
+        if (reset_n && wr_write && !wr_waitrequest)
         begin
             if (wr_sop && (^wr_address === 1'bx))
             begin
