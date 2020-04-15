@@ -122,7 +122,7 @@ module ofs_plat_avalon_mem_if_map_bursts
                                   (mem_slave.write || mem_slave.read);
 
             // Map burst counts in the master to one or more bursts in the slave.
-            ofs_plat_prim_burstcount_mapping_gearbox
+            ofs_plat_prim_burstcount1_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),

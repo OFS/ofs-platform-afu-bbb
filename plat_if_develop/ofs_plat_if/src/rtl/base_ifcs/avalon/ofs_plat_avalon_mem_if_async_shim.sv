@@ -45,6 +45,23 @@ module ofs_plat_avalon_mem_if_async_shim
     ofs_plat_avalon_mem_if.to_master mem_master
     );
 
+    // Convert resets to active high
+    (* preserve *) logic slave_reset0 = 1'b1;
+    (* preserve *) logic slave_reset = 1'b1;
+    always @(posedge mem_slave.clk)
+    begin
+        slave_reset0 <= !mem_slave.reset_n;
+        slave_reset <= slave_reset0;
+    end
+
+    (* preserve *) logic master_reset0 = 1'b1;
+    (* preserve *) logic master_reset = 1'b1;
+    always @(posedge mem_master.clk)
+    begin
+        master_reset0 <= !mem_master.reset_n;
+        master_reset <= master_reset0;
+    end
+
     localparam SPACE_AVAIL_WIDTH = $clog2(COMMAND_FIFO_DEPTH) + 1;
 
     logic cmd_waitrequest;
@@ -65,10 +82,10 @@ module ofs_plat_avalon_mem_if_async_shim
       avmm_cross
        (
         .s0_clk(mem_master.clk),
-        .s0_reset(!mem_master.reset_n),
+        .s0_reset(master_reset),
 
         .m0_clk(mem_slave.clk),
-        .m0_reset(!mem_slave.reset_n),
+        .m0_reset(slave_reset),
 
         .s0_waitrequest(cmd_waitrequest),
         .s0_readdata({mem_master.response, mem_master.readdata}),
@@ -107,16 +124,6 @@ module ofs_plat_avalon_mem_if_async_shim
     logic wr_response_not_valid;
     logic wr_response_full;
 
-    // Dummy reset_n clock crossing to keep Quartus happy
-    logic slave_reset_n;
-    ofs_plat_prim_clock_crossing_reset_async
-      reset_cc
-       (
-        .clk(mem_slave.clk),
-        .reset_in(mem_slave.reset_n),
-        .reset_out(slave_reset_n)
-        );
-
     ofs_plat_utils_dc_fifo
       #(
         .DATA_WIDTH($bits(t_response)),
@@ -124,7 +131,7 @@ module ofs_plat_avalon_mem_if_async_shim
         )
       avmm_cross_wr_response
        (
-        .aclr(!slave_reset_n),
+        .aclr(slave_reset),
         .data(mem_slave.writeresponse),
         .rdclk(mem_master.clk),
         // dcfifo has "underflow_checking" on, so safe to hold rdreq

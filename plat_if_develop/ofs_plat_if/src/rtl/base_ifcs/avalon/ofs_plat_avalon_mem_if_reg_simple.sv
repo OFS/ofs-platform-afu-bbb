@@ -62,7 +62,8 @@ module ofs_plat_avalon_mem_if_reg_simple
               #(
                 .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
                 .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+                .WAIT_REQUEST_ALLOWANCE(N_WAITREQUEST_STAGES)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 

@@ -108,7 +108,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             assign rd_next = ! mem_slave.rd_waitrequest && (! mem_slave.rd_read || rd_complete);
 
             // Map burst counts in the master to one or more bursts in the slave.
-            ofs_plat_prim_burstcount_mapping_gearbox
+            ofs_plat_prim_burstcount1_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
@@ -166,7 +166,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             logic m_wr_sop, s_wr_sop;
 
             // Map burst counts in the master to one or more bursts in the slave.
-            ofs_plat_prim_burstcount_mapping_gearbox
+            ofs_plat_prim_burstcount1_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
