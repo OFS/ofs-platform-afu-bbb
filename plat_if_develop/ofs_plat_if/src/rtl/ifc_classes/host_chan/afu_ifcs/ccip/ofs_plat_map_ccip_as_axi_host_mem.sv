@@ -125,6 +125,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
     assign axi_fiu_clk_if.reset_n = reset_n;
     assign axi_fiu_clk_if.instance_number = to_fiu.instance_number;
 
+`ifdef FOOBAR
     generate
         if (ADD_CLOCK_CROSSING == 0)
         begin : nc
@@ -132,6 +133,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
             // No clock crossing buffer. Must use normal AXI waitrequest
             // protocol.
             //
+`endif
             ofs_plat_axi_mem_if_reg
               #(
                 .N_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -141,6 +143,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
                 .mem_master(axi_afu_clk_if),
                 .mem_slave(axi_fiu_clk_if)
                 );
+`ifdef FOOBAR
         end
         else
         begin : cc
@@ -212,6 +215,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
                 );
         end
     endgenerate
+`endif
 
     //
     // Add a register stage for timing next to the burst mapper.

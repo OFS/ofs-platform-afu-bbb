@@ -29,7 +29,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Export the host channel as AXI interfaces.
+// Export the host channel as an AXI interface, using a single 512 bit MMIO
+// interface.
 //
 
 `include "ofs_plat_if.vh"
@@ -55,38 +56,28 @@ module ofs_plat_afu
         )
         host_mem_to_afu();
 
-    // 64 bit read/write MMIO AFU slave
-    ofs_plat_axi_mem_lite_if
-      #(
-        `HOST_CHAN_AXI_MMIO_PARAMS(64),
-        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
-        )
-        mmio64_to_afu();
-
-    // 512 bit write-only MMIO AFU slave
+    // 512 bit MMIO AFU slave
     ofs_plat_axi_mem_lite_if
       #(
         `HOST_CHAN_AXI_MMIO_PARAMS(512),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
-        mmio512_wr_to_afu();
+        mmio512_to_afu();
 
     // Map FIU interface to AXI host memory and both MMIO ports
-    ofs_plat_host_chan_as_axi_mem_with_dual_mmio
+    ofs_plat_host_chan_as_axi_mem_with_mmio
       #(
-        .ADD_CLOCK_CROSSING(1),
         .ADD_TIMING_REG_STAGES(2)
         )
       primary_axi
        (
         .to_fiu(plat_ifc.host_chan.ports[0]),
         .host_mem_to_afu,
-        .mmio_to_afu(mmio64_to_afu),
-        .mmio_wr_to_afu(mmio512_wr_to_afu),
+        .mmio_to_afu(mmio512_to_afu),
 
-        // Use user clock
-        .afu_clk(plat_ifc.clocks.uClk_usr),
-        .afu_reset_n(plat_ifc.clocks.uClk_usr_reset_n)
+        // Use default clock
+        .afu_clk(),
+        .afu_reset_n()
         );
 
 
@@ -115,8 +106,7 @@ module ofs_plat_afu
 
     afu afu
       (
-       .mmio64_if(mmio64_to_afu),
-       .mmio512_if(mmio512_wr_to_afu)
+       .mmio512_if(mmio512_to_afu)
        );
 
     // Tie off host memory -- not used by this test

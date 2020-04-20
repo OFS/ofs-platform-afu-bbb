@@ -74,6 +74,7 @@ module ofs_plat_afu
     // Map FIU interface to Avalon host memory and both MMIO ports
     ofs_plat_host_chan_as_avalon_mem_rdwr_with_dual_mmio
       #(
+        .ADD_CLOCK_CROSSING(1),
         .ADD_TIMING_REG_STAGES(2)
         )
       primary_avalon
@@ -83,9 +84,9 @@ module ofs_plat_afu
         .mmio_to_afu(mmio64_to_afu),
         .mmio_wr_to_afu(mmio512_wr_to_afu),
 
-        // Use default clock
-        .afu_clk(),
-        .afu_reset_n()
+        // Use user clock
+        .afu_clk(plat_ifc.clocks.uClk_usr),
+        .afu_reset_n(plat_ifc.clocks.uClk_usr_reset_n)
         );
 
 

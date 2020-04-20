@@ -131,10 +131,12 @@ testHostChanMMIO(
 
     // Read the AFU status
     uint64_t afu_status = mmio_read64(accel_handle, 0x10);
+    uint32_t rd_bus_width = ((afu_status >> 14) & 3) ? 512 : 64;
     if ((afu_status & 0xf) < 2)
         printf("AFU MMIO interface: %s\n", mmio_if_type[afu_status & 0xf]);
     else
         printf("AFU MMIO interface: unknown\n");
+    printf("AFU MMIO read bus width: %d bits\n", rd_bus_width);
     printf("AFU pClk frequency: %ld MHz\n", (afu_status >> 16) & 0xffff);
 
     // Simple test of 32 bit reads, making sure the proper half of 64 bit
@@ -156,29 +158,29 @@ testHostChanMMIO(
         goto error;
     }
 
-    // Test that 32 bit addresses are interpreted correctly. CSR 8
+    // Test that 32 bit addresses are interpreted correctly. CSR 7
     // returns the requested address as a byte offset in both 32
     // bit halves of the register.
-    idx = mmio_read64(accel_handle, 8);
-    if (idx != 0x4000000040)
+    idx = mmio_read64(accel_handle, 7);
+    if (idx != 0x3800000038)
     {
-        printf("  FAIL idx 8: expected 0x4000000040, found 0x%lx\n", idx);
+        printf("  FAIL idx 7: expected 0x3800000038, found 0x%lx\n", idx);
         goto error;
     }
 
-    // Low half of 64 bit register 8 as a 32 bit request
-    uint32_t idx32 = mmio_read32(accel_handle, 16);
-    if (idx32 != (8 << 3))
+    // Low half of 64 bit register 7 as a 32 bit request
+    uint32_t idx32 = mmio_read32(accel_handle, 14);
+    if (idx32 != (7 << 3))
     {
-        printf("  FAIL idx 8: expected 0x%x, found 0x%x\n", (8 << 3), idx32);
+        printf("  FAIL idx 7: expected 0x%x, found 0x%x\n", (7 << 3), idx32);
         goto error;
     }
 
-    // High half of 64 bit register 8 as a 32 bit request
-    idx32 = mmio_read32(accel_handle, 17);
-    if (idx32 != (8 << 3) + 4)
+    // High half of 64 bit register 7 as a 32 bit request
+    idx32 = mmio_read32(accel_handle, 15);
+    if (idx32 != (7 << 3) + 4)
     {
-        printf("  FAIL idx 8: expected 0x%x, found 0x%x\n", (8 << 3) + 4, idx32);
+        printf("  FAIL idx 7: expected 0x%x, found 0x%x\n", (7 << 3) + 4, idx32);
         goto error;
     }
 
@@ -379,9 +381,10 @@ testHostChanMMIO(
 
     // Read back the result recorded by the hardware's 64 bit MMIO space.
     // It should not change.
-    if ((prev_rd_v != mmio_read64(accel_handle, 0x20)) ||
-        (prev_rd_idx != mmio_read64(accel_handle, 0x30)) ||
-        (prev_rd_mask != mmio_read64(accel_handle, 0x31)))
+    if ((rd_bus_width <= 64) &&
+        ((prev_rd_v != mmio_read64(accel_handle, 0x20)) ||
+         (prev_rd_idx != mmio_read64(accel_handle, 0x30)) ||
+         (prev_rd_mask != mmio_read64(accel_handle, 0x31))))
     {
         printf("  FAIL - 512 bit MMIO write should not reach the 64 bit MMIO FPGA interface!\n");
         goto error;

@@ -396,20 +396,31 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
     assign mmio_to_afu.rready = 1'b1;
 
     logic mmio_rd_valid_fclk;
-    t_dword_idx mmio_rd_dword_idx_fclk;
+    t_dword_idx mmio_rd_dword_idx_fclk, mmio_rd_dword_idx_fclk_q;
     t_ccip_tid mmio_rd_tid_fclk;
-    t_mmio_data mmio_rd_data_fclk;
+    // Read resonse, organized as a vector of 64 bit words
+    logic [(DATA_WIDTH/64)-1:0][63:0] mmio_rd_data_fclk;
+
+    t_if_ccip_c2_Tx c2Tx_setup;
 
     always_ff @(posedge fclk)
     begin
-        c2Tx.mmioRdValid <= mmio_rd_valid_fclk;
-        c2Tx.hdr.tid <= mmio_rd_tid_fclk;
+        // First response stage: generate the header and pick the required
+        // 64 bit range from the read response. For a 64 bit bus this is
+        // just a pipeline stage.
+        c2Tx_setup.mmioRdValid <= mmio_rd_valid_fclk;
+        c2Tx_setup.hdr.tid <= mmio_rd_tid_fclk;
+        c2Tx_setup.data <= mmio_rd_data_fclk[mmio_rd_dword_idx_fclk >> 1];
 
-        c2Tx.data <= mmio_rd_data_fclk;
-        if (mmio_rd_dword_idx_fclk[0])
+        // Second stage: pass the read response to c2Tx and select the proper
+        // 32 bit data range, if necessary.
+        c2Tx <= c2Tx_setup;
+        if (mmio_rd_dword_idx_fclk_q[0])
         begin
-            c2Tx.data[31:0] <= mmio_rd_data_fclk[63:32];
+            c2Tx.data[31:0] <= c2Tx_setup.data[63:32];
         end
+
+        mmio_rd_dword_idx_fclk_q <= mmio_rd_dword_idx_fclk;
 
         if (!reset_n)
         begin
@@ -433,7 +444,7 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
 
             ofs_plat_prim_fifo_dc_bram
               #(
-                .N_DATA_BITS($bits(t_ccip_tid) + DATA_WIDTH),
+                .N_DATA_BITS($bits(t_dword_idx) + $bits(t_ccip_tid) + DATA_WIDTH),
                 .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
                 )
             rsp_out_fifo

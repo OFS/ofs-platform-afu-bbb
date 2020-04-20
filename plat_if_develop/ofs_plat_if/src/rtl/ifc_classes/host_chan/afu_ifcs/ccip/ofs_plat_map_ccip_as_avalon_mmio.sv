@@ -386,19 +386,31 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
 
     // Forward read responses back to CCI-P.
     logic mmio_rd_valid_fclk;
-    t_mmio_data mmio_readdata_fclk;
+    t_dword_idx mmio_rd_dword_idx_fclk_q;
+    // Read resonse, organized as a vector of 64 bit words
+    logic [(DATA_WIDTH/64)-1:0][63:0] mmio_rd_data_fclk;
+
+    t_if_ccip_c2_Tx c2Tx_setup;
     assign tid_deq_fclk = mmio_rd_valid_fclk;
 
     always_ff @(posedge fclk)
     begin
-        c2Tx.mmioRdValid <= mmio_rd_valid_fclk;
-        c2Tx.hdr.tid <= mmio_tid_fclk;
+        // First response stage: generate the header and pick the required
+        // 64 bit range from the read response. For a 64 bit bus this is
+        // just a pipeline stage.
+        c2Tx_setup.mmioRdValid <= mmio_rd_valid_fclk;
+        c2Tx_setup.hdr.tid <= mmio_tid_fclk;
+        c2Tx_setup.data <= mmio_rd_data_fclk[mmio_rd_dword_idx_fclk >> 1];
 
-        c2Tx.data <= mmio_readdata_fclk;
-        if (mmio_rd_dword_idx_fclk[0])
+        // Second stage: pass the read response to c2Tx and select the proper
+        // 32 bit data range, if necessary.
+        c2Tx <= c2Tx_setup;
+        if (mmio_rd_dword_idx_fclk_q[0])
         begin
-            c2Tx.data[31:0] <= mmio_readdata_fclk[63:32];
+            c2Tx.data[31:0] <= c2Tx_setup.data[63:32];
         end
+
+        mmio_rd_dword_idx_fclk_q <= mmio_rd_dword_idx_fclk;
 
         if (!reset_n)
         begin
@@ -411,7 +423,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
         begin : c2_nc
             // No clock crossing required
             assign mmio_rd_valid_fclk = mmio_to_afu.readdatavalid;
-            assign mmio_readdata_fclk = mmio_to_afu.readdata;
+            assign mmio_rd_data_fclk = mmio_to_afu.readdata;
         end
         else
         begin : c2_cc
@@ -433,7 +445,7 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
                .notFull(),
                .almostFull(),
                .rd_clk(fclk),
-               .first(mmio_readdata_fclk),
+               .first(mmio_rd_data_fclk),
                .deq_en(rsp_out_notEmpty_fclk),
                .notEmpty(rsp_out_notEmpty_fclk)
                );
