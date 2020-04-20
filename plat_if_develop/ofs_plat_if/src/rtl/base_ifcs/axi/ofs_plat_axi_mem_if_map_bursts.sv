@@ -34,15 +34,15 @@
 // mem_master and mem_slave may differ only in the width of their burst counts.
 // Map bursts requested by the master into legal bursts in the slave.
 //
-module ofs_plat_avalon_mem_rdwr_if_map_bursts
+module ofs_plat_axi_mem_if_map_bursts
   #(
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0
     )
    (
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
+    ofs_plat_axi_mem_if.to_master mem_master,
+    ofs_plat_axi_mem_if.to_slave mem_slave,
 
     // Write responses returned to mem_master must match the master's write burst
     // count and not the slave's. This is NOT handled inside the module here.
@@ -83,7 +83,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
         begin : nb
             // There is no alignment requirement and slave can handle all
             // master burst sizes. Just wire the two interfaces together.
-            ofs_plat_avalon_mem_rdwr_if_connect
+            ofs_plat_axi_mem_if_connect
               simple_conn
                (
                 .mem_master,
@@ -100,14 +100,18 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
             logic rd_complete;
             logic rd_next;
-            assign mem_master.rd_waitrequest = ! rd_next;
+            assign mem_master.arready = rd_next;
+
+            logic [mem_slave.T_AR_WIDTH-1 : 0] mem_slave_ar;
+            logic [ADDR_WIDTH-1 : 0] s_rd_address;
+            logic [SLAVE_BURST_WIDTH-1 : 0] s_rd_burstcount;
 
             // Ready to start a new read request coming from the master? Yes if
             // there is no current request or the previous one is complete.
-            assign rd_next = ! mem_slave.rd_waitrequest && (! mem_slave.rd_read || rd_complete);
+            assign rd_next = mem_slave.arready && (!mem_slave.arvalid || rd_complete);
 
             // Map burst counts in the master to one or more bursts in the slave.
-            ofs_plat_prim_burstcount1_mapping_gearbox
+            ofs_plat_prim_burstcount0_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
@@ -120,14 +124,21 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                  .reset_n,
 
                  .m_new_req(rd_next),
-                 .m_addr(mem_master.rd_address),
-                 .m_burstcount(mem_master.rd_burstcount),
+                 .m_addr(mem_master.ar.addr),
+                 .m_burstcount(mem_master.ar.len),
 
-                 .s_accept_req(! mem_slave.rd_waitrequest),
+                 .s_accept_req(mem_slave.arready),
                  .s_req_complete(rd_complete),
-                 .s_addr(mem_slave.rd_address),
-                 .s_burstcount(mem_slave.rd_burstcount)
+                 .s_addr(s_rd_address),
+                 .s_burstcount(s_rd_burstcount)
                  );
+
+            always_comb
+            begin
+                mem_slave.ar = mem_slave_ar;
+                mem_slave.ar.addr = s_rd_address;
+                mem_slave.ar.len = s_rd_burstcount;
+            end
 
             // Register read request state coming from the master that isn't held
             // in the burst count mapping gearbox.
@@ -136,21 +147,32 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 if (rd_next)
                 begin
                     // New request -- the last one is complete
-                    mem_slave.rd_read <= mem_master.rd_read;
-                    mem_slave.rd_byteenable <= mem_master.rd_byteenable;
-                    mem_slave.rd_function <= mem_master.rd_function;
+                    mem_slave.arvalid <= mem_master.arvalid;
+                    mem_slave_ar <= mem_master.ar;
                 end
 
                 if (!reset_n)
                 begin
-                    mem_slave.rd_read <= 1'b0;
+                    mem_slave.arvalid <= 1'b0;
                 end
             end
 
             // Responses don't encode anything about bursts. Forward them unmodified.
-            assign mem_master.rd_readdata = mem_slave.rd_readdata;
-            assign mem_master.rd_readdatavalid = mem_slave.rd_readdatavalid;
-            assign mem_master.rd_response = mem_slave.rd_response;
+            ofs_plat_prim_ready_enable_reg
+              #(
+                .N_DATA_BITS(mem_master.T_R_WIDTH)
+                )
+              rd_rsp
+               (
+                .clk,
+                .reset_n,
+                .enable_from_src(mem_slave.rvalid),
+                .data_from_src(mem_slave.r),
+                .ready_to_src(mem_slave.rready),
+                .enable_to_dst(mem_master.rvalid),
+                .data_to_dst(mem_master.r),
+                .ready_from_dst(mem_master.rready)
+                );
 
 
             //
@@ -158,14 +180,14 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             //
 
             logic wr_complete;
-            assign mem_master.wr_waitrequest = mem_slave.wr_waitrequest;
+            assign mem_master.awready = mem_slave.awready;
 
             logic [ADDR_WIDTH-1 : 0] s_wr_address;
             logic [SLAVE_BURST_WIDTH-1 : 0] s_wr_burstcount;
             logic m_wr_sop, s_wr_sop;
 
             // Map burst counts in the master to one or more bursts in the slave.
-            ofs_plat_prim_burstcount1_mapping_gearbox
+            ofs_plat_prim_burstcount0_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
@@ -177,11 +199,11 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                  .clk,
                  .reset_n,
 
-                 .m_new_req(mem_master.wr_write && ! mem_slave.wr_waitrequest && m_wr_sop),
-                 .m_addr(mem_master.wr_address),
-                 .m_burstcount(mem_master.wr_burstcount),
+                 .m_new_req(mem_master.awvalid && mem_slave.awready && m_wr_sop),
+                 .m_addr(mem_master.aw.addr),
+                 .m_burstcount(mem_master.aw.len),
 
-                 .s_accept_req(mem_slave.wr_write && ! mem_slave.wr_waitrequest && s_wr_sop),
+                 .s_accept_req(mem_slave.awvalid && mem_slave.awready && s_wr_sop),
                  .s_req_complete(wr_complete),
                  .s_addr(s_wr_address),
                  .s_burstcount(s_wr_burstcount)
@@ -190,25 +212,29 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             // Address and burstcount are valid only during the slave's SOP cycle.
             // Force 'x for debugging. (Without 'x the address and burstcount are
             // associated with the next packet, which is confusing.)
-            assign mem_slave.wr_address = s_wr_sop ? s_wr_address : 'x;
-            assign mem_slave.wr_burstcount = s_wr_sop ? s_wr_burstcount : 'x;
+            logic [mem_slave.T_AW_WIDTH-1 : 0] mem_slave_aw;
+
+            always_comb
+            begin
+                mem_slave.aw = mem_slave_aw;
+                mem_slave.aw.addr = s_wr_sop ? s_wr_address : 'x;
+                mem_slave.aw.len = s_wr_sop ? s_wr_burstcount : 'x;
+            end
 
             // Register write request state coming from the master that isn't held
             // in the burst count mapping gearbox.
             always_ff @(posedge clk)
             begin
-                if (! mem_slave.wr_waitrequest)
+                if (mem_slave.awready)
                 begin
                     // New request -- the last one is complete
-                    mem_slave.wr_write <= mem_master.wr_write;
-                    mem_slave.wr_writedata <= mem_master.wr_writedata;
-                    mem_slave.wr_byteenable <= mem_master.wr_byteenable;
-                    mem_slave.wr_function <= mem_master.wr_function;
+                    mem_slave.awvalid <= mem_master.awvalid;
+                    mem_slave_aw <= mem_master.aw;
                 end
 
                 if (!reset_n)
                 begin
-                    mem_slave.wr_write <= 1'b0;
+                    mem_slave.awvalid <= 1'b0;
                 end
             end
 
@@ -218,7 +244,41 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             // parent module for this purpose.
             assign wr_slave_burst_expects_response = wr_complete && s_wr_sop;
 
-            ofs_plat_prim_burstcount1_sop_tracker
+            // Write data
+            ofs_plat_prim_ready_enable_reg
+              #(
+                .N_DATA_BITS(mem_master.T_W_WIDTH)
+                )
+              wr_data
+               (
+                .clk,
+                .reset_n,
+                .enable_from_src(mem_master.wvalid),
+                .data_from_src(mem_master.w),
+                .ready_to_src(mem_master.wready),
+                .enable_to_dst(mem_slave.wvalid),
+                .data_to_dst(mem_slave.w),
+                .ready_from_dst(mem_slave.wready)
+                );
+
+            // Write responses
+            ofs_plat_prim_ready_enable_reg
+              #(
+                .N_DATA_BITS(mem_master.T_B_WIDTH)
+                )
+              wr_rsp
+               (
+                .clk,
+                .reset_n,
+                .enable_from_src(mem_slave.bvalid),
+                .data_from_src(mem_slave.b),
+                .ready_to_src(mem_slave.bready),
+                .enable_to_dst(mem_master.bvalid),
+                .data_to_dst(mem_master.b),
+                .ready_from_dst(mem_master.bready)
+                );
+
+            ofs_plat_prim_burstcount0_sop_tracker
               #(
                 .BURST_CNT_WIDTH(MASTER_BURST_WIDTH)
                 )
@@ -226,13 +286,13 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                (
                 .clk,
                 .reset_n,
-                .flit_valid(mem_master.wr_write && ! mem_master.wr_waitrequest),
-                .burstcount(mem_master.wr_burstcount),
+                .flit_valid(mem_master.awvalid && mem_master.awready),
+                .burstcount(mem_master.aw.len),
                 .sop(m_wr_sop),
                 .eop()
                 );
 
-            ofs_plat_prim_burstcount1_sop_tracker
+            ofs_plat_prim_burstcount0_sop_tracker
               #(
                 .BURST_CNT_WIDTH(SLAVE_BURST_WIDTH)
                 )
@@ -240,15 +300,11 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                (
                 .clk,
                 .reset_n,
-                .flit_valid(mem_slave.wr_write && ! mem_slave.wr_waitrequest),
-                .burstcount(mem_slave.wr_burstcount),
+                .flit_valid(mem_slave.awvalid && mem_slave.awready),
+                .burstcount(mem_slave.aw.len),
                 .sop(s_wr_sop),
                 .eop()
                 );
-
-            assign mem_master.wr_writeresponsevalid = mem_slave.wr_writeresponsevalid;
-            assign mem_master.wr_response = mem_slave.wr_response;
-
 
             // synthesis translate_off
 
@@ -267,12 +323,12 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the parent module honoring wr_slave_burst_expects_response?");
                 end
 
-                if (mem_master.wr_write && ! mem_master.wr_waitrequest && m_wr_sop)
+                if (mem_master.awvalid && mem_master.awready && m_wr_sop)
                 begin
                     m_num_writes <= m_num_writes + 1;
                 end
 
-                if (mem_master.wr_writeresponsevalid)
+                if (mem_slave.bvalid && mem_slave.bready)
                 begin
                     m_num_write_responses <= m_num_write_responses + 1;
                 end
@@ -288,4 +344,4 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
         end
     endgenerate
 
-endmodule // ofs_plat_avalon_mem_rdwr_if_map_bursts
+endmodule // ofs_plat_axi_mem_if_map_bursts

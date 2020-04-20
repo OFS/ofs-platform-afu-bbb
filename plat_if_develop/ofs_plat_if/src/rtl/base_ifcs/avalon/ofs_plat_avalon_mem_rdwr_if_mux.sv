@@ -313,7 +313,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                 );
 
             // Track SOP, used for arbitration
-            ofs_plat_prim_burstcount_sop_tracker
+            ofs_plat_prim_burstcount1_sop_tracker
               #(
                 .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
                 )

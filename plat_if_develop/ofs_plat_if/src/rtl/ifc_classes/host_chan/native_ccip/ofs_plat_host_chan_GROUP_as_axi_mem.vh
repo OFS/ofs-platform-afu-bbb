@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,55 +28,33 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AXI_MEM_RDWR__
+`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AXI_MEM_RDWR__
 
 //
-// Track requests on a channel with flits broken down into packets. (E.g. an
-// Avalon write channel.) Detect SOP and EOP by tracking burst (packet) lengths.
+// Macros for setting parameters to AXI memory interfaces.
 //
-module ofs_plat_prim_burstcount_sop_tracker
-  #(
-    parameter BURST_CNT_WIDTH = 0
-    )
-   (
-    input  logic clk,
-    input  logic reset_n,
 
-    // Process a flit (update counters)
-    input  logic flit_valid,
-    // Consumed only at SOP -- the length of the next burst
-    input  logic [BURST_CNT_WIDTH-1 : 0] burstcount,
+// CCI-P to AXI host memory ofs_plat_axi_mem_if parameters.
+// AFUs may set BURST_CNT_WIDTH, RID_WIDTH, WID_WIDTH and USER_WIDTH to
+// whatever works in the AFU. The PIM will transform bursts into legal
+// CCI-P requests.
+`define HOST_CHAN_XGROUPX_AXI_MEM_PARAMS \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
+    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
-    output logic sop,
-    output logic eop
-    );
+// CCI-P to AXI MMIO ofs_plat_axi_mem_lite_if parameters. In order to
+// keep the MMIO representation general, independent of particular
+// platform protocols, addresses are to bytes within the space. AFUs that
+// deal only with aligned data can simply ignore the low address bits.
+// CCI-P's MMIO addresses are to 32 bit words, so 2 low bits of address
+// are added here. On native CCI-P platforms these bits will always be 0.
+//
+// The read ID field holds the CCI-P tid and the index of the requested
+// word on the bus. CCI-P minimum addressable MMIO size is 32 bits.
+`define HOST_CHAN_XGROUPX_AXI_MMIO_PARAMS(BUSWIDTH) \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH + 2), \
+    .DATA_WIDTH(BUSWIDTH), \
+    .RID_WIDTH($clog2(BUSWIDTH / 32) + ccip_if_pkg::CCIP_TID_WIDTH)
 
-    typedef logic [BURST_CNT_WIDTH-1:0] t_burstcount;
-    t_burstcount flits_rem;
-
-    always_ff @(posedge clk)
-    begin
-        if (flit_valid)
-        begin
-            if (sop)
-            begin
-                flits_rem <= burstcount - t_burstcount'(1);
-                sop <= (burstcount == t_burstcount'(1));
-            end
-            else
-            begin
-                flits_rem <= flits_rem - t_burstcount'(1);
-                sop <= (flits_rem == t_burstcount'(1));
-            end
-        end
-
-        if (!reset_n)
-        begin
-            flits_rem <= t_burstcount'(0);
-            sop <= 1'b1;
-        end
-    end
-
-    assign eop = (sop && (burstcount == t_burstcount'(1))) ||
-                 (!sop && (flits_rem == t_burstcount'(1)));
-
-endmodule // ofs_plat_prim_burstcount_sop_tracker
+`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AXI_MEM_RDWR__

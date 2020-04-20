@@ -191,7 +191,7 @@ module ofs_plat_avalon_mem_if_map_bursts
             // Write SOP tracking
             //
 
-            ofs_plat_prim_burstcount_sop_tracker
+            ofs_plat_prim_burstcount1_sop_tracker
               #(
                 .BURST_CNT_WIDTH(MASTER_BURST_WIDTH)
                 )
@@ -205,7 +205,7 @@ module ofs_plat_avalon_mem_if_map_bursts
                 .eop()
                 );
 
-            ofs_plat_prim_burstcount_sop_tracker
+            ofs_plat_prim_burstcount1_sop_tracker
               #(
                 .BURST_CNT_WIDTH(SLAVE_BURST_WIDTH)
                 )

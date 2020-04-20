@@ -1,4 +1,4 @@
 host_chan_mmio.json
 
-ofs_plat_afu_avalon_from_ccip.sv
-afu_avalon.sv
+avalon/ofs_plat_afu_avalon_from_ccip.sv
+avalon/afu_avalon.sv

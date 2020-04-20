@@ -43,6 +43,11 @@
     .WID_WIDTH(AXI_IF.WID_WIDTH_), \
     .USER_WIDTH(AXI_IF.USER_WIDTH_)
 
+`define OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(AXI_IF) \
+    .ADDR_WIDTH(AXI_IF.ADDR_WIDTH_), \
+    .DATA_WIDTH(AXI_IF.DATA_WIDTH_)
+
+
 //
 // Macro for replicating properties of an ofs_plat_axi_mem_lite_if when
 // defininig another instance of the interface.

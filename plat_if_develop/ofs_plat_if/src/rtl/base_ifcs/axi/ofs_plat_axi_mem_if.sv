@@ -62,7 +62,13 @@ interface ofs_plat_axi_mem_if
     parameter BURST_CNT_WIDTH = 8,
     parameter RID_WIDTH = 1,
     parameter WID_WIDTH = 1,
-    parameter USER_WIDTH = 1
+    parameter USER_WIDTH = 1,
+
+    // This parameter does not affect the interface. Instead, it is a guide to
+    // the master indicating the waitrequestAllowance behavior offered by
+    // the slave. Be careful to consider the registered delay of the waitrequest
+    // signal when counting cycles.
+    parameter WAIT_REQUEST_ALLOWANCE = 0
     );
 
     import ofs_plat_axi_mem_pkg::*;
@@ -122,6 +128,7 @@ interface ofs_plat_axi_mem_if
         t_axi_atomic atop;              // AXI5 atomic. Not all masters implement
                                         // atomic operations.
     } t_axi_mem_aw;
+    localparam T_AW_WIDTH = $bits(t_axi_mem_aw);
 
     t_axi_mem_aw aw;
     logic awvalid;
@@ -134,6 +141,7 @@ interface ofs_plat_axi_mem_if
         logic last;
         t_user user;
     } t_axi_mem_w;
+    localparam T_W_WIDTH = $bits(t_axi_mem_w);
 
     t_axi_mem_w w;
     logic wvalid;
@@ -147,6 +155,7 @@ interface ofs_plat_axi_mem_if
                                         // in b.user, though masters may document
                                         // some other behavior.
     } t_axi_mem_b;
+    localparam T_B_WIDTH = $bits(t_axi_mem_b);
 
     t_axi_mem_b b;
     logic bvalid;
@@ -166,6 +175,7 @@ interface ofs_plat_axi_mem_if
         t_axi_qos qos;
         t_axi_region region;            // See aw.region above
     } t_axi_mem_ar;
+    localparam T_AR_WIDTH = $bits(t_axi_mem_ar);
 
     t_axi_mem_ar ar;
     logic arvalid;
@@ -181,6 +191,7 @@ interface ofs_plat_axi_mem_if
                                         // some other behavior.
         logic last;
     } t_axi_mem_r;
+    localparam T_R_WIDTH = $bits(t_axi_mem_r);
 
     t_axi_mem_r r;
     logic rvalid;
@@ -249,7 +260,7 @@ interface ofs_plat_axi_mem_if
         output rready,
 
         // Debugging
-        input  instance_number
+        output instance_number
         );
 
 
@@ -312,7 +323,7 @@ interface ofs_plat_axi_mem_if
         input  rready,
 
         // Debugging
-        input  instance_number
+        output instance_number
         );
 
 

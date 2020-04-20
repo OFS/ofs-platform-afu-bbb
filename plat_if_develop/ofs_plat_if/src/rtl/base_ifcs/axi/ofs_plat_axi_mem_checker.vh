@@ -61,13 +61,35 @@ begin
         begin
             $fatal(2, "** ERROR ** %m: rvalid is uninitialized!");
         end
+
+        if (awready === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: awready is uninitialized!");
+        end
+        if (wready === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: wready is uninitialized!");
+        end
+        if (bready === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: bready is uninitialized!");
+        end
+
+        if (arready === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: arready is uninitialized!");
+        end
+        if (rready === 1'bx)
+        begin
+            $fatal(2, "** ERROR ** %m: rready is uninitialized!");
+        end
     end
 
     if (reset_n && awvalid)
     begin
         if (^aw.id === 1'bx)
         begin
-            $fatal(2, "** ERROR ** %m: aw.id undefined, currently 0x%x", awid);
+            $fatal(2, "** ERROR ** %m: aw.id undefined, currently 0x%x", aw.id);
         end
 
         if (^aw.addr === 1'bx)

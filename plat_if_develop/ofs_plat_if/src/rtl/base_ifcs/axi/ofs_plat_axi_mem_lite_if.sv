@@ -111,6 +111,7 @@ interface ofs_plat_axi_mem_lite_if
         t_axi_prot prot;
         t_user user;
     } t_axi_mem_lite_aw;
+    localparam T_AW_WIDTH = $bits(t_axi_mem_lite_aw);
 
     t_axi_mem_lite_aw aw;
     logic awvalid;
@@ -122,6 +123,7 @@ interface ofs_plat_axi_mem_lite_if
         t_byte_mask strb;
         t_user user;
     } t_axi_mem_lite_w;
+    localparam T_W_WIDTH = $bits(t_axi_mem_lite_w);
 
     t_axi_mem_lite_w w;
     logic wvalid;
@@ -135,6 +137,7 @@ interface ofs_plat_axi_mem_lite_if
                                         // in b.user, though masters may document
                                         // some other behavior.
     } t_axi_mem_lite_b;
+    localparam T_B_WIDTH = $bits(t_axi_mem_lite_b);
 
     t_axi_mem_lite_b b;
     logic bvalid;
@@ -148,6 +151,7 @@ interface ofs_plat_axi_mem_lite_if
         t_axi_prot prot;
         t_user user;
     } t_axi_mem_lite_ar;
+    localparam T_AR_WIDTH = $bits(t_axi_mem_lite_ar);
 
     t_axi_mem_lite_ar ar;
     logic arvalid;
@@ -162,6 +166,7 @@ interface ofs_plat_axi_mem_lite_if
                                         // in r.user, though masters may document
                                         // some other behavior.
     } t_axi_mem_lite_r;
+    localparam T_R_WIDTH = $bits(t_axi_mem_lite_r);
 
     t_axi_mem_lite_r r;
     logic rvalid;
@@ -230,7 +235,7 @@ interface ofs_plat_axi_mem_lite_if
         output rready,
 
         // Debugging
-        input  instance_number
+        output instance_number
         );
 
 
@@ -293,7 +298,7 @@ interface ofs_plat_axi_mem_lite_if
         input  rready,
 
         // Debugging
-        input  instance_number
+        output instance_number
         );
 
 

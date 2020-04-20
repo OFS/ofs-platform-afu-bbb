@@ -36,33 +36,33 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_axi_mem_if_reg
+module ofs_plat_axi_mem_lite_if_reg
   #(
     // Number of stages to add when registering inputs or outputs
     parameter N_REG_STAGES = 1
     )
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_lite_if.to_slave mem_slave,
+    ofs_plat_axi_mem_lite_if.to_master mem_master
     );
 
     genvar s;
     generate
         if (N_REG_STAGES == 0)
         begin : wires
-            ofs_plat_axi_mem_if_connect conn(.mem_slave, .mem_master);
+            ofs_plat_axi_mem_lite_if_connect conn(.mem_slave, .mem_master);
         end
         else
         begin : regs
             // Pipeline stages.
-            ofs_plat_axi_mem_if
+            ofs_plat_axi_mem_lite_if
               #(
-                `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_slave)
+                `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mem_slave)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
             // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_axi_mem_if_connect_slave_clk
+            ofs_plat_axi_mem_lite_if_connect_slave_clk
               conn0
                (
                 .mem_slave(mem_slave),
@@ -173,28 +173,28 @@ module ofs_plat_axi_mem_if_reg
             end
 
             // Map mem_master to the last stage (wired)
-            ofs_plat_axi_mem_if_connect conn1(.mem_slave(mem_pipe[N_REG_STAGES]),
-                                              .mem_master(mem_master));
+            ofs_plat_axi_mem_lite_if_connect conn1(.mem_slave(mem_pipe[N_REG_STAGES]),
+                                                   .mem_master(mem_master));
         end
     endgenerate
 
-endmodule // ofs_plat_axi_mem_if_reg
+endmodule // ofs_plat_axi_mem_lite_if_reg
 
 
 // Same as standard connection, but pass clk and reset from slave to master
-module ofs_plat_axi_mem_if_reg_slave_clk
+module ofs_plat_axi_mem_lite_if_reg_slave_clk
   #(
     // Number of stages to add when registering inputs or outputs
     parameter N_REG_STAGES = 1
     )
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master_clk mem_master
+    ofs_plat_axi_mem_lite_if.to_slave mem_slave,
+    ofs_plat_axi_mem_lite_if.to_master_clk mem_master
     );
 
-    ofs_plat_axi_mem_if
+    ofs_plat_axi_mem_lite_if
       #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_slave)
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mem_slave)
         )
       mem_reg();
 
@@ -203,7 +203,7 @@ module ofs_plat_axi_mem_if_reg_slave_clk
     // Debugging signal
     assign mem_reg.instance_number = mem_slave.instance_number;
 
-    ofs_plat_axi_mem_if_reg
+    ofs_plat_axi_mem_lite_if_reg
       #(
         .N_REG_STAGES(N_REG_STAGES)
         )
@@ -213,30 +213,30 @@ module ofs_plat_axi_mem_if_reg_slave_clk
         .mem_master(mem_reg)
         );
 
-    ofs_plat_axi_mem_if_connect_slave_clk
+    ofs_plat_axi_mem_lite_if_connect_slave_clk
       conn_direct
        (
         .mem_slave(mem_reg),
         .mem_master(mem_master)
         );
 
-endmodule // ofs_plat_axi_mem_if_reg_slave_clk
+endmodule // ofs_plat_axi_mem_lite_if_reg_slave_clk
 
 
 // Same as standard connection, but pass clk and reset from master to slave
-module ofs_plat_axi_mem_if_reg_master_clk
+module ofs_plat_axi_mem_lite_if_reg_master_clk
   #(
     // Number of stages to add when registering inputs or outputs
     parameter N_REG_STAGES = 1
     )
    (
-    ofs_plat_axi_mem_if.to_slave_clk mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_lite_if.to_slave_clk mem_slave,
+    ofs_plat_axi_mem_lite_if.to_master mem_master
     );
 
-    ofs_plat_axi_mem_if
+    ofs_plat_axi_mem_lite_if
       #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_slave)
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mem_slave)
         )
       mem_reg();
 
@@ -245,7 +245,7 @@ module ofs_plat_axi_mem_if_reg_master_clk
     // Debugging signal
     assign mem_reg.instance_number = mem_master.instance_number;
 
-    ofs_plat_axi_mem_if_reg
+    ofs_plat_axi_mem_lite_if_reg
       #(
         .N_REG_STAGES(N_REG_STAGES)
         )
@@ -255,11 +255,11 @@ module ofs_plat_axi_mem_if_reg_master_clk
         .mem_master(mem_master)
         );
 
-    ofs_plat_axi_mem_if_connect_master_clk
+    ofs_plat_axi_mem_lite_if_connect_master_clk
       conn_direct
        (
         .mem_slave(mem_slave),
         .mem_master(mem_reg)
         );
 
-endmodule // ofs_plat_axi_mem_if_reg_master_clk
+endmodule // ofs_plat_axi_mem_lite_if_reg_master_clk
