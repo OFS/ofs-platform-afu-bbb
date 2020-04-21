@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,36 +29,45 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Wrapper interface for passing all top-level interfaces into an AFU.
-// Every platform must provide this interface.
+// Generic ready/enable pipeline register. This implementation is a simple,
+// systolic pipeline with control shared by all registers in a chain.
+// For a version that breaks apart control flow into separate stages
+// see ofs_plat_prim_ready_enable_fifo().
 //
 
-`ifndef __OFS_PLAT_IF_VH__
-`define __OFS_PLAT_IF_VH__
+module ofs_plat_prim_ready_enable_reg
+  #(
+    parameter N_DATA_BITS = 32
+    )
+   (
+    input  logic clk,
+    input  logic reset_n,
 
-`include "ofs_plat_if_top_config.vh"
-`include "ofs_plat_clocks.vh"
-`include "ofs_plat_host_ccip_if.vh"
-`include "ofs_plat_avalon_mem_if.vh"
-`include "ofs_plat_avalon_mem_rdwr_if.vh"
-`include "ofs_plat_axi_mem_if.vh"
+    input  logic enable_from_src,
+    input  logic [N_DATA_BITS-1 : 0] data_from_src,
+    output logic ready_to_src,
 
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
-  `include "ofs_plat_host_chan_wrapper.vh"
-`endif
+    output logic enable_to_dst,
+    output logic [N_DATA_BITS-1 : 0] data_to_dst,
+    input  logic ready_from_dst
+    );
 
-`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
-  `include "ofs_plat_local_mem_wrapper.vh"
-`endif
+    // This primitive can only implement systolic pipeline. The ready
+    // signal controls the entire pipeline.
+    assign ready_to_src = ready_from_dst;
 
-// Compatibility mode for OPAE SDK's Platform Interface Manager
-`ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
-  `include "platform_shim_ccip_std_afu.vh"
-`endif
+    always_ff @(posedge clk)
+    begin
+        if (ready_from_dst)
+        begin
+            enable_to_dst <= enable_from_src;
+            data_to_dst <= data_from_src;
+        end
 
-//
-// Two-bit power state, originally defined in CCI-P.
-//
-typedef logic [1:0] t_ofs_plat_power_state;
+        if (!reset_n)
+        begin
+            enable_to_dst <= 1'b0;
+        end
+    end
 
-`endif // __OFS_PLAT_IF_VH__
+endmodule // ofs_plat_prim_ready_enable_reg

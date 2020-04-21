@@ -56,6 +56,7 @@
 static char *mmio_if_type[] =
 {
     "Avalon",
+    "AXI Lite",
     NULL
 };
 
@@ -130,10 +131,12 @@ testHostChanMMIO(
 
     // Read the AFU status
     uint64_t afu_status = mmio_read64(accel_handle, 0x10);
-    if ((afu_status & 0xf) < 1)
+    uint32_t rd_bus_width = ((afu_status >> 14) & 3) ? 512 : 64;
+    if ((afu_status & 0xf) < 2)
         printf("AFU MMIO interface: %s\n", mmio_if_type[afu_status & 0xf]);
     else
         printf("AFU MMIO interface: unknown\n");
+    printf("AFU MMIO read bus width: %d bits\n", rd_bus_width);
     printf("AFU pClk frequency: %ld MHz\n", (afu_status >> 16) & 0xffff);
 
     // Simple test of 32 bit reads, making sure the proper half of 64 bit
@@ -154,7 +157,34 @@ testHostChanMMIO(
                afu_idl >> 32, afu_idl_h32);
         goto error;
     }
-    printf("  PASS - 2 tests\n");
+
+    // Test that 32 bit addresses are interpreted correctly. CSR 7
+    // returns the requested address as a byte offset in both 32
+    // bit halves of the register.
+    idx = mmio_read64(accel_handle, 7);
+    if (idx != 0x3800000038)
+    {
+        printf("  FAIL idx 7: expected 0x3800000038, found 0x%lx\n", idx);
+        goto error;
+    }
+
+    // Low half of 64 bit register 7 as a 32 bit request
+    uint32_t idx32 = mmio_read32(accel_handle, 14);
+    if (idx32 != (7 << 3))
+    {
+        printf("  FAIL idx 7: expected 0x%x, found 0x%x\n", (7 << 3), idx32);
+        goto error;
+    }
+
+    // High half of 64 bit register 7 as a 32 bit request
+    idx32 = mmio_read32(accel_handle, 15);
+    if (idx32 != (7 << 3) + 4)
+    {
+        printf("  FAIL idx 7: expected 0x%x, found 0x%x\n", (7 << 3) + 4, idx32);
+        goto error;
+    }
+
+    printf("  PASS - 5 tests\n");
 
     // Values to write
     uint64_t data[8];
@@ -196,8 +226,10 @@ testHostChanMMIO(
             goto error;
         }
 
-        // Is the index correct (in 64 bit space?)
-        expect_idx = (idx >> 1);
+        // Is the index correct (in 64 bit space?). All the AFUs convert the index
+        // to a byte index in the response. On AXI that is the true encoding.
+        // The Avalon-based AFU adds low bits to the index to convert to byte-based.
+        expect_idx = (idx << 2);
         if (rd_idx != expect_idx)
         {
             printf("  FAIL - idx 0x%lx, 64-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
@@ -230,8 +262,8 @@ testHostChanMMIO(
             goto error;
         }
 
-        // Is the index correct (in 512 bit space?)
-        expect_idx = (idx >> 4);
+        // Is the index correct (in 512 bit space?) (byte addressable)
+        expect_idx = (idx << 2);
         if (rd_idx != expect_idx)
         {
             printf("  FAIL - idx 0x%lx, 512-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
@@ -280,8 +312,10 @@ testHostChanMMIO(
             goto error;
         }
 
-        // Is the index correct (in 64 bit space?)
-        expect_idx = idx;
+        // Is the index correct (in 64 bit space?). All the AFUs convert the index
+        // to a byte index in the response. On AXI that is the true encoding.
+        // The Avalon-based AFU adds low bits to the index to convert to byte-based.
+        expect_idx = (idx << 3);
         if (rd_idx != expect_idx)
         {
             printf("  FAIL - idx 0x%lx, 64-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
@@ -311,8 +345,9 @@ testHostChanMMIO(
             goto error;
         }
 
-        // Is the index correct (in 512 bit space?)
-        expect_idx = (idx >> 3);
+        // Is the index correct (in 512 bit space?). All AFUs respond here in
+        // byte-addressable space.
+        expect_idx = (idx << 3);
         if (rd_idx != expect_idx)
         {
             printf("  idx 0x%lx, 512-bit space, incorrect 64 bit index: 0x%lx, expected 0x%lx\n",
@@ -346,9 +381,10 @@ testHostChanMMIO(
 
     // Read back the result recorded by the hardware's 64 bit MMIO space.
     // It should not change.
-    if ((prev_rd_v != mmio_read64(accel_handle, 0x20)) ||
-        (prev_rd_idx != mmio_read64(accel_handle, 0x30)) ||
-        (prev_rd_mask != mmio_read64(accel_handle, 0x31)))
+    if ((rd_bus_width <= 64) &&
+        ((prev_rd_v != mmio_read64(accel_handle, 0x20)) ||
+         (prev_rd_idx != mmio_read64(accel_handle, 0x30)) ||
+         (prev_rd_mask != mmio_read64(accel_handle, 0x31))))
     {
         printf("  FAIL - 512 bit MMIO write should not reach the 64 bit MMIO FPGA interface!\n");
         goto error;
@@ -370,10 +406,10 @@ testHostChanMMIO(
     uint64_t m512_mask = mmio_read64(accel_handle, 0x51);
 
     // Is the index correct (in 512 bit space?)
-    if (m512_idx != idx)
+    if (m512_idx != (idx << 6))
     {
-        printf("  FAIL - idx 0x%lx, 512-bit space, incorrect index: 0x%lx\n",
-               idx, m512_idx);
+        printf("  FAIL - idx 0x%lx, 512-bit space, incorrect index: 0x%lx, expected 0x%lx\n",
+               idx, m512_idx, (idx << 6));
         goto error;
     }
 

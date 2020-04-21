@@ -28,37 +28,60 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-//
-// Wrapper interface for passing all top-level interfaces into an AFU.
-// Every platform must provide this interface.
-//
-
-`ifndef __OFS_PLAT_IF_VH__
-`define __OFS_PLAT_IF_VH__
-
-`include "ofs_plat_if_top_config.vh"
-`include "ofs_plat_clocks.vh"
-`include "ofs_plat_host_ccip_if.vh"
-`include "ofs_plat_avalon_mem_if.vh"
-`include "ofs_plat_avalon_mem_rdwr_if.vh"
-`include "ofs_plat_axi_mem_if.vh"
-
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
-  `include "ofs_plat_host_chan_wrapper.vh"
-`endif
-
-`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
-  `include "ofs_plat_local_mem_wrapper.vh"
-`endif
-
-// Compatibility mode for OPAE SDK's Platform Interface Manager
-`ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
-  `include "platform_shim_ccip_std_afu.vh"
-`endif
 
 //
-// Two-bit power state, originally defined in CCI-P.
+// This module operate on burst counts with an origin of 1, where "1" means
+// one beat and "0" is illegal. This is the Avalon encoding.
 //
-typedef logic [1:0] t_ofs_plat_power_state;
 
-`endif // __OFS_PLAT_IF_VH__
+//
+// Track requests on a channel with flits broken down into packets. (E.g. an
+// Avalon write channel.) Detect SOP and EOP by tracking burst (packet) lengths.
+//
+module ofs_plat_prim_burstcount1_sop_tracker
+  #(
+    parameter BURST_CNT_WIDTH = 0
+    )
+   (
+    input  logic clk,
+    input  logic reset_n,
+
+    // Process a flit (update counters)
+    input  logic flit_valid,
+    // Consumed only at SOP -- the length of the next burst
+    input  logic [BURST_CNT_WIDTH-1 : 0] burstcount,
+
+    output logic sop,
+    output logic eop
+    );
+
+    typedef logic [BURST_CNT_WIDTH-1:0] t_burstcount;
+    t_burstcount flits_rem;
+
+    always_ff @(posedge clk)
+    begin
+        if (flit_valid)
+        begin
+            if (sop)
+            begin
+                flits_rem <= burstcount - t_burstcount'(1);
+                sop <= (burstcount == t_burstcount'(1));
+            end
+            else
+            begin
+                flits_rem <= flits_rem - t_burstcount'(1);
+                sop <= (flits_rem == t_burstcount'(1));
+            end
+        end
+
+        if (!reset_n)
+        begin
+            flits_rem <= t_burstcount'(0);
+            sop <= 1'b1;
+        end
+    end
+
+    assign eop = (sop && (burstcount == t_burstcount'(1))) ||
+                 (!sop && (flits_rem == t_burstcount'(1)));
+
+endmodule // ofs_plat_prim_burstcount1_sop_tracker

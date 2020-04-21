@@ -78,6 +78,27 @@ module afu
     typedef logic [63:0] t_mmio_value;
     typedef logic [11:0] t_csr_idx;
 
+    // Our Avalon encoding of MMIO addresses is an index space into the
+    // word size of the bus. Address 1 in a 64 bit MMIO instance is byte
+    // 8. Address 1 in a 512 bit MMIO instances is byte 64. References
+    // to smaller regions in MMIO space use byteenable. This mask_to_idx
+    // function returns the index of the first 1 in mask, which is
+    // equivalent to the byte offset from the address.
+    function automatic int mask_to_idx(int mask_bits, logic [63:0] mask);
+        int idx = mask_bits;
+
+        for (int i = 0; i < mask_bits; i = i + 1)
+        begin
+            if (mask[i] != 1'b0)
+            begin
+                idx = i;
+                break;
+            end
+        end
+
+        return idx;
+    endfunction
+
 
     // ====================================================================
     //
@@ -110,10 +131,14 @@ module afu
     t_mmio_value [7:0] wr_data_512;
     logic [63:0] wr_mask_512;
     logic [$bits(mmio512_if.address)-1 : 0] wr_addr_512;
+    // Byte offset within the 512 bit entry
+    logic [5:0] wr_byte_idx_512;
 
     t_mmio_value wr_data_64;
     logic [7:0] wr_mask_64;
     logic [$bits(mmio64_if.address)-1 : 0] wr_addr_64;
+    // Byte offset within the 64 bit entry
+    logic [2:0] wr_byte_idx_64;
 
     always_ff @(posedge clk)
     begin
@@ -122,6 +147,7 @@ module afu
             wr_data_512 <= mmio512_if.writedata;
             wr_mask_512 <= mmio512_if.byteenable;
             wr_addr_512 <= mmio512_if.address;
+            wr_byte_idx_512 <= mask_to_idx(64, mmio512_if.byteenable);
         end
 
         if (mmio64_if.write && ! mmio64_if.waitrequest)
@@ -129,6 +155,7 @@ module afu
             wr_data_64 <= mmio64_if.writedata;
             wr_mask_64 <= mmio64_if.byteenable;
             wr_addr_64 <= mmio64_if.address;
+            wr_byte_idx_64 <= mask_to_idx(8, mmio64_if.byteenable);
         end
 
         if (!reset_n)
@@ -136,9 +163,11 @@ module afu
             wr_data_512 <= ~'0;
             wr_mask_512 <= ~'0;
             wr_addr_512 <= ~'0;
+            wr_byte_idx_512 <= ~'0;
             wr_data_64 <= '0;
             wr_mask_64 <= '0;
             wr_addr_64 <= '0;
+            wr_byte_idx_64 <= '0;
         end
     end
 
@@ -168,6 +197,11 @@ module afu
 
     // Reduce the mandatory feature header CSRs (read address 'h?)
     t_mmio_value dfh_afu_id_q;
+
+    logic [31:0] req_byte_addr_64;
+    assign req_byte_addr_64 = 32'({ mmio64_if.address,
+                                    3'(mask_to_idx(8, mmio64_if.byteenable)) });
+
     always_ff @(posedge clk)
     begin
         case (mmio64_if.address[3:0])
@@ -186,6 +220,9 @@ module afu
             4'h1: dfh_afu_id_q <= afu_id[63:0];
             // AFU_ID_H
             4'h2: dfh_afu_id_q <= afu_id[127:64];
+            // Full address of the request, including byte, replicated twice
+            // so it can be read in either half as a 32 bit read.
+            4'h7: dfh_afu_id_q <= { req_byte_addr_64, req_byte_addr_64 };
             default: dfh_afu_id_q <= 64'b0;
         endcase
     end
@@ -203,7 +240,8 @@ module afu
     assign afu_status_reg =
         { 32'h0,  // reserved
           16'(`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ),
-          12'h0,  // reserved
+          2'h0,	  // 64 bit read/write bus
+          10'h0,  // reserved
           4'h0    // Avalon MMIO interfaces
           };
 
@@ -221,13 +259,13 @@ module afu
 
             // 64 bit write state
             12'h020: mmio64_if.readdata <= wr_data_64;
-            12'h030: mmio64_if.readdata <= wr_addr_64;
+            12'h030: mmio64_if.readdata <= 64'({ wr_addr_64, wr_byte_idx_64 });
             12'h031: mmio64_if.readdata <= wr_mask_64;
 
             // 512 bit write state. The wide data is mapped to
             // 8 64 bit registers in 'h030-'h037.
             12'h04?: mmio64_if.readdata <= wr_data_512_q;
-            12'h050: mmio64_if.readdata <= wr_addr_512;
+            12'h050: mmio64_if.readdata <= 64'({ wr_addr_512, wr_byte_idx_512 });
             12'h051: mmio64_if.readdata <= wr_mask_512;
 
             default: mmio64_if.readdata <= 64'h0;

@@ -1,0 +1,4 @@
+host_chan_mmio.json
+
+avalon/ofs_plat_afu_avalon.sv
+avalon/afu_avalon.sv

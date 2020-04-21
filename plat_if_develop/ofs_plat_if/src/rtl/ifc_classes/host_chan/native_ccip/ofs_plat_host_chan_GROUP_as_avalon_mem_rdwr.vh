@@ -42,8 +42,11 @@
     .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
     .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
-// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. Transform the address
-// width from the CCI-P DWORD index to the specified bus width.
+// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. For Avalon MMIO
+// we encode the address as the index of BUSWIDTH-sized words in the
+// MMIO space. For example, for 64 bit BUSWIDTH address 1 is the second
+// 64 bit word in MMIO space. Smaller requests in the MMIO space use
+// byteenable.
 `define HOST_CHAN_XGROUPX_AVALON_MMIO_PARAMS(BUSWIDTH) \
     .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
     .DATA_WIDTH(BUSWIDTH), \

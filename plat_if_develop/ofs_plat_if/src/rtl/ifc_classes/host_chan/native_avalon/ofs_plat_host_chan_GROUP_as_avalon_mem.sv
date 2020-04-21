@@ -142,7 +142,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             logic wr_slave_burst_expects_response;
 
             // Track SOP write beats (there is one response per SOP)
-            ofs_plat_prim_burstcount_sop_tracker
+            ofs_plat_prim_burstcount1_sop_tracker
               #(
                 .BURST_CNT_WIDTH(FIU_BURST_CNT_WIDTH)
                 )

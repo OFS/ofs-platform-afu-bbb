@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,55 +28,51 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+//
+// Generic ready/enable pipeline stage. This implementation shares the same
+// interface as the systolic version (ofs_plat_prim_ready_enable_reg), but
+// internally adds a FIFO. This adds a register between ready_from_dst and
+// ready_to_src, thus breaking control flow into shorter and simpler logic
+// at the expense of area.
+//
 
-//
-// Track requests on a channel with flits broken down into packets. (E.g. an
-// Avalon write channel.) Detect SOP and EOP by tracking burst (packet) lengths.
-//
-module ofs_plat_prim_burstcount_sop_tracker
+module ofs_plat_prim_ready_enable_fifo
   #(
-    parameter BURST_CNT_WIDTH = 0
+    parameter N_DATA_BITS = 32
     )
    (
     input  logic clk,
     input  logic reset_n,
 
-    // Process a flit (update counters)
-    input  logic flit_valid,
-    // Consumed only at SOP -- the length of the next burst
-    input  logic [BURST_CNT_WIDTH-1 : 0] burstcount,
+    input  logic enable_from_src,
+    input  logic [N_DATA_BITS-1 : 0] data_from_src,
+    output logic ready_to_src,
 
-    output logic sop,
-    output logic eop
+    output logic enable_to_dst,
+    output logic [N_DATA_BITS-1 : 0] data_to_dst,
+    input  logic ready_from_dst
     );
 
-    typedef logic [BURST_CNT_WIDTH-1:0] t_burstcount;
-    t_burstcount flits_rem;
+    //
+    // Using the FIFO2 here generates logic that is essentially equivalent
+    // to the Quartus Avalon bridge's management of the request bus.
+    //
+    ofs_plat_prim_fifo2
+      #(
+        .N_DATA_BITS(N_DATA_BITS)
+        )
+      f
+       (
+        .clk,
+        .reset_n,
 
-    always_ff @(posedge clk)
-    begin
-        if (flit_valid)
-        begin
-            if (sop)
-            begin
-                flits_rem <= burstcount - t_burstcount'(1);
-                sop <= (burstcount == t_burstcount'(1));
-            end
-            else
-            begin
-                flits_rem <= flits_rem - t_burstcount'(1);
-                sop <= (flits_rem == t_burstcount'(1));
-            end
-        end
+        .enq_data(data_from_src),
+        .enq_en(enable_from_src && ready_to_src),
+        .notFull(ready_to_src),
 
-        if (!reset_n)
-        begin
-            flits_rem <= t_burstcount'(0);
-            sop <= 1'b1;
-        end
-    end
+        .first(data_to_dst),
+        .deq_en(enable_to_dst && ready_from_dst),
+        .notEmpty(enable_to_dst)
+        );
 
-    assign eop = (sop && (burstcount == t_burstcount'(1))) ||
-                 (!sop && (flits_rem == t_burstcount'(1)));
-
-endmodule // ofs_plat_prim_burstcount_sop_tracker
+endmodule // ofs_plat_prim_ready_enable_fifo

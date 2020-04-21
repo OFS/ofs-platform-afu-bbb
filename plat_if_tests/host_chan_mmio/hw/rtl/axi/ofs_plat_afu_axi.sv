@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Export the host channel as Avalon interfaces.
+// Export the host channel as AXI interfaces.
 //
 
 `include "ofs_plat_if.vh"
@@ -42,50 +42,51 @@ module ofs_plat_afu
 
     // ====================================================================
     //
-    //  Get an Avalon host channel collection from the platform.
+    //  Get an AXI host channel collection from the platform.
     //
     // ====================================================================
 
     // Host memory AFU master
-    ofs_plat_avalon_mem_rdwr_if
+    ofs_plat_axi_mem_if
       #(
-        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
+        `HOST_CHAN_AXI_MEM_PARAMS,
         .BURST_CNT_WIDTH(4),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         host_mem_to_afu();
 
     // 64 bit read/write MMIO AFU slave
-    ofs_plat_avalon_mem_if
+    ofs_plat_axi_mem_lite_if
       #(
-        `HOST_CHAN_AVALON_MMIO_PARAMS(64),
+        `HOST_CHAN_AXI_MMIO_PARAMS(64),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         mmio64_to_afu();
 
     // 512 bit write-only MMIO AFU slave
-    ofs_plat_avalon_mem_if
+    ofs_plat_axi_mem_lite_if
       #(
-        `HOST_CHAN_AVALON_MMIO_PARAMS(512),
+        `HOST_CHAN_AXI_MMIO_PARAMS(512),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         mmio512_wr_to_afu();
 
-    // Map FIU interface to Avalon host memory and both MMIO ports
-    ofs_plat_host_chan_as_avalon_mem_rdwr_with_dual_mmio
+    // Map FIU interface to AXI host memory and both MMIO ports
+    ofs_plat_host_chan_as_axi_mem_with_dual_mmio
       #(
+        .ADD_CLOCK_CROSSING(1),
         .ADD_TIMING_REG_STAGES(2)
         )
-      primary_avalon
+      primary_axi
        (
         .to_fiu(plat_ifc.host_chan.ports[0]),
         .host_mem_to_afu,
         .mmio_to_afu(mmio64_to_afu),
         .mmio_wr_to_afu(mmio512_wr_to_afu),
 
-        // Use default clock
-        .afu_clk(),
-        .afu_reset_n()
+        // Use user clock
+        .afu_clk(plat_ifc.clocks.uClk_usr),
+        .afu_reset_n(plat_ifc.clocks.uClk_usr_reset_n)
         );
 
 
@@ -119,16 +120,10 @@ module ofs_plat_afu
        );
 
     // Tie off host memory -- not used by this test
-    assign host_mem_to_afu.rd_address = '0;
-    assign host_mem_to_afu.rd_read = '0;
-    assign host_mem_to_afu.rd_burstcount = '0;
-    assign host_mem_to_afu.rd_byteenable = '0;
-    assign host_mem_to_afu.rd_function = '0;
-    assign host_mem_to_afu.wr_address = '0;
-    assign host_mem_to_afu.wr_write = '0;
-    assign host_mem_to_afu.wr_burstcount = '0;
-    assign host_mem_to_afu.wr_writedata = '0;
-    assign host_mem_to_afu.wr_byteenable = '0;
-    assign host_mem_to_afu.wr_function = '0;
+    assign host_mem_to_afu.awvalid = 1'b0;
+    assign host_mem_to_afu.wvalid = 1'b0;
+    assign host_mem_to_afu.bready = 1'b1;
+    assign host_mem_to_afu.arvalid = 1'b0;
+    assign host_mem_to_afu.rready = 1'b1;
 
 endmodule // ofs_plat_afu
