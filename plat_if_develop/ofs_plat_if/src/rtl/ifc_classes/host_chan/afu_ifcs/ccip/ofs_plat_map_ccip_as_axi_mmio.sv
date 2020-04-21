@@ -259,25 +259,34 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
     endgenerate
 
     // New request?
-    logic req_in_fifo_enq_en_fclk;
+    logic req_in_fifo_enq_en_fclk, req_in_fifo_enq_en_fclk_q;
     assign req_in_fifo_enq_en_fclk =
         ((sRx.c0.mmioRdValid && !WRITE_ONLY_MODE) || sRx.c0.mmioWrValid) &&
         mmio_req_fits_in_data &&
         !error_fclk;
 
+    // Simply push the whole data structures through the FIFO.
+    // Quartus will remove the parts that wind up not being used.
+    localparam FIFO_IN_WIDTH = 1 + $bits(t_ccip_clData) + $bits(t_ccip_c0_ReqMmioHdr);
+    logic [FIFO_IN_WIDTH-1 : 0] req_in_fifo_q;
+
+    always_ff @(posedge fclk)
+    begin
+        req_in_fifo_q <= { sRx.c0.mmioWrValid, mmio_in_wr_data_fclk, mmio_in_hdr_fclk };
+        req_in_fifo_enq_en_fclk_q <= req_in_fifo_enq_en_fclk;
+    end
+
     ofs_plat_prim_fifo_dc_bram
       #(
-        // Simply push the whole data structures through the FIFO.
-        // Quartus will remove the parts that wind up not being used.
-        .N_DATA_BITS(1 + $bits(t_ccip_clData) + $bits(t_ccip_c0_ReqMmioHdr)),
+        .N_DATA_BITS(FIFO_IN_WIDTH),
         .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       req_in_fifo
        (
         .reset_n(reset_n_fclk),
         .wr_clk(fclk),
-        .enq_data({ sRx.c0.mmioWrValid, mmio_in_wr_data_fclk, mmio_in_hdr_fclk }),
-        .enq_en(req_in_fifo_enq_en_fclk),
+        .enq_data(req_in_fifo_q),
+        .enq_en(req_in_fifo_enq_en_fclk_q),
         .notFull(req_in_fifo_notFull_fclk),
         .almostFull(),
         .rd_clk(mmio_to_afu.clk),
