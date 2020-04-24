@@ -44,6 +44,18 @@ interface ofs_plat_avalon_mem_if
     parameter BURST_CNT_WIDTH = 0,
     parameter RESPONSE_WIDTH = 2,
 
+    // Extension - Optional user-defined payload.
+    // This defines the width of user, readresponseuser and writeresponseuser.
+    //
+    // Most slaves do not implement these and the vast majority of OFS platform
+    // top-level wrapper modules return undefined values. The Platform Interface
+    // Manager uses these fields internally, without saving or restoring values
+    // passed in from AFU masters. The fields may be also be used by AFUs to add
+    // state to intra-AFU pipelines.
+    //
+    // The default width of one is easier to handle than zero.
+    parameter USER_WIDTH = 1,
+
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by
     // the slave. Be careful to consider the registered delay of the waitrequest
@@ -58,6 +70,7 @@ interface ofs_plat_avalon_mem_if
     localparam DATA_WIDTH_ = $bits(logic [DATA_WIDTH:0]) - 1;
     localparam BURST_CNT_WIDTH_ = $bits(logic [BURST_CNT_WIDTH:0]) - 1;
     localparam RESPONSE_WIDTH_ = $bits(logic [RESPONSE_WIDTH:0]) - 1;
+    localparam USER_WIDTH_ = $bits(logic [USER_WIDTH:0]) - 1;
 
     // Number of bytes in a data line
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
@@ -71,6 +84,8 @@ interface ofs_plat_avalon_mem_if
     logic readdatavalid;
     logic [DATA_WIDTH-1:0] readdata;
     logic [RESPONSE_WIDTH-1:0] response;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] readresponseuser;
 
     // Many slaves will not implement write responses. Responses are typically
     // needed only when the commit points of writes relative to other events may
@@ -82,6 +97,8 @@ interface ofs_plat_avalon_mem_if
     // calculate reserved space required in clock crossing FIFOs, etc.
     logic writeresponsevalid;
     logic [RESPONSE_WIDTH-1:0] writeresponse;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] writeresponseuser;
 
     logic [ADDR_WIDTH-1:0] address;
     logic write;
@@ -89,6 +106,8 @@ interface ofs_plat_avalon_mem_if
     logic [BURST_CNT_WIDTH-1:0] burstcount;
     logic [DATA_WIDTH-1:0]      writedata;
     logic [DATA_N_BYTES-1:0]    byteenable;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] user;
 
     // Debugging state.  This will typically be driven to a constant by the
     // code that instantiates the interface object.
@@ -106,8 +125,10 @@ interface ofs_plat_avalon_mem_if
         input  readdatavalid,
         input  readdata,
         input  response,
+        input  readresponseuser,
         input  writeresponsevalid,
         input  writeresponse,
+        input  writeresponseuser,
 
         output address,
         output write,
@@ -115,6 +136,7 @@ interface ofs_plat_avalon_mem_if
         output burstcount,
         output writedata,
         output byteenable,
+        output user,
 
         // Debugging
         input  instance_number
@@ -130,8 +152,10 @@ interface ofs_plat_avalon_mem_if
         input  readdatavalid,
         input  readdata,
         input  response,
+        input  readresponseuser,
         input  writeresponsevalid,
         input  writeresponse,
+        input  writeresponseuser,
 
         output address,
         output write,
@@ -139,6 +163,7 @@ interface ofs_plat_avalon_mem_if
         output burstcount,
         output writedata,
         output byteenable,
+        output user,
 
         // Debugging
         output instance_number
@@ -157,8 +182,10 @@ interface ofs_plat_avalon_mem_if
         output readdatavalid,
         output readdata,
         output response,
+        output readresponseuser,
         output writeresponsevalid,
         output writeresponse,
+        output writeresponseuser,
 
         input  address,
         input  write,
@@ -166,6 +193,7 @@ interface ofs_plat_avalon_mem_if
         input  burstcount,
         input  writedata,
         input  byteenable,
+        input  user,
 
         // Debugging
         input  instance_number
@@ -181,8 +209,10 @@ interface ofs_plat_avalon_mem_if
         output readdatavalid,
         output readdata,
         output response,
+        output readresponseuser,
         output writeresponsevalid,
         output writeresponse,
+        output writeresponseuser,
 
         input  address,
         input  write,
@@ -190,6 +220,7 @@ interface ofs_plat_avalon_mem_if
         input  burstcount,
         input  writedata,
         input  byteenable,
+        input  user,
 
         // Debugging
         output instance_number
@@ -298,35 +329,38 @@ interface ofs_plat_avalon_mem_if
                 // Read request
                 if (reset_n && read && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x mask 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x user 0x%x mask 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             address,
                             burstcount,
+                            user,
                             byteenable);
                 end
 
                 // Read response
                 if (reset_n && readdatavalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (0x%x)\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x user 0x%x (0x%x)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             readdata,
+                            readresponseuser,
                             response);
                 end
 
                 // Write request
                 if (reset_n && write && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x user 0x%x mask 0x%x data 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             address,
                             ((wr_bursts_rem == 0) ? "sop " : ""),
+                            user,
                             burstcount,
                             byteenable,
                             writedata);
@@ -335,10 +369,11 @@ interface ofs_plat_avalon_mem_if
                 // Write response
                 if (reset_n && writeresponsevalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write resp (0x%x)\n",
+                    $fwrite(log_fd, "%m: %t %s %0d write resp user 0x%x (0x%x)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
+                            writeresponseuser,
                             writeresponse);
                 end
             end

@@ -57,6 +57,10 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     // and losing requests on transitions to almost full.
     parameter ADD_TIMING_REG_STAGES = 0,
 
+    // Should unpacked write responses be merged into a single packed
+    // response, guaranteeing exactly one response per write request?
+    parameter MERGE_UNPACKED_WRITE_RESPONSES = 0,
+
     // Should read or write responses be returned in the order they were
     // requested? By default, CCI-P is unordered.
     parameter SORT_READ_RESPONSES = 0,
@@ -142,6 +146,37 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
 
 
     // ====================================================================
+    //  Merged unpacked write responses?
+    // ====================================================================
+
+    ofs_plat_host_ccip_if eop_ccip_if();
+
+    generate
+        if ((MERGE_UNPACKED_WRITE_RESPONSES == 0) && (SORT_WRITE_RESPONSES == 0))
+        begin : neop
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_fiu(reg_ccip_if),
+                .to_afu(eop_ccip_if)
+                );
+        end
+        else
+        begin : eop
+            // Merge unpacked write responses
+            ofs_plat_shim_ccip_detect_eop
+              #(
+                .MAX_ACTIVE_WR_REQS(ccip_xGROUPx_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
+                )
+              eop
+               (
+                .to_fiu(reg_ccip_if),
+                .to_afu(eop_ccip_if)
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
     //  Sort write responses in request order?
     // ====================================================================
 
@@ -152,28 +187,12 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         begin : nws
             ofs_plat_ccip_if_connect conn
                (
-                .to_fiu(reg_ccip_if),
+                .to_fiu(eop_ccip_if),
                 .to_afu(wr_ccip_if)
                 );
         end
         else
         begin : ws
-            //
-            // Later stages depend on CCI-P write responses always being packed: a
-            // single write response per multi-line write request. Make sure that
-            // is true.
-            //
-            ofs_plat_host_ccip_if eop_ccip_if();
-            ofs_plat_shim_ccip_detect_eop
-              #(
-                .MAX_ACTIVE_WR_REQS(ccip_xGROUPx_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
-                )
-              eop
-               (
-                .to_fiu(reg_ccip_if),
-                .to_afu(eop_ccip_if)
-                );
-
             // Sort write responses
             ofs_plat_shim_ccip_rob_wr
               #(

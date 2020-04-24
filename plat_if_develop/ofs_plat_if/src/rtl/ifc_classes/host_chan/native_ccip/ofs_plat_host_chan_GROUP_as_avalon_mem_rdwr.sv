@@ -337,15 +337,16 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
     );
 
     //
-    // Avalon requires both read and write responses to be ordered the same
-    // as requests.
+    // Connect to a CCI-P stream in which all write responses are packed.
+    // Responses may still be out of order. Sorting will be handled in
+    // ofs_plat_map_ccip_as_avalon_host_mem below, where sorting and
+    // clock crossing can share a buffer.
     //
     ofs_plat_host_ccip_if sorted_ccip_if();
 
     ofs_plat_host_chan_xGROUPx_as_ccip
       #(
-        .SORT_READ_RESPONSES(1),
-        .SORT_WRITE_RESPONSES(1)
+        .MERGE_UNPACKED_WRITE_RESPONSES(1)
         )
       ccip_sort
        (
@@ -373,6 +374,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr_impl
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(ccip_xGROUPx_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0]),
+        .MAX_ACTIVE_WR_LINES(ccip_xGROUPx_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0]),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
         )
       av_host_mem

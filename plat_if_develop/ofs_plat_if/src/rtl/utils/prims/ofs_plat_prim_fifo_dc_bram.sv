@@ -127,4 +127,4 @@ module ofs_plat_prim_fifo_dc_bram
 
     // synthesis translate_on
 
-endmodule // ofs_plat_prim_fifo_bram
+endmodule // ofs_plat_prim_fifo_dc_bram

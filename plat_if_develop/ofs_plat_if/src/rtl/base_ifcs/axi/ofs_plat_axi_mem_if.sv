@@ -121,11 +121,11 @@ interface ofs_plat_axi_mem_if
         t_axi_prot prot;
         t_user user;
         t_axi_qos qos;
-        t_axi_region region;            // Region is usually ignored in masters,
+        t_axi_region region;            // Region is usually ignored in slaves,
                                         // though the field may be useful in AFUs
                                         // with routing networks connecting to
-                                        // multiple masters.
-        t_axi_atomic atop;              // AXI5 atomic. Not all masters implement
+                                        // multiple slaves.
+        t_axi_atomic atop;              // AXI5 atomic. Not all slaves implement
                                         // atomic operations.
     } t_axi_mem_aw;
     localparam T_AW_WIDTH = $bits(t_axi_mem_aw);
@@ -151,8 +151,8 @@ interface ofs_plat_axi_mem_if
     typedef struct packed {
         t_wid id;
         t_axi_resp resp;
-        t_user user;                    // By convention masters return aw.user
-                                        // in b.user, though masters may document
+        t_user user;                    // By convention slaves return aw.user
+                                        // in b.user, though slaves may document
                                         // some other behavior.
     } t_axi_mem_b;
     localparam T_B_WIDTH = $bits(t_axi_mem_b);
@@ -186,8 +186,8 @@ interface ofs_plat_axi_mem_if
         t_rid id;
         t_data data;
         t_axi_resp resp;
-        t_user user;                    // By convention masters return ar.user
-                                        // in r.user, though masters may document
+        t_user user;                    // By convention slaves return ar.user
+                                        // in r.user, though slaves may document
                                         // some other behavior.
         logic last;
     } t_axi_mem_r;

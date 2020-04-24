@@ -45,6 +45,20 @@ interface ofs_plat_avalon_mem_rdwr_if
     parameter ADDR_WIDTH = 0,
     parameter DATA_WIDTH = 0,
     parameter BURST_CNT_WIDTH = 0,
+    parameter RESPONSE_WIDTH = 2,
+
+    // Extension - Optional user-defined payload.
+    // This defines the width of rd_user, rd_readresponseuser, wr_user and
+    // wr_writeresponseuser.
+    //
+    // Most slaves do not implement these and the vast majority of OFS platform
+    // top-level wrapper modules return undefined values. The Platform Interface
+    // Manager uses these fields internally, without saving or restoring values
+    // passed in from AFU masters. The fields may be also be used by AFUs to add
+    // state to intra-AFU pipelines.
+    //
+    // The default width of one is easier to handle than zero.
+    parameter USER_WIDTH = 1,
 
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by
@@ -59,6 +73,8 @@ interface ofs_plat_avalon_mem_rdwr_if
     localparam ADDR_WIDTH_ = $bits(logic [ADDR_WIDTH:0]) - 1;
     localparam DATA_WIDTH_ = $bits(logic [DATA_WIDTH:0]) - 1;
     localparam BURST_CNT_WIDTH_ = $bits(logic [BURST_CNT_WIDTH:0]) - 1;
+    localparam RESPONSE_WIDTH_ = $bits(logic [RESPONSE_WIDTH:0]) - 1;
+    localparam USER_WIDTH_ = $bits(logic [USER_WIDTH:0]) - 1;
 
     // Number of bytes in a data line
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
@@ -73,7 +89,9 @@ interface ofs_plat_avalon_mem_rdwr_if
     logic rd_waitrequest;
     logic [DATA_WIDTH-1:0] rd_readdata;
     logic rd_readdatavalid;
-    logic [1:0] rd_response;
+    logic [RESPONSE_WIDTH-1:0] rd_response;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] rd_readresponseuser;
 
     logic [ADDR_WIDTH-1:0] rd_address;
     logic rd_read;
@@ -82,12 +100,16 @@ interface ofs_plat_avalon_mem_rdwr_if
     // rd_function is non-standard. It is currently reserved and should be set to
     // zero. See wr_function for a more detailed explanation.
     logic rd_function;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] rd_user;
 
 
     // Write bus
     logic wr_waitrequest;
     logic wr_writeresponsevalid;
-    logic [1:0] wr_response;
+    logic [RESPONSE_WIDTH-1:0] wr_response;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] wr_writeresponseuser;
 
     logic [ADDR_WIDTH-1:0] wr_address;
     logic wr_write;
@@ -108,6 +130,8 @@ interface ofs_plat_avalon_mem_rdwr_if
     // networks that lack the port is by widening the address field by one bit and
     // sending request in parallel through the address port.
     logic wr_function;
+    // Extension - see USER_WIDTH parameter
+    logic [USER_WIDTH-1:0] wr_user;
 
 
     // Debugging state.  This will typically be driven to a constant by the
@@ -127,17 +151,20 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  rd_readdata,
         input  rd_readdatavalid,
         input  rd_response,
+        input  rd_readresponseuser,
 
         output rd_address,
         output rd_read,
         output rd_burstcount,
         output rd_byteenable,
         output rd_function,
+        output rd_user,
 
         // Write bus
         input  wr_waitrequest,
         input  wr_writeresponsevalid,
         input  wr_response,
+        input  wr_writeresponseuser,
 
         output wr_address,
         output wr_write,
@@ -145,6 +172,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_writedata,
         output wr_byteenable,
         output wr_function,
+        output wr_user,
 
         // Debugging
         input  instance_number
@@ -161,17 +189,20 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  rd_readdata,
         input  rd_readdatavalid,
         input  rd_response,
+        input  rd_readresponseuser,
 
         output rd_address,
         output rd_read,
         output rd_burstcount,
         output rd_byteenable,
         output rd_function,
+        output rd_user,
 
         // Write bus
         input  wr_waitrequest,
         input  wr_writeresponsevalid,
         input  wr_response,
+        input  wr_writeresponseuser,
 
         output wr_address,
         output wr_write,
@@ -179,6 +210,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_writedata,
         output wr_byteenable,
         output wr_function,
+        output wr_user,
 
         // Debugging
         output instance_number
@@ -198,17 +230,20 @@ interface ofs_plat_avalon_mem_rdwr_if
         output rd_readdata,
         output rd_readdatavalid,
         output rd_response,
+        output rd_readresponseuser,
 
         input  rd_address,
         input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
         input  rd_function,
+        input  rd_user,
 
         // Write bus
         output wr_waitrequest,
         output wr_writeresponsevalid,
         output wr_response,
+        output wr_writeresponseuser,
 
         input  wr_address,
         input  wr_write,
@@ -216,6 +251,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_writedata,
         input  wr_byteenable,
         input  wr_function,
+        input  wr_user,
 
         // Debugging
         input  instance_number
@@ -232,17 +268,20 @@ interface ofs_plat_avalon_mem_rdwr_if
         output rd_readdata,
         output rd_readdatavalid,
         output rd_response,
+        output rd_readresponseuser,
 
         input  rd_address,
         input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
         input  rd_function,
+        input  rd_user,
 
         // Write bus
         output wr_waitrequest,
         output wr_writeresponsevalid,
         output wr_response,
+        output wr_writeresponseuser,
 
         input  wr_address,
         input  wr_write,
@@ -250,6 +289,7 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_writedata,
         input  wr_byteenable,
         input  wr_function,
+        input  wr_user,
 
         // Debugging
         output instance_number
@@ -383,30 +423,32 @@ interface ofs_plat_avalon_mem_rdwr_if
                 // Read request
                 if (reset_n && rd_read && (!rd_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x\ mask 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x user 0x%x mask 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             rd_address,
                             rd_burstcount,
+                            rd_user,
                             rd_byteenable);
                 end
 
                 // Read response
                 if (reset_n && rd_readdatavalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x (%d)\n",
+                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x user 0x%x (%d)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             rd_readdata,
+                            rd_readresponseuser,
                             rd_response);
                 end
 
                 // Write request
                 if (reset_n && wr_write && (!wr_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write %s0x%x %sburst 0x%x mask 0x%x data 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d write %s0x%x %sburst 0x%x user 0x%x mask 0x%x data 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
@@ -414,16 +456,18 @@ interface ofs_plat_avalon_mem_rdwr_if
                             wr_address,
                             (wr_sop ? "sop " : ""),
                             wr_burstcount,
+                            wr_user,
                             wr_byteenable,
                             wr_writedata);
                 end
 
                 if (reset_n && wr_writeresponsevalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write resp (%d)\n",
+                    $fwrite(log_fd, "%m: %t %s %0d write resp user 0x%x (%d)\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
+                            wr_writeresponseuser,
                             wr_response);
                 end
             end

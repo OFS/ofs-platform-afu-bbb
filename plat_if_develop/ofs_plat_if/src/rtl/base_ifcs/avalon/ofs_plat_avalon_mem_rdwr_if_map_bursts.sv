@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -42,18 +42,17 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
 
-    // Write responses returned to mem_master must match the master's write burst
-    // count and not the slave's. This is NOT handled inside the module here.
-    // Instead, the parent module is expected to record which slave bursts get
-    // responses and which don't. We do this because some parents can record
-    // burst requirements as existing metadata along with requests (e.g. in CCI-P
-    // mdata), thus using very few FPGA resources.
     //
-    // wr_slave_burst_expects_response is set on SOP of a mem_slave.wr_write if
-    // the burst requires a write response.
-    output logic wr_slave_burst_expects_response
+    // The wr_user field's low bit is used to indicate whether the AFU expects
+    // a write response for a write request. Write responses returned to
+    // mem_master must match the master's write burst count and not the
+    // slave's. The slave must return wr_user[0] in wr_writeresponseuser[0],
+    // which is used in this module on the response path to squash duplicate
+    // master write responses. Master write responses are only expected when
+    // mem_slave.wr_user[0] is 1.
+    //
+    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave
     );
 
 
@@ -216,7 +215,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             // module to ensure that there is only one write ACK per master burst.
             // The output port wr_slave_burst_expects_response can be used by the
             // parent module for this purpose.
-            assign wr_slave_burst_expects_response = wr_complete && s_wr_sop;
+            assign mem_slave.wr_user[0] = wr_complete && s_wr_sop;
 
             ofs_plat_prim_burstcount1_sop_tracker
               #(
@@ -246,15 +245,18 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .eop()
                 );
 
-            assign mem_master.wr_writeresponsevalid = mem_slave.wr_writeresponsevalid;
             assign mem_master.wr_response = mem_slave.wr_response;
+            // Forward only responses to master bursts. Extra slave bursts are
+            // indicated by 0 in wr_writeresponseuser[0].
+            assign mem_master.wr_writeresponsevalid =
+                mem_slave.wr_writeresponsevalid && mem_slave.wr_writeresponseuser[0];
 
 
             // synthesis translate_off
 
             //
             // Validated in simulation: confirm that the parent module is properly
-            // gating write responses based on wr_slave_burst_expects_response.
+            // gating write responses based on wr_slave.wr_user[0] burst tracking.
             // The test here is simple: if there are more write responses than
             // write requests from the master then something is wrong.
             //

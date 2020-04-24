@@ -133,8 +133,8 @@ interface ofs_plat_axi_mem_lite_if
     typedef struct packed {
         t_wid id;
         t_axi_resp resp;
-        t_user user;                    // By convention masters return aw.user
-                                        // in b.user, though masters may document
+        t_user user;                    // By convention slaves return aw.user
+                                        // in b.user, though slaves may document
                                         // some other behavior.
     } t_axi_mem_lite_b;
     localparam T_B_WIDTH = $bits(t_axi_mem_lite_b);
@@ -162,8 +162,8 @@ interface ofs_plat_axi_mem_lite_if
         t_rid id;
         t_data data;
         t_axi_resp resp;
-        t_user user;                    // By convention masters return ar.user
-                                        // in r.user, though masters may document
+        t_user user;                    // By convention slaves return ar.user
+                                        // in r.user, though slaves may document
                                         // some other behavior.
     } t_axi_mem_lite_r;
     localparam T_R_WIDTH = $bits(t_axi_mem_lite_r);

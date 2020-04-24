@@ -62,12 +62,14 @@
     MEM_SLAVE.rd_byteenable = MEM_MASTER.rd_byteenable; \
     MEM_SLAVE.rd_address = MEM_MASTER.rd_address; \
     MEM_SLAVE.rd_function = MEM_MASTER.rd_function; \
+    MEM_SLAVE.rd_user = MEM_MASTER.rd_user; \
     MEM_SLAVE.wr_burstcount = MEM_MASTER.wr_burstcount; \
     MEM_SLAVE.wr_writedata = MEM_MASTER.wr_writedata; \
     MEM_SLAVE.wr_address = MEM_MASTER.wr_address; \
     MEM_SLAVE.wr_function = MEM_MASTER.wr_function; \
     MEM_SLAVE.wr_write = MEM_MASTER.wr_write; \
-    MEM_SLAVE.wr_byteenable = MEM_MASTER.wr_byteenable
+    MEM_SLAVE.wr_byteenable = MEM_MASTER.wr_byteenable; \
+    MEM_SLAVE.wr_user = MEM_MASTER.wr_user
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
     MEM_SLAVE.rd_read <= MEM_MASTER.rd_read; \
@@ -75,12 +77,14 @@
     MEM_SLAVE.rd_byteenable <= MEM_MASTER.rd_byteenable; \
     MEM_SLAVE.rd_address <= MEM_MASTER.rd_address; \
     MEM_SLAVE.rd_function <= MEM_MASTER.rd_function; \
+    MEM_SLAVE.rd_user <= MEM_MASTER.rd_user; \
     MEM_SLAVE.wr_burstcount <= MEM_MASTER.wr_burstcount; \
     MEM_SLAVE.wr_writedata <= MEM_MASTER.wr_writedata; \
     MEM_SLAVE.wr_address <= MEM_MASTER.wr_address; \
     MEM_SLAVE.wr_function <= MEM_MASTER.wr_function; \
     MEM_SLAVE.wr_write <= MEM_MASTER.wr_write; \
-    MEM_SLAVE.wr_byteenable <= MEM_MASTER.wr_byteenable
+    MEM_SLAVE.wr_byteenable <= MEM_MASTER.wr_byteenable; \
+    MEM_SLAVE.wr_user <= MEM_MASTER.wr_user
 
 
 // Note these do not set clk, reset or instance_number since those
@@ -90,9 +94,11 @@
     MEM_MASTER.rd_readdata = MEM_SLAVE.rd_readdata; \
     MEM_MASTER.rd_readdatavalid = MEM_SLAVE.rd_readdatavalid; \
     MEM_MASTER.rd_response = MEM_SLAVE.rd_response; \
+    MEM_MASTER.rd_readresponseuser = MEM_SLAVE.rd_readresponseuser; \
     MEM_MASTER.wr_waitrequest = MEM_SLAVE.wr_waitrequest; \
     MEM_MASTER.wr_writeresponsevalid = MEM_SLAVE.wr_writeresponsevalid; \
-    MEM_MASTER.wr_response = MEM_SLAVE.wr_response
+    MEM_MASTER.wr_response = MEM_SLAVE.wr_response; \
+    MEM_MASTER.wr_writeresponseuser = MEM_SLAVE.wr_writeresponseuser
 
 // Note the lack of waitrequest in the non-blocking assignment. The
 // ready/enable protocol must be handled explicitly.
@@ -101,15 +107,20 @@
     MEM_MASTER.rd_readdata <= MEM_SLAVE.rd_readdata; \
     MEM_MASTER.rd_readdatavalid <= MEM_SLAVE.rd_readdatavalid; \
     MEM_MASTER.rd_response <= MEM_SLAVE.rd_response; \
+    MEM_MASTER.rd_readresponseuser <= MEM_SLAVE.rd_readresponseuser; \
     MEM_MASTER.wr_waitrequest <= MEM_SLAVE.wr_waitrequest; \
     MEM_MASTER.wr_writeresponsevalid <= MEM_SLAVE.wr_writeresponsevalid; \
-    MEM_MASTER.wr_response <= MEM_SLAVE.wr_response
+    MEM_MASTER.wr_response <= MEM_SLAVE.wr_response; \
+    MEM_MASTER.wr_writeresponseuser = MEM_SLAVE.wr_writeresponseuser
 
 
 //
 // Initialization macros ought to just be tasks in the interface, but QuestSim
 // treats tasks as active even if they are never invoked, leading to errors
 // about multiple drivers.
+//
+// User extension fields are not initialized, leaving them at 'x and making it
+// obvious that these fields are not part of the protocol.
 //
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_COMB(MEM_MASTER) \

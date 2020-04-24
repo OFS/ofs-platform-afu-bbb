@@ -54,12 +54,16 @@ module ofs_plat_avalon_mem_rdwr_if_reg
         end
         else
         begin : regs
+            // Pass user extension fields through the pipeline
+            localparam USER_WIDTH = mem_slave.USER_WIDTH_;
+
             // Pipeline stages.
             ofs_plat_avalon_mem_rdwr_if
               #(
                 .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
                 .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+                .USER_WIDTH(USER_WIDTH)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
@@ -80,8 +84,9 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                 ofs_plat_utils_avalon_mm_bridge
                   #(
                     .DATA_WIDTH(mem_slave.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(1 + mem_slave.ADDR_WIDTH),
-                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH)
+                    .HDL_ADDR_WIDTH(1 + USER_WIDTH + mem_slave.ADDR_WIDTH),
+                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
+                    .RESPONSE_WIDTH(USER_WIDTH + mem_slave.RESPONSE_WIDTH)
                     )
                   bridge_rd
                    (
@@ -91,10 +96,13 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     .s0_waitrequest(mem_pipe[s].rd_waitrequest),
                     .s0_readdata(mem_pipe[s].rd_readdata),
                     .s0_readdatavalid(mem_pipe[s].rd_readdatavalid),
-                    .s0_response(mem_pipe[s].rd_response),
+                    .s0_response({ mem_pipe[s].rd_readresponseuser,
+                                   mem_pipe[s].rd_response }),
                     .s0_burstcount(mem_pipe[s].rd_burstcount),
                     .s0_writedata('0),
-                    .s0_address({mem_pipe[s].rd_function, mem_pipe[s].rd_address}),
+                    .s0_address({ mem_pipe[s].rd_function,
+                                  mem_pipe[s].rd_user,
+                                  mem_pipe[s].rd_address }),
                     .s0_write(1'b0),
                     .s0_read(mem_pipe[s].rd_read),
                     .s0_byteenable(mem_pipe[s].rd_byteenable),
@@ -103,10 +111,13 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     .m0_waitrequest(mem_pipe[s - 1].rd_waitrequest),
                     .m0_readdata(mem_pipe[s - 1].rd_readdata),
                     .m0_readdatavalid(mem_pipe[s - 1].rd_readdatavalid),
-                    .m0_response(mem_pipe[s - 1].rd_response),
+                    .m0_response({ mem_pipe[s - 1].rd_readresponseuser,
+                                   mem_pipe[s - 1].rd_response }),
                     .m0_burstcount(mem_pipe[s - 1].rd_burstcount),
                     .m0_writedata(),
-                    .m0_address({mem_pipe[s - 1].rd_function, mem_pipe[s - 1].rd_address}),
+                    .m0_address({ mem_pipe[s - 1].rd_function,
+                                  mem_pipe[s - 1].rd_user,
+                                  mem_pipe[s - 1].rd_address }),
                     .m0_write(),
                     .m0_read(mem_pipe[s - 1].rd_read),
                     .m0_byteenable(mem_pipe[s - 1].rd_byteenable),
@@ -116,8 +127,9 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                 ofs_plat_utils_avalon_mm_bridge
                   #(
                     .DATA_WIDTH(mem_slave.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(1 + mem_slave.ADDR_WIDTH),
-                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH)
+                    .HDL_ADDR_WIDTH(1 + USER_WIDTH + mem_slave.ADDR_WIDTH),
+                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
+                    .RESPONSE_WIDTH(USER_WIDTH + mem_slave.RESPONSE_WIDTH)
                     )
                   bridge_wr
                    (
@@ -129,10 +141,13 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     // Use readdatavalid/response to pass write response.
                     // The bridge doesn't count reads or writes, so this works.
                     .s0_readdatavalid(mem_pipe[s].wr_writeresponsevalid),
-                    .s0_response(mem_pipe[s].wr_response),
+                    .s0_response({ mem_pipe[s].wr_writeresponseuser,
+                                   mem_pipe[s].wr_response }),
                     .s0_burstcount(mem_pipe[s].wr_burstcount),
                     .s0_writedata(mem_pipe[s].wr_writedata),
-                    .s0_address({mem_pipe[s].wr_function, mem_pipe[s].wr_address}),
+                    .s0_address({ mem_pipe[s].wr_function,
+                                  mem_pipe[s].wr_user,
+                                  mem_pipe[s].wr_address }),
                     .s0_write(mem_pipe[s].wr_write),
                     .s0_read(1'b0),
                     .s0_byteenable(mem_pipe[s].wr_byteenable),
@@ -142,10 +157,13 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                     .m0_readdata('0),
                     // See above -- readdatavalid is used for write responses
                     .m0_readdatavalid(mem_pipe[s - 1].wr_writeresponsevalid),
-                    .m0_response(mem_pipe[s - 1].wr_response),
+                    .m0_response({ mem_pipe[s - 1].wr_writeresponseuser,
+                                   mem_pipe[s - 1].wr_response }),
                     .m0_burstcount(mem_pipe[s - 1].wr_burstcount),
                     .m0_writedata(mem_pipe[s - 1].wr_writedata),
-                    .m0_address({mem_pipe[s - 1].wr_function, mem_pipe[s - 1].wr_address}),
+                    .m0_address({ mem_pipe[s - 1].wr_function,
+                                  mem_pipe[s - 1].wr_user,
+                                  mem_pipe[s - 1].wr_address }),
                     .m0_write(mem_pipe[s - 1].wr_write),
                     .m0_read(),
                     .m0_byteenable(mem_pipe[s - 1].wr_byteenable),

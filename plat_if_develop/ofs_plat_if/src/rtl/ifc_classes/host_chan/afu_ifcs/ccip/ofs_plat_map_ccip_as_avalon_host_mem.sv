@@ -32,18 +32,18 @@
 
 //
 // Map CCI-P host memory traffic to an Avalon channel. The incoming CCI-P
-// responses are assumed to be sorted already, making the Avalon mapping
-// relatively easy.
+// responses are out of order, so must be sorted. The same buffer is
+// used for clock crossing, if needed, and sorting.
 //
 module ofs_plat_map_ccip_as_avalon_host_mem
   #(
-    // When non-zero, add a clock crossing to move the AValon
+    // When non-zero, add a clock crossing to move the Avalon
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
-    // Size of the read response buffer instantiated when a clock crossing
-    // as required.
+    // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
+    parameter MAX_ACTIVE_WR_LINES = 256,
 
     parameter ADD_TIMING_REG_STAGES = 0
     )
@@ -81,6 +81,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     // ====================================================================
 
+
     //
     // Bind the proper clock to the AFU interface. If there is no clock
     // crossing requested then it's just the FIU CCI-P clock.
@@ -105,135 +106,20 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     end
     // synthesis translate_on
 
-    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+    //
+    // Connect the AFU clock and add a register stage for timing next
+    // to the burst mapper.
+    //
+    ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
+      #(
+        .N_REG_STAGES(ADD_TIMING_REG_STAGES)
+        )
       conn_afu_clk
        (
         .mem_master(host_mem_to_afu),
         .mem_slave(avmm_afu_clk_if)
         );
 
-    //
-    // Cross to the FIU clock and add register stages. The two are combined
-    // because the clock crossing buffer can also be used to simplify the
-    // Avalon waitrequest protocol.
-    //
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
-        )
-      avmm_fiu_clk_if();
-
-    assign avmm_fiu_clk_if.clk = clk;
-    assign avmm_fiu_clk_if.reset_n = reset_n;
-    assign avmm_fiu_clk_if.instance_number = to_fiu.instance_number;
-
-    generate
-        if (ADD_CLOCK_CROSSING == 0)
-        begin : nc
-            //
-            // No clock crossing buffer. Must use normal Avalon waitrequest
-            // protocol.
-            //
-            ofs_plat_avalon_mem_rdwr_if_reg
-              #(
-                .N_REG_STAGES(ADD_TIMING_REG_STAGES)
-                )
-              conn_same_clk
-               (
-                .mem_master(avmm_afu_clk_if),
-                .mem_slave(avmm_fiu_clk_if)
-                );
-        end
-        else
-        begin : cc
-            //
-            // We can reserve some space in the clock crossing block RAM for
-            // pipelined requests, allowing us to treat waitrequest more like
-            // an almost full protocol.
-            //
-
-            // We assume that a single waitrequest signal can propagate faster
-            // than the entire bus, so limit the number of stages.
-            localparam NUM_WAITREQUEST_STAGES =
-                // If pipeline is 4 stages or fewer then use the pipeline depth.
-                (ADD_TIMING_REG_STAGES <= 4 ? ADD_TIMING_REG_STAGES :
-                    // Up to depth 16 pipelines, use 4 waitrequest stages.
-                    // Beyond 16 stages, set the waitrequest depth to 1/4 the
-                    // base pipeline depth.
-                    (ADD_TIMING_REG_STAGES <= 16 ? 4 : (ADD_TIMING_REG_STAGES >> 2)));
-
-            ofs_plat_avalon_mem_rdwr_if
-              #(
-                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu),
-                .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
-                )
-              avmm_reg_if();
-
-            assign avmm_reg_if.clk = afu_clk;
-            assign avmm_reg_if.reset_n = afu_reset_n;
-            assign avmm_reg_if.instance_number = to_fiu.instance_number;
-
-            ofs_plat_avalon_mem_rdwr_if_reg_simple
-              #(
-                .N_REG_STAGES(ADD_TIMING_REG_STAGES),
-                .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
-                )
-              conn_reg
-               (
-                .mem_master(avmm_afu_clk_if),
-                .mem_slave(avmm_reg_if)
-                );
-
-            //
-            // Now the actual clock crossing. First we must calculate the number
-            // of extra slots required due to timing register stages.
-            //
-
-            // A few extra stages to avoid off-by-one errors. There is plenty of
-            // space in the FIFO, so this has no performance consequences.
-            localparam NUM_EXTRA_STAGES = (ADD_TIMING_REG_STAGES != 0) ? 4 : 0;
-
-            // Set the almost full threshold to satisfy the buffering pipeline depth
-            // plus the depth of the waitrequest pipeline plus a little extra to
-            // avoid having to worry about off-by-one errors.
-            localparam NUM_ALMFULL_SLOTS = ADD_TIMING_REG_STAGES +
-                                           NUM_WAITREQUEST_STAGES +
-                                           NUM_EXTRA_STAGES;
-
-            ofs_plat_avalon_mem_rdwr_if_async_shim
-              #(
-                .RD_COMMAND_FIFO_DEPTH(8 + NUM_ALMFULL_SLOTS),
-                .RD_RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES),
-                .WR_COMMAND_FIFO_DEPTH(8 + NUM_ALMFULL_SLOTS),
-                .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
-                )
-              cross_clk
-               (
-                .mem_master(avmm_reg_if),
-                .mem_slave(avmm_fiu_clk_if)
-                );
-        end
-    endgenerate
-
-    //
-    // Add a register stage for timing next to the burst mapper.
-    //
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
-        )
-      avmm_fiu_reg_if();
-
-    assign avmm_fiu_reg_if.clk = clk;
-    assign avmm_fiu_reg_if.reset_n = reset_n;
-    assign avmm_fiu_reg_if.instance_number = to_fiu.instance_number;
-
-    ofs_plat_avalon_mem_rdwr_if_reg
-      f_reg
-       (
-        .mem_master(avmm_fiu_clk_if),
-        .mem_slave(avmm_fiu_reg_if)
-        );
 
     //
     // The AFU has set the burst count width of host_mem_to_afu to whatever
@@ -245,45 +131,71 @@ module ofs_plat_map_ccip_as_avalon_host_mem
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
         `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
-        .BURST_CNT_WIDTH(3)
+        .BURST_CNT_WIDTH(3),
+        // ofs_plat_avalon_mem_rdwr_if_map_bursts records whether write
+        // responses are expected on wr_user[0].
+        .USER_WIDTH(1)
         )
       avmm_fiu_burst_if();
 
-    assign avmm_fiu_burst_if.clk = clk;
-    assign avmm_fiu_burst_if.reset_n = reset_n;
-    assign avmm_fiu_burst_if.instance_number = to_fiu.instance_number;
+    assign avmm_fiu_burst_if.clk = avmm_afu_clk_if.clk;
+    assign avmm_fiu_burst_if.reset_n = avmm_afu_clk_if.reset_n;
+    assign avmm_fiu_burst_if.instance_number = avmm_afu_clk_if.instance_number;
 
-    logic fiu_burst_expects_response;
     ofs_plat_avalon_mem_rdwr_if_map_bursts
       #(
         .NATURAL_ALIGNMENT(1)
         )
       map_bursts
        (
-        .mem_master(avmm_fiu_reg_if),
-        .mem_slave(avmm_fiu_burst_if),
-
-        // The AFU interface requires one response per AFU-sized burst.
-        // When mapping a single AFU burst to multiple FIU write bursts
-        // only the last FIU write burst should generate a response to
-        // the AFU.
-        .wr_slave_burst_expects_response(fiu_burst_expects_response)
+        .mem_master(avmm_afu_clk_if),
+        .mem_slave(avmm_fiu_burst_if)
         );
 
 
-    // ====================================================================
     //
-    //  avmm_fiu_burst_if is in the FIU's CCI-P clock domain and the
-    //  bursts are legal CCI-P sizes and address alignment. A 1:1 mapping
-    //  of Avalon to CCI-P messages is now possible.
+    // Cross to the FIU clock and add register stages. The two are combined
+    // because the clock crossing buffer can also be used to simplify the
+    // Avalon waitrequest protocol.
     //
-    // ====================================================================
+
+    // ofs_plat_avalon_mem_rdwr_if_async_rob records the ROB indices
+    // of read and write requests in rd_user and wr_user fields.
+    // Size the user fields using whichever index space is larger.
+    localparam USER_WIDTH =
+        $clog2((MAX_ACTIVE_RD_LINES > MAX_ACTIVE_WR_LINES) ? MAX_ACTIVE_RD_LINES :
+                                                             MAX_ACTIVE_WR_LINES);
+
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(avmm_fiu_burst_if),
+        .USER_WIDTH(USER_WIDTH)
+        )
+      avmm_fiu_clk_if();
+
+    assign avmm_fiu_clk_if.clk = clk;
+    assign avmm_fiu_clk_if.reset_n = reset_n;
+    assign avmm_fiu_clk_if.instance_number = to_fiu.instance_number;
+
+    ofs_plat_avalon_mem_rdwr_if_async_rob
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
+        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
+        )
+      rob
+       (
+        .mem_master(avmm_fiu_burst_if),
+        .mem_slave(avmm_fiu_clk_if)
+        );
+
 
     // Map almost full to Avalon waitrequest
     always_ff @(posedge clk)
     begin
-        avmm_fiu_burst_if.rd_waitrequest <= sRx.c0TxAlmFull;
-        avmm_fiu_burst_if.wr_waitrequest <= sRx.c1TxAlmFull;
+        avmm_fiu_clk_if.rd_waitrequest <= sRx.c0TxAlmFull;
+        avmm_fiu_clk_if.wr_waitrequest <= sRx.c1TxAlmFull;
     end
 
     //
@@ -291,12 +203,13 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     always_ff @(posedge clk)
     begin
-        to_fiu.sTx.c0.valid <= avmm_fiu_burst_if.rd_read && ! avmm_fiu_burst_if.rd_waitrequest;
+        to_fiu.sTx.c0.valid <= avmm_fiu_clk_if.rd_read && ! avmm_fiu_clk_if.rd_waitrequest;
 
         to_fiu.sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
-        to_fiu.sTx.c0.hdr.address <= avmm_fiu_burst_if.rd_address;
+        to_fiu.sTx.c0.hdr.mdata <= t_ccip_mdata'(avmm_fiu_clk_if.rd_user);
+        to_fiu.sTx.c0.hdr.address <= avmm_fiu_clk_if.rd_address;
         to_fiu.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
-        to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.rd_burstcount - 3'b1);
+        to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.rd_burstcount - 3'b1);
 
         if (!reset_n)
         begin
@@ -307,22 +220,24 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // CCI-P responses are already sorted. Just forward them to Avalon.
     always_ff @(posedge clk)
     begin
-        avmm_fiu_burst_if.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);
-        avmm_fiu_burst_if.rd_readdata <= sRx.c0.data;
+        avmm_fiu_clk_if.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);
+        avmm_fiu_clk_if.rd_readdata <= sRx.c0.data;
+        // Index of the ROB entry
+        avmm_fiu_clk_if.rd_readresponseuser <= USER_WIDTH'(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
 
         if (!reset_n)
         begin
-            avmm_fiu_burst_if.rd_readdatavalid <= 1'b0;
+            avmm_fiu_clk_if.rd_readdatavalid <= 1'b0;
         end
     end
 
-    assign avmm_fiu_burst_if.rd_response = 2'b0;
+    assign avmm_fiu_clk_if.rd_response = 2'b0;
 
     //
     // Host memory writes
     //
     logic wr_beat_valid;
-    assign wr_beat_valid = avmm_fiu_burst_if.wr_write && ! avmm_fiu_burst_if.wr_waitrequest;
+    assign wr_beat_valid = avmm_fiu_clk_if.wr_write && ! avmm_fiu_clk_if.wr_waitrequest;
 
     logic wr_sop;
     t_ccip_clLen wr_cl_len;
@@ -333,25 +248,25 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // starting a new single-line packet or all lines of a multi-line
     // package have now arrived.
     logic wr_eop;
-    assign wr_eop = (wr_sop && (avmm_fiu_burst_if.wr_burstcount == 3'b1)) ||
+    assign wr_eop = (wr_sop && (avmm_fiu_clk_if.wr_burstcount == 3'b1)) ||
                     (!wr_sop && (wr_cl_num == t_ccip_clNum'(wr_cl_len)));
 
     always_ff @(posedge clk)
     begin
         to_fiu.sTx.c1.valid <= wr_beat_valid;
-        to_fiu.sTx.c1.data <= avmm_fiu_burst_if.wr_writedata;
+        to_fiu.sTx.c1.data <= avmm_fiu_clk_if.wr_writedata;
 
         if (wr_sop)
         begin
             to_fiu.sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            to_fiu.sTx.c1.hdr.mdata[0] <= fiu_burst_expects_response;
+            to_fiu.sTx.c1.hdr.mdata <= t_ccip_mdata'(avmm_fiu_clk_if.wr_user);
 
-            if (! avmm_fiu_burst_if.wr_function)
+            if (! avmm_fiu_clk_if.wr_function)
             begin
                 // Normal write
-                to_fiu.sTx.c1.hdr.address <= avmm_fiu_burst_if.wr_address;
+                to_fiu.sTx.c1.hdr.address <= avmm_fiu_clk_if.wr_address;
                 to_fiu.sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
-                to_fiu.sTx.c1.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
+                to_fiu.sTx.c1.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.wr_burstcount - 3'b1);
                 to_fiu.sTx.c1.hdr.sop <= 1'b1;
             end
             else
@@ -372,8 +287,8 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         begin
             if (wr_sop)
             begin
-                wr_cl_len <= t_ccip_clLen'(avmm_fiu_burst_if.wr_burstcount - 3'b1);
-                wr_cl_addr <= t_ccip_clNum'(avmm_fiu_burst_if.wr_address);
+                wr_cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.wr_burstcount - 3'b1);
+                wr_cl_addr <= t_ccip_clNum'(avmm_fiu_clk_if.wr_address);
             end
 
             if (wr_eop)
@@ -397,20 +312,21 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         end
     end
 
-    // CCI-P write responses are already packed and sorted. Just forward them to
-    // Avalon. Bit 0 of mdata records whether the write expects a response.
     always_ff @(posedge clk)
     begin
-        avmm_fiu_burst_if.wr_writeresponsevalid <=
-            (ccip_c1Rx_isWriteRsp(sRx.c1) || ccip_c1Rx_isWriteFenceRsp(sRx.c1)) &&
-            sRx.c1.hdr.mdata[0];
+        avmm_fiu_clk_if.wr_writeresponsevalid <=
+            (ccip_c1Rx_isWriteRsp(sRx.c1) || ccip_c1Rx_isWriteFenceRsp(sRx.c1));
+
+        // Index of the ROB entry. Responses are already guaranteed packed by
+        // the PIM's CCI-P shim.
+        avmm_fiu_clk_if.wr_writeresponseuser <= USER_WIDTH'(sRx.c1.hdr.mdata);
 
         if (!reset_n)
         begin
-            avmm_fiu_burst_if.wr_writeresponsevalid <= 1'b0;
+            avmm_fiu_clk_if.wr_writeresponsevalid <= 1'b0;
         end
     end
 
-    assign avmm_fiu_burst_if.wr_response = 2'b0;
+    assign avmm_fiu_clk_if.wr_response = 2'b0;
 
 endmodule // ofs_plat_map_ccip_as_avalon_host_mem

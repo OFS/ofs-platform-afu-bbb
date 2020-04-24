@@ -42,14 +42,11 @@ module ofs_plat_prim_rob
     parameter N_ENTRIES = 32,
     parameter N_DATA_BITS = 64,
     parameter N_META_BITS = 1,
-    // Threshold below which heap asserts "full"
-    parameter MIN_FREE_SLOTS = 1,
     // Maximum number of entries that can be allocated in a single cycle.
     // This is used for multi-line requests.
     parameter MAX_ALLOC_PER_CYCLE = 1,
-
-    // Register output if non-zero
-    parameter REGISTER_OUTPUT = 0
+    // Threshold below which heap asserts "full"
+    parameter MIN_FREE_SLOTS = MAX_ALLOC_PER_CYCLE
     )
    (
     input  logic clk,
@@ -173,11 +170,11 @@ endmodule // ofs_plat_prim_rob
 module ofs_plat_prim_rob_ctrl
   #(
     parameter N_ENTRIES = 32,
-    // Threshold below which heap asserts "full"
-    parameter MIN_FREE_SLOTS = 1,
     // Maximum number of entries that can be allocated in a single cycle.
     // This is used for multi-line requests.
-    parameter MAX_ALLOC_PER_CYCLE = 1
+    parameter MAX_ALLOC_PER_CYCLE = 1,
+    // Threshold below which heap asserts "full"
+    parameter MIN_FREE_SLOTS = MAX_ALLOC_PER_CYCLE
     )
    (
     input  logic clk,

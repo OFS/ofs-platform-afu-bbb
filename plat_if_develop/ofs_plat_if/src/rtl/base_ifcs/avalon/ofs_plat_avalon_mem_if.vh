@@ -58,7 +58,8 @@
     MEM_SLAVE.address = MEM_MASTER.address; \
     MEM_SLAVE.write = MEM_MASTER.write; \
     MEM_SLAVE.read = MEM_MASTER.read; \
-    MEM_SLAVE.byteenable = MEM_MASTER.byteenable
+    MEM_SLAVE.byteenable = MEM_MASTER.byteenable; \
+    MEM_SLAVE.user = MEM_MASTER.user
 
 `define OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
     MEM_SLAVE.burstcount <= MEM_MASTER.burstcount; \
@@ -66,8 +67,8 @@
     MEM_SLAVE.address <= MEM_MASTER.address; \
     MEM_SLAVE.write <= MEM_MASTER.write; \
     MEM_SLAVE.read <= MEM_MASTER.read; \
-    MEM_SLAVE.byteenable <= MEM_MASTER.byteenable
-
+    MEM_SLAVE.byteenable <= MEM_MASTER.byteenable; \
+    MEM_SLAVE.user <= MEM_MASTER.user
 
 // Note these do not set clk, reset or instance_number since those
 // fields may be handled specially.
@@ -76,8 +77,10 @@
     MEM_MASTER.readdatavalid = MEM_SLAVE.readdatavalid; \
     MEM_MASTER.readdata = MEM_SLAVE.readdata; \
     MEM_MASTER.response = MEM_SLAVE.response; \
+    MEM_MASTER.readresponseuser = MEM_SLAVE.readresponseuser; \
     MEM_MASTER.writeresponsevalid = MEM_SLAVE.writeresponsevalid; \
-    MEM_MASTER.writeresponse = MEM_SLAVE.writeresponse
+    MEM_MASTER.writeresponse = MEM_SLAVE.writeresponse; \
+    MEM_MASTER.writeresponseuser = MEM_SLAVE.writeresponseuser
 
 // Note the lack of waitrequest in the non-blocking assignment. The
 // ready/enable protocol must be handled explicitly.
@@ -85,14 +88,19 @@
     MEM_MASTER.readdatavalid <= MEM_SLAVE.readdatavalid; \
     MEM_MASTER.readdata <= MEM_SLAVE.readdata; \
     MEM_MASTER.response <= MEM_SLAVE.response; \
+    MEM_MASTER.readresponseuser <= MEM_SLAVE.readresponseuser; \
     MEM_MASTER.writeresponsevalid <= MEM_SLAVE.writeresponsevalid; \
-    MEM_MASTER.writeresponse <= MEM_SLAVE.writeresponse
+    MEM_MASTER.writeresponse <= MEM_SLAVE.writeresponse; \
+    MEM_MASTER.writeresponseuser <= MEM_SLAVE.writeresponseuser
 
 
 //
 // Initialization macros ought to just be tasks in the interface, but QuestSim
 // treats tasks as active even if they are never invoked, leading to errors
 // about multiple drivers.
+//
+// User extension fields are not initialized, leaving them at 'x and making it
+// obvious that these fields are not part of the protocol.
 //
 
 `define OFS_PLAT_AVALON_MEM_IF_INIT_MASTER_COMB(MEM_MASTER) \

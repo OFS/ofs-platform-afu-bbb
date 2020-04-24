@@ -54,12 +54,16 @@ module ofs_plat_avalon_mem_if_reg
         end
         else
         begin : regs
+            // Pass user extension fields through the pipeline
+            localparam USER_WIDTH = mem_slave.USER_WIDTH_;
+
             // Pipeline stages.
             ofs_plat_avalon_mem_if
               #(
                 .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
                 .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+                .USER_WIDTH(USER_WIDTH)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
@@ -80,8 +84,9 @@ module ofs_plat_avalon_mem_if_reg
                 ofs_plat_utils_avalon_mm_bridge
                   #(
                     .DATA_WIDTH(mem_slave.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(mem_slave.ADDR_WIDTH),
-                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH)
+                    .HDL_ADDR_WIDTH(USER_WIDTH + mem_slave.ADDR_WIDTH),
+                    .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
+                    .RESPONSE_WIDTH(USER_WIDTH + mem_slave.RESPONSE_WIDTH)
                     )
                   bridge
                    (
@@ -91,10 +96,12 @@ module ofs_plat_avalon_mem_if_reg
                     .s0_waitrequest(mem_pipe[s].waitrequest),
                     .s0_readdata(mem_pipe[s].readdata),
                     .s0_readdatavalid(mem_pipe[s].readdatavalid),
-                    .s0_response(mem_pipe[s].response),
+                    .s0_response({ mem_pipe[s].readresponseuser,
+                                   mem_pipe[s].response }),
                     .s0_burstcount(mem_pipe[s].burstcount),
                     .s0_writedata(mem_pipe[s].writedata),
-                    .s0_address(mem_pipe[s].address), 
+                    .s0_address({ mem_pipe[s].user,
+                                  mem_pipe[s].address }),
                     .s0_write(mem_pipe[s].write), 
                     .s0_read(mem_pipe[s].read), 
                     .s0_byteenable(mem_pipe[s].byteenable), 
@@ -103,10 +110,12 @@ module ofs_plat_avalon_mem_if_reg
                     .m0_waitrequest(mem_pipe[s - 1].waitrequest),
                     .m0_readdata(mem_pipe[s - 1].readdata),
                     .m0_readdatavalid(mem_pipe[s - 1].readdatavalid),
-                    .m0_response(mem_pipe[s - 1].response),
+                    .m0_response({ mem_pipe[s - 1].readresponseuser,
+                                   mem_pipe[s - 1].response }),
                     .m0_burstcount(mem_pipe[s - 1].burstcount),
                     .m0_writedata(mem_pipe[s - 1].writedata),
-                    .m0_address(mem_pipe[s - 1].address), 
+                    .m0_address({ mem_pipe[s - 1].user,
+                                  mem_pipe[s - 1].address }),
                     .m0_write(mem_pipe[s - 1].write), 
                     .m0_read(mem_pipe[s - 1].read), 
                     .m0_byteenable(mem_pipe[s - 1].byteenable),
@@ -120,6 +129,7 @@ module ofs_plat_avalon_mem_if_reg
                 begin
                     mem_pipe[s].writeresponsevalid <= mem_pipe[s - 1].writeresponsevalid;
                     mem_pipe[s].writeresponse <= mem_pipe[s - 1].writeresponse;
+                    mem_pipe[s].writeresponseuser <= mem_pipe[s - 1].writeresponseuser;
                 end
 
                 // Debugging signal
