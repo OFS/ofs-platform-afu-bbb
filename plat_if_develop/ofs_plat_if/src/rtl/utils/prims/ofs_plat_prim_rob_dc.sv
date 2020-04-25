@@ -37,7 +37,7 @@
 // field for the response header in combination with read data.
 //
 // All ports are in the "clk" domain except for inbound unordered
-// data, which is clocked by enqClk.
+// data, which is clocked by enq_clk.
 //
 
 module ofs_plat_prim_rob_dc
@@ -66,7 +66,8 @@ module ofs_plat_prim_rob_dc
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
-    input  logic enqClk,
+    input  logic enq_clk,
+    input  logic enq_reset_n,
     input  logic enqData_en,                        // Store data for existing entry
     input  logic [$clog2(N_ENTRIES)-1 : 0] enqDataIdx,
     input  logic [N_DATA_BITS-1 : 0] enqData,
@@ -98,7 +99,8 @@ module ofs_plat_prim_rob_dc
         .alloc,
         .notFull,
         .allocIdx,
-        .enqClk,
+        .enq_clk,
+        .enq_reset_n,
         .enqData_en,
         .enqDataIdx,
         .deq_en,
@@ -125,7 +127,7 @@ module ofs_plat_prim_rob_dc
         )
       memData
        (
-        .wclk(enqClk),
+        .wclk(enq_clk),
         .waddr(enqDataIdx),
         .wen(enqData_en),
         .wdata(enqData),
@@ -194,7 +196,8 @@ module ofs_plat_prim_rob_ctrl_dc
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
-    input  logic enqClk,
+    input  logic enq_clk,
+    input  logic enq_reset_n,
     input  logic enqData_en,                        // Store data for existing entry
     input  logic [$clog2(N_ENTRIES)-1 : 0] enqDataIdx,
 
@@ -204,15 +207,6 @@ module ofs_plat_prim_rob_ctrl_dc
     output logic [$clog2(N_ENTRIES)-1 : 0] deqIdx
     );
 
-    // Reset in enqClk domain
-    logic areset_n;
-    ofs_plat_prim_clock_crossing_reset_async reset_cc
-       (
-        .clk(clk),
-        .reset_in(reset_n),
-        .reset_out(areset_n)
-        );
-
     //
     // Forward response control through a clock crossing FIFO and then use
     // the normal single clock ROB control, all in receiver's clk domain.
@@ -221,29 +215,30 @@ module ofs_plat_prim_rob_ctrl_dc
     logic cc_enqData_en, cc_enqData_en_q;
     logic [$clog2(N_ENTRIES)-1 : 0] cc_enqDataIdx, cc_enqDataIdx_q;
 
-    ofs_plat_prim_fifo_dc_bram
+    ofs_plat_prim_fifo_dc
       #(
         .N_DATA_BITS($clog2(N_ENTRIES)),
         .N_ENTRIES(N_ENTRIES)
         )
       rsp_fifo
        (
-        .reset_n(areset_n),
-        .wr_clk(enqClk),
+        .enq_clk(enq_clk),
+        .enq_reset_n(enq_reset_n),
         .enq_data(enqDataIdx),
         .enq_en(enqData_en),
         .notFull(enq_notFull),
         .almostFull(),
-        .rd_clk(clk),
+        .deq_clk(clk),
+        .deq_reset_n(reset_n),
         .first(cc_enqDataIdx),
         .deq_en(cc_enqData_en),
         .notEmpty(cc_enqData_en)
         );
 
     // synthesis translate_off
-    always_ff @(negedge enqClk)
+    always_ff @(negedge enq_clk)
     begin
-        if (areset_n)
+        if (enq_reset_n)
         begin
             assert(!enqData_en || enq_notFull) else
               $fatal(2, "** ERROR ** %m: clock crossing FIFO is full!");
@@ -317,7 +312,8 @@ module ofs_plat_prim_rob_maybe_dc
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
-    input  logic enqClk,
+    input  logic enq_clk,
+    input  logic enq_reset_n,
     input  logic enqData_en,                        // Store data for existing entry
     input  logic [$clog2(N_ENTRIES)-1 : 0] enqDataIdx,
     input  logic [N_DATA_BITS-1 : 0] enqData,
@@ -350,7 +346,8 @@ module ofs_plat_prim_rob_maybe_dc
                 .notFull,
                 .allocIdx,
 
-                .enqClk,
+                .enq_clk,
+                .enq_reset_n,
                 .enqData_en,
                 .enqDataIdx,
                 .enqData,

@@ -164,6 +164,8 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
 
     logic fclk;
     assign fclk = clk;
+    logic freset_n;
+    assign freset_n = reset_n;
 
     localparam ADDR_WIDTH = mmio_to_afu.ADDR_WIDTH_;
     typedef logic [ADDR_WIDTH-1 : 0] t_mmio_addr;
@@ -179,17 +181,6 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
             $fatal(2, "** ERROR ** %m: Data width (%0d) must be a power of 2 between 64 and 512.", DATA_WIDTH);
     end
     // synthesis translate_on
-
-    // "reset_n" is already synchronous in "fclk", but Quartus sometimes has trouble
-    // figuring this out.
-    logic reset_n_fclk;
-    ofs_plat_prim_clock_crossing_reset_async
-      reset_cc
-       (
-        .clk(fclk),
-        .reset_in(reset_n),
-        .reset_out(reset_n_fclk)
-        );
 
     assign mmio_to_afu.clk = (ADD_CLOCK_CROSSING == 0) ? fclk : afu_clk;
     assign mmio_to_afu.reset_n = (ADD_CLOCK_CROSSING == 0) ? reset_n : afu_reset_n;
@@ -276,20 +267,21 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
         req_in_fifo_enq_en_fclk_q <= req_in_fifo_enq_en_fclk;
     end
 
-    ofs_plat_prim_fifo_dc_bram
+    ofs_plat_prim_fifo_dc
       #(
         .N_DATA_BITS(FIFO_IN_WIDTH),
         .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       req_in_fifo
        (
-        .reset_n(reset_n_fclk),
-        .wr_clk(fclk),
+        .enq_clk(fclk),
+        .enq_reset_n(freset_n),
         .enq_data(req_in_fifo_q),
         .enq_en(req_in_fifo_enq_en_fclk_q),
         .notFull(req_in_fifo_notFull_fclk),
         .almostFull(),
-        .rd_clk(mmio_to_afu.clk),
+        .deq_clk(mmio_to_afu.clk),
+        .deq_reset_n(mmio_to_afu.reset_n),
         .first({ mmio_is_wr, mmio_wr_data, mmio_hdr }),
         .deq_en(mmio_req_deq),
         .notEmpty(mmio_req_notEmpty)
@@ -451,20 +443,21 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
             logic rsp_out_notEmpty_fclk;
             assign mmio_rd_valid_fclk = rsp_out_notEmpty_fclk;
 
-            ofs_plat_prim_fifo_dc_bram
+            ofs_plat_prim_fifo_dc
               #(
                 .N_DATA_BITS($bits(t_dword_idx) + $bits(t_ccip_tid) + DATA_WIDTH),
                 .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS)
                 )
             rsp_out_fifo
               (
-               .reset_n(reset_n_fclk),
-               .wr_clk(mmio_to_afu.clk),
+               .enq_clk(mmio_to_afu.clk),
+               .enq_reset_n(mmio_to_afu.reset_n),
                .enq_data({ mmio_to_afu.r.id, mmio_to_afu.r.data }),
                .enq_en(mmio_to_afu.rvalid),
                .notFull(),
                .almostFull(),
-               .rd_clk(fclk),
+               .deq_clk(fclk),
+               .deq_reset_n(freset_n),
                .first({ {mmio_rd_dword_idx_fclk, mmio_rd_tid_fclk}, mmio_rd_data_fclk }),
                .deq_en(rsp_out_notEmpty_fclk),
                .notEmpty(rsp_out_notEmpty_fclk)

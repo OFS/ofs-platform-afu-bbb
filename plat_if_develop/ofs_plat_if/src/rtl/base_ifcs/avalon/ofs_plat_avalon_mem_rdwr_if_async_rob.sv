@@ -102,7 +102,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         .allocIdx(rd_next_allocIdx),
 
         // Responses
-        .enqClk(mem_slave.clk),
+        .enq_clk(mem_slave.clk),
+        .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.rd_readdatavalid),
         .enqDataIdx(t_rd_rob_idx'(mem_slave.rd_readresponseuser)),
         .enqData({ mem_slave.rd_response, mem_slave.rd_readdata }),
@@ -127,16 +128,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     generate
         if (ADD_CLOCK_CROSSING)
         begin : rd_cc
-            logic areset_n;
-            ofs_plat_prim_clock_crossing_reset_async rcc
-               (
-                .clk(mem_master.clk),
-                .reset_in(mem_master.reset_n),
-                .reset_out(areset_n)
-                );
-
             // Need a clock crossing FIFO for read requests
-            ofs_plat_prim_fifo_dc_bram
+            ofs_plat_prim_fifo_dc
               #(
                 .N_DATA_BITS(SLAVE_USER_WIDTH +
                              mem_master.BURST_CNT_WIDTH +
@@ -147,9 +140,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 )
              rd_req_fifo
                (
-                .reset_n(areset_n),
-
-                .wr_clk(mem_master.clk),
+                .enq_clk(mem_master.clk),
+                .enq_reset_n(mem_master.reset_n),
                 .enq_data({ t_slave_user'(rd_allocIdx),
                             mem_master.rd_burstcount,
                             mem_master.rd_byteenable,
@@ -159,7 +151,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .notFull(rd_fifo_notFull),
                 .almostFull(),
 
-                .rd_clk(mem_slave.clk),
+                .deq_clk(mem_slave.clk),
+                .deq_reset_n(mem_slave.reset_n),
                 .first({ mem_slave.rd_user,
                          mem_slave.rd_burstcount,
                          mem_slave.rd_byteenable,
@@ -266,7 +259,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         .allocIdx(wr_next_allocIdx),
 
         // Responses
-        .enqClk(mem_slave.clk),
+        .enq_clk(mem_slave.clk),
+        .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.wr_writeresponsevalid),
         .enqDataIdx(t_wr_rob_idx'(mem_slave.wr_writeresponseuser)),
         .enqData(mem_slave.wr_response),
@@ -303,16 +297,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     generate
         if (ADD_CLOCK_CROSSING)
         begin : wr_cc
-            logic areset_n;
-            ofs_plat_prim_clock_crossing_reset_async rcc
-               (
-                .clk(mem_master.clk),
-                .reset_in(mem_master.reset_n),
-                .reset_out(areset_n)
-                );
-
             // Need a clock crossing FIFO for write requests
-            ofs_plat_prim_fifo_dc_bram
+            ofs_plat_prim_fifo_dc
               #(
                 .N_DATA_BITS(SLAVE_USER_WIDTH +
                              mem_master.BURST_CNT_WIDTH +
@@ -324,9 +310,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 )
              wr_req_fifo
                (
-                .reset_n(areset_n),
-
-                .wr_clk(mem_master.clk),
+                .enq_clk(mem_master.clk),
+                .enq_reset_n(mem_master.reset_n),
                 .enq_data({ t_slave_user'(wr_allocIdx),
                             mem_master.wr_burstcount,
                             mem_master.wr_writedata,
@@ -337,7 +322,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .notFull(wr_fifo_notFull),
                 .almostFull(),
 
-                .rd_clk(mem_slave.clk),
+                .deq_clk(mem_slave.clk),
+                .deq_reset_n(mem_slave.reset_n),
                 .first({ mem_slave.wr_user,
                          mem_slave.wr_burstcount,
                          mem_slave.wr_writedata,
