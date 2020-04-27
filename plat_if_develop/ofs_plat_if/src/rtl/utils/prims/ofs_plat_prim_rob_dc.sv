@@ -59,10 +59,12 @@ module ofs_plat_prim_rob_dc
     // The ROB returns a handle -- the index where the payload should
     // be written.  When allocating multiple entries the indices are
     // sequential.
-    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] alloc,
-    input  logic [N_META_BITS-1 : 0] allocMeta,      // Save meta-data for new entry
-    output logic notFull,                            // Is ROB full?
-    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx, // Index of new entry
+    input  logic alloc_en,
+    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] allocCnt, // Number to allocate
+    input  logic [N_META_BITS-1 : 0] allocMeta,        // Save meta-data for new entry
+    output logic notFull,                              // Is ROB full?
+    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx,   // Index of new entry
+    output logic [$clog2(N_ENTRIES) : 0] inSpaceAvail, // Number of entries free
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
@@ -96,9 +98,11 @@ module ofs_plat_prim_rob_dc
        (
         .clk,
         .reset_n,
-        .alloc,
+        .alloc_en,
+        .allocCnt,
         .notFull,
         .allocIdx,
+        .inSpaceAvail,
         .enq_clk,
         .enq_reset_n,
         .enqData_en,
@@ -154,7 +158,7 @@ module ofs_plat_prim_rob_dc
                 .clk(clk),
 
                 .waddr(allocIdx),
-                .wen(alloc != 0),
+                .wen(alloc_en),
                 .wdata(allocMeta),
 
                 .raddr(oldest),
@@ -190,9 +194,11 @@ module ofs_plat_prim_rob_ctrl_dc
     // The ROB returns a handle -- the index where the payload should
     // be written.  When allocating multiple entries the indices are
     // sequential.
-    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] alloc,
-    output logic notFull,                            // Is ROB full?
-    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx, // Index of new entry
+    input  logic alloc_en,
+    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] allocCnt, // Number to allocate
+    output logic notFull,                              // Is ROB full?
+    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx,   // Index of new entry
+    output logic [$clog2(N_ENTRIES) : 0] inSpaceAvail, // Number of entries free
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
@@ -267,9 +273,11 @@ module ofs_plat_prim_rob_ctrl_dc
        (
         .clk,
         .reset_n,
-        .alloc,
+        .alloc_en,
+        .allocCnt,
         .notFull,
         .allocIdx,
+        .inSpaceAvail,
         .enqData_en(cc_enqData_en_q),
         .enqDataIdx(cc_enqDataIdx_q),
         .deq_en,
@@ -305,10 +313,12 @@ module ofs_plat_prim_rob_maybe_dc
     // The ROB returns a handle -- the index where the payload should
     // be written.  When allocating multiple entries the indices are
     // sequential.
-    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] alloc,
-    input  logic [N_META_BITS-1 : 0] allocMeta,      // Save meta-data for new entry
-    output logic notFull,                            // Is ROB full?
-    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx, // Index of new entry
+    input  logic alloc_en,
+    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] allocCnt, // Number to allocate
+    input  logic [N_META_BITS-1 : 0] allocMeta,        // Save meta-data for new entry
+    output logic notFull,                              // Is ROB full?
+    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx,   // Index of new entry
+    output logic [$clog2(N_ENTRIES) : 0] inSpaceAvail, // Number of entries free
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
@@ -341,10 +351,12 @@ module ofs_plat_prim_rob_maybe_dc
                (
                 .clk,
                 .reset_n,
-                .alloc,
+                .alloc_en,
+                .allocCnt,
                 .allocMeta,
                 .notFull,
                 .allocIdx,
+                .inSpaceAvail,
 
                 .enq_clk,
                 .enq_reset_n,
@@ -372,10 +384,12 @@ module ofs_plat_prim_rob_maybe_dc
                (
                 .clk,
                 .reset_n,
-                .alloc,
+                .alloc_en,
+                .allocCnt,
                 .allocMeta,
                 .notFull,
                 .allocIdx,
+                .inSpaceAvail,
 
                 .enqData_en,
                 .enqDataIdx,

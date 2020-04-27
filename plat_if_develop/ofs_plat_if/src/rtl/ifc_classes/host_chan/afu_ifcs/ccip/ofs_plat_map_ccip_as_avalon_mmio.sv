@@ -196,8 +196,12 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     typedef logic [DWORD_IDX_BITS-1 : 0] t_dword_idx;
 
     // Cast CCI-P c0 header into ReqMmioHdr
-    t_ccip_c0_ReqMmioHdr mmio_in_hdr_fclk;
+    t_ccip_c0_ReqMmioHdr mmio_in_hdr_fclk, mmio_in_hdr_fclk_q;
     assign mmio_in_hdr_fclk = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
+    always_ff @(posedge fclk)
+    begin
+        mmio_in_hdr_fclk_q <= mmio_in_hdr_fclk;
+    end
 
     logic error_fclk;
 
@@ -215,18 +219,18 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     // Restructure incoming write data so that 32 and 64 bit writes are replicated
     // throughout, even in a 512 bit MMIO interface. Quartus will drop unused
     // replications.
-    t_ccip_clData mmio_in_wr_data_fclk;
-    always_comb
+    t_ccip_clData mmio_in_wr_data_fclk_q;
+    always_ff @(posedge fclk)
     begin
         if (mmio_in_hdr_fclk.length == 2'b00)
             // 32 bit write -- replicate 16 times
-            mmio_in_wr_data_fclk = {16{sRx.c0.data[31:0]}};
+            mmio_in_wr_data_fclk_q <= {16{sRx.c0.data[31:0]}};
         else if (mmio_in_hdr_fclk.length == 2'b01)
             // 64 bit write -- replicate 8 times
-            mmio_in_wr_data_fclk = {8{sRx.c0.data[63:0]}};
+            mmio_in_wr_data_fclk_q <= {8{sRx.c0.data[63:0]}};
         else
             // Full 512 bit write
-            mmio_in_wr_data_fclk = sRx.c0.data;
+            mmio_in_wr_data_fclk_q <= sRx.c0.data;
     end
 
     // Drop requests that are larger than the data bus size. E.g., 512 bit writes
@@ -244,10 +248,16 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
     endgenerate
 
     // New request?
-    logic req_in_fifo_enq_en_fclk;
+    logic req_is_mmio_wr_q;
+    logic req_in_fifo_enq_en_fclk, req_in_fifo_enq_en_fclk_q;
     assign req_in_fifo_enq_en_fclk = (sRx.c0.mmioRdValid || sRx.c0.mmioWrValid) &&
-                                     mmio_req_fits_in_data &&
-                                     ! error_fclk;
+                                     mmio_req_fits_in_data;
+
+    always_ff @(posedge clk)
+    begin
+        req_in_fifo_enq_en_fclk_q <= req_in_fifo_enq_en_fclk;
+        req_is_mmio_wr_q <= sRx.c0.mmioWrValid;
+    end
 
     ofs_plat_prim_fifo_dc
       #(
@@ -260,8 +270,8 @@ module ofs_plat_map_ccip_as_avalon_mmio_impl
        (
         .enq_clk(fclk),
         .enq_reset_n(freset_n),
-        .enq_data({ sRx.c0.mmioWrValid, mmio_in_wr_data_fclk, mmio_in_hdr_fclk }),
-        .enq_en(req_in_fifo_enq_en_fclk),
+        .enq_data({ req_is_mmio_wr_q, mmio_in_wr_data_fclk_q, mmio_in_hdr_fclk_q }),
+        .enq_en(req_in_fifo_enq_en_fclk_q && !error_fclk),
         .notFull(req_in_fifo_notFull_fclk),
         .almostFull(),
         .deq_clk(mmio_to_afu.clk),

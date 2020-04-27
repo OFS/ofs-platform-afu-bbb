@@ -112,7 +112,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
     ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
       #(
-        .N_REG_STAGES(ADD_TIMING_REG_STAGES)
+        .N_REG_STAGES(ADD_TIMING_REG_STAGES + 1)
         )
       conn_afu_clk
        (

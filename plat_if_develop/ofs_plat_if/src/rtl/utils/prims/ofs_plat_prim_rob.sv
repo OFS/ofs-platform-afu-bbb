@@ -56,10 +56,12 @@ module ofs_plat_prim_rob
     // The ROB returns a handle -- the index where the payload should
     // be written.  When allocating multiple entries the indices are
     // sequential.
-    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] alloc,
-    input  logic [N_META_BITS-1 : 0] allocMeta,      // Save meta-data for new entry
-    output logic notFull,                            // Is ROB full?
-    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx, // Index of new entry
+    input  logic alloc_en,
+    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] allocCnt, // Number to allocate
+    input  logic [N_META_BITS-1 : 0] allocMeta,        // Save meta-data for new entry
+    output logic notFull,                              // Is ROB full?
+    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx,   // Index of new entry
+    output logic [$clog2(N_ENTRIES) : 0] inSpaceAvail, // Number of entries free
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
@@ -91,9 +93,11 @@ module ofs_plat_prim_rob
        (
         .clk,
         .reset_n,
-        .alloc,
+        .alloc_en,
+        .allocCnt,
         .notFull,
         .allocIdx,
+        .inSpaceAvail,
         .enqData_en,
         .enqDataIdx,
         .deq_en,
@@ -148,7 +152,7 @@ module ofs_plat_prim_rob
                 .clk(clk),
 
                 .waddr(allocIdx),
-                .wen(alloc != 0),
+                .wen(alloc_en),
                 .wdata(allocMeta),
 
                 .raddr(oldest),
@@ -184,9 +188,11 @@ module ofs_plat_prim_rob_ctrl
     // The ROB returns a handle -- the index where the payload should
     // be written.  When allocating multiple entries the indices are
     // sequential.
-    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] alloc,
-    output logic notFull,                            // Is ROB full?
-    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx, // Index of new entry
+    input  logic alloc_en,
+    input  logic [$clog2(MAX_ALLOC_PER_CYCLE) : 0] allocCnt, // Number to allocate
+    output logic notFull,                              // Is ROB full?
+    output logic [$clog2(N_ENTRIES)-1 : 0] allocIdx,   // Index of new entry
+    output logic [$clog2(N_ENTRIES) : 0] inSpaceAvail, // Number of entries free
 
     // Payload write.  No ready signal.  The ROB must always be ready
     // to receive data.
@@ -201,38 +207,67 @@ module ofs_plat_prim_rob_ctrl
 
     typedef logic [$clog2(N_ENTRIES)-1 : 0] t_idx;
 
-    // Count that can include both 0 and N_ENTRIES.
-    typedef logic [$clog2(N_ENTRIES) : 0] t_idx_nowrap;
+    // Epoch counter adds a high bit to manage counter wrapping
+    typedef logic [$clog2(N_ENTRIES) : 0] t_epoch_idx;
 
-    t_idx newest;
-    t_idx oldest, oldest_q;
+    // Ready flags from valid bit memory
     logic validBits_rdy[0:1];
 
-    // notFull is true as long as there are at least MIN_FREE_SLOTS available
-    // at the end of the ring buffer. The computation is complicated by the
-    // wrapping pointer.
-    logic newest_ge_oldest;
-    assign newest_ge_oldest = (newest >= oldest);
-    assign notFull =
-        validBits_rdy[0] &&
-        (({1'b0, newest} + t_idx_nowrap'(MIN_FREE_SLOTS)) < {newest_ge_oldest, oldest});
+    t_epoch_idx newest;
+    logic newest_epoch;
+    t_idx newest_idx;
+    assign { newest_epoch, newest_idx } = newest;
+
+    t_epoch_idx oldest, oldest_q;
+    logic oldest_epoch, oldest_epoch_q;
+    t_idx oldest_idx, oldest_idx_q;
+    assign { oldest_epoch, oldest_idx } = oldest;
+    assign { oldest_epoch_q, oldest_idx_q } = oldest_q;
+
+    t_epoch_idx in_space_avail, in_space_avail_next;
+    assign inSpaceAvail = in_space_avail;
+
+    // Compute available space, taking advantage of the extra epoch bit to
+    // manage index wrapping. The count of entries allocated this cycle (alloc)
+    // must be considered but we can wait until oldest is updated next cycle
+    // to account for entries deallocated. This avoids timing dependence
+    // on incrementing oldest and, at worst, undercounts available space.
+    //
+    // Coded so that the subtraction doesn't depend on alloc_en.
+    assign in_space_avail_next =
+        (alloc_en ? { ~oldest_epoch, oldest_idx } - newest - allocCnt :
+                    { ~oldest_epoch, oldest_idx } - newest);
+
+    always_ff @(posedge clk)
+    begin
+        in_space_avail <= in_space_avail_next;
+
+        // We make a conservative assumption that MAX_ALLOC_PER_CYCLE entries
+        // were allocated this cycle in order to avoid depending on alloc_en
+        // and allocCnt. This improves timing at the expense of a few ROB slots.
+        notFull <= validBits_rdy[0] &&
+                   (in_space_avail > t_epoch_idx'(MAX_ALLOC_PER_CYCLE + MIN_FREE_SLOTS));
+    end
 
     // enq allocates a slot and returns the index of the slot.
-    assign allocIdx = newest;
-    assign deqIdx = oldest;
+    assign allocIdx = newest_idx;
+    assign deqIdx = oldest_idx;
 
     always_ff @(posedge clk)
     begin
         if (!reset_n)
         begin
-            newest <= 0;
+            newest <= '0;
         end
         else
         begin
-            newest <= newest + t_idx'(alloc);
+            if (alloc_en)
+            begin
+                newest <= newest + allocCnt;
+            end
 
             // synthesis translate_off
-            assert ((alloc == 0) || ((newest + t_idx'(alloc)) != oldest)) else
+            assert (!alloc_en || (allocCnt <= in_space_avail)) else
                 $fatal(2, "** ERROR ** %m: Can't ENQ when FULL!");
             assert ((N_ENTRIES & (N_ENTRIES - 1)) == 0) else
                 $fatal(2, "** ERROR ** %m: N_ENTRIES must be a power of 2!");
@@ -245,13 +280,13 @@ module ofs_plat_prim_rob_ctrl
     begin
         if (deq_en)
         begin
-            oldest <= oldest + t_idx'(1);
+            oldest <= oldest + 1'b1;
         end
         oldest_q <= oldest;
 
         if (!reset_n)
         begin
-            oldest <= 0;
+            oldest <= '0;
         end
     end
 
@@ -290,7 +325,7 @@ module ofs_plat_prim_rob_ctrl
         valid_tag_q <= valid_tag;
 
         // Toggle the valid_tag every trip around the ring buffer.
-        if (deq_en && (&(oldest) == 1'b1))
+        if (deq_en && (&(oldest_idx) == 1'b1))
         begin
             valid_tag <= ~valid_tag;
         end
@@ -426,7 +461,7 @@ module ofs_plat_prim_rob_ctrl
                     // and have the tag for the next ring buffer loop.  Indicies
                     // greater than or equal to oldest use the tag for the current
                     // trip.
-                    .wdata((enqDataIdx_q >= oldest_q) ? valid_tag_q : ~valid_tag_q)
+                    .wdata((enqDataIdx_q >= oldest_idx_q) ? valid_tag_q : ~valid_tag_q)
                     );
 
                 always_ff @(posedge clk)
@@ -472,7 +507,7 @@ module ofs_plat_prim_rob_ctrl
                     // and have the tag for the next ring buffer loop.  Indicies
                     // greater than or equal to oldest use the tag for the current
                     // trip.
-                    .wdata((enqDataIdx_q >= oldest_q) ? valid_tag_q : ~valid_tag_q)
+                    .wdata((enqDataIdx_q >= oldest_idx_q) ? valid_tag_q : ~valid_tag_q)
                     );
             end
 

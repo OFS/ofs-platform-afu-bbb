@@ -158,10 +158,12 @@ module ofs_plat_shim_ccip_rob_wr
         .clk,
         .reset_n,
 
-        .alloc(do_alloc),
+        .alloc_en(do_alloc),
+        .allocCnt(1'b1),
         .allocMeta(to_afu.sTx.c1.hdr.mdata),
         .notFull(wr_not_full),
         .allocIdx(wr_rob_allocIdx),
+        .inSpaceAvail(),
 
         .enqData_en(ccip_c1Rx_isWriteRsp(c1Rx_q) || ccip_c1Rx_isWriteFenceRsp(c1Rx_q)),
         .enqDataIdx(wr_rob_rsp_idx),

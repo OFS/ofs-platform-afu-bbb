@@ -96,10 +96,12 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
        (
         .clk(mem_master.clk),
         .reset_n(mem_master.reset_n),
-        .alloc(rd_req_en ? mem_master.rd_burstcount : '0),
+        .alloc_en(rd_req_en),
+        .allocCnt(mem_master.rd_burstcount),
         .allocMeta(mem_master.rd_user),
         .notFull(rd_rob_notFull),
         .allocIdx(rd_next_allocIdx),
+        .inSpaceAvail(),
 
         // Responses
         .enq_clk(mem_slave.clk),
@@ -253,10 +255,12 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
        (
         .clk(mem_master.clk),
         .reset_n(mem_master.reset_n),
-        .alloc(wr_req_en && wr_sop),
+        .alloc_en(wr_req_en && wr_sop),
+        .allocCnt(1'b1),
         .allocMeta(mem_master.wr_user),
         .notFull(wr_rob_notFull),
         .allocIdx(wr_next_allocIdx),
+        .inSpaceAvail(),
 
         // Responses
         .enq_clk(mem_slave.clk),

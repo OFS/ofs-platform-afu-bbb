@@ -122,15 +122,6 @@ module ofs_plat_shim_ccip_rob_rd
     logic rd_rob_hit_miss;
     t_ccip_clData rd_rob_out_data;
 
-    // Number of read buffer entries to allocate.  More than one must be
-    // allocated to hold multi-beat read responses. CCI-P allows
-    // up to 4 lines per request, one line per beat.
-    logic [2:0] n_alloc;
-    assign n_alloc =
-        ccip_c0Tx_isReadReq(to_afu.sTx.c0) ?
-            3'(to_afu.sTx.c0.hdr.cl_len) + 3'(1) :
-            3'(0);
-
     // Read response index is the base index allocated by the
     // c0Tx read request plus the beat offset for multi-line reads.
     t_req_idx rd_rob_rsp_idx;
@@ -168,10 +159,12 @@ module ofs_plat_shim_ccip_rob_rd
         .clk,
         .reset_n,
 
-        .alloc(n_alloc),
+        .alloc_en(ccip_c0Tx_isReadReq(to_afu.sTx.c0)),
+        .allocCnt(3'(to_afu.sTx.c0.hdr.cl_len) + 3'(1)),
         .allocMeta({ to_afu.sTx.c0.hdr.cl_len, to_afu.sTx.c0.hdr.mdata }),
         .notFull(rd_not_full),
         .allocIdx(rd_rob_allocIdx),
+        .inSpaceAvail(),
 
         .enqData_en(ccip_c0Rx_isReadRsp(c0Rx_q)),
         .enqDataIdx(rd_rob_rsp_idx),
