@@ -105,7 +105,8 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
+        .USER_WIDTH(1)
         )
         afu_mem_if();
 
@@ -267,11 +268,15 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
             assign afu_burst_if.reset_n = afu_mem_if.reset_n;
             assign afu_burst_if.instance_number = afu_mem_if.instance_number;
 
+            // Map bursts sets the "afu_mem_if.user[0]" field to indicate
+            // whether a write response is expected for a burst. For now,
+            // we assume that the slave at afu_mem_if either doesn't return
+            // write responses or that it preserves user[0] as
+            // writeresponseuser[0].
             ofs_plat_avalon_mem_if_map_bursts burst
                (
                 .mem_slave(afu_mem_if),
-                .mem_master(afu_burst_if),
-                .wr_slave_burst_expects_response()
+                .mem_master(afu_burst_if)
                 );
         end
     endgenerate

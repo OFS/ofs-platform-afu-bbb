@@ -88,8 +88,6 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .mem_master,
                 .mem_slave
                 );
-
-            assign wr_slave_burst_expects_response = 1'b1;
         end
         else
         begin : b
@@ -213,8 +211,6 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
             // Write ACKs can flow back unchanged. It is up to the part of this
             // module to ensure that there is only one write ACK per master burst.
-            // The output port wr_slave_burst_expects_response can be used by the
-            // parent module for this purpose.
             assign mem_slave.wr_user[0] = wr_complete && s_wr_sop;
 
             ofs_plat_prim_burstcount1_sop_tracker
@@ -245,20 +241,20 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .eop()
                 );
 
-            assign mem_master.wr_response = mem_slave.wr_response;
             // Forward only responses to master bursts. Extra slave bursts are
             // indicated by 0 in wr_writeresponseuser[0].
             assign mem_master.wr_writeresponsevalid =
                 mem_slave.wr_writeresponsevalid && mem_slave.wr_writeresponseuser[0];
+            assign mem_master.wr_response = mem_slave.wr_response;
 
 
             // synthesis translate_off
 
             //
             // Validated in simulation: confirm that the parent module is properly
-            // gating write responses based on wr_slave.wr_user[0] burst tracking.
-            // The test here is simple: if there are more write responses than
-            // write requests from the master then something is wrong.
+            // returning wr_writeresponseuser[0] based on wr_slave.wr_user[0] for
+            // burst tracking. The test here is simple: if there are more write
+            // responses than write requests from the master then something is wrong.
             //
             int m_num_writes, m_num_write_responses;
 
@@ -266,7 +262,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             begin
                 if (m_num_write_responses > m_num_writes)
                 begin
-                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the parent module honoring wr_slave_burst_expects_response?");
+                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the parent module returning wr_writeresponseuser[0]?");
                 end
 
                 if (mem_master.wr_write && ! mem_master.wr_waitrequest && m_wr_sop)

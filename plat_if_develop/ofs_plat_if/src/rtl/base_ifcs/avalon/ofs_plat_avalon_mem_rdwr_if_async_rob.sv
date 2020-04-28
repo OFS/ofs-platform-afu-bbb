@@ -29,7 +29,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Clock crossing bridge for the Avalon split bus read write memory interface.
+// Combined crossing bridge and reorder buffer (ROB) for the Avalon split bus read
+// write memory interface. The ROB stores tags for sorting in the slave's
+// user fields and assumes that the slave preserves them. This module is needed
+// only for unusual slaves that return responses out of order.
 //
 
 module ofs_plat_avalon_mem_rdwr_if_async_rob

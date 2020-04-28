@@ -75,22 +75,15 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
 
     import ofs_plat_ccip_if_funcs_pkg::*;
 
-    //
-    // Expose the native Avalon interface as a split-bus read/write Avalon
-    // interface. Also apply clock crossing and register stages.
-    //
-    ofs_plat_avalon_mem_rdwr_if
+    // Apply clock crossing and burst mapping to the Avalon slave.
+    ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(to_fiu),
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_MEM_PARAMS(to_fiu),
         .BURST_CNT_WIDTH(3)
         )
       afu_avmm_if();
 
-    //
-    // Use the base native Avalon to Avalon mapper to instantiate clock crossing
-    // and register stages, if requested.
-    //
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
+    ofs_plat_host_chan_xGROUPx_as_avalon_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -103,12 +96,30 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         .afu_reset_n
         );
 
+    // Export the simple Avalon interface as a split-bus interface.
+    // passing the clock.
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(afu_avmm_if)
+        )
+      afu_avmm_rdwr_if();
+
+    ofs_plat_avalon_mem_rdwr_if_to_mem_if gen_rdwr
+       (
+        .mem_slave(afu_avmm_if),
+        .mem_master(afu_avmm_rdwr_if)
+        );
+
+    assign afu_avmm_rdwr_if.clk = afu_avmm_if.clk;
+    assign afu_avmm_rdwr_if.reset_n = afu_avmm_if.reset_n;
+    assign afu_avmm_rdwr_if.instance_number = afu_avmm_if.instance_number;
+
     wire clk;
-    assign clk = afu_avmm_if.clk;
+    assign clk = afu_avmm_rdwr_if.clk;
     assign to_afu.clk = clk;
 
     logic reset_n;
-    assign reset_n = afu_avmm_if.reset_n;
+    assign reset_n = afu_avmm_rdwr_if.reset_n;
     assign to_afu.reset_n = reset_n;
 
 
@@ -144,15 +155,15 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         );
 
     // Map CCI-P read request to AVMM request
-    assign afu_avmm_if.rd_read = afu_c0Tx_notEmpty && afu_c0Tx_tracker_notFull;
-    assign afu_c0Tx_deq_en = afu_avmm_if.rd_read && ! afu_avmm_if.rd_waitrequest;
+    assign afu_avmm_rdwr_if.rd_read = afu_c0Tx_notEmpty && afu_c0Tx_tracker_notFull;
+    assign afu_c0Tx_deq_en = afu_avmm_rdwr_if.rd_read && ! afu_avmm_rdwr_if.rd_waitrequest;
 
     always_comb
     begin
-        afu_avmm_if.rd_address = afu_c0Tx.hdr.address;
-        afu_avmm_if.rd_burstcount = 3'(afu_c0Tx.hdr.cl_len) + 3'b1;
-        afu_avmm_if.rd_byteenable = ~'0;
-        afu_avmm_if.rd_function = '0;
+        afu_avmm_rdwr_if.rd_address = afu_c0Tx.hdr.address;
+        afu_avmm_rdwr_if.rd_burstcount = 3'(afu_c0Tx.hdr.cl_len) + 3'b1;
+        afu_avmm_rdwr_if.rd_byteenable = ~'0;
+        afu_avmm_rdwr_if.rd_function = '0;
     end
 
     // Track read bursts in flight, required to fill in CCI-P details in responses
@@ -183,14 +194,14 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
 
     // Pop the oldest tracker entry when all response flits for the packet
     // are processed.
-    assign afu_c0Rx_deq_en = afu_avmm_if.rd_readdatavalid &&
+    assign afu_c0Rx_deq_en = afu_avmm_rdwr_if.rd_readdatavalid &&
                              (afu_c0Rx_cl_num == t_ccip_clNum'(afu_c0Rx_cl_len));
 
     // Map Avalon read responses back to AFU CCI-P responses
     always_ff @(posedge clk)
     begin
-        to_afu.sRx.c0.rspValid <= afu_avmm_if.rd_readdatavalid;
-        to_afu.sRx.c0.data <= afu_avmm_if.rd_readdata;
+        to_afu.sRx.c0.rspValid <= afu_avmm_rdwr_if.rd_readdatavalid;
+        to_afu.sRx.c0.data <= afu_avmm_rdwr_if.rd_readdata;
 
         to_afu.sRx.c0.hdr <= '0;
         to_afu.sRx.c0.hdr.cl_num <= afu_c0Rx_cl_num;
@@ -205,7 +216,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
             // Finished the current packet
             afu_c0Rx_cl_num <= t_ccip_clNum'(0);
         end
-        else if (afu_avmm_if.rd_readdatavalid)
+        else if (afu_avmm_rdwr_if.rd_readdatavalid)
         begin
             afu_c0Rx_cl_num <= afu_c0Rx_cl_num + t_ccip_clNum'(1);
         end
@@ -264,22 +275,22 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         );
 
     // Map CCI-P write request to AVMM request
-    assign afu_avmm_if.wr_write = afu_c1Tx_notEmpty && afu_c1Tx_tracker_notFull;
-    assign afu_c1Tx_deq_en = afu_avmm_if.wr_write && ! afu_avmm_if.wr_waitrequest;
+    assign afu_avmm_rdwr_if.wr_write = afu_c1Tx_notEmpty && afu_c1Tx_tracker_notFull;
+    assign afu_c1Tx_deq_en = afu_avmm_rdwr_if.wr_write && ! afu_avmm_rdwr_if.wr_waitrequest;
 
     always_comb
     begin
-        afu_avmm_if.wr_writedata = afu_c1Tx.data;
-        afu_avmm_if.wr_address = afu_c1Tx.hdr.address;
-        afu_avmm_if.wr_burstcount = 3'(afu_c1Tx.hdr.cl_len) + 3'b1;
-        afu_avmm_if.wr_byteenable = afu_c1Tx.hdr.mode ? afu_c1Tx_byteenable : ~'0;
+        afu_avmm_rdwr_if.wr_writedata = afu_c1Tx.data;
+        afu_avmm_rdwr_if.wr_address = afu_c1Tx.hdr.address;
+        afu_avmm_rdwr_if.wr_burstcount = 3'(afu_c1Tx.hdr.cl_len) + 3'b1;
+        afu_avmm_rdwr_if.wr_byteenable = afu_c1Tx.hdr.mode ? afu_c1Tx_byteenable : ~'0;
 
-        afu_avmm_if.wr_function = '0;
+        afu_avmm_rdwr_if.wr_function = '0;
         if (afu_c1Tx.hdr.req_type == eREQ_WRFENCE)
         begin
             // Use AVMM special fence encoding
-            afu_avmm_if.wr_address = '0;
-            afu_avmm_if.wr_function = 1'b1;
+            afu_avmm_rdwr_if.wr_address = '0;
+            afu_avmm_rdwr_if.wr_function = 1'b1;
         end
     end
 
@@ -316,11 +327,11 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         );
 
     // Write responses. AVMM gives a single response for a burst.
-    assign afu_c1Rx_deq_en = afu_avmm_if.wr_writeresponsevalid;
+    assign afu_c1Rx_deq_en = afu_avmm_rdwr_if.wr_writeresponsevalid;
 
     always_ff @(posedge clk)
     begin
-        to_afu.sRx.c1.rspValid <= afu_avmm_if.wr_writeresponsevalid;
+        to_afu.sRx.c1.rspValid <= afu_avmm_rdwr_if.wr_writeresponsevalid;
 
         to_afu.sRx.c1.hdr <= '0;
         to_afu.sRx.c1.hdr.format <= 1'b1;

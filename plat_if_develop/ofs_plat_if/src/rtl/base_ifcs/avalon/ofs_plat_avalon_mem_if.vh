@@ -40,6 +40,10 @@
     .DATA_WIDTH(AVALON_IF.DATA_WIDTH_), \
     .BURST_CNT_WIDTH(AVALON_IF.BURST_CNT_WIDTH_)
 
+`define OFS_PLAT_AVALON_MEM_IF_REPLICATE_MEM_PARAMS(AVALON_IF) \
+    .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
+    .DATA_WIDTH(AVALON_IF.DATA_WIDTH_)
+
 
 //
 // Utilities for operating on interface ofs_plat_avalon_mem_if.

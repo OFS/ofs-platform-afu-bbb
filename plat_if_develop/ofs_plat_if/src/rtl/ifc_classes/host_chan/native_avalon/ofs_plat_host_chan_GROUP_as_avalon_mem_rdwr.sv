@@ -68,7 +68,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
     // Apply clock crossing and burst mapping to the Avalon slave.
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(host_mem_to_afu)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(host_mem_to_afu)
         )
       afu_avmm_if();
 

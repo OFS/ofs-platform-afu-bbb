@@ -121,36 +121,32 @@ module ofs_plat_avalon_mem_if_async_shim
     // don't count available queue slots and assume that the FIFO will never
     // overflow.
     //
-    logic wr_response_not_valid;
-    logic wr_response_full;
+    logic wr_response_valid;
 
-    ofs_plat_utils_dc_fifo
+    ofs_plat_prim_fifo_dc
       #(
-        .DATA_WIDTH($bits(t_response)),
-        .DEPTH_RADIX(12)
+        .N_DATA_BITS($bits(t_response)),
+        .N_ENTRIES(1024)
         )
       avmm_cross_wr_response
        (
-        .aclr(slave_reset),
-        .data(mem_slave.writeresponse),
-        .rdclk(mem_master.clk),
-        // dcfifo has "underflow_checking" on, so safe to hold rdreq
-        .rdreq(1'b1),
-        .wrclk(mem_slave.clk),
-        .wrreq(mem_slave.writeresponsevalid),
-        .q(mem_master.writeresponse),
-        .rdempty(wr_response_not_valid),
-        .rdfull(),
-        .rdusedw(),
-        .wrempty(),
-        .wrfull(wr_response_full),
-        .wralmfull(),
-        .wrusedw()
+        .enq_clk(mem_slave.clk),
+        .enq_reset_n(mem_slave.reset_n),
+        .enq_data(mem_slave.writeresponse),
+        .enq_en(mem_slave.writeresponsevalid),
+        .notFull(),
+        .almostFull(),
+
+        .deq_clk(mem_master.clk),
+        .deq_reset_n(mem_master.reset_n),
+        .first(mem_master.writeresponse),
+        .deq_en(wr_response_valid),
+        .notEmpty(wr_response_valid)
         );
 
     always_ff @(posedge mem_master.clk)
     begin
-        mem_master.writeresponsevalid <= !wr_response_not_valid && mem_master.reset_n;
+        mem_master.writeresponsevalid <= wr_response_valid && mem_master.reset_n;
     end
 
 
