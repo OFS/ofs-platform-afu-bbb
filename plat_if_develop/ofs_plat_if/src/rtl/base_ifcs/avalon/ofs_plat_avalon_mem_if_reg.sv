@@ -160,7 +160,8 @@ module ofs_plat_avalon_mem_if_reg_slave_clk
       #(
         .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
         .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+        .USER_WIDTH(mem_slave.USER_WIDTH_)
         )
       mem_reg();
 
@@ -204,7 +205,8 @@ module ofs_plat_avalon_mem_if_reg_master_clk
       #(
         .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
         .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+        .USER_WIDTH(mem_slave.USER_WIDTH_)
         )
       mem_reg();
 

@@ -69,10 +69,15 @@ module ofs_plat_avalon_mem_rdwr_if_mux
     localparam DATA_N_BYTES = mem_slave.DATA_N_BYTES;
     localparam BURST_CNT_WIDTH = mem_slave.BURST_CNT_WIDTH_;
 
+    // Preserve master's user, rd_user and wr_user fields. We assume that
+    // all master ports have the same width.
+    localparam USER_WIDTH = mem_master[0].USER_WIDTH_;
+
     typedef logic [ADDR_WIDTH-1:0] t_addr;
     typedef logic [DATA_WIDTH-1:0] t_data;
     typedef logic [BURST_CNT_WIDTH-1:0] t_burstcount;
     typedef logic [DATA_N_BYTES-1:0] t_byteenable;
+    typedef logic [USER_WIDTH-1:0] t_user;
 
     genvar p;
     generate
@@ -118,6 +123,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                 t_burstcount burstcount;
                 t_byteenable byteenable;
                 logic func;
+                t_user user;
             } t_req;
 
             // ============================================================
@@ -141,6 +147,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                 assign rd_master_req.burstcount = mem_master[p].rd_burstcount;
                 assign rd_master_req.byteenable = mem_master[p].rd_byteenable;
                 assign rd_master_req.func = mem_master[p].rd_function;
+                assign rd_master_req.user = mem_master[p].rd_user;
 
                 logic rd_req_in_notFull;
                 assign mem_master[p].rd_waitrequest = ! rd_req_in_notFull;
@@ -197,22 +204,27 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             // responses to the proper port.
             t_burstcount rd_rsp_burstcount;
             t_port_idx rd_rsp_port_idx;
+            t_user rd_rsp_user;
             logic rd_tracker_deq_en;
 
             ofs_plat_prim_fifo_bram
               #(
-                .N_DATA_BITS($bits(t_burstcount) + $bits(t_port_idx)),
+                .N_DATA_BITS($bits(t_user) + $bits(t_burstcount) + $bits(t_port_idx)),
                 .N_ENTRIES(RD_TRACKER_DEPTH)
                 )
               fifo_rd_track
                (
                 .clk,
                 .reset_n,
-                .enq_data({ shared_if.rd_burstcount, rd_grantIdx }),
+                .enq_data({ rd_req[rd_grantIdx].user,
+                            shared_if.rd_burstcount,
+                            rd_grantIdx }),
                 .enq_en(shared_if.rd_read),
                 .notFull(rd_tracker_notFull),
                 .almostFull(),
-                .first({ rd_rsp_burstcount, rd_rsp_port_idx }),
+                .first({ rd_rsp_user,
+                         rd_rsp_burstcount,
+                         rd_rsp_port_idx }),
                 .deq_en(rd_tracker_deq_en),
                 .notEmpty()
                 );
@@ -228,6 +240,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                                                       (rd_rsp_port_idx == t_port_idx'(p));
                     mem_master[p].rd_readdata <= shared_if.rd_readdata;
                     mem_master[p].rd_response <= shared_if.rd_response;
+                    mem_master[p].rd_readresponseuser <= rd_rsp_user;
                 end
             end
 
@@ -267,6 +280,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                 assign wr_master_req.burstcount = mem_master[p].wr_burstcount;
                 assign wr_master_req.byteenable = mem_master[p].wr_byteenable;
                 assign wr_master_req.func = mem_master[p].wr_function;
+                assign wr_master_req.user = mem_master[p].wr_user;
 
                 logic wr_req_in_notFull;
                 assign mem_master[p].wr_waitrequest = ! wr_req_in_notFull;
@@ -367,21 +381,22 @@ module ofs_plat_avalon_mem_rdwr_if_mux
 
             // Track the port of winners in order to send responses to the proper port.
             t_port_idx wr_rsp_port_idx;
+            t_user wr_rsp_user;
 
             ofs_plat_prim_fifo_bram
               #(
-                .N_DATA_BITS($bits(t_port_idx)),
+                .N_DATA_BITS($bits(t_user) + $bits(t_port_idx)),
                 .N_ENTRIES(WR_TRACKER_DEPTH)
                 )
               fifo_wr_track
                (
                 .clk,
                 .reset_n,
-                .enq_data(wr_grantIdx),
+                .enq_data({ wr_req[wr_winnerIdx].user, wr_grantIdx }),
                 .enq_en(wr_sop && (|(wr_grant_onehot))),
                 .notFull(wr_tracker_notFull),
                 .almostFull(),
-                .first(wr_rsp_port_idx),
+                .first({ wr_rsp_user, wr_rsp_port_idx }),
                 .deq_en(shared_if.wr_writeresponsevalid),
                 .notEmpty()
                 );
@@ -396,6 +411,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                     mem_master[p].wr_writeresponsevalid <=
                         shared_if.wr_writeresponsevalid && (wr_rsp_port_idx == t_port_idx'(p));
                     mem_master[p].wr_response <= shared_if.wr_response;
+                    mem_master[p].wr_writeresponseuser <= wr_rsp_user;
                 end
             end
         end

@@ -46,14 +46,17 @@ module ofs_plat_avalon_mem_if_to_rdwr_if
         mem_master.readdatavalid = mem_slave.rd_readdatavalid;
         mem_master.readdata = mem_slave.rd_readdata;
         mem_master.response = mem_slave.rd_response;
+        mem_master.readresponseuser = mem_slave.rd_readresponseuser;
         mem_master.writeresponsevalid = mem_slave.wr_writeresponsevalid;
         mem_master.writeresponse = mem_slave.wr_response;
+        mem_master.writeresponseuser = mem_slave.wr_writeresponseuser;
 
         mem_slave.rd_address = mem_master.address;
         mem_slave.rd_read = mem_master.read && !mem_master.waitrequest;
         mem_slave.rd_burstcount = mem_master.burstcount;
         mem_slave.rd_byteenable = mem_master.byteenable;
         mem_slave.rd_function = '0;
+        mem_slave.rd_user = mem_master.user;
 
         mem_slave.wr_address = mem_master.address;
         mem_slave.wr_write = mem_master.write && !mem_master.waitrequest;
@@ -61,6 +64,7 @@ module ofs_plat_avalon_mem_if_to_rdwr_if
         mem_slave.wr_writedata = mem_master.writedata;
         mem_slave.wr_byteenable = mem_master.byteenable;
         mem_slave.wr_function = '0;
+        mem_slave.wr_user = mem_master.user;
     end
 
 endmodule // ofs_plat_avalon_mem_if_to_rdwr_if

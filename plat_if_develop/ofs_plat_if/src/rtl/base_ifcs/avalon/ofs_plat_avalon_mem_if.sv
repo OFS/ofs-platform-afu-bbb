@@ -360,8 +360,8 @@ interface ofs_plat_avalon_mem_if
                             instance_number,
                             address,
                             ((wr_bursts_rem == 0) ? "sop " : ""),
-                            user,
                             burstcount,
+                            user,
                             byteenable,
                             writedata);
                 end

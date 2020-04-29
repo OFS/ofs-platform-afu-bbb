@@ -47,9 +47,9 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
-    // Size of the read response buffer instantiated when a clock crossing
-    // as required.
-    parameter MAX_ACTIVE_RD_LINES = 512,
+    // Sizes of the response buffers in the ROB and clock crossing.
+    parameter MAX_ACTIVE_RD_LINES = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD,
+    parameter MAX_ACTIVE_WR_LINES = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_WR,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
     // Note that these stages contribute to the latency of receiving
@@ -70,7 +70,29 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     );
 
     localparam FIU_BURST_CNT_WIDTH = to_fiu.BURST_CNT_WIDTH_;
+    localparam FIU_USER_WIDTH = to_fiu.USER_WIDTH_;
 
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_OUT_OF_ORDER
+    localparam OUT_OF_ORDER = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_OUT_OF_ORDER;
+`else
+    localparam OUT_OF_ORDER = 0;
+`endif
+
+    // Does the FIU port return responses out of order? If so, the user
+    // port must be available as a tag.
+    // synthesis translate_off
+    initial
+    begin
+        if (OUT_OF_ORDER)
+        begin
+            assert (FIU_USER_WIDTH > 1) else
+                $fatal(2, " ** ERROR ** %m: Port is out of order but USER_WIDTH is too small!");
+
+            assert (FIU_BURST_CNT_WIDTH == 1) else
+                $fatal(2, " ** ERROR ** %m: Port is out of order but max. burst count is not 1!");
+        end
+    end
+    // synthesis translate_on
 
     // ====================================================================
     //
@@ -84,7 +106,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     function automatic int numTimingRegStages(int at_fiu_edge);
         int n_stages;
 
-        if ((at_fiu_edge != 0) && (ADD_CLOCK_CROSSING != 0))
+        if ((at_fiu_edge != 0) && ((OUT_OF_ORDER + ADD_CLOCK_CROSSING) != 0))
         begin
             // At the edge and a clock crossing will be added. Add just
             // the minimum number of stages. The rest will be added between
@@ -109,7 +131,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
+        .USER_WIDTH(FIU_USER_WIDTH)
         )
         fiu_reg_if();
 
@@ -137,10 +160,10 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     // ====================================================================
 
     generate
-        if (ADD_CLOCK_CROSSING == 0)
+        if ((OUT_OF_ORDER + ADD_CLOCK_CROSSING) == 0)
         begin : nc
             //
-            // No clock crossing.
+            // Port is ordered and no clock crossing is requested.
             //
             ofs_plat_avalon_mem_if_connect_slave_clk fiu_conn
                (
@@ -149,88 +172,66 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 );
         end
         else
-        begin : ofs_plat_clock_crossing
-            // ============================================================
-            //
-            // While clocking and register stage insertion are logically
-            // independent, considering them together leads to an important
-            // optimization. The clock crossing FIFO has a large buffer that
-            // can be used to turn the standard Avalon MM waitrequest signal
-            // into an almost full protocol. The buffer stages become a
-            // simple pipeline.
-            //
-            // When there is no clock crossing FIFO, all register stages must
-            // honor the waitrequest protocol.
-            //
-            // ============================================================
-
+        begin : cc
             localparam NUM_TIMING_REG_STAGES = numTimingRegStages(0);
 
-            // We assume that a single waitrequest signal can propagate faster
-            // than the entire bus, so limit the number of stages.
-            localparam NUM_WAITREQUEST_STAGES =
-                // If pipeline is 4 stages or fewer then use the pipeline depth.
-                (NUM_TIMING_REG_STAGES <= 4 ? NUM_TIMING_REG_STAGES :
-                    // Up to depth 16 pipelines, use 4 waitrequest stages.
-                    // Beyond 16 stages, set the waitrequest depth to 1/4 the
-                    // base pipeline depth.
-                    (NUM_TIMING_REG_STAGES <= 16 ? 4 : (NUM_TIMING_REG_STAGES >> 2)));
-
-            // A few extra stages to avoid off-by-one errors. There is plenty of
-            // space in the FIFO, so this has no performance consequences.
-            localparam NUM_EXTRA_STAGES = (NUM_TIMING_REG_STAGES != 0) ? 4 : 0;
-
-            // Set the almost full threshold to satisfy the buffering pipeline depth
-            // plus the depth of the waitrequest pipeline plus a little extra to
-            // avoid having to worry about off-by-one errors.
-            localparam NUM_ALMFULL_SLOTS = NUM_TIMING_REG_STAGES +
-                                           NUM_WAITREQUEST_STAGES +
-                                           NUM_EXTRA_STAGES;
-
             //
-            // Cross to the specified clock.
+            // Cross to the specified clock and/or add a reorder buffer
             //
             ofs_plat_avalon_mem_if
               #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-                .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
                 )
                 mem_cross();
 
-            assign mem_cross.clk = afu_clk;
-            assign mem_cross.reset_n = afu_reset_n;
+            assign mem_cross.clk = (ADD_CLOCK_CROSSING ? afu_clk : to_fiu.clk);
+            assign mem_cross.reset_n = (ADD_CLOCK_CROSSING ? afu_reset_n : to_fiu.reset_n);
             assign mem_cross.instance_number = to_fiu.instance_number;
 
             // synthesis translate_off
             always_ff @(negedge afu_clk)
             begin
-                if (afu_reset_n === 1'bx)
+                if ((ADD_CLOCK_CROSSING != 0) && (afu_reset_n === 1'bx))
                 begin
                     $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
                 end
             end
             // synthesis translate_on
 
-            ofs_plat_avalon_mem_if_async_shim
-              #(
-                .COMMAND_FIFO_DEPTH(8 + NUM_ALMFULL_SLOTS),
-                .RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES),
-                .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
-                )
-              cross_clk
-               (
-                .mem_slave(fiu_reg_if),
-                .mem_master(mem_cross)
-                );
+            if (OUT_OF_ORDER)
+            begin
+                // At least a ROB and maybe a clock crossing. The user field
+                // in the slave interface is used for the reordering tag.
+                ofs_plat_avalon_mem_if_async_rob
+                  #(
+                    .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+                    .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
+                    .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
+                    )
+                  rob
+                   (
+                    .mem_slave(fiu_reg_if),
+                    .mem_master(mem_cross)
+                    );
+            end
+            else
+            begin
+                // Just a clock crossing. No ROB required.
+                ofs_plat_avalon_mem_if_async_shim
+                  #(
+                    .COMMAND_FIFO_DEPTH(8),
+                    .RESPONSE_FIFO_DEPTH(MAX_ACTIVE_RD_LINES)
+                    )
+                  cross_clk
+                   (
+                    .mem_slave(fiu_reg_if),
+                    .mem_master(mem_cross)
+                    );
+            end
 
-            // Add requested register stages on the AFU side of the clock crossing.
-            // In this case the register stages are a simple pipeline because
-            // the clock crossing FIFO reserves space for these stages to drain
-            // after waitrequest is asserted.
-            ofs_plat_avalon_mem_if_reg_simple
+            ofs_plat_avalon_mem_if_reg
               #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES),
-                .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
+                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
               mem_pipe
                (
@@ -273,7 +274,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             //
             ofs_plat_avalon_mem_if
               #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(host_mem_to_afu),
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
                 // user field bit 0 used to track required write responses
                 .USER_WIDTH(1)
                 )
@@ -308,7 +309,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             ofs_plat_prim_fifo_lutram
               #(
                 .N_DATA_BITS(1),
-                .N_ENTRIES(128),
+                .N_ENTRIES(MAX_ACTIVE_WR_LINES),
                 .REGISTER_OUTPUT(1)
                 )
               wr_resp_fifo
@@ -321,7 +322,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                 .notFull(wr_resp_fifo_notFull),
                 .almostFull(),
                 .first(wr_resp_expected),
-                .deq_en(fiu_reg_if.writeresponsevalid),
+                .deq_en(fiu_burst_if.writeresponsevalid),
                 .notEmpty()
                 );
 
@@ -331,6 +332,9 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
                                                                   fiu_burst_if);
                 `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(fiu_burst_if,
                                                                   afu_clk_if);
+
+                afu_clk_if.read = fiu_burst_if.read && wr_resp_fifo_notFull;
+                afu_clk_if.write = fiu_burst_if.write && wr_resp_fifo_notFull;
 
                 fiu_burst_if.waitrequest = afu_clk_if.waitrequest || !wr_resp_fifo_notFull;
                 fiu_burst_if.writeresponseuser[0] = wr_resp_expected;

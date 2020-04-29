@@ -184,7 +184,9 @@ module ase_top_ofs_plat
           #(
             .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_ADDR_WIDTH),
             .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_DATA_WIDTH),
-            .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_BURST_CNT_WIDTH)
+            .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_BURST_CNT_WIDTH),
+            .USER_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_USER_WIDTH != 0 ?
+                          `OFS_PLAT_PARAM_HOST_CHAN_G1_USER_WIDTH : 1)
             )
             avmm_port_slave_if[`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS]();
 
@@ -203,9 +205,34 @@ module ase_top_ofs_plat
         // Convert split-bus read/write Avalon to standard Avalon
         for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS; p = p + 1)
         begin : hc_1
-            ofs_plat_avalon_mem_if_to_rdwr_if avmm_to_rdwr
+            // Emulate ports that return results out of order
+            ofs_plat_avalon_mem_rdwr_if
+              #(
+                .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_ADDR_WIDTH),
+                .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_DATA_WIDTH),
+                .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_BURST_CNT_WIDTH),
+                .USER_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_USER_WIDTH != 0 ?
+                              `OFS_PLAT_PARAM_HOST_CHAN_G1_USER_WIDTH : 1)
+                )
+                avmm_ooo_if();
+
+            ase_emul_ooo_avalon_mem_rdwr_if
+              #(
+    `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_OUT_OF_ORDER
+                .OUT_OF_ORDER(1)
+    `else
+                .OUT_OF_ORDER(0)
+    `endif
+                )
+              ooo_port
                (
                 .mem_slave(avmm_port_slave_if[p]),
+                .mem_master(avmm_ooo_if)
+                );
+
+            ofs_plat_avalon_mem_if_to_rdwr_if avmm_to_rdwr
+               (
+                .mem_slave(avmm_ooo_if),
                 .mem_master(plat_ifc.host_chan_g1.ports[p])
                 );
 

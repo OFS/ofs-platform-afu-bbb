@@ -43,6 +43,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     localparam ADDR_WIDTH = mem_slave.ADDR_WIDTH_;
     localparam DATA_WIDTH = mem_slave.DATA_WIDTH_;
     localparam BURST_CNT_WIDTH = mem_slave.BURST_CNT_WIDTH_;
+    localparam USER_WIDTH = mem_slave.USER_WIDTH_;
 
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
 
@@ -50,6 +51,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         logic [ADDR_WIDTH-1:0] address;
         logic [BURST_CNT_WIDTH-1:0] burstcount;
         logic [DATA_N_BYTES-1:0] byteenable;
+        logic [USER_WIDTH-1:0] user;
     } t_rd_req;
 
     typedef struct packed {
@@ -57,6 +59,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         logic [BURST_CNT_WIDTH-1:0] burstcount;
         logic [DATA_WIDTH-1:0] data;
         logic [DATA_N_BYTES-1:0] byteenable;
+        logic [USER_WIDTH-1:0] user;
         logic wr_function;
         logic eop;
     } t_wr_req;
@@ -78,11 +81,13 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         master_in_rd_req.address = mem_master.rd_address;
         master_in_rd_req.burstcount = mem_master.rd_burstcount;
         master_in_rd_req.byteenable = mem_master.rd_byteenable;
+        master_in_rd_req.user = mem_master.rd_user;
 
         master_in_wr_req.address = mem_master.wr_address;
         master_in_wr_req.burstcount = mem_master.wr_burstcount;
         master_in_wr_req.data = mem_master.wr_writedata;
         master_in_wr_req.byteenable = mem_master.wr_byteenable;
+        master_in_wr_req.user = mem_master.wr_user;
         master_in_wr_req.wr_function = mem_master.wr_function;
     end
 
@@ -212,6 +217,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         mem_slave.burstcount = pick_read ? rd_req.burstcount : wr_req.burstcount;
         mem_slave.writedata = wr_req.data;
         mem_slave.byteenable = pick_read ? rd_req.byteenable : wr_req.byteenable;
+        mem_slave.user = pick_read ? rd_req.user : wr_req.user;
     end
 
     // Responses
@@ -220,9 +226,11 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         mem_master.rd_readdata = mem_slave.readdata;
         mem_master.rd_readdatavalid = mem_slave.readdatavalid;
         mem_master.rd_response = mem_slave.response;
+        mem_master.rd_readresponseuser = mem_slave.readresponseuser;
 
         mem_master.wr_writeresponsevalid = mem_slave.writeresponsevalid;
         mem_master.wr_response = mem_slave.writeresponse;
+        mem_master.wr_writeresponseuser = mem_slave.writeresponseuser;
     end
 
 endmodule // ofs_plat_avalon_mem_rdwr_if_to_mem_if
