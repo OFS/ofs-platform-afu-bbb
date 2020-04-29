@@ -37,15 +37,6 @@
 // In this implementation only to_afu[0] handles MMIO reads and writes.
 // Other channels see no MMIO traffic.
 //
-// *** WARNING ***
-//
-//   High bits of incoming AFU Tx header mdata must be zero.
-//   $clog2(NUM_AFU_PORTS) high mdata bits are used to route FIU responses
-//   back to the proper AFU. It is up to the AFU to guarantee these bits
-//   are zero. They will be overwritten here and reset_n to 0 in responses.
-//
-// *** WARNING ***
-//
 
 `include "ofs_plat_if.vh"
 
@@ -91,8 +82,17 @@ module ofs_plat_shim_ccip_mux
     // high bits.
     //
     typedef logic [$clog2(NUM_AFU_PORTS)-1 : 0] t_port_idx;
-    localparam MDATA_IDX_HIGH = CCIP_MDATA_WIDTH - 1;
-    localparam MDATA_IDX_LOW = CCIP_MDATA_WIDTH - $bits(t_port_idx);
+
+    //
+    // Tracking the last packet in a multi-beat response is somewhat difficult
+    // in CCI-P due to the lack of ordering rules. The MUX needs to overwrite
+    // request mdata fields in order to route responses. In this implementation,
+    // the MUX simply allocates indices in the table round-robin. It makes the
+    // table quite large under the assumption that the FIM's hardware buffers
+    // will force all traffic associated with an index to be completed before
+    // the next trip around the index space reuses it.
+    //
+    typedef logic [10:0] t_tracker_idx;
 
 
     // ====================================================================
@@ -124,21 +124,6 @@ module ofs_plat_shim_ccip_mux
 
             for (p = 0; p < NUM_AFU_PORTS; p = p + 1)
             begin : f
-                // synthesis translate_off
-                always_ff @(posedge clk)
-                begin
-                    // High bits of incoming Tx mdata must be 0. This is where
-                    // the index of the AFU will be stored so responses are
-                    // routed to the correct AFU.
-                    if (reset_n && to_afu[p].sTx.c0.valid)
-                    begin
-                        assert (to_afu[p].sTx.c0.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] ==
-                                t_port_idx'(0)) else
-                            $fatal(2, "** ERROR ** %m: Non-zero AFU %0d c0Tx mdata high bits", p);
-                    end
-                end
-                // synthesis translate_on
-
                 ofs_plat_prim_fifo_lutram
                   #(
                     .N_DATA_BITS($bits(t_if_ccip_c0_Tx)),
@@ -182,6 +167,53 @@ module ofs_plat_shim_ccip_mux
                 );
 
 
+            //
+            // Round-robin tracker of previous mdata values and response
+            // routing table.
+            //
+            t_tracker_idx fiu_c0Tx_next_tracker_idx;
+            t_port_idx fiu_c0Rx_port_idx;
+            t_tracker_idx fiu_c0Rx_prev_mdata;
+
+            logic fiu_c0Tx_tracker_wen;
+            assign fiu_c0Tx_tracker_wen = (|(afu_c0Tx_deq_en));
+
+            always_ff @(posedge clk)
+            begin
+                if (fiu_c0Tx_tracker_wen)
+                begin
+                    fiu_c0Tx_next_tracker_idx <= fiu_c0Tx_next_tracker_idx + 1;
+                end
+
+                if (!reset_n)
+                begin
+                    fiu_c0Tx_next_tracker_idx <= '0;
+                end
+            end
+
+            ofs_plat_prim_ram_simple
+              #(
+                .N_ENTRIES(1 << $bits(t_tracker_idx)),
+                .N_DATA_BITS($bits(t_port_idx) + $bits(t_tracker_idx)),
+                .N_OUTPUT_REG_STAGES(1),
+                .REGISTER_WRITES(1),
+                .BYPASS_REGISTERED_WRITES(0)
+                )
+              c0Tx_trk
+               (
+                .clk,
+
+                .wen(fiu_c0Tx_tracker_wen),
+                .waddr(fiu_c0Tx_next_tracker_idx),
+                // Store response routing (AFU of the request) and AFU's mdata
+                // state, which will be restored.
+                .wdata({ afu_c0Tx_grantIdx,
+                         t_tracker_idx'(afu_c0Tx[afu_c0Tx_grantIdx].hdr.mdata) }),
+
+                .raddr(t_tracker_idx'(to_fiu.sRx.c0.hdr.mdata)),
+                .rdata({ fiu_c0Rx_port_idx, fiu_c0Rx_prev_mdata })
+                );
+
             t_if_ccip_c0_Tx fiu_c0Tx;
 
             always_ff @(posedge clk)
@@ -189,7 +221,7 @@ module ofs_plat_shim_ccip_mux
                 // Forward arbitration winner. One of the deq_en bits will be
                 // high only if a request is available and the FIU isn't full.
                 fiu_c0Tx <= afu_c0Tx[afu_c0Tx_grantIdx];
-                fiu_c0Tx.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] <= afu_c0Tx_grantIdx;
+                fiu_c0Tx.hdr.mdata[$bits(t_tracker_idx)-1:0] <= fiu_c0Tx_next_tracker_idx;
                 fiu_c0Tx.valid <= (|(afu_c0Tx_deq_en));
 
                 to_fiu.sTx.c0 <= fiu_c0Tx;
@@ -205,19 +237,29 @@ module ofs_plat_shim_ccip_mux
             // everywhere but manage the valid bits so the response goes
             // to the right AFU.
             //
+
+            // Two pipeline stages in order to meet up with fiu_c0Rx_port_idx read
+            t_if_ccip_c0_Rx fiu_c0Rx, fiu_c0Rx_q;
+
+            always_ff @(posedge clk)
+            begin
+                fiu_c0Rx <= to_fiu.sRx.c0;
+                fiu_c0Rx_q <= fiu_c0Rx;
+            end
+
             for (p = 0; p < NUM_AFU_PORTS; p = p + 1)
             begin
                 always_ff @(posedge clk)
                 begin
-                    to_afu[p].sRx.c0 <= to_fiu.sRx.c0;
-                    if (to_fiu.sRx.c0.rspValid)
+                    to_afu[p].sRx.c0 <= fiu_c0Rx_q;
+                    if (fiu_c0Rx_q.rspValid)
                     begin
-                        to_afu[p].sRx.c0.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] <= t_port_idx'(0);
+                        to_afu[p].sRx.c0.hdr.mdata[$bits(t_tracker_idx)-1:0] <= fiu_c0Rx_prev_mdata;
                     end
 
                     to_afu[p].sRx.c0.rspValid <=
-                        to_fiu.sRx.c0.rspValid &&
-                        (t_port_idx'(p) == to_fiu.sRx.c0.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW]);
+                        fiu_c0Rx_q.rspValid &&
+                        (t_port_idx'(p) == fiu_c0Rx_port_idx);
 
                     // MMIO requests go only to AFU 0
                     if (p != 0)
@@ -261,26 +303,6 @@ module ofs_plat_shim_ccip_mux
 
             for (p = 0; p < NUM_AFU_PORTS; p = p + 1)
             begin : f
-                // synthesis translate_off
-                always_ff @(posedge clk)
-                begin
-                    // High bits of incoming Tx mdata must be 0. This is where
-                    // the index of the AFU will be stored so responses are
-                    // routed to the correct AFU.
-                    if (reset_n && to_afu[p].sTx.c1.valid)
-                    begin
-                        assert (to_afu[p].sTx.c1.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] ==
-                                t_port_idx'(0)) else
-                            $fatal(2, "** ERROR ** %m: Non-zero AFU %0d c1Tx mdata high bits", p);
-
-                        // Interrupts only allowed on AFU 0 since we have no way to
-                        // route responses.
-                        assert ((p == 0) || (to_afu[p].sTx.c1.hdr.req_type != eREQ_INTR)) else
-                            $fatal(2, "** ERROR ** %m: AFU %0d c1Tx may not request interrupts", p);
-                    end
-                end
-                // synthesis translate_on
-
                 //
                 // Generate an end-of-packet bit for each AFUs write request stream.
                 // Arbitration must keep multi-line writes contiguous.
@@ -372,6 +394,54 @@ module ofs_plat_shim_ccip_mux
             end
 
 
+            //
+            // Round-robin tracker of previous mdata values and response
+            // routing table.
+            //
+            t_tracker_idx fiu_c1Tx_next_tracker_idx;
+            t_port_idx fiu_c1Rx_port_idx;
+            t_tracker_idx fiu_c1Rx_prev_mdata;
+
+            logic fiu_c1Tx_tracker_wen;
+            assign fiu_c1Tx_tracker_wen = (|(afu_c1Tx_deq_en));
+
+            always_ff @(posedge clk)
+            begin
+                if (fiu_c1Tx_tracker_wen && afu_c1Tx_is_eop[afu_c1Tx_grantIdx])
+                begin
+                    fiu_c1Tx_next_tracker_idx <= fiu_c1Tx_next_tracker_idx + 1;
+                end
+
+                if (!reset_n)
+                begin
+                    fiu_c1Tx_next_tracker_idx <= '0;
+                end
+            end
+
+            ofs_plat_prim_ram_simple
+              #(
+                .N_ENTRIES(1 << $bits(t_tracker_idx)),
+                .N_DATA_BITS($bits(t_port_idx) + $bits(t_tracker_idx)),
+                .N_OUTPUT_REG_STAGES(1),
+                .REGISTER_WRITES(1),
+                .BYPASS_REGISTERED_WRITES(0)
+                )
+              c1Tx_trk
+               (
+                .clk,
+
+                .wen(fiu_c1Tx_tracker_wen && is_sop),
+                .waddr(fiu_c1Tx_next_tracker_idx),
+                // Store response routing (AFU of the request) and AFU's mdata
+                // state, which will be restored.
+                .wdata({ arb_grantIdx,
+                         t_tracker_idx'(afu_c1Tx[afu_c1Tx_grantIdx].hdr.mdata) }),
+
+                .raddr(t_tracker_idx'(to_fiu.sRx.c1.hdr.mdata)),
+                .rdata({ fiu_c1Rx_port_idx, fiu_c1Rx_prev_mdata })
+                );
+
+
             t_if_ccip_c1_Tx fiu_c1Tx;
 
             always_ff @(posedge clk)
@@ -379,7 +449,7 @@ module ofs_plat_shim_ccip_mux
                 // Forward arbitration winner. One of the deq_en bits will be
                 // high only if a request is available and the FIU isn't full.
                 fiu_c1Tx <= afu_c1Tx[afu_c1Tx_grantIdx];
-                fiu_c1Tx.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] <= afu_c1Tx_grantIdx;
+                fiu_c1Tx.hdr.mdata[$bits(t_tracker_idx)-1:0] <= fiu_c1Tx_next_tracker_idx;
                 fiu_c1Tx.valid <= (|(afu_c1Tx_deq_en));
 
                 if (|(afu_c1Tx_deq_en))
@@ -401,20 +471,30 @@ module ofs_plat_shim_ccip_mux
             // everywhere but manage the valid bits so the response goes
             // to the right AFU.
             //
+
+            // Two pipeline stages in order to meet up with fiu_c1Rx_port_idx read
+            t_if_ccip_c1_Rx fiu_c1Rx, fiu_c1Rx_q;
+
+            always_ff @(posedge clk)
+            begin
+                fiu_c1Rx <= to_fiu.sRx.c1;
+                fiu_c1Rx_q <= fiu_c1Rx;
+            end
+
             for (p = 0; p < NUM_AFU_PORTS; p = p + 1)
             begin
                 always_ff @(posedge clk)
                 begin
-                    to_afu[p].sRx.c1 <= to_fiu.sRx.c1;
-                    if (to_fiu.sRx.c1.hdr.resp_type != eRSP_INTR)
+                    to_afu[p].sRx.c1 <= fiu_c1Rx_q;
+                    if (fiu_c1Rx_q.hdr.resp_type != eRSP_INTR)
                     begin
-                        to_afu[p].sRx.c1.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW] <= t_port_idx'(0);
+                        to_afu[p].sRx.c1.hdr.mdata[$bits(t_tracker_idx)-1:0] <= fiu_c1Rx_prev_mdata;
                     end
 
                     to_afu[p].sRx.c1.rspValid <= 1'b0;
-                    if (to_fiu.sRx.c1.rspValid)
+                    if (fiu_c1Rx_q.rspValid)
                     begin
-                        if (to_fiu.sRx.c1.hdr.resp_type == eRSP_INTR)
+                        if (fiu_c1Rx_q.hdr.resp_type == eRSP_INTR)
                         begin
                             // Interrupts only allowed from port 0.
                             to_afu[p].sRx.c1.rspValid <= (p == 0);
@@ -422,8 +502,7 @@ module ofs_plat_shim_ccip_mux
                         else
                         begin
                             // All other messages are routed based on mdata.
-                            to_afu[p].sRx.c1.rspValid <=
-                                (t_port_idx'(p) == to_fiu.sRx.c1.hdr.mdata[MDATA_IDX_HIGH:MDATA_IDX_LOW]);
+                            to_afu[p].sRx.c1.rspValid <= (t_port_idx'(p) == fiu_c1Rx_port_idx);
                         end
                     end
                 end
