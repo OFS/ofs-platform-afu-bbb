@@ -64,34 +64,45 @@ module ofs_plat_prim_arb_rr
     assign grant_reduce = dbl_grant[NUM_CLIENTS-1 : 0] |
                           dbl_grant[2*NUM_CLIENTS-1 : NUM_CLIENTS];
 
-    always_comb
-    begin
-        grantIdx = 0;
-        for (int i = 0; i < NUM_CLIENTS; i = i + 1)
-        begin
-            grant[i] = grant_reduce[i] && ena;
-
-            if (grant_reduce[i])
+    generate
+        if (NUM_CLIENTS > 1)
+        begin : a
+            always_comb
             begin
-                grantIdx = ($clog2(NUM_CLIENTS))'(i);
+                grantIdx = 0;
+                for (int i = 0; i < NUM_CLIENTS; i = i + 1)
+                begin
+                    grant[i] = grant_reduce[i] && ena;
+
+                    if (grant_reduce[i])
+                    begin
+                        grantIdx = ($clog2(NUM_CLIENTS))'(i);
+                    end
+                end
+            end
+
+            // Record winner for next cycle's priority
+            always_ff @(posedge clk)
+            begin
+                if (!reset_n)
+                begin
+                    base <= t_vec'(1);
+                end
+                else if (ena && |(request))
+                begin
+                    // Rotate grant left so that the slot after the current winner
+                    // is given priority.
+                    base <= { grant_reduce[NUM_CLIENTS-2 : 0],
+                              grant_reduce[NUM_CLIENTS-1] };
+                end
             end
         end
-    end
-
-    // Record winner for next cycle's priority
-    always_ff @(posedge clk)
-    begin
-        if (!reset_n)
-        begin
-            base <= t_vec'(1);
+        else
+        begin : na
+            // Only one client. No arbiter required!
+            assign grant = ena && request;
+            assign grantIdx = 0;
         end
-        else if (ena && |(request))
-        begin
-            // Rotate grant left so that the slot after the current winner
-            // is given priority.
-            base <= { grant_reduce[NUM_CLIENTS-2 : 0],
-                      grant_reduce[NUM_CLIENTS-1] };
-        end
-    end
+    endgenerate
 
 endmodule // ofs_plat_prim_arb_rr

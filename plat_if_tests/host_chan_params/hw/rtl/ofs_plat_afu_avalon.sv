@@ -172,6 +172,58 @@ module ofs_plat_afu
 `endif // OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
 
 
+    //
+    // If there is a third group of host channel ports map them too.
+    //
+`ifndef OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
+
+    localparam NUM_PORTS_G2 = 0;
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
+        .BURST_CNT_WIDTH(3)
+        )
+        host_mem_g2_to_afu[1]();
+
+`else
+
+    localparam NUM_PORTS_G2 = plat_ifc.host_chan_g2.NUM_PORTS_;
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `HOST_CHAN_G2_AVALON_MEM_RDWR_PARAMS,
+`ifdef TEST_PARAM_BURST_CNT_WIDTH
+        .BURST_CNT_WIDTH(`TEST_PARAM_BURST_CNT_WIDTH),
+`else
+        .BURST_CNT_WIDTH(7),
+`endif
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
+        )
+        host_mem_g2_to_afu[NUM_PORTS_G2]();
+
+    generate
+        for (p = 0; p < NUM_PORTS_G2; p = p + 1)
+        begin : hc_g2
+            ofs_plat_host_chan_g2_as_avalon_mem_rdwr
+              #(
+`ifdef TEST_PARAM_AFU_REG_STAGES
+                .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES),
+`endif
+                .ADD_CLOCK_CROSSING(1)
+                )
+              avalon
+               (
+                .to_fiu(plat_ifc.host_chan_g2.ports[p]),
+                .host_mem_to_afu(host_mem_g2_to_afu[p]),
+
+                .afu_clk(host_mem_to_afu[0].clk),
+                .afu_reset_n(host_mem_to_afu[0].reset_n)
+                );
+        end
+    endgenerate
+
+`endif // OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
+
+
     // ====================================================================
     //
     //  Map pwrState to the AFU clock domain
@@ -205,6 +257,10 @@ module ofs_plat_afu
         // If host channel group 1 ports exist, they are all connected
         .HOST_CHAN_G1_IN_USE_MASK(-1),
 `endif
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
+        // If host channel group 2 ports exist, they are all connected
+        .HOST_CHAN_G2_IN_USE_MASK(-1),
+`endif
         // All host channel group 0 ports are connected
         .HOST_CHAN_IN_USE_MASK(-1)
         )
@@ -220,12 +276,14 @@ module ofs_plat_afu
     afu
      #(
        .NUM_PORTS_G0(NUM_PORTS_G0),
-       .NUM_PORTS_G1(NUM_PORTS_G1)
+       .NUM_PORTS_G1(NUM_PORTS_G1),
+       .NUM_PORTS_G2(NUM_PORTS_G2)
        )
      afu_impl
       (
        .host_mem_if(host_mem_to_afu),
        .host_mem_g1_if(host_mem_g1_to_afu),
+       .host_mem_g2_if(host_mem_g2_to_afu),
        .mmio64_if(mmio64_to_afu),
        .pClk(plat_ifc.clocks.pClk),
        .pwrState(afu_pwrState)
