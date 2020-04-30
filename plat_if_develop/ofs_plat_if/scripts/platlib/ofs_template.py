@@ -212,9 +212,16 @@ class ofs_template(object):
                     opt.upper(), self.plat_cfg.get(section, opt))
             else:
                 # Normal case
+                val = self.plat_cfg.get(section, opt)
+
+                # Should the value be quoted?
+                if (val[0] != '"'):
+                    if (opt == 'native_class'):
+                        val = '"{0}"'.format(val)
+
                 str = str + '`define OFS_PLAT_PARAM_{0}_{1} {2}\n'.format(
                     section_prefix,
-                    opt.upper(), self.plat_cfg.get(section, opt))
+                    opt.upper(), val)
 
         return str
 

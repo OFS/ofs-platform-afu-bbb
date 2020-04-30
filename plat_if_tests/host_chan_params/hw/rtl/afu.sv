@@ -142,6 +142,9 @@ module afu
                 // Simple Avalon ports don't support write fences
                 .WRITE_FENCE_SUPPORTED(0),
 `endif
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_ADDRESS_SPACE
+                .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_G1_ADDRESS_SPACE),
+`endif
                 .ENGINE_NUMBER(NUM_PORTS_G0 + p)
                 )
               eng
@@ -163,6 +166,9 @@ module afu
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_AVALON
                 // Simple Avalon ports don't support write fences
                 .WRITE_FENCE_SUPPORTED(0),
+`endif
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_ADDRESS_SPACE
+                .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_G2_ADDRESS_SPACE),
 `endif
                 .ENGINE_NUMBER(NUM_PORTS_G0 + NUM_PORTS_G1 + p)
                 )

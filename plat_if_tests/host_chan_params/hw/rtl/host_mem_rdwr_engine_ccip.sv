@@ -57,7 +57,8 @@
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:40] - Reserved
+//       [63:42] - Reserved
+//       [41:40] - Address space (0 for IOVA, 1 for host physical, 2 reserved, 3 virtual)
 //       [39]    - Read responses are ordered (when 1)
 //       [38]    - Write response count is bursts or lines (bursts 0 / lines 1)
 //       [37:35] - Engine type (0 for CCI-P)
@@ -86,7 +87,8 @@
 module host_mem_rdwr_engine_ccip
   #(
     parameter ENGINE_NUMBER = 0,
-    parameter WRITE_FENCE_SUPPORTED = 1
+    parameter WRITE_FENCE_SUPPORTED = 1,
+    parameter string ADDRESS_SPACE = "IOVA"
     )
    (
     // Host memory (CCI-P)
@@ -165,9 +167,23 @@ module host_mem_rdwr_engine_ccip
     //
     // Read status registers
     //
+
+    function logic [1:0] address_space_info(string info);
+        if (ADDRESS_SPACE == "HPA")
+            // Host physical addresses
+            return 2'h1;
+        else if (ADDRESS_SPACE == "VA")
+            // Process virtual addresses
+            return 2'h3;
+        else
+            // Standard IOVA (through IOMMU, probably)
+            return 2'h0;
+    endfunction // address_space_info
+
     always_comb
     begin
-        csrs.rd_data[0] = { 24'h0,
+        csrs.rd_data[0] = { 22'h0,
+                            address_space_info(ADDRESS_SPACE),
 `ifdef TEST_PARAM_SORT_RD_RESP
                             1'b1,		   // Read responses are sorted
 `else

@@ -41,6 +41,7 @@
 #include <inttypes.h>
 #include <uuid/uuid.h>
 #include <time.h>
+#include <immintrin.h>
 
 #include <opae/fpga.h>
 
@@ -51,6 +52,24 @@
 #define CACHELINE_BYTES 64
 #define CL(x) ((x) * CACHELINE_BYTES)
 #define MB(x) ((x) * 1048576)
+
+// Engine's address mode
+typedef enum
+{
+    ADDR_MODE_IOVA = 0,
+    ADDR_MODE_HOST_PHYSICAL = 1,
+    ADDR_MODE_VIRTUAL = 3
+}
+t_fpga_addr_mode;
+
+const char* addr_mode_str[] =
+{
+    "IOVA",
+    "Host physical",
+    "reserved",
+    "Virtual"
+};
+
 
 //
 // Hold shared memory buffer details for one engine
@@ -66,6 +85,7 @@ typedef struct
     uint64_t wr_wsid;
 
     uint32_t max_burst_size;
+    t_fpga_addr_mode addr_mode;
     bool natural_bursts;
     bool ordered_read_responses;
 }
@@ -527,8 +547,22 @@ testHostChanParams(
     // Allocate memory buffers for each engine
     s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
     assert(NULL != s_eng_bufs);
+    bool addr_iova_mode = true;
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
+        // Get the maximum burst size for the engine.
+        uint64_t r = csrEngRead(s_csr_handle, e, 0);
+        s_eng_bufs[e].max_burst_size = r & 0x7fff;
+        s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
+        s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
+        s_eng_bufs[e].addr_mode = (r >> 40) & 3;
+        addr_iova_mode &= (s_eng_bufs[e].addr_mode == ADDR_MODE_IOVA);
+        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
+        printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
+        printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
+        printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
+        printf("  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
+
         // Separate 2MB read and write buffers
         s_eng_bufs[e].rd_buf = allocSharedBuffer(accel_handle, MB(2),
                                                  &s_eng_bufs[e].rd_wsid,
@@ -545,19 +579,16 @@ testHostChanParams(
         // only 1MB. This allows bursts to flow a bit beyond the mask
         // without concern for overflow.
         csrEngWrite(csr_handle, e, 4, (MB(1) / CL(1)) - 1);
-
-        // Get the maximum burst size for the engine.
-        uint64_t r = csrEngRead(s_csr_handle, e, 0);
-        s_eng_bufs[e].max_burst_size = r & 0x7fff;
-        s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
-        s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
-        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
-        printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
-        printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
-        printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
     }
     printf("\n");
     
+    if (! addr_iova_mode)
+    {
+        printf("Only IOVA address mode is supported!\n");
+        result = 1;
+        goto done;
+    }
+
     // Test each engine separately
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
