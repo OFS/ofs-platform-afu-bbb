@@ -120,6 +120,12 @@ module afu
             host_mem_rdwr_engine_avalon
 `endif
               #(
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE
+                .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE),
+`endif
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_NUMA_MASK
+                .NUMA_MASK(`OFS_PLAT_PARAM_HOST_CHAN_NUMA_MASK),
+`endif
                 .ENGINE_NUMBER(p)
                 )
               eng
@@ -145,6 +151,9 @@ module afu
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_ADDRESS_SPACE
                 .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_G1_ADDRESS_SPACE),
 `endif
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUMA_MASK
+                .NUMA_MASK(`OFS_PLAT_PARAM_HOST_CHAN_G1_NUMA_MASK),
+`endif
                 .ENGINE_NUMBER(NUM_PORTS_G0 + p)
                 )
               eng
@@ -169,6 +178,9 @@ module afu
 `endif
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_ADDRESS_SPACE
                 .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_G2_ADDRESS_SPACE),
+`endif
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_NUMA_MASK
+                .NUMA_MASK(`OFS_PLAT_PARAM_HOST_CHAN_G2_NUMA_MASK),
 `endif
                 .ENGINE_NUMBER(NUM_PORTS_G0 + NUM_PORTS_G1 + p)
                 )

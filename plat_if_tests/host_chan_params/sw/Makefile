@@ -8,6 +8,12 @@ OBJDIR = obj
 CFLAGS += -I./$(OBJDIR)
 CPPFLAGS += -I./$(OBJDIR)
 
+# Build with BBB library's /dev/fpga_vtp_mapper support?
+ifdef FPGA_VTP_MAPPER
+	CFLAGS += -DFPGA_VTP_MAPPER=1
+	LDFLAGS += -lfpga_vtp_mapper
+endif
+
 # Files and folders
 SRCS = main.c test_host_chan_params.c $(COMMON_SRCS)
 OBJS = $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRCS)))
@@ -22,10 +28,10 @@ $(AFU_JSON_INFO): ../hw/rtl/$(TEST).json | objdir
 $(OBJS): $(AFU_JSON_INFO)
 
 $(TEST): $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(FPGA_LIBS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(FPGA_LIBS) -lnuma
 
 $(TEST)_ase: $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(ASE_LIBS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(ASE_LIBS) -lnuma
 
 $(OBJDIR)/%.o: %.c | objdir
 	$(CC) $(CFLAGS) -c $< -o $@

@@ -58,7 +58,7 @@
 //
 //   0: Engine configuration
 //       [63:42] - Reserved
-//       [41:40] - Address space (0 for IOVA, 1 for host physical, 2 reserved, 3 virtual)
+//       [41:40] - Address space (0 for IOADDR, 1 for host physical, 2 reserved, 3 virtual)
 //       [39]    - Read responses are ordered (when 1)
 //       [38]    - Write response count is bursts or lines (bursts 0 / lines 1)
 //       [37:35] - Engine type (0 for CCI-P)
@@ -81,6 +81,8 @@
 //       [63:32] - Simple checksum portions of lines read (for OOO memory)
 //       [31: 0] - Hash of portions of lines read (for ordered memory interfaces)
 //
+//   6: Bit mask of accessible NUMA memory domains. Zero if all domains connected.
+//
 
 `default_nettype none
 
@@ -88,7 +90,8 @@ module host_mem_rdwr_engine_ccip
   #(
     parameter ENGINE_NUMBER = 0,
     parameter WRITE_FENCE_SUPPORTED = 1,
-    parameter string ADDRESS_SPACE = "IOVA"
+    parameter string ADDRESS_SPACE = "IOADDR",
+    parameter NUMA_MASK = 0
     )
    (
     // Host memory (CCI-P)
@@ -176,7 +179,7 @@ module host_mem_rdwr_engine_ccip
             // Process virtual addresses
             return 2'h3;
         else
-            // Standard IOVA (through IOMMU, probably)
+            // Standard IOADDR (through IOMMU, probably)
             return 2'h0;
     endfunction // address_space_info
 
@@ -202,8 +205,9 @@ module host_mem_rdwr_engine_ccip
         csrs.rd_data[3] = 64'(wr_lines_req);
         csrs.rd_data[4] = 64'(wr_lines_resp);
         csrs.rd_data[5] = { rd_data_sum, rd_data_hash };
+        csrs.rd_data[6] = 64'(NUMA_MASK);
 
-        for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
+        for (int e = 7; e < csrs.NUM_CSRS; e = e + 1)
         begin
             csrs.rd_data[e] = 64'h0;
         end

@@ -33,17 +33,28 @@
 // burst sizes.
 //
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <assert.h>
 #include <inttypes.h>
 #include <uuid/uuid.h>
 #include <time.h>
 #include <immintrin.h>
+#include <numa.h>
 
 #include <opae/fpga.h>
+
+#ifdef FPGA_VTP_MAPPER
+#include <opae/fpga_vtp_mapper.h>
+#endif
 
 // State from the AFU's JSON file, extracted using OPAE's afu_json_mgr script
 #include "afu_json_info.h"
@@ -53,10 +64,26 @@
 #define CL(x) ((x) * CACHELINE_BYTES)
 #define MB(x) ((x) * 1048576)
 
+#define PROTECTION (PROT_READ | PROT_WRITE)
+
+#ifndef MAP_HUGETLB
+#define MAP_HUGETLB 0x40000
+#endif
+#ifndef MAP_HUGE_SHIFT
+#define MAP_HUGE_SHIFT 26
+#endif
+
+#define MAP_1G_HUGEPAGE	(0x1e << MAP_HUGE_SHIFT) /* 2 ^ 0x1e = 1G */
+
+#define FLAGS_4K (MAP_PRIVATE | MAP_ANONYMOUS)
+#define FLAGS_2M (FLAGS_4K | MAP_HUGETLB)
+#define FLAGS_1G (FLAGS_2M | MAP_1G_HUGEPAGE)
+
+
 // Engine's address mode
 typedef enum
 {
-    ADDR_MODE_IOVA = 0,
+    ADDR_MODE_IOADDR = 0,
     ADDR_MODE_HOST_PHYSICAL = 1,
     ADDR_MODE_VIRTUAL = 3
 }
@@ -64,7 +91,7 @@ t_fpga_addr_mode;
 
 const char* addr_mode_str[] =
 {
-    "IOVA",
+    "IOADDR",
     "Host physical",
     "reserved",
     "Virtual"
@@ -77,13 +104,14 @@ const char* addr_mode_str[] =
 typedef struct
 {
     volatile uint64_t *rd_buf;
-    uint64_t rd_buf_iova;
+    uint64_t rd_buf_ioaddr;
     uint64_t rd_wsid;
 
     volatile uint64_t *wr_buf;
-    uint64_t wr_buf_iova;
+    uint64_t wr_buf_ioaddr;
     uint64_t wr_wsid;
 
+    struct bitmask* numa_mem_mask;
     uint32_t max_burst_size;
     t_fpga_addr_mode addr_mode;
     bool natural_bursts;
@@ -106,24 +134,108 @@ static char *engine_type[] =
 
 
 //
+// Taken from https://github.com/pmem/pmdk/blob/master/src/libpmem2/x86_64/flush.h.
+// The clflushopt instruction was added for Skylake and isn't in <immintrin.h>
+// _mm_clflushopt() in many of the compilers currently in use.
+//
+static inline void
+asm_clflushopt(const void *addr)
+{
+	asm volatile(".byte 0x66; clflush %0" : "+m" \
+		(*(volatile char *)(addr)));
+}
+
+//
+// Flush a range of lines from the cache hierarchy in the entire coherence
+// domain. (All cores all sockets)
+//
+static void
+flushRange(void* start, size_t len)
+{
+    uint8_t* cl = start;
+    uint8_t* end = start + len;
+
+    while (cl < end)
+    {
+        asm_clflushopt(cl);
+        cl += CACHELINE_BYTES;
+    }
+
+    _mm_sfence();
+}
+
+
+//
 // Allocate a buffer in I/O memory, shared with the FPGA.
 //
 static void*
 allocSharedBuffer(
     fpga_handle accel_handle,
     size_t size,
+    t_fpga_addr_mode addr_mode,
+    struct bitmask *numa_mem_mask,
     uint64_t *wsid,
-    uint64_t *iova)
+    uint64_t *ioaddr)
 {
     fpga_result r;
     void* buf;
 
-    r = fpgaPrepareBuffer(accel_handle, size, (void*)&buf, wsid, 0);
+    int flags;
+    if (size >= MB(1024))
+        flags = FLAGS_1G;
+    else if (size >= 2 * MB(1))
+        flags = FLAGS_2M;
+    else
+        flags = FLAGS_4K;
+
+    // Preserve current NUMA configuration
+    struct bitmask *numa_mems_preserve;
+    numa_mems_preserve = numa_get_membind();
+
+    // Limit NUMA to what the port requests (except in simulation)
+    if (!s_is_ase) numa_set_membind(numa_mem_mask);
+
+    // Allocate a buffer
+    buf = mmap(NULL, size, (PROT_READ | PROT_WRITE), flags, -1, 0);
+    assert(NULL != buf);
+
+    // Pin the buffer
+    r = fpgaPrepareBuffer(accel_handle, size, (void*)&buf, wsid, FPGA_BUF_PREALLOCATED);
     if (FPGA_OK != r) return NULL;
 
+    // Restore NUMA configuration
+    numa_set_membind(numa_mems_preserve);
+    numa_bitmask_free(numa_mems_preserve);
+
     // Get the physical address of the buffer in the accelerator
-    r = fpgaGetIOAddress(accel_handle, *wsid, iova);
+    r = fpgaGetIOAddress(accel_handle, *wsid, ioaddr);
     assert(FPGA_OK == r);
+
+    // Physical addresses? (ASE doesn't support this)
+    if ((addr_mode == ADDR_MODE_HOST_PHYSICAL) && !s_is_ase)
+    {
+#ifndef FPGA_VTP_MAPPER
+        fprintf(stderr,
+                "Port requires physical addresses. Please install the fpga_vtp_mapper\n"
+                "device driver from the OPAE intel-fpga-bbb repository, compile and install\n"
+                "the intel-fpga-bbb software with -DBUILD_FPGA_VTP_MAPPER=ON and compile\n"
+                "this program with \"make FPGA_VTP_MAPPER=1\".\n");
+        exit(1);
+#else
+        // Call libfpga_vtp_mapper from BBB repository for address info
+        fpga_vtp_buf_info buf_info;
+        r = fpgaGetPageAddrInfo((void*)buf, &buf_info);
+        if (FPGA_OK != r)
+        {
+            fprintf(stderr,
+                    "Physical translation from VA %p failed. Is the fpga_vtp_mapper driver from\n"
+                    "the OPAE intel-fpga-bbb repository installed properly?\n", buf);
+            exit(1);
+        }
+
+        *ioaddr = buf_info.phys_addr - buf_info.phys_space_base;
+#endif
+    }
 
     return buf;
 }
@@ -142,6 +254,78 @@ initReadBuf(
     {
         *buf++ = cnt++;
     }
+}
+
+
+static void
+initEngine(
+    uint32_t e,
+    fpga_handle accel_handle,
+    t_csr_handle_p csr_handle)
+{
+    // Get the maximum burst size for the engine.
+    uint64_t r = csrEngRead(s_csr_handle, e, 0);
+    s_eng_bufs[e].max_burst_size = r & 0x7fff;
+    s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
+    s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
+    s_eng_bufs[e].addr_mode = (r >> 40) & 3;
+    printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
+    printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
+    printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
+    printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
+    printf("  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
+
+    // 64 bit mask of valid NUMA nodes, according to the FPGA configuration
+    uint64_t numa_mask = csrEngRead(s_csr_handle, e, 6);
+    if (numa_mask)
+    {
+        printf("  Engine %d NUMA membind mask: 0x%lx\n", e, numa_mask);
+
+        // Construct a NUMA struct bitmask to match the CSR
+        s_eng_bufs[e].numa_mem_mask = numa_bitmask_alloc(64);
+        int i = 0;
+        while (numa_mask)
+        {
+            if (numa_mask & 1)
+            {
+                numa_bitmask_setbit(s_eng_bufs[e].numa_mem_mask, i);
+            }
+
+            i += 1;
+            numa_mask >>= 1;
+        }
+    }
+    else
+    {
+        printf("  Engine %d NUMA membind mask: all\n", e);
+        s_eng_bufs[e].numa_mem_mask = numa_get_mems_allowed();
+    }
+
+    // Separate 2MB read and write buffers
+    s_eng_bufs[e].rd_buf = allocSharedBuffer(accel_handle, MB(2),
+                                             s_eng_bufs[e].addr_mode,
+                                             s_eng_bufs[e].numa_mem_mask,
+                                             &s_eng_bufs[e].rd_wsid,
+                                             &s_eng_bufs[e].rd_buf_ioaddr);
+    assert(NULL != s_eng_bufs[e].rd_buf);
+    printf("  Engine %d read buffer: VA %p, DMA address %p\n", e,
+           s_eng_bufs[e].rd_buf, (void*)s_eng_bufs[e].rd_buf_ioaddr);
+    initReadBuf(s_eng_bufs[e].rd_buf, MB(2));
+    flushRange((void*)s_eng_bufs[e].rd_buf, MB(2));
+
+    s_eng_bufs[e].wr_buf = allocSharedBuffer(accel_handle, MB(2),
+                                             s_eng_bufs[e].addr_mode,
+                                             s_eng_bufs[e].numa_mem_mask,
+                                             &s_eng_bufs[e].wr_wsid,
+                                             &s_eng_bufs[e].wr_buf_ioaddr);
+    assert(NULL != s_eng_bufs[e].wr_buf);
+    printf("  Engine %d write buffer: VA %p, DMA address %p\n", e,
+           s_eng_bufs[e].wr_buf, (void*)s_eng_bufs[e].wr_buf_ioaddr);
+
+    // Set the buffer size mask. The buffer is 2MB but the mask covers
+    // only 1MB. This allows bursts to flow a bit beyond the mask
+    // without concern for overflow.
+    csrEngWrite(csr_handle, e, 4, (MB(1) / CL(1)) - 1);
 }
 
 
@@ -198,7 +382,7 @@ computeExpectedReadSum(
 static bool
 testExpectedWrites(
     uint64_t *buf,
-    uint64_t buf_iova,
+    uint64_t buf_ioaddr,
     uint32_t num_bursts,
     uint32_t burst_size,
     uint32_t *line_index)
@@ -210,8 +394,8 @@ testExpectedWrites(
         uint32_t num_lines = burst_size;
         while (num_lines--)
         {
-            // The low word is the IOVA
-            if (buf[0] != buf_iova++) return false;
+            // The low word is the IOADDR
+            if (buf[0] != buf_ioaddr++) return false;
             // The high word is 0xdeadbeef
             if (buf[7] != 0xdeadbeef) return false;
 
@@ -271,18 +455,19 @@ testSmallRegions(
                     {
                         // Read buffer base address (0 disables reads)
                         if (mode & 1)
-                            csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_iova / CL(1));
+                            csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
                         else
                             csrEngWrite(s_csr_handle, e, 0, 0);
 
                         // Write buffer base address (0 disables writes)
                         if (mode & 2)
-                            csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_iova / CL(1));
+                            csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
                         else
                             csrEngWrite(s_csr_handle, e, 1, 0);
 
                         // Clear the write buffer
                         memset((void*)s_eng_bufs[e].wr_buf, 0, MB(2));
+                        flushRange((void*)s_eng_bufs[e].wr_buf, MB(2));
 
                         // Configure engine burst details
                         csrEngWrite(s_csr_handle, e, 2,
@@ -357,9 +542,11 @@ testSmallRegions(
                         uint32_t write_error_line;
                         if (mode & 2)
                         {
+                            flushRange((void*)s_eng_bufs[e].wr_buf, MB(2));
+
                             writes_ok = testExpectedWrites(
                                 (uint64_t*)s_eng_bufs[e].wr_buf,
-                                s_eng_bufs[e].wr_buf_iova / CL(1),
+                                s_eng_bufs[e].wr_buf_ioaddr / CL(1),
                                 num_bursts, burst_size, &write_error_line);
                         }
 
@@ -427,13 +614,13 @@ configBandwidth(
 {
     // Read buffer base address (0 disables reads)
     if (mode & 1)
-        csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_iova / CL(1));
+        csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
     else
         csrEngWrite(s_csr_handle, e, 0, 0);
 
     // Write buffer base address (0 disables writes)
     if (mode & 2)
-        csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_iova / CL(1));
+        csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
     else
         csrEngWrite(s_csr_handle, e, 1, 0);
 
@@ -547,48 +734,12 @@ testHostChanParams(
     // Allocate memory buffers for each engine
     s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
     assert(NULL != s_eng_bufs);
-    bool addr_iova_mode = true;
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
-        // Get the maximum burst size for the engine.
-        uint64_t r = csrEngRead(s_csr_handle, e, 0);
-        s_eng_bufs[e].max_burst_size = r & 0x7fff;
-        s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
-        s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
-        s_eng_bufs[e].addr_mode = (r >> 40) & 3;
-        addr_iova_mode &= (s_eng_bufs[e].addr_mode == ADDR_MODE_IOVA);
-        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
-        printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
-        printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
-        printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
-        printf("  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
-
-        // Separate 2MB read and write buffers
-        s_eng_bufs[e].rd_buf = allocSharedBuffer(accel_handle, MB(2),
-                                                 &s_eng_bufs[e].rd_wsid,
-                                                 &s_eng_bufs[e].rd_buf_iova);
-        assert(NULL != s_eng_bufs[e].rd_buf);
-        initReadBuf(s_eng_bufs[e].rd_buf, MB(2));
-
-        s_eng_bufs[e].wr_buf = allocSharedBuffer(accel_handle, MB(2),
-                                                 &s_eng_bufs[e].wr_wsid,
-                                                 &s_eng_bufs[e].wr_buf_iova);
-        assert(NULL != s_eng_bufs[e].wr_buf);
-
-        // Set the buffer size mask. The buffer is 2MB but the mask covers
-        // only 1MB. This allows bursts to flow a bit beyond the mask
-        // without concern for overflow.
-        csrEngWrite(csr_handle, e, 4, (MB(1) / CL(1)) - 1);
+        initEngine(e, accel_handle, csr_handle);
     }
     printf("\n");
     
-    if (! addr_iova_mode)
-    {
-        printf("Only IOVA address mode is supported!\n");
-        result = 1;
-        goto done;
-    }
-
     // Test each engine separately
     for (uint32_t e = 0; e < num_engines; e += 1)
     {

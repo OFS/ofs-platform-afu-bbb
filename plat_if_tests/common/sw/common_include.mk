@@ -23,7 +23,7 @@ else
 CPPFLAGS += -DENABLE_ASSERT=1
 endif
 
-CFLAGS += -std=gnu99 -D_POSIX_C_SOURCE=200809L
+CFLAGS += -std=gnu99
 
 # stack execution protection
 LDFLAGS +=-z noexecstack
