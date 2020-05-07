@@ -39,17 +39,17 @@
 
 //
 // There are three public variants:
-//  - ofs_plat_host_chan_xGROUPx_as_axi_mem - host memory only.
-//  - ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio - host memory and
+//  - ofs_plat_host_chan_@group@_as_axi_mem - host memory only.
+//  - ofs_plat_host_chan_@group@_as_axi_mem_with_mmio - host memory and
 //    a single read/write MMIO interface.
-//  - ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio - host memory,
+//  - ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio - host memory,
 //    read/write MMIO and a second write-only MMIO interface.
 //
 
 //
 // Host memory as AXI memory (no MMIO).
 //
-module ofs_plat_host_chan_xGROUPx_as_axi_mem
+module ofs_plat_host_chan_@group@_as_axi_mem
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -75,7 +75,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem
 
     ofs_plat_host_ccip_if ccip_mmio();
 
-    ofs_plat_host_chan_xGROUPx_as_axi_mem_impl
+    ofs_plat_host_chan_@group@_as_axi_mem_impl
      #(
        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -92,14 +92,14 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem
     // Tie off MMIO
     assign ccip_mmio.sTx = t_if_ccip_Tx'(0);
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_axi_mem
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem
 
 
 //
 // Host memory and FPGA MMIO master as AXI. The width of the MMIO
 // port is determined by the parameters bound to mmio_to_afu.
 //
-module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio
+module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -126,7 +126,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio
 
     ofs_plat_host_ccip_if ccip_mmio();
 
-    ofs_plat_host_chan_xGROUPx_as_axi_mem_impl
+    ofs_plat_host_chan_@group@_as_axi_mem_impl
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -151,7 +151,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio
     ofs_plat_map_ccip_as_axi_mmio
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_xGROUPx_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
+        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_@group@_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       axi_host_mmio
        (
@@ -173,7 +173,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio
         .mem_slave(mmio_to_afu)
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
 
 
 //
@@ -181,7 +181,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_axi_mem_with_mmio
 // The widths of the MMIO ports are determined by the interface parameters
 // to mmio_to_afu and mmio_wr_to_afu.
 //
-module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
+module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -209,7 +209,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
 
     ofs_plat_host_ccip_if ccip_mmio();
 
-    ofs_plat_host_chan_xGROUPx_as_axi_mem_impl
+    ofs_plat_host_chan_@group@_as_axi_mem_impl
      #(
        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -234,7 +234,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
     ofs_plat_map_ccip_as_axi_mmio
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_xGROUPx_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
+        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_@group@_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       axi_host_mmio
        (
@@ -267,7 +267,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
     ofs_plat_map_ccip_as_axi_mmio_wo
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_xGROUPx_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
+        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_@group@_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
         )
       axi_host_mmio_wr
        (
@@ -289,7 +289,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
         .mem_slave(mmio_wr_to_afu)
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
 
 
 // ========================================================================
@@ -302,7 +302,7 @@ endmodule // ofs_plat_host_chan_xGROUPx_as_axi_mem_with_dual_mmio
 // Map CCI-P to target clock and then to the host memory AXI interface.
 // Also return the CCI-P ports needed for mapping MMIO to AXI.
 //
-module ofs_plat_host_chan_xGROUPx_as_axi_mem_impl
+module ofs_plat_host_chan_@group@_as_axi_mem_impl
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -346,7 +346,7 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_impl
     ofs_plat_map_ccip_as_axi_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .MAX_ACTIVE_RD_LINES(ccip_xGROUPx_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0]),
+        .MAX_ACTIVE_RD_LINES(ccip_@group@_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0]),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
         )
       axi_host_mem
@@ -357,4 +357,4 @@ module ofs_plat_host_chan_xGROUPx_as_axi_mem_impl
         .afu_reset_n
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_axi_mem
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem

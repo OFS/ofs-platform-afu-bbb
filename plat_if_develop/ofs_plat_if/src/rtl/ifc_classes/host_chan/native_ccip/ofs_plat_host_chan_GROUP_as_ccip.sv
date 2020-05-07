@@ -44,7 +44,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_xGROUPx_as_ccip
+module ofs_plat_host_chan_@group@_as_ccip
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -165,7 +165,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
             // Merge unpacked write responses
             ofs_plat_shim_ccip_detect_eop
               #(
-                .MAX_ACTIVE_WR_REQS(ccip_xGROUPx_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
+                .MAX_ACTIVE_WR_REQS(ccip_@group@_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
                 )
               eop
                (
@@ -196,7 +196,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
             // Sort write responses
             ofs_plat_shim_ccip_rob_wr
               #(
-                .MAX_ACTIVE_WR_REQS(ccip_xGROUPx_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
+                .MAX_ACTIVE_WR_REQS(ccip_@group@_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
                 )
               rob_wr
                (
@@ -226,7 +226,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         begin : rs
             ofs_plat_shim_ccip_rob_rd
               #(
-                .MAX_ACTIVE_RD_REQS(ccip_xGROUPx_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
+                .MAX_ACTIVE_RD_REQS(ccip_@group@_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
                 )
               rob_rd
                (

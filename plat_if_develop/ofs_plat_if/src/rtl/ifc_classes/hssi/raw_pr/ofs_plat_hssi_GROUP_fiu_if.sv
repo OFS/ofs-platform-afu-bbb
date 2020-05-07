@@ -38,13 +38,13 @@
 // The default parameter state must define a configuration that matches
 // the hardware.
 //=
-//= _xGROUPx is replaced with the group number by the gen_ofs_plat_if script
+//= _@group@ is replaced with the group number by the gen_ofs_plat_if script
 //= as it generates a platform-specific build/platform/ofs_plat_if tree.
 //
-interface ofs_plat_hssi_xGROUPx_fiu_if
+interface ofs_plat_hssi_@group@_fiu_if
   #(
     parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = `OFS_PLAT_PARAM_HSSI_XGROUPX_NUM_PORTS
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HSSI_@GROUP@_NUM_PORTS
     );
 
     // A hack to work around compilers complaining of circular dependence
@@ -53,6 +53,6 @@ interface ofs_plat_hssi_xGROUPx_fiu_if
     localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
 
     // For now, we simply pass the raw pr_hssi_if to the AFU.
-    pr_hssi_xGROUPx_if ports[NUM_PORTS]();
+    pr_hssi_@group@_if ports[NUM_PORTS]();
 
-endinterface // ofs_plat_hssi_xGROUPx_fiu_if
+endinterface // ofs_plat_hssi_@group@_fiu_if

@@ -28,8 +28,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AXI_MEM_RDWR__
-`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AXI_MEM_RDWR__
+`ifndef __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__
+`define __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__
 
 //
 // Macros for setting parameters to AXI memory interfaces.
@@ -39,7 +39,7 @@
 // AFUs may set BURST_CNT_WIDTH, RID_WIDTH, WID_WIDTH and USER_WIDTH to
 // whatever works in the AFU. The PIM will transform bursts into legal
 // CCI-P requests.
-`define HOST_CHAN_XGROUPX_AXI_MEM_PARAMS \
+`define HOST_CHAN_@GROUP@_AXI_MEM_PARAMS \
     .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
     .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
@@ -52,9 +52,9 @@
 //
 // The read ID field holds the CCI-P tid and the index of the requested
 // word on the bus. CCI-P minimum addressable MMIO size is 32 bits.
-`define HOST_CHAN_XGROUPX_AXI_MMIO_PARAMS(BUSWIDTH) \
+`define HOST_CHAN_@GROUP@_AXI_MMIO_PARAMS(BUSWIDTH) \
     .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH + 2), \
     .DATA_WIDTH(BUSWIDTH), \
     .RID_WIDTH($clog2(BUSWIDTH / 32) + ccip_if_pkg::CCIP_TID_WIDTH)
 
-`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AXI_MEM_RDWR__
+`endif // __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__

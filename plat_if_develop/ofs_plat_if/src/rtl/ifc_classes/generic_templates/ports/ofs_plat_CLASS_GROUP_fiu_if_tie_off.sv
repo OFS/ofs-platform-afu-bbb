@@ -30,14 +30,14 @@
 
 
 //
-// Tie off a single xCLASSx_if port.
+// Tie off a single @class@_if port.
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_xCLASSx_xGROUPx_fiu_if_tie_off
+module ofs_plat_@class@_@group@_fiu_if_tie_off
    (
-    xCLASSx_xGROUPx_if.to_fiu port
+    @class@_@group@_if.to_fiu port
     );
 
     always_comb
@@ -47,4 +47,4 @@ module ofs_plat_xCLASSx_xGROUPx_fiu_if_tie_off
         //
     end
 
-endmodule // ofs_plat_xCLASSx_xGROUPx_fiu_if_tie_off
+endmodule // ofs_plat_@class@_@group@_fiu_if_tie_off

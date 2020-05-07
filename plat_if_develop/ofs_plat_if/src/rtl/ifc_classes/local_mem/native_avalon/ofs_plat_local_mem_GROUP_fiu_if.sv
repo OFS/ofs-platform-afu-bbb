@@ -38,13 +38,13 @@
 // The default parameter state must define a configuration that matches
 // the hardware.
 //=
-//= _xGROUPx is replaced with the group number by the gen_ofs_plat_if script
+//= _@group@ is replaced with the group number by the gen_ofs_plat_if script
 //= as it generates a platform-specific build/platform/ofs_plat_if tree.
 //
-interface ofs_plat_local_mem_xGROUPx_fiu_if
+interface ofs_plat_local_mem_@group@_fiu_if
   #(
     parameter ENABLE_LOG = 0,
-    parameter NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_NUM_BANKS,
+    parameter NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_NUM_BANKS,
     parameter WAIT_REQUEST_ALLOWANCE = 0
     );
 
@@ -56,11 +56,11 @@ interface ofs_plat_local_mem_xGROUPx_fiu_if
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::LOCAL_MEM : ofs_plat_log_pkg::NONE),
-        .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_ADDR_WIDTH),
-        .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_DATA_WIDTH),
-        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_BURST_CNT_WIDTH),
+        .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_ADDR_WIDTH),
+        .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_DATA_WIDTH),
+        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_BURST_CNT_WIDTH),
         .WAIT_REQUEST_ALLOWANCE(WAIT_REQUEST_ALLOWANCE)
         )
         banks[NUM_BANKS]();
 
-endinterface // ofs_plat_local_mem_xGROUPx_fiu_if
+endinterface // ofs_plat_local_mem_@group@_fiu_if

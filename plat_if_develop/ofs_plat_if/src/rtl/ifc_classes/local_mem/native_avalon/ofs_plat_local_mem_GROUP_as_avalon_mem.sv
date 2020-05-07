@@ -44,7 +44,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_local_mem_xGROUPx_as_avalon_mem
+module ofs_plat_local_mem_@group@_as_avalon_mem
   #(
     // When non-zero, add a clock crossing to move the AFU interface
     // to the passed in afu_clk.
@@ -92,9 +92,9 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
         if (ADD_CLOCK_CROSSING)
         begin
             // Use at least the recommended number of stages
-            if (`OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_SUGGESTED_TIMING_REG_STAGES > n_stages)
+            if (`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_SUGGESTED_TIMING_REG_STAGES > n_stages)
             begin
-                n_stages = `OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_SUGGESTED_TIMING_REG_STAGES;
+                n_stages = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_SUGGESTED_TIMING_REG_STAGES;
             end
         end
 
@@ -288,4 +288,4 @@ module ofs_plat_local_mem_xGROUPx_as_avalon_mem
         .mem_master(to_afu)
         );
 
-endmodule // ofs_plat_local_mem_xGROUPx_as_avalon_mem
+endmodule // ofs_plat_local_mem_@group@_as_avalon_mem

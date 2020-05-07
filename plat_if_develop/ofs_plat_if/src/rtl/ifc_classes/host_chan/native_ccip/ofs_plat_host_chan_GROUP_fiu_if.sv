@@ -38,13 +38,13 @@
 // The default parameter state must define a configuration that matches
 // the hardware.
 //=
-//= _xGROUPx is replaced with the group number by the gen_ofs_plat_if script
+//= _@group@ is replaced with the group number by the gen_ofs_plat_if script
 //= as it generates a platform-specific build/platform/ofs_plat_if tree.
 //
-interface ofs_plat_host_chan_xGROUPx_fiu_if
+interface ofs_plat_host_chan_@group@_fiu_if
   #(
     parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_NUM_PORTS
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_PORTS
     );
 
     // A hack to work around compilers complaining of circular dependence
@@ -58,4 +58,4 @@ interface ofs_plat_host_chan_xGROUPx_fiu_if
         )
         ports[NUM_PORTS]();
 
-endinterface // ofs_plat_host_chan_xGROUPx_fiu_if
+endinterface // ofs_plat_host_chan_@group@_fiu_if

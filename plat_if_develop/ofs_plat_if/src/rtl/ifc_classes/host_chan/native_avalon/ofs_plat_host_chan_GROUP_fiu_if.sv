@@ -38,13 +38,13 @@
 // The default parameter state must define a configuration that matches
 // the hardware.
 //=
-//= _xGROUPx is replaced with the group number by the gen_ofs_plat_if script
+//= _@group@ is replaced with the group number by the gen_ofs_plat_if script
 //= as it generates a platform-specific build/platform/ofs_plat_if tree.
 //
-interface ofs_plat_host_chan_xGROUPx_fiu_if
+interface ofs_plat_host_chan_@group@_fiu_if
   #(
     parameter ENABLE_LOG = 0,
-    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_NUM_PORTS
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_PORTS
     );
 
     // A hack to work around compilers complaining of circular dependence
@@ -55,12 +55,12 @@ interface ofs_plat_host_chan_xGROUPx_fiu_if
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE),
-        .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_ADDR_WIDTH),
-        .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_DATA_WIDTH),
-        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_BURST_CNT_WIDTH),
-        .USER_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_USER_WIDTH != 0 ?
-                      `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_USER_WIDTH : 1)
+        .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_ADDR_WIDTH),
+        .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_DATA_WIDTH),
+        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_BURST_CNT_WIDTH),
+        .USER_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_USER_WIDTH != 0 ?
+                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_USER_WIDTH : 1)
         )
         ports[NUM_PORTS]();
 
-endinterface // ofs_plat_host_chan_xGROUPx_fiu_if
+endinterface // ofs_plat_host_chan_@group@_fiu_if

@@ -30,16 +30,16 @@
 
 `include "ofs_plat_if_top_config.vh"
 
-package local_mem_xGROUPx_cfg_pkg;
+package local_mem_@group@_cfg_pkg;
 
     parameter LOCAL_MEM_VERSION_NUMBER = 1;
 
-    parameter LOCAL_MEM_NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_NUM_BANKS;
+    parameter LOCAL_MEM_NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_NUM_BANKS;
 
-    parameter LOCAL_MEM_ADDR_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_ADDR_WIDTH;
-    parameter LOCAL_MEM_DATA_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_DATA_WIDTH;
+    parameter LOCAL_MEM_ADDR_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_ADDR_WIDTH;
+    parameter LOCAL_MEM_DATA_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_DATA_WIDTH;
 
-    parameter LOCAL_MEM_BURST_CNT_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_XGROUPX_BURST_CNT_WIDTH;
+    parameter LOCAL_MEM_BURST_CNT_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_BURST_CNT_WIDTH;
 
     // Number of bytes in a data line
     parameter LOCAL_MEM_DATA_N_BYTES = LOCAL_MEM_DATA_WIDTH / 8;
@@ -56,4 +56,4 @@ package local_mem_xGROUPx_cfg_pkg;
     // Byte-level mask of a data line
     typedef logic [LOCAL_MEM_DATA_N_BYTES-1:0] t_local_mem_byte_mask;
 
-endpackage // local_mem_xGROUPx_cfg_pkg
+endpackage // local_mem_@group@_cfg_pkg

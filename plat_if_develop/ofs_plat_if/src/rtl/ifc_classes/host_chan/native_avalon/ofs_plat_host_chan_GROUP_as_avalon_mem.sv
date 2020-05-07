@@ -41,15 +41,15 @@
 //
 // Host memory as Avalon (no MMIO).
 //
-module ofs_plat_host_chan_xGROUPx_as_avalon_mem
+module ofs_plat_host_chan_@group@_as_avalon_mem
   #(
     // When non-zero, add a clock crossing to move the AFU
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Sizes of the response buffers in the ROB and clock crossing.
-    parameter MAX_ACTIVE_RD_LINES = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD,
-    parameter MAX_ACTIVE_WR_LINES = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_WR,
+    parameter MAX_ACTIVE_RD_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_RD,
+    parameter MAX_ACTIVE_WR_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_WR,
 
     // Add extra pipeline stages to the FIU side, typically for timing.
     // Note that these stages contribute to the latency of receiving
@@ -72,8 +72,8 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
     localparam FIU_BURST_CNT_WIDTH = to_fiu.BURST_CNT_WIDTH_;
     localparam FIU_USER_WIDTH = to_fiu.USER_WIDTH_;
 
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_OUT_OF_ORDER
-    localparam OUT_OF_ORDER = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_OUT_OF_ORDER;
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_OUT_OF_ORDER
+    localparam OUT_OF_ORDER = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_OUT_OF_ORDER;
 `else
     localparam OUT_OF_ORDER = 0;
 `endif
@@ -111,7 +111,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
             // At the edge and a clock crossing will be added. Add just
             // the minimum number of stages. The rest will be added between
             // the clock crossing and the AFU.
-            n_stages = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES + 1;
+            n_stages = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_SUGGESTED_TIMING_REG_STAGES + 1;
         end
         else
         begin
@@ -120,9 +120,9 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
 
             // Override the register request if a clock crossing is being
             // inserted here.
-            if (`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES > n_stages)
+            if (`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_SUGGESTED_TIMING_REG_STAGES > n_stages)
             begin
-                n_stages = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES;
+                n_stages = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_SUGGESTED_TIMING_REG_STAGES;
             end
         end
 
@@ -367,4 +367,4 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem
         end
     endgenerate
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem
+endmodule // ofs_plat_host_chan_@group@_as_avalon_mem

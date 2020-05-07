@@ -28,8 +28,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM_RDWR__
-`define __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM_RDWR__
+`ifndef __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
+`define __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
 
 //
 // Macros for setting parameters to Avalon split-bus read/write interfaces.
@@ -38,7 +38,7 @@
 // CCI-P to Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
 // AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
 // transform bursts into legal CCI-P requests.
-`define HOST_CHAN_XGROUPX_AVALON_MEM_RDWR_PARAMS \
+`define HOST_CHAN_@GROUP@_AVALON_MEM_RDWR_PARAMS \
     .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
     .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
@@ -47,10 +47,10 @@
 // MMIO space. For example, for 64 bit BUSWIDTH address 1 is the second
 // 64 bit word in MMIO space. Smaller requests in the MMIO space use
 // byteenable.
-`define HOST_CHAN_XGROUPX_AVALON_MMIO_PARAMS(BUSWIDTH) \
+`define HOST_CHAN_@GROUP@_AVALON_MMIO_PARAMS(BUSWIDTH) \
     .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
     .DATA_WIDTH(BUSWIDTH), \
     .BURST_CNT_WIDTH(1)
 
 
-`endif // __OFS_PLAT_HOST_CHAN_XGROUPX_AS_AVALON_MEM_RDWR__
+`endif // __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__

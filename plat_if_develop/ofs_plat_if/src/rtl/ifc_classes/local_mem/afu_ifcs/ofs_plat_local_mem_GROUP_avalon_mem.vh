@@ -28,8 +28,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_LOCAL_MEM_XGROUPX_AVALON_MEM_VH__
-`define __OFS_PLAT_LOCAL_MEM_XGROUPX_AVALON_MEM_VH__
+`ifndef __OFS_PLAT_LOCAL_MEM_@GROUP@_AVALON_MEM_VH__
+`define __OFS_PLAT_LOCAL_MEM_@GROUP@_AVALON_MEM_VH__
 
 //
 // Templates for defining parameters of possible local memory interface classes.
@@ -51,20 +51,20 @@
 //
 //   ofs_plat_avalon_mem_if
 //     #(
-//       `LOCAL_MEM_XGROUPX_AVALON_MEM_PARAMS
+//       `LOCAL_MEM_@GROUP@_AVALON_MEM_PARAMS
 //       )
-//     local_mem_to_afu[local_mem_xGROUPx_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+//     local_mem_to_afu[local_mem_@group@_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 //
-`define LOCAL_MEM_XGROUPX_AVALON_MEM_PARAMS \
-    .ADDR_WIDTH(local_mem_xGROUPx_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
-    .DATA_WIDTH(local_mem_xGROUPx_cfg_pkg::LOCAL_MEM_DATA_WIDTH)
+`define LOCAL_MEM_@GROUP@_AVALON_MEM_PARAMS \
+    .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
+    .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH)
 
 //
 // Variant of the standard parameters, including burst count width.
 //
-`define LOCAL_MEM_XGROUPX_AVALON_MEM_PARAMS_DEFAULT \
-    .ADDR_WIDTH(local_mem_xGROUPx_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
-    .DATA_WIDTH(local_mem_xGROUPx_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
-    .BURST_CNT_WIDTH(local_mem_xGROUPx_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
+`define LOCAL_MEM_@GROUP@_AVALON_MEM_PARAMS_DEFAULT \
+    .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
+    .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
+    .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
 
-`endif // __OFS_PLAT_LOCAL_MEM_XGROUPX_AVALON_MEM_VH__
+`endif // __OFS_PLAT_LOCAL_MEM_@GROUP@_AVALON_MEM_VH__

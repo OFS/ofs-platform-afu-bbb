@@ -40,7 +40,7 @@
 // the package long.
 //
 
-package ccip_xGROUPx_cfg_pkg;
+package ccip_@group@_cfg_pkg;
 
     parameter VERSION_NUMBER = 1;
 
@@ -79,14 +79,14 @@ package ccip_xGROUPx_cfg_pkg;
     parameter int CL_LEN_SUPPORTED[4] = { 1, 1, 0, 1 };
 
     // Does the platform honor byte enable to update a sub-region of a line?
-    parameter int BYTE_EN_SUPPORTED = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_BYTE_EN_SUPPORTED;
+    parameter int BYTE_EN_SUPPORTED = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_BYTE_EN_SUPPORTED;
 
     // Recommended number of edge register stages for CCI-P request/response
     // signals.  This is expected to be one on all platforms, reflecting the
     // requirement in the specification that all CCI-P Tx and Rx signals be
     // registered by the AFU.
     parameter int SUGGESTED_TIMING_REG_STAGES =
-        `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES;
+        `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_SUGGESTED_TIMING_REG_STAGES;
 
     // Mask of request types (e_c0_req and e_c1_req) supported by the platform.
     parameter C0_SUPPORTED_REQS = int'(C0_REQ_RDLINE_S | C0_REQ_RDLINE_I);
@@ -100,15 +100,15 @@ package ccip_xGROUPx_cfg_pkg;
     // flight and not the number of requests.  Each of these is indexed
     // by virtual channel (t_ccip_vc).
     parameter int C0_MAX_BW_ACTIVE_LINES[4] =
-        { `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD,
-          `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD,
-          `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD,
-          `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_RD };
+        { `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_RD,
+          `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_RD,
+          `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_RD,
+          `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_RD };
     parameter int C1_MAX_BW_ACTIVE_LINES[4] =
-        { `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_WR,
-          `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_WR,
-          `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_WR,
-          `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_WR };
+        { `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_WR,
+          `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_WR,
+          `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_WR,
+          `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_WR };
 
     // pClk frequency
     parameter int PCLK_FREQ = `OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ;

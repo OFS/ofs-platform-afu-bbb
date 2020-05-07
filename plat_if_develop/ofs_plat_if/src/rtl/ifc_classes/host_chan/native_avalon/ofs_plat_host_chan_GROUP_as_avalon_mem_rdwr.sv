@@ -41,7 +41,7 @@
 //
 // Host memory as Avalon (no MMIO).
 //
-module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
+module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
   #(
     // When non-zero, add a clock crossing to move the AFU
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -72,7 +72,7 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
         )
       afu_avmm_if();
 
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem
+    ofs_plat_host_chan_@group@_as_avalon_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -111,4 +111,4 @@ module ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
         .mem_master(host_mem_to_afu)
         );
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_avalon_mem_rdwr
+endmodule // ofs_plat_host_chan_@group@_as_avalon_mem_rdwr

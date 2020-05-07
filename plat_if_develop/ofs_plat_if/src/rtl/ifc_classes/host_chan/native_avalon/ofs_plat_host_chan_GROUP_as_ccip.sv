@@ -44,7 +44,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_xGROUPx_as_ccip
+module ofs_plat_host_chan_@group@_as_ccip
   #(
     // When non-zero, add a clock crossing to move the AFU CCI-P
     // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
@@ -83,7 +83,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
         )
       afu_avmm_if();
 
-    ofs_plat_host_chan_xGROUPx_as_avalon_mem
+    ofs_plat_host_chan_@group@_as_avalon_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
@@ -126,7 +126,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     //
     // CCI-P reads (c0)
     //
-    localparam C0_TRACKER_DEPTH = ccip_xGROUPx_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0];
+    localparam C0_TRACKER_DEPTH = ccip_@group@_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0];
 
     t_if_ccip_c0_Tx afu_c0Tx;
     logic afu_c0Tx_notEmpty;
@@ -232,7 +232,7 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     //
     // CCI-P writes (c1)
     //
-    localparam C1_TRACKER_DEPTH = ccip_xGROUPx_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0];
+    localparam C1_TRACKER_DEPTH = ccip_@group@_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0];
 
     t_if_ccip_c1_Tx afu_c1Tx;
     logic afu_c1Tx_notEmpty;
@@ -358,4 +358,4 @@ module ofs_plat_host_chan_xGROUPx_as_ccip
     end
     // synthesis translate_on
 
-endmodule // ofs_plat_host_chan_xGROUPx_as_ccip
+endmodule // ofs_plat_host_chan_@group@_as_ccip

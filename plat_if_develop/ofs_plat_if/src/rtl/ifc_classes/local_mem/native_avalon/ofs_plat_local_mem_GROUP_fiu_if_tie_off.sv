@@ -35,7 +35,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_local_mem_xGROUPx_fiu_if_tie_off
+module ofs_plat_local_mem_@group@_fiu_if_tie_off
    (
     ofs_plat_avalon_mem_if.to_slave bank
     );
@@ -45,4 +45,4 @@ module ofs_plat_local_mem_xGROUPx_fiu_if_tie_off
         `OFS_PLAT_AVALON_MEM_IF_INIT_MASTER_COMB(bank);
     end
 
-endmodule // ofs_plat_local_mem_xGROUPx_fiu_if_tie_off
+endmodule // ofs_plat_local_mem_@group@_fiu_if_tie_off

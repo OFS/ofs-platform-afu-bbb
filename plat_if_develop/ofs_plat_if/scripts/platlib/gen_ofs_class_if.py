@@ -121,7 +121,6 @@ def use_class_templates(tgt=None, base_class=None, group_num=0,
                 __note_gen_file(base_class, dir, tgt_fn)
             os.remove(os.path.join(dirpath, fn))
 
-
     # Do the same walk but replace _CLASS_ .
     for dirpath, dirnames, filenames in os.walk(dir):
         for fn in fnmatch.filter(filenames, '*CLASS*'):
@@ -144,12 +143,12 @@ def __gen_file_from_template(src_fn, tgt_fn, prefix, src_pattern, tgt_pattern):
     """Copy src_fn to tgt_fn, replacing all instances of src_pattern inside
     the file with tgt_pattern."""
 
-    # The src_pattern is always surrounded by either X or x. Replace
-    # the pattern with upper case pattern when 'X and lower case when
-    # 'x'.
-    upcase_pattern = re.compile(prefix + r'X' + src_pattern + r'X')
+    # The src_pattern is always surrounded by @. Replace the pattern with
+    # upper case when the pattern is capitalized and the original case when
+    # the pattern is in lower case.
+    upcase_pattern = re.compile(prefix + r'@' + src_pattern.upper() + r'@')
     tgt_pattern_upper = tgt_pattern.upper()
-    lowcase_pattern = re.compile(prefix + r'x' + src_pattern + r'x')
+    lowcase_pattern = re.compile(prefix + r'@' + src_pattern.lower() + r'@')
     tgt_pattern_lower = tgt_pattern
 
     # Drop lines beginning with '//='. These are comments for platform

@@ -40,7 +40,7 @@
 // the package long.
 //
 
-package ccip_xGROUPx_cfg_pkg;
+package ccip_@group@_cfg_pkg;
 
     parameter VERSION_NUMBER = 1;
 
@@ -71,36 +71,36 @@ package ccip_xGROUPx_cfg_pkg;
     //
 
     // Is a given VC supported, indexed by t_ccip_vc?  (0 or 1)
-    parameter int VC_SUPPORTED[4] = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_VC_SUPPORTED;
-    parameter ccip_if_pkg::t_ccip_vc VC_DEFAULT = ccip_if_pkg::t_ccip_vc'(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_VC_DEFAULT);
-    parameter int NUM_PHYS_CHANNELS = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_NUM_PHYS_CHANNELS;
+    parameter int VC_SUPPORTED[4] = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_VC_SUPPORTED;
+    parameter ccip_if_pkg::t_ccip_vc VC_DEFAULT = ccip_if_pkg::t_ccip_vc'(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_VC_DEFAULT);
+    parameter int NUM_PHYS_CHANNELS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_PHYS_CHANNELS;
 
     // Is a given request length supported, indexed by t_ccip_clLen?  (0 or 1)
-    parameter int CL_LEN_SUPPORTED[4] = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_CL_LEN_SUPPORTED;
+    parameter int CL_LEN_SUPPORTED[4] = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_CL_LEN_SUPPORTED;
 
     // Does the platform honor byte enable to update a sub-region of a line?
-    parameter int BYTE_EN_SUPPORTED = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_BYTE_EN_SUPPORTED;
+    parameter int BYTE_EN_SUPPORTED = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_BYTE_EN_SUPPORTED;
 
     // Recommended number of edge register stages for CCI-P request/response
     // signals.  This is expected to be one on all platforms, reflecting the
     // requirement in the specification that all CCI-P Tx and Rx signals be
     // registered by the AFU.
     parameter int SUGGESTED_TIMING_REG_STAGES =
-        `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_SUGGESTED_TIMING_REG_STAGES;
+        `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_SUGGESTED_TIMING_REG_STAGES;
 
     // Mask of request types (e_c0_req and e_c1_req) supported by the platform.
-    parameter C0_SUPPORTED_REQS = int'(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_C0_SUPPORTED_REQS);
-    parameter C1_SUPPORTED_REQS = int'(`OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_C1_SUPPORTED_REQS);
+    parameter C0_SUPPORTED_REQS = int'(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_C0_SUPPORTED_REQS);
+    parameter C1_SUPPORTED_REQS = int'(`OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_C1_SUPPORTED_REQS);
 
     // Use this to set the buffer depth for incoming MMIO read requests
-    parameter MAX_OUTSTANDING_MMIO_RD_REQS = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_OUTSTANDING_MMIO_RD_REQS;
+    parameter MAX_OUTSTANDING_MMIO_RD_REQS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_OUTSTANDING_MMIO_RD_REQS;
 
     // Recommended numbers of lines in flight to achieve maximum bandwidth.
     // Maximum bandwidth tends to be a function of the number of lines in
     // flight and not the number of requests.  Each of these is indexed
     // by virtual channel (t_ccip_vc).
-    parameter int C0_MAX_BW_ACTIVE_LINES[4] = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_C0;
-    parameter int C1_MAX_BW_ACTIVE_LINES[4] = `OFS_PLAT_PARAM_HOST_CHAN_XGROUPX_MAX_BW_ACTIVE_LINES_C1;
+    parameter int C0_MAX_BW_ACTIVE_LINES[4] = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_C0;
+    parameter int C1_MAX_BW_ACTIVE_LINES[4] = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_LINES_C1;
 
     // pClk frequency
     parameter int PCLK_FREQ = `OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ;

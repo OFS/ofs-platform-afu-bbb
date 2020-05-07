@@ -35,9 +35,9 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_hssi_xGROUPx_fiu_if_tie_off
+module ofs_plat_hssi_@group@_fiu_if_tie_off
    (
-    pr_hssi_xGROUPx_if.to_fiu port
+    pr_hssi_@group@_if.to_fiu port
     );
 
     always_comb
@@ -47,4 +47,4 @@ module ofs_plat_hssi_xGROUPx_fiu_if_tie_off
         //
     end
 
-endmodule // ofs_plat_hssi_xGROUPx_fiu_if_tie_off
+endmodule // ofs_plat_hssi_@group@_fiu_if_tie_off

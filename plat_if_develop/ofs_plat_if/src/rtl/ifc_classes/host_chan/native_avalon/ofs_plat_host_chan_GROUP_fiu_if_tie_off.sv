@@ -36,7 +36,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_xGROUPx_fiu_if_tie_off
+module ofs_plat_host_chan_@group@_fiu_if_tie_off
    (
     ofs_plat_avalon_mem_if.to_slave port
     );
@@ -47,4 +47,4 @@ module ofs_plat_host_chan_xGROUPx_fiu_if_tie_off
         port.write = 1'b0;
     end
 
-endmodule // ofs_plat_host_chan_xGROUPx_fiu_if_tie_off
+endmodule // ofs_plat_host_chan_@group@_fiu_if_tie_off
