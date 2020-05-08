@@ -42,7 +42,7 @@ module ofs_plat_afu
 
     // ====================================================================
     //
-    //  Get an Avalon host channel collection from the platform.
+    //  Get an Avalon host channel connection from the platform.
     //
     // ====================================================================
 

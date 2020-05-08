@@ -43,7 +43,7 @@ Board vendors may define non-standard classes. The PIM provides templates for wr
 
 ## Native Interface Types ##
 
-A physical interface exposed by the FIM to an AFU is called a "native type". Every FIM interface declares a native type. This type defines the physical wires. The PIM may provide a collection of shims on top of the native type that map to one or more type abstractions offered to AFUs. This is the primary PIM portability mechanism. For example, the PIM can expose both native CCI-P and native AXI streams of PCIe TLPs. In both cases, AFUs instantiate a shim named "ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr" as a wrapper around the native interface instance. The implementations are quite different and the PIM source tree has several implementations of "ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr". The PIM generation scripts pick the shims appropriate to a particular platform when generating a platform's ofs\_plat\_if tree.
+A physical interface exposed by the FIM to an AFU is called a *native type*. Every FIM interface declares a native type. This type defines the physical wires. The PIM may provide a collection of shims on top of the native type that map to one or more type abstractions offered to AFUs. This is the primary PIM portability mechanism. For example, the PIM can expose both native CCI-P and native AXI streams of PCIe TLPs. In both cases, AFUs instantiate a shim named *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr* as a wrapper around the native interface instance. The implementations are quite different and the PIM source tree has several implementations of *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr*. The PIM generation scripts pick the shims appropriate to a particular platform when generating a platform's ofs\_plat\_if tree.
 
 The PIM may offer several shims on top of the same native type, thus offering different AFU interfaces to the same device. For example, an AFU may select either AXI memory, Avalon memory or CCI-P connections to the same FIM PCIe host channel.
 
@@ -62,7 +62,7 @@ $ gen_ofs_plat_if -c <.ini file path> -t <release tree root>/hw/lib/build/platfo
 
 ### Platform .ini Files ###
 
-Each major section in a platform .ini file corresponds to one or more devices of the same type. Same-sized banks of local memory share a single .ini section, with the number of banks as a parameter in the section. The same is true of HSSI ports and, on some multi-PCIe systems, of host channels. All devices in a section must share the same properties. If there are two types of local memory on a board with different address or data widths, they must have their own local memory sections. Separate sections of the same type must be named with monotonically increasing numeric suffixes, e.g. "local\_memory.0" and "local\_memory.1". The trailing ".0" is optional. "host\_channel.0" and "host\_channel" are equivalent.
+Each major section in a platform .ini file corresponds to one or more devices of the same type. Same-sized banks of local memory share a single .ini section, with the number of banks as a parameter in the section. The same is true of HSSI ports and, on some multi-PCIe systems, of host channels. All devices in a section must share the same properties. If there are two types of local memory on a board with different address or data widths, they must have their own local memory sections. Separate sections of the same type must be named with monotonically increasing numeric suffixes, e.g. *local\_memory.0* and *local\_memory.1*. The trailing *.0* is optional. *host\_channel.0* and *host\_channel* are equivalent.
 
 Some sections are required in order to guarantee AFU portability across platforms:
 
@@ -70,7 +70,7 @@ Some sections are required in order to guarantee AFU portability across platform
 * **[clocks]** — The frequency of the primary pClk.
 * **[host\_chan]** — Typical platforms will have at least one host channel port. By convention, host\_chan.0, port 0 is mapped to the primary MMIO-based CSR space used by OPAE when probing AFUs.
 
-Sections typically represent vectors of ports or banks, all of the same type. The values "num\_ports" and "num\_banks" within a section cause gen\_ofs\_plat\_if to name vectors as "ports" or "banks".
+Sections typically represent vectors of ports or banks, all of the same type. The values *num\_ports* and *num\_banks* within a section cause gen\_ofs\_plat\_if to name vectors as *ports* or *banks*.
 
 All properties in a platform's .ini file are exported as preprocessor macros in the generated PIM in:
 
@@ -80,7 +80,7 @@ $OPAE_PLATFORM_ROOT/hw/lib/build/platform/ofs_plat_if/rtl/ofs_plat_if_top_config
 
 The naming convention is a straight mapping of sections and properties to macros, e.g.:
 
-```
+```SystemVerilog
 `define OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS 2
 `define OFS_PLAT_PARAM_LOCAL_MEM_ADDR_WIDTH 27
 `define OFS_PLAT_PARAM_LOCAL_MEM_DATA_WIDTH 512
@@ -108,11 +108,11 @@ The PIM tree has some emulated test platforms as examples. [d5005\_pac\_ias\_v2\
 
 ### Platform-Specific Classes ###
 
-Platforms may extend the PIM with new interface classes by specifying a non-standard section name. The same dot notation applies for multiple variations of the same class. The PIM provides generic templates as starting points for adding non-standard native interfaces. They will be copied to the generated "ofs\_plat\_if" and must be completed by platform implementers. The source templates are in [ifc\_classes/generic\_templates](../../../plat_if_develop/ofs_plat_if/src/rtl/ifc_classes/generic_templates/), one for collections of ports and another for collections of banks.
+Platforms may extend the PIM with new interface classes by specifying a non-standard section name. The same dot notation applies for multiple variations of the same class. The PIM provides generic templates as starting points for adding non-standard native interfaces. They will be copied to the generated *ofs\_plat\_if* and must be completed by platform implementers. The source templates are in [ifc\_classes/generic\_templates](../../../plat_if_develop/ofs_plat_if/src/rtl/ifc_classes/generic_templates/), one for collections of ports and another for collections of banks.
 
 A platform-specific section in the .ini file takes the form:
 
-```
+```.ini
 [power_ctrl]
 template_class=generic_templates
 native_class=ports
@@ -121,9 +121,9 @@ req_width=8
 rsp_width=16
 ```
 
-and generates an implementation in the target named "ofs\_plat\_if/rtl/ifc\_classes/power\_ctrl/". Platform implementers must then follow the comments in the files within "power\_ctrl/" to complete the code. The properties within [power\_ctrl] are all written to "ofs\_plat\_if\_top\_config.vh".
+and generates an implementation in the target named *ofs\_plat\_if/rtl/ifc\_classes/power\_ctrl/*. Platform implementers must then follow the comments in the files within *power\_ctrl/* to complete the code. The properties within [power\_ctrl] are all written to *ofs\_plat\_if\_top\_config.vh*.
 
-Collections of banks are indicated by replacing "num\_ports" with "num\_banks".
+Collections of banks are indicated by replacing *num\_ports* with *num\_banks*.
 
 ## PIM Implementation ##
 
@@ -154,7 +154,7 @@ module ofs_plat_host_chan_as_ccip()
 
 Both modules connect to the same physical device. It is up to the AFU to select an implementation from the available options.
 
-When multiple instances of a top-level class are present, e.g. when banks with different widths of local memory are available, a "group" tag is added to the top-level class instance. The raw top-level class name is always used for group 0. Special naming for groups begins with group 1, e.g.:
+When multiple instances of a top-level class are present, e.g. when banks with different widths of local memory are available, a *group* tag is added to the top-level class instance. The raw top-level class name is always used for group 0. Special naming for groups begins with group 1, e.g.:
 
 ```
 module ofs_plat_host_chan_as_avalon_mem_rdwr()
@@ -164,29 +164,29 @@ module ofs_plat_host_chan_g1_as_avalon_mem_rdwr()
 module ofs_plat_host_chan_g1_as_ccip()
 ```
 
-The implementation of a shim is independent of platform-specific group numbering. As a platform developer, it would be tedious to replicate equivalent sources that differ only by group name. The gen\_ofs\_plat\_if treats source files as templates, with replacement rules:
+The implementation of a shim is independent of platform-specific group numbering. As a platform developer, it would be tedious to replicate equivalent sources that differ only by group name. The gen\_ofs\_plat\_if script treats source files as templates, with replacement rules:
 
-* Files names containing "\_GROUP\_" are renamed with the group number. "local\_mem\_GROUP\_cfg\_pkg.sv" becomes "local\_mem\_g1\_cfg\_pkg.sv". The tag is eliminated for group 0: "local\_mem\_cfg\_pkg.sv".
-* There are also substitution rules for the contents of files with names containing "\_GROUP\_". The pattern "@GROUP@" becomes "G1" and "@group@" becomes "g1". The pattern is simply eliminated for group 0.
-* "\_CLASS\_" in file names and "@CLASS@" or "@class@" inside these files are replaced with the interface class name — the name of the section in the .ini file.
-* Comments of the form "//=" are eliminated. This makes it possible to have a comment in a template file about the template itself that is not replicated to the platform's release.
+* Files names containing *\_GROUP\_* are renamed with the group number. *local\_mem\_GROUP\_cfg\_pkg.sv* becomes *local\_mem\_g1\_cfg\_pkg.sv*. The tag is eliminated for group 0: *local\_mem\_cfg\_pkg.sv*.
+* There are also substitution rules for the contents of files with names containing *\_GROUP\_*. The pattern *@GROUP@* becomes *G1* and *@group@* becomes *g1*. The pattern is simply eliminated for group 0.
+* *\_CLASS\_* in file names and *@CLASS@* or *@class@* inside these files are replaced with the interface class name — the name of the section in the .ini file.
+* Comments of the form *//=* are eliminated. This makes it possible to have a comment in a template file about the template itself that is not replicated to the platform's release.
 
-All of the PIM's interface shims apply these templates. For a simple example, see the generic template that is copied when an .ini file specifies "template_class=generic\_templates" and "native\_class=ports": [ofs\_plat\_CLASS\_GROUP\_fiu\_if.sv](../src/rtl/ifc_classes/generic_templates/ports/ofs_plat_CLASS_GROUP_fiu_if.sv).
+All of the PIM's interface shims apply these templates. For a simple example, see the generic template that is copied when an .ini file specifies *template_class=generic\_templates* and *native\_class=ports*: [ofs\_plat\_CLASS\_GROUP\_fiu\_if.sv](../src/rtl/ifc_classes/generic_templates/ports/ofs_plat_CLASS_GROUP_fiu_if.sv).
 
 ### Top-Level Templates ###
 
-The top-level [rtl directory](../src/rtl/) holds files that become the root of a release's PIM. Files with names containing ".template" are copied with ".template" and the contents processed as follows:
+The top-level [rtl directory](../src/rtl/) holds files that become the root of a release's PIM. Files with names containing *.template* are copied with *.template* and the contents processed as follows:
 
-When the keyword "@OFS\_PLAT\_IF\_TEMPLATE@" is encountered, gen\_ofs\_plat\_if loops through the region beginning and ending with the keyword, replicating the text for each of the platform's interface groups. Inside these regions, the following patterns are substituted:
+When the keyword *@OFS\_PLAT\_IF\_TEMPLATE@* is encountered, gen\_ofs\_plat\_if loops through the region beginning and ending with the keyword, replicating the text for each of the platform's interface groups. Inside these regions, the following patterns are substituted:
 
-* "@class@" is replaced with the interface major class, such as "host\_chan" or "local\_memory".
-* "@group@" is replaced with the group name within a class. It is eliminated for group 0.
-* "@noun@" is replaced with the collection name for a class, typically "ports" or "banks".
-* "@CONFIG_DEFS@" (uppercase only) is replaced with all preprocessor macros associated with a class's properties. This is primarily used in [ofs\_plat\_if\_top\_config.template.vh](../src/rtl/ofs_plat_if_top_config.template.vh) to generate ofs\_plat\_if\_top\_config.vh.
+* *@class@* is replaced with the interface major class, such as *host\_chan* or *local\_memory*.
+* *@group@* is replaced with the group name within a class. It is eliminated for group 0.
+* *@noun@* is replaced with the collection name for a class, typically *ports* or *banks*.
+* *@CONFIG_DEFS@* (uppercase only) is replaced with all preprocessor macros associated with a class's properties. This is primarily used in [ofs\_plat\_if\_top\_config.template.vh](../src/rtl/ofs_plat_if_top_config.template.vh) to generate ofs\_plat\_if\_top\_config.vh.
 
 The case of the pattern determines the case of the substitution.
 
-The keyword "@OFS\_PLAT\_IF\_TEMPLATE@" skips sections with no ports or banks, such as "[clocks]". To apply the template to all sections, use the keyword "@OFS\_PLAT\_IF\_TEMPLATE\_ALL@".
+The keyword *@OFS\_PLAT\_IF\_TEMPLATE@* skips sections with no ports or banks, such as *[clocks]*. To apply the template to all sections, use the keyword *@OFS\_PLAT\_IF\_TEMPLATE\_ALL@*.
 
 With these rules, a template such as [ofs\_plat\_if\_tie\_off\_unused.template.sv](../src/rtl/ofs_plat_if_tie_off_unused.template.sv):
 
@@ -239,7 +239,7 @@ endmodule // ofs_plat_if_tie_off_unused
 
 can become the platform-specific ofs\_plat\_if\_tie\_off\_unused.sv:
 
-```
+```SystemVerilog
 module ofs_plat_if_tie_off_unused
   #(
     // Masks are bit masks, with bit 0 corresponding to port/bank zero.
