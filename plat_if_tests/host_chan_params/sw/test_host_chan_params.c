@@ -52,8 +52,8 @@
 
 #include <opae/fpga.h>
 
-#ifdef FPGA_VTP_MAPPER
-#include <opae/fpga_vtp_mapper.h>
+#ifdef FPGA_NEAR_MEM_MAP
+#include <opae/fpga_near_mem_map.h>
 #endif
 
 // State from the AFU's JSON file, extracted using OPAE's afu_json_mgr script
@@ -113,6 +113,7 @@ typedef struct
 
     struct bitmask* numa_mem_mask;
     uint32_t max_burst_size;
+    uint32_t group;
     t_fpga_addr_mode addr_mode;
     bool natural_bursts;
     bool ordered_read_responses;
@@ -214,21 +215,15 @@ allocSharedBuffer(
     // Physical addresses? (ASE doesn't support this)
     if ((addr_mode == ADDR_MODE_HOST_PHYSICAL) && !s_is_ase)
     {
-#ifndef FPGA_VTP_MAPPER
-        fprintf(stderr,
-                "Port requires physical addresses. Please install the fpga_vtp_mapper\n"
-                "device driver from the OPAE intel-fpga-bbb repository, compile and install\n"
-                "the intel-fpga-bbb software with -DBUILD_FPGA_VTP_MAPPER=ON and compile\n"
-                "this program with \"make FPGA_VTP_MAPPER=1\".\n");
-        exit(1);
-#else
-        // Call libfpga_vtp_mapper from BBB repository for address info
-        fpga_vtp_buf_info buf_info;
-        r = fpgaGetPageAddrInfo((void*)buf, &buf_info);
+#ifdef FPGA_NEAR_MEM_MAP
+        // Call libfpga_near_mem_map from BBB repository for address info.
+        // FPGA_NEAR_MEM_MAP has been tested already in initEngine().
+        fpga_near_mem_map_buf_info buf_info;
+        r = fpgaNearMemGetPageAddrInfo((void*)buf, &buf_info);
         if (FPGA_OK != r)
         {
             fprintf(stderr,
-                    "Physical translation from VA %p failed. Is the fpga_vtp_mapper driver from\n"
+                    "Physical translation from VA %p failed. Is the fpga_near_mem_map driver from\n"
                     "the OPAE intel-fpga-bbb repository installed properly?\n", buf);
             exit(1);
         }
@@ -269,37 +264,46 @@ initEngine(
     s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
     s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
     s_eng_bufs[e].addr_mode = (r >> 40) & 3;
+    s_eng_bufs[e].group = (r >> 47) & 7;
+    uint32_t eng_num = (r >> 42) & 31;
     printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
     printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
     printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
     printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
     printf("  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
+    printf("  Engine %d group: %d\n", e, s_eng_bufs[e].group);
+
+    if (eng_num != e)
+    {
+        printf("  Engine %d internal numbering mismatch (%d)\n", e, eng_num);
+        exit(1);
+    }
 
     // 64 bit mask of valid NUMA nodes, according to the FPGA configuration
-    uint64_t numa_mask = csrEngRead(s_csr_handle, e, 6);
-    if (numa_mask)
+    struct bitmask* numa_mask;
+    if ((s_eng_bufs[e].addr_mode == ADDR_MODE_HOST_PHYSICAL) && !s_is_ase)
     {
-        printf("  Engine %d NUMA membind mask: 0x%lx\n", e, numa_mask);
-
-        // Construct a NUMA struct bitmask to match the CSR
-        s_eng_bufs[e].numa_mem_mask = numa_bitmask_alloc(64);
-        int i = 0;
-        while (numa_mask)
-        {
-            if (numa_mask & 1)
-            {
-                numa_bitmask_setbit(s_eng_bufs[e].numa_mem_mask, i);
-            }
-
-            i += 1;
-            numa_mask >>= 1;
-        }
+#ifndef FPGA_NEAR_MEM_MAP
+        fprintf(stderr,
+                "Port requires physical addresses. Please install the fpga_near_mem_map\n"
+                "device driver from the OPAE intel-fpga-bbb repository, compile and install\n"
+                "the intel-fpga-bbb software with -DBUILD_FPGA_NEAR_MEM_MAP=ON and compile\n"
+                "this program with \"make FPGA_NEAR_MEM_MAP=1\".\n");
+        exit(1);
+#else
+        // Call libfpga_near_mem_map from BBB repository for controller info.
+        // At some point we will have to pass something other than 0 for the
+        // controller number.
+        uint64_t base_phys;
+        numa_mask = numa_allocate_nodemask();
+        r = fpgaNearMemGetCtrlInfo(0, &base_phys, numa_mask);
+#endif
     }
     else
     {
-        printf("  Engine %d NUMA membind mask: all\n", e);
-        s_eng_bufs[e].numa_mem_mask = numa_get_mems_allowed();
+        numa_mask = numa_get_membind();
     }
+    s_eng_bufs[e].numa_mem_mask = numa_mask;
 
     // Separate 2MB read and write buffers
     s_eng_bufs[e].rd_buf = allocSharedBuffer(accel_handle, MB(2),

@@ -57,7 +57,9 @@
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:42] - Reserved
+//       [63:50] - Reserved
+//       [49:47] - Engine group
+//       [46:42] - Engine number
 //       [41:40] - Address space (0 for IOADDR, 1 for host physical, 2 reserved, 3 virtual)
 //       [39]    - Read responses are ordered (when 1)
 //       [38]    - Write response count is bursts or lines (bursts 0 / lines 1)
@@ -81,17 +83,15 @@
 //       [63:32] - Simple checksum portions of lines read (for OOO memory)
 //       [31: 0] - Hash of portions of lines read (for ordered memory interfaces)
 //
-//   6: Bit mask of accessible NUMA memory domains. Zero if all domains connected.
-//
 
 `default_nettype none
 
 module host_mem_rdwr_engine_avalon
   #(
     parameter ENGINE_NUMBER = 0,
+    parameter ENGINE_GROUP = 0,
     parameter WRITE_FENCE_SUPPORTED = 1,
-    parameter string ADDRESS_SPACE = "IOADDR",
-    parameter NUMA_MASK = 0
+    parameter string ADDRESS_SPACE = "IOADDR"
     )
    (
     // Host memory (Avalon)
@@ -180,7 +180,9 @@ module host_mem_rdwr_engine_avalon
 
     always_comb
     begin
-        csrs.rd_data[0] = { 22'h0,
+        csrs.rd_data[0] = { 14'h0,
+                            3'(ENGINE_GROUP),
+                            5'(ENGINE_NUMBER),
                             address_space_info(ADDRESS_SPACE),
                             1'b1,		   // Read responses are ordered
                             1'b0,                  // Write resopnse count is bursts
@@ -196,9 +198,8 @@ module host_mem_rdwr_engine_avalon
         csrs.rd_data[3] = 64'(wr_lines_req);
         csrs.rd_data[4] = 64'(wr_bursts_resp);
         csrs.rd_data[5] = { rd_data_sum, rd_data_hash };
-        csrs.rd_data[6] = 64'(NUMA_MASK);
 
-        for (int e = 7; e < csrs.NUM_CSRS; e = e + 1)
+        for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
         begin
             csrs.rd_data[e] = 64'h0;
         end

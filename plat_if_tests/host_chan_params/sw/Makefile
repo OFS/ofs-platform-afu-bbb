@@ -8,10 +8,10 @@ OBJDIR = obj
 CFLAGS += -I./$(OBJDIR)
 CPPFLAGS += -I./$(OBJDIR)
 
-# Build with BBB library's /dev/fpga_vtp_mapper support?
-ifdef FPGA_VTP_MAPPER
-	CFLAGS += -DFPGA_VTP_MAPPER=1
-	LDFLAGS += -lfpga_vtp_mapper
+# Build with BBB library's /dev/fpga_near_mem_map support?
+ifdef FPGA_NEAR_MEM_MAP
+	CFLAGS += -DFPGA_NEAR_MEM_MAP=1
+	LDFLAGS += -lfpga_near_mem_map
 endif
 
 # Files and folders
