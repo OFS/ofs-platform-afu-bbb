@@ -42,8 +42,8 @@
 static void
 assert_valid_len(size_t byte_len)
 {
-    // Size must be a power of two
-    assert((byte_len & (byte_len - 1)) == 0);
+    // Size must be a multiple of 8 bytes
+    assert(0 == (byte_len & 7));
 
     // Size must be at least 8 bytes
     assert(byte_len >= 8);

@@ -127,7 +127,11 @@ module ofs_plat_afu
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
+`ifndef TEST_FULL_LOCAL_MEM_BUS
         `LOCAL_MEM_AVALON_MEM_PARAMS,
+`else
+        `LOCAL_MEM_AVALON_MEM_PARAMS_FULL_BUS,
+`endif
         .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
         )
       local_mem_to_afu[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS]();

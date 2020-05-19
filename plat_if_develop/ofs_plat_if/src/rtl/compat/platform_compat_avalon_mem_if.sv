@@ -56,7 +56,7 @@ interface avalon_mem_if
     parameter NUM_BANKS = 1,
 
     parameter ADDR_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_ADDR_WIDTH,
-    parameter DATA_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_DATA_WIDTH,
+    parameter DATA_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH,
     parameter BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH
     )
    (

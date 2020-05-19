@@ -1,2 +1,2 @@
 # Test with default options
-C:sources_avalon.txt
+C:avalon/sources_avalon.txt

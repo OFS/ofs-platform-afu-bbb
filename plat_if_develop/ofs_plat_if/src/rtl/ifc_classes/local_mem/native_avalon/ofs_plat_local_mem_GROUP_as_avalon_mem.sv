@@ -246,9 +246,24 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
+        .ADDR_WIDTH(to_afu.ADDR_WIDTH_),
+        // The AFU may pick a data width narrower than the FIU. Reduce it here.
+        .DATA_WIDTH(to_fiu.DATA_WIDTH_),
+        .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH_),
+        .BURST_CNT_WIDTH(to_afu.BURST_CNT_WIDTH_)
         )
       afu_burst_if();
+
+    // synthesis translate_off
+    initial
+    begin
+        if (to_afu.DATA_WIDTH_ > to_fiu.DATA_WIDTH_)
+        begin
+            $fatal(2, "** ERROR ** %m: AFU memory DATA_WIDTH (%0d) is wider than FIU (%0d)!",
+                   to_afu.DATA_WIDTH_, to_fiu.DATA_WIDTH_);
+        end
+    end
+    // synthesis translate_on
 
     generate
         if (to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)

@@ -121,6 +121,7 @@ static void
 configEngWrite(
     uint32_t e,
     bool enabled,
+    bool write_zeros,
     uint32_t burst_size,
     uint32_t num_bursts,
     uint32_t start_addr,
@@ -132,6 +133,7 @@ configEngWrite(
     assert(start_addr <= 0xffff);
 
     csrEngWrite(s_csr_handle, e, 1,
+                ((uint64_t)write_zeros << 49) |
                 ((uint64_t)enabled << 48) |
                 ((uint64_t)num_bursts << 32) |
                 (start_addr << 16) |
@@ -192,6 +194,135 @@ runEnginesTest(
 }
 
 
+//
+// Quick test that byte masks are wired properly.
+//
+static int
+testByteMask(
+    uint32_t num_engines
+)
+{
+    int num_errors = 0;
+
+    printf("Testing byte masking:\n");
+
+    // Turn off all engines. We will use engine 0 for the test.
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        configEngWrite(e, false, false, 0, 0, 0, 0);
+        configEngRead(e, false, 0, 0, 0);
+    }
+
+    // Write zeros to a chunk of memory
+    configEngWrite(0, true, true, 4, 2, 0, 0);
+
+    // Start the engines
+    if (runEnginesTest(1))
+    {
+        testDumpEngineState(0);
+
+        num_errors += 1;
+        goto fail;
+    }
+
+    // Set byte masks (up to 128 masked bytes)
+    uint64_t mask_low = 0xcc4350e951224e48;
+    csrEngWrite(s_csr_handle, 0, 3, mask_low);
+    uint64_t mask_high = 0x373b5905de904a9b;
+    csrEngWrite(s_csr_handle, 0, 4, mask_high);
+
+    // Write a random, masked pattern. In addition to generating new data each
+    // cycle, the hardware rotates { mask_high, mask_low } one bit for each
+    // line written.
+    srand(1);
+    configEngWrite(0, true, false, 4, 2, 0, rand());
+    if (runEnginesTest(1))
+    {
+        testDumpEngineState(0);
+
+        num_errors += 1;
+        goto fail;
+    }
+
+    // Clear masks (set them to all ones)
+    csrEngWrite(s_csr_handle, 0, 3, ~0LL);
+    csrEngWrite(s_csr_handle, 0, 4, ~0LL);
+
+    // Read the values back from local memory and confirm hashes
+    configEngRead(0, true, 4, 2, 0);
+    configEngWrite(0, false, false, 0, 0, 0, 0);
+    if (runEnginesTest(1))
+    {
+        testDumpEngineState(0);
+
+        num_errors += 1;
+        goto fail;
+    }
+
+    // Hash computed in hardware
+    uint64_t hw_hash = csrEngRead(s_csr_handle, 0, 5);
+
+    // Compute the expected hash for the 8 lines written
+    srand(1);
+    uint64_t seed = rand();
+    size_t byte_len = s_eng_bufs[0].data_byte_width;
+    uint64_t *data = malloc(byte_len);
+    uint8_t *masked_data = malloc(byte_len);
+    uint64_t *hash_vec = malloc(byte_len);
+    assert((data != NULL) && (masked_data != NULL) && (hash_vec != NULL));
+
+    testDataGenReset(byte_len, seed, data);
+    testDataChkReset(byte_len, hash_vec);
+
+    for (int i = 0; i < 8; i += 1)
+    {
+        // Clear the masked bytes before hashing
+        memcpy(masked_data, data, byte_len);
+        for (int j = 0; j < byte_len; j += 1)
+        {
+            uint64_t mask = (j < 64) ? mask_low : mask_high;
+            if (0 == (mask & ((uint64_t)1 << (j & 63))))
+            {
+                masked_data[j] = 0;
+            }
+        }
+
+        // Hash using the masked data that has zeros where the mask prevented
+        // a write.
+        testDataChkNext(byte_len, hash_vec, (uint64_t*)masked_data);
+        testDataGenNext(byte_len, seed, data);
+
+        // Rotate the mask left once per line. The hardware did this when writing.
+        uint64_t new_mask_low = (mask_low << 1) | (mask_high >> 63);
+        mask_high = (mask_high << 1) | (mask_low >> 63);
+        mask_low = new_mask_low;
+    }
+
+    // Reduce expected hash to a 64 bit value (same as hardware)
+    uint64_t expected_hash = testDataChkReduce(byte_len, hash_vec);
+
+    free(hash_vec);
+    free(masked_data);
+    free(data);
+
+    printf("  Engine %d, addr 0x%x", 0, 0);
+    if (hw_hash == expected_hash)
+    {
+        printf(" - PASS (0x%016lx)\n", hw_hash);
+    }
+    else
+    {
+        num_errors += 1;
+        printf(" - FAIL\n");
+        printf("    0x%016lx, expected 0x%016lx\n", hw_hash, expected_hash);
+    }
+
+    printf("\n");
+  fail:
+    return num_errors;
+}
+
+
 static int
 testBankWiring(
     uint32_t num_engines
@@ -213,7 +344,7 @@ testBankWiring(
 
         for (uint32_t e = 0; e < num_engines; e += 1)
         {
-            configEngWrite(e, true, 2, 2, start_addr, rand());
+            configEngWrite(e, true, false, 2, 2, start_addr, rand());
             configEngRead(e, false, 0, 0, 0);
         }
 
@@ -238,7 +369,7 @@ testBankWiring(
         for (uint32_t e = 0; e < num_engines; e += 1)
         {
             configEngRead(e, true, 2, 2, start_addr);
-            configEngWrite(e, false, 0, 0, 0, 0);
+            configEngWrite(e, false, false, 0, 0, 0, 0);
         }
 
         // Start the engines
@@ -255,7 +386,7 @@ testBankWiring(
         // Check hashes
         for (uint32_t e = 0; e < num_engines; e += 1)
         {
-            uint64_t expected_hash = testDataChkGen(64, rand(), 4);
+            uint64_t expected_hash = testDataChkGen(s_eng_bufs[e].data_byte_width, rand(), 4);
             uint64_t hw_hash = csrEngRead(s_csr_handle, e, 5);
 
             printf("  Engine %d, addr 0x%x", e, start_addr);
@@ -284,6 +415,7 @@ testSmallRegions(
 )
 {
     int num_errors = 0;
+    size_t data_byte_width = s_eng_bufs[e].data_byte_width;
 
     // What is the maximum burst size for the engine? It is encoded in CSR 0.
     uint64_t max_burst_size = s_eng_bufs[e].max_burst_size;
@@ -322,7 +454,7 @@ testSmallRegions(
                 // address 0xf00 for simultaneous read+write.
                 uint64_t wr_seed = rand();
                 uint32_t wr_start_addr = ((mode == 3) ? 0xf00 : 0);
-                configEngWrite(e, mode & 1, burst_size, num_bursts,
+                configEngWrite(e, mode & 1, false, burst_size, num_bursts,
                                wr_start_addr, wr_seed);
 
                 if (runEnginesTest((uint64_t)1 << e))
@@ -333,7 +465,7 @@ testSmallRegions(
                 }
 
                 // Compute expected hash
-                expected_hash = testDataChkGen(64, seed, num_bursts * burst_size);
+                expected_hash = testDataChkGen(data_byte_width, seed, num_bursts * burst_size);
 
                 hw_hash = csrEngRead(s_csr_handle, e, 5);
                 if ((mode == 1) || (expected_hash == hw_hash))
@@ -356,7 +488,7 @@ testSmallRegions(
             // Test the write from the final R+W, looking at start address 0xf00.
             //
             configEngRead(e, true, burst_size, num_bursts, 0xf00);
-            configEngWrite(e, false, 0, 0, 0, 0);
+            configEngWrite(e, false, false, 0, 0, 0, 0);
             if (runEnginesTest((uint64_t)1 << e))
             {
                 testDumpEngineState(e);
@@ -364,7 +496,7 @@ testSmallRegions(
                 goto fail;
             }
 
-            expected_hash = testDataChkGen(64, seed, num_bursts * burst_size);
+            expected_hash = testDataChkGen(data_byte_width, seed, num_bursts * burst_size);
             hw_hash = csrEngRead(s_csr_handle, e, 5);
             if (expected_hash != hw_hash)
             {
@@ -414,7 +546,7 @@ configBandwidth(
     // Configure engine burst details. Set the number of bursts to 0,
     // indicating unlimited I/O until time expires.
     configEngRead(e, do_reads, burst_size, 0, 0);
-    configEngWrite(e, do_writes, burst_size, 0, 0x2000, e);
+    configEngWrite(e, do_writes, false, burst_size, 0, 0x2000, e);
 
     return 0;
 }
@@ -544,6 +676,13 @@ testLocalMemParams(
     printf("\n");
     
     if (testBankWiring(num_engines))
+    {
+        // Quit on error
+        result = 1;
+        goto done;
+    }
+
+    if (testByteMask(num_engines))
     {
         // Quit on error
         result = 1;

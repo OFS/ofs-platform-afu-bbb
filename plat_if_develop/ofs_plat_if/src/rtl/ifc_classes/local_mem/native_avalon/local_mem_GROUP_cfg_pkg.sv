@@ -38,11 +38,24 @@ package local_mem_@group@_cfg_pkg;
 
     parameter LOCAL_MEM_ADDR_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_ADDR_WIDTH;
     parameter LOCAL_MEM_DATA_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_DATA_WIDTH;
+    parameter LOCAL_MEM_ECC_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_ECC_WIDTH;
+
+    // Memory controllers may expose memory available for ECC by making
+    // the bus wider.
+    parameter LOCAL_MEM_FULL_BUS_WIDTH = LOCAL_MEM_DATA_WIDTH + LOCAL_MEM_ECC_WIDTH;
+    // The memory controller may either expose ECC bits as extra data
+    // bytes, in which case masked writes tend to treat them as normal
+    // 8 bit data, or as parity bits. In the 8 bit data case, the mask
+    // is widened to match data_width+ecc_width as 8 bit symbols. In
+    // the parity case, the number of masks is unchanged. Instead,
+    // each mask bit covers more than 8 bits of data.
+    parameter LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MASKED_FULL_SYMBOL_WIDTH;
 
     parameter LOCAL_MEM_BURST_CNT_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_BURST_CNT_WIDTH;
 
     // Number of bytes in a data line
     parameter LOCAL_MEM_DATA_N_BYTES = LOCAL_MEM_DATA_WIDTH / 8;
+    parameter LOCAL_MEM_FULL_BUS_N_BYTES = LOCAL_MEM_FULL_BUS_WIDTH / LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH;
 
 
     // Base types
@@ -50,10 +63,13 @@ package local_mem_@group@_cfg_pkg;
 
     typedef logic [LOCAL_MEM_ADDR_WIDTH-1:0] t_local_mem_addr;
     typedef logic [LOCAL_MEM_DATA_WIDTH-1:0] t_local_mem_data;
+    typedef logic [LOCAL_MEM_ECC_WIDTH-1:0] t_local_mem_ecc;
+    typedef logic [LOCAL_MEM_FULL_BUS_WIDTH-1:0] t_local_mem_full_bus;
 
     typedef logic [LOCAL_MEM_BURST_CNT_WIDTH-1:0] t_local_mem_burst_cnt;
 
     // Byte-level mask of a data line
     typedef logic [LOCAL_MEM_DATA_N_BYTES-1:0] t_local_mem_byte_mask;
+    typedef logic [LOCAL_MEM_FULL_BUS_N_BYTES-1:0] t_local_mem_bus_byte_mask;
 
 endpackage // local_mem_@group@_cfg_pkg

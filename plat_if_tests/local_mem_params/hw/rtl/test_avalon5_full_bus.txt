@@ -1,0 +1,4 @@
+# Full width of the memory bus (ECC bits, when available)
++define+TEST_FULL_LOCAL_MEM_BUS
+
+C:avalon/sources_avalon.txt

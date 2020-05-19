@@ -151,37 +151,106 @@ module test_data_chk
 
 
     //
-    // XOR all the hashes down to a single 64 bit value. Do it in two stages.
+    // XOR all the hashes down to a single 64 bit value.
     //
-    logic [31:0] reduce_regs0[HASH_BUCKETS_PER_LINE / 2];
-    logic [31:0] reduce_regs1[2];
+    logic [31:0] reduce_regs[2];
 
-    always_ff @(posedge clk)
-    begin
-        // Pair-wise XOR, cutting the space in half
-        for (int i = 0; i < HASH_BUCKETS_PER_LINE / 2; i = i + 1)
-        begin
-            reduce_regs0[i] <= hash32_value[2*i] ^ hash32_value[2*i + 1];
-        end
-    end
+    test_reduce_hashes
+      #(
+        .DATA_WIDTH(32),
+        .N_BUCKETS(HASH_BUCKETS_PER_LINE / 2)
+        )
+      h0
+       (
+        .clk,
+        .hash_in(hash32_value[(HASH_BUCKETS_PER_LINE / 2) - 1 : 0]),
+        .hash_out(reduce_regs[0])
+        );
 
-    always_comb
-    begin
-        // XOR the low half of the previous XOR stage into one 32 bit register
-        // and the high half into another.
-        reduce_regs1[0] = reduce_regs0[0];
-        reduce_regs1[1] = reduce_regs0[HASH_BUCKETS_PER_LINE / 4];
-        for (int i = 1; i < HASH_BUCKETS_PER_LINE / 4; i = i + 1)
-        begin
-            reduce_regs1[0] = reduce_regs1[0] ^ reduce_regs0[i];
-            reduce_regs1[1] = reduce_regs1[1] ^ reduce_regs0[i + HASH_BUCKETS_PER_LINE / 4];
-        end
-    end
+    test_reduce_hashes
+      #(
+        .DATA_WIDTH(32),
+        .N_BUCKETS(HASH_BUCKETS_PER_LINE / 2)
+        )
+      h1
+       (
+        .clk,
+        .hash_in(hash32_value[HASH_BUCKETS_PER_LINE - 1 : HASH_BUCKETS_PER_LINE / 2]),
+        .hash_out(reduce_regs[1])
+        );
 
     // Return the pair of reduced 32-bit XOR registers as one 64 bit value
     always_ff @(posedge clk)
     begin
-        hash <= { reduce_regs1[1], reduce_regs1[0] };
+        hash <= { reduce_regs[1], reduce_regs[0] };
     end
 
 endmodule // test_data_chk
+
+
+//
+// Reduce a vector of hashes to a single value by XORing everything together
+// over multiple cycles. The input is assumed to be stable.
+//
+module test_reduce_hashes
+  #(
+    parameter DATA_WIDTH = 32,
+    parameter N_BUCKETS = 2
+    )
+   (
+    input  clk,
+
+    input  logic [N_BUCKETS-1 : 0][DATA_WIDTH-1 : 0] hash_in,
+    output logic [DATA_WIDTH-1 : 0] hash_out
+    );
+
+    typedef logic [DATA_WIDTH-1 : 0] t_data;
+
+    // Reduce the number of buckets in half, permitting an odd number of
+    // incoming buckets.
+    localparam N_STAGE0_BUCKETS = (N_BUCKETS + 1) / 2;
+    t_data stage0_buckets[N_STAGE0_BUCKETS];
+
+    always_ff @(posedge clk)
+    begin
+        for (int i = 0; i < N_BUCKETS / 2; i = i + 1)
+        begin
+            stage0_buckets[i] <= hash_in[2 * i] ^ hash_in[2 * i + 1];
+        end
+
+        if (N_STAGE0_BUCKETS & 1)
+        begin
+            stage0_buckets[N_STAGE0_BUCKETS-1] <= hash_in[N_BUCKETS-1];
+        end
+    end
+
+
+    // Reduce pairwise a second time.
+    localparam N_STAGE1_BUCKETS = (N_STAGE0_BUCKETS + 1) / 2;
+    t_data stage1_buckets[N_STAGE1_BUCKETS];
+
+    always_ff @(posedge clk)
+    begin
+        for (int i = 0; i < N_STAGE0_BUCKETS / 2; i = i + 1)
+        begin
+            stage1_buckets[i] <= stage0_buckets[2 * i] ^ stage0_buckets[2 * i + 1];
+        end
+
+        if (N_STAGE1_BUCKETS & 1)
+        begin
+            stage1_buckets[N_STAGE1_BUCKETS-1] <= stage0_buckets[N_STAGE0_BUCKETS-1];
+        end
+    end
+
+
+    // Final reduction of all that is left
+    always_comb
+    begin
+        hash_out = stage1_buckets[0];
+        for (int i = 1; i < N_STAGE1_BUCKETS; i = i + 1)
+        begin
+            hash_out = hash_out ^ stage1_buckets[i];
+        end
+    end
+
+endmodule // test_reduce_hashes

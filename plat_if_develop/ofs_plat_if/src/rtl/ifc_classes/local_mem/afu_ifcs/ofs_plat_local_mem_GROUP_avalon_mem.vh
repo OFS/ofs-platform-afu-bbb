@@ -59,12 +59,25 @@
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH)
 
+// The default Avalon interface exposes only data bits, not ECC. This
+// version exposes ECC along with data, calling it all "data".
+`define LOCAL_MEM_@GROUP@_AVALON_MEM_PARAMS_FULL_BUS \
+    .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
+    .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH), \
+    .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH)
+
 //
 // Variant of the standard parameters, including burst count width.
 //
 `define LOCAL_MEM_@GROUP@_AVALON_MEM_PARAMS_DEFAULT \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
+    .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
+
+`define LOCAL_MEM_@GROUP@_AVALON_MEM_PARAMS_FULL_BUS_DEFAULT \
+    .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH), \
+    .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH), \
+    .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH), \
     .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH)
 
 `endif // __OFS_PLAT_LOCAL_MEM_@GROUP@_AVALON_MEM_VH__

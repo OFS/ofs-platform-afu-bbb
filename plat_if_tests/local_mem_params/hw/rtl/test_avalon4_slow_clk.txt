@@ -3,4 +3,4 @@
 +define+TEST_PARAM_BURST_CNT_WIDTH_DELTA=1
 +define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.pClkDiv4
 
-C:sources_avalon.txt
+C:avalon/sources_avalon.txt

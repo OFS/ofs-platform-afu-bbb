@@ -39,7 +39,8 @@ module ase_sim_local_mem_ofs_avmm
    parameter NUM_BANKS = 2,
    parameter ADDR_WIDTH = 27,
    parameter DATA_WIDTH = 512,
-   parameter BURST_CNT_WIDTH = 7
+   parameter BURST_CNT_WIDTH = 7,
+   parameter MASKED_SYMBOL_WIDTH = 8
    )
   (
    // Local memory as Avalon master
@@ -64,7 +65,7 @@ module ase_sim_local_mem_ofs_avmm
    end
 
    // Number of bytes in a data line
-   localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
+   localparam DATA_N_BYTES = (DATA_WIDTH + 7) / MASKED_SYMBOL_WIDTH;
 
    logic emul_waitrequest[NUM_BANKS];
    logic [DATA_WIDTH-1:0] emul_readdata[NUM_BANKS];

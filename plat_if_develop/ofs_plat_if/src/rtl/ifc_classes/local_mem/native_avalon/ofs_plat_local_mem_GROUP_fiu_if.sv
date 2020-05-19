@@ -56,9 +56,11 @@ interface ofs_plat_local_mem_@group@_fiu_if
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::LOCAL_MEM : ofs_plat_log_pkg::NONE),
-        .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_ADDR_WIDTH),
-        .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_DATA_WIDTH),
-        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_BURST_CNT_WIDTH),
+        .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_ADDR_WIDTH),
+        // ECC and data combined into a single data bus
+        .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH),
+        .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH),
+        .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH),
         .WAIT_REQUEST_ALLOWANCE(WAIT_REQUEST_ALLOWANCE)
         )
         banks[NUM_BANKS]();

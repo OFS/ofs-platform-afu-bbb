@@ -42,10 +42,19 @@
 //       [31:16] - Start address offset
 //       [15: 0] - Burst size
 //
-//   1: Write control (same as read control)
+//   1: Write control:
+//       [63:50] - Reserved
+//       [49]    - Write zero instead of test data
+//       [48]    - Enable write
+//       [47:32] - Number of bursts (unlimited if 0)
+//       [31:16] - Start address offset
+//       [15: 0] - Burst size
 //
 //   2: Write seed value (input to initial state of write data)
 //
+//   3: Byte enable masks (63:0)
+//
+//   4: Byte enable masks (127:64)
 //
 // Read status registers:
 //
@@ -122,6 +131,8 @@ module local_mem_engine
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     logic [63:0] wr_seed;
+    logic [127:0] wr_start_byteenable;
+    logic wr_zeros;
     logic waitrequest_q;
 
     always_ff @(posedge clk)
@@ -138,12 +149,15 @@ module local_mem_engine
                     end
                 4'h1:
                     begin
+                        wr_zeros <= csrs.wr_data[49];
                         wr_enabled <= csrs.wr_data[48];
                         wr_num_burst_reqs <= csrs.wr_data[47:32];
                         wr_start_addr <= csrs.wr_data[31:16];
                         wr_req_burst_len <= csrs.wr_data[15:0];
                     end
                 4'h2: wr_seed <= csrs.wr_data;
+                4'h3: wr_start_byteenable[63:0] <= csrs.wr_data;
+                4'h4: wr_start_byteenable[127:64] <= csrs.wr_data;
             endcase // case (csrs.wr_idx)
         end
 
@@ -151,6 +165,7 @@ module local_mem_engine
         begin
             rd_enabled <= 1'b0;
             wr_enabled <= 1'b0;
+            wr_start_byteenable <= ~128'b0;
         end
     end
 
@@ -261,6 +276,7 @@ module local_mem_engine
     logic wr_eop;
     logic wr_sop;
     t_data wr_data;
+    logic [127:0] wr_byteenable;
 
     logic do_write_line;
     assign do_write_line = ((state_run && ! wr_done) || ! wr_sop) &&
@@ -277,6 +293,8 @@ module local_mem_engine
             wr_flits_left <= wr_flits_left - t_burst_cnt'(1);
             wr_eop <= (wr_flits_left == t_burst_cnt'(2));
             wr_sop <= 1'b0;
+            // Rotate byte enable mask
+            wr_byteenable <= { wr_byteenable[126:0], wr_byteenable[127] };
 
             // Done with all flits in the burst?
             if (wr_eop)
@@ -296,6 +314,7 @@ module local_mem_engine
             wr_eop <= (wr_req_burst_len == t_burst_cnt'(1));
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
+            wr_byteenable <= wr_start_byteenable;
         end
 
         if (!reset_n || state_reset)
@@ -339,10 +358,10 @@ module local_mem_engine
             local_mem_if.read = 1'b0;
             local_mem_if.write = (state_run && ! wr_done) || ! wr_sop;
             local_mem_if.burstcount = wr_flits_left;
-            local_mem_if.byteenable = ~64'b0;
+            local_mem_if.byteenable = wr_byteenable;
         end
 
-        local_mem_if.writedata = wr_data;
+        local_mem_if.writedata = wr_zeros ? '0 : wr_data;
     end
 
     // Read/write arbiter
