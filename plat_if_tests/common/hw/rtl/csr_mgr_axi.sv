@@ -79,6 +79,8 @@ module csr_mgr_axi
     t_mmio_data mmio_wr_data;
     logic [mmio_if.WID_WIDTH-1 : 0] mmio_wr_id;
     logic [mmio_if.USER_WIDTH-1 : 0] mmio_wr_user;
+    // Set when this slave has a pending write response
+    logic mmio_wr_bvalid;
 
     // Flow control -- prevent overwriting of registered data or address
     assign mmio_if.awready = !mmio_wr_addr_valid;
@@ -86,7 +88,7 @@ module csr_mgr_axi
 
     logic process_mmio_wr;
     assign process_mmio_wr = mmio_wr_addr_valid && mmio_wr_data_valid &&
-                             mmio_if.bready;
+                             !mmio_wr_bvalid;
 
     always_ff @(posedge clk)
     begin
@@ -204,12 +206,28 @@ module csr_mgr_axi
     end
 
     // Write response to master
-    assign mmio_if.bvalid = process_mmio_wr;
+    assign mmio_if.bvalid = mmio_wr_bvalid;
     always_comb
     begin
         mmio_if.b = '0;
         mmio_if.b.id = mmio_wr_id;
         mmio_if.b.user = mmio_wr_user;
+    end
+
+    always_ff @(posedge clk)
+    begin
+        // New write processed? Only one write can be processed at a time. The
+        // states of mmio_wr_id and mmio_wr_user will be held until mmio_if.bready
+        // is set and the slave can send the response.
+        if (process_mmio_wr)
+              mmio_wr_bvalid <= 1'b1;
+        else
+              mmio_wr_bvalid <= !mmio_if.bready;
+
+        if (!reset_n)
+        begin
+            mmio_wr_bvalid <= 1'b0;
+        end
     end
 
 endmodule // csr_mgr_axi

@@ -90,7 +90,7 @@ testDumpEngineState(
     printf("    active: %ld\n", 1 & (status >> 34));
     printf("    running: %ld\n", 1 & (status >> 33));
     printf("    in reset: %ld\n", 1 & (status >> 32));
-    printf("    waitrequest: %ld\n", 1 & (status >> 40));
+    printf("    waitrequest: 0x%lx\n", 7 & (status >> 40));
     printf("    read burst requests: %ld\n", csrEngRead(s_csr_handle, e, 1));
     printf("    read line responses: %ld\n", csrEngRead(s_csr_handle, e, 2));
     printf("    write line requests: %ld\n", csrEngRead(s_csr_handle, e, 3));

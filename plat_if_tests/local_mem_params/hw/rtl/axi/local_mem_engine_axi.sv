@@ -60,8 +60,8 @@
 //
 //   0: Engine configuration
 //       [63:56] - Number of data bytes
-//       [56:41] - Reserved
-//       [40]    - Current value of waitrequest
+//       [56:43] - Reserved
+//       [42:40] - Request wait signals { wready, awready, arready }
 //       [39]    - Read responses are ordered (when 1)
 //       [38]    - Reserved
 //       [37:35] - Engine type (2 for AXI)
@@ -140,7 +140,6 @@ module local_mem_engine_axi
     logic [63:0] wr_seed;
     logic [127:0] wr_start_byteenable;
     logic wr_zeros;
-    logic waitrequest_q;
 
     always_ff @(posedge clk)
     begin
@@ -183,8 +182,10 @@ module local_mem_engine_axi
     always_comb
     begin
         csrs.rd_data[0] = { 8'(DATA_WIDTH / 8),
-                            15'h0,		   // Reserved
-                            waitrequest_q,
+                            13'h0,		   // Reserved
+                            local_mem_if.wready,
+                            local_mem_if.awready,
+                            local_mem_if.arready,
                             1'b1,		   // Read responses are ordered
                             1'b0,                  // Reserved
                             3'd2,                  // Engine type (AXI)

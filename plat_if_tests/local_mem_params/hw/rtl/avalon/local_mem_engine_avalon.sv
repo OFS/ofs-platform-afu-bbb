@@ -60,8 +60,8 @@
 //
 //   0: Engine configuration
 //       [63:56] - Number of data bytes
-//       [56:41] - Reserved
-//       [40]    - Current value of waitrequest
+//       [56:43] - Reserved
+//       [42:40] - Request wait signals { 0, 0, waitrequest }
 //       [39]    - Read responses are ordered (when 1)
 //       [38]    - Reserved
 //       [37:35] - Engine type (1 for Avalon)
@@ -176,7 +176,8 @@ module local_mem_engine
     always_comb
     begin
         csrs.rd_data[0] = { 8'(DATA_WIDTH / 8),
-                            15'h0,		   // Reserved
+                            13'h0,		   // Reserved
+                            2'b0,		   // Unused wait request (AXI needs them)
                             waitrequest_q,
                             1'b1,		   // Read responses are ordered
                             1'b0,                  // Reserved
