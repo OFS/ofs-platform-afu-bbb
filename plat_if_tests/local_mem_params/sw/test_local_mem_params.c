@@ -74,6 +74,7 @@ static char *engine_type[] =
 {
     "CCI-P",
     "Avalon",
+    "AXI",
     NULL
 };
 
@@ -667,7 +668,7 @@ testLocalMemParams(
         s_eng_bufs[e].max_burst_size = r & 0x7fff;
         s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
         s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
-        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
+        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 7]);
         printf("  Engine %d data byte width: %d\n", e, s_eng_bufs[e].data_byte_width);
         printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
         printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);

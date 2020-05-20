@@ -64,6 +64,9 @@ interface ofs_plat_axi_mem_if
     parameter WID_WIDTH = 1,
     parameter USER_WIDTH = 1,
 
+    // How many data bits does a bytemask bit cover?
+    parameter MASKED_SYMBOL_WIDTH = 8,
+
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by
     // the slave. Be careful to consider the registered delay of the waitrequest
@@ -82,9 +85,25 @@ interface ofs_plat_axi_mem_if
     localparam WID_WIDTH_ = $bits(logic [WID_WIDTH:0]) - 1;
     localparam BURST_CNT_WIDTH_ = $bits(logic [BURST_CNT_WIDTH:0]) - 1;
     localparam USER_WIDTH_ = $bits(logic [USER_WIDTH:0]) - 1;
+    localparam MASKED_SYMBOL_WIDTH_ = $bits(logic [MASKED_SYMBOL_WIDTH:0]) - 1;
+
+    // On a normal power-of-two-sized data bus, the number of address bits
+    // encoding an offset into the byte offset within DATA_WIDTH is simple:
+    // $clog2(DATA_WIDTH / 8). If we expose ECC bits by extending the data
+    // bus, the data bus width is no longer a power of two. Since AXI doesn't
+    // support that well, we manage the address space for the primary data,
+    // ignoring the extra ECC bits. The ECC bits are only addressable as full
+    // width reads and writes. ADD_BYTE_IDX_WIDTH is the size of a byte index
+    // within the primary data's address space. ADD_LINE_IDX_WIDTH is the power
+    // of two line index -- the equivalent of an Avalon index into lines.
+    // The index is computed from the largest power of two that is less than
+    // or equal to DATA_WIDTH.
+    localparam ADDR_BYTE_IDX_WIDTH =
+        ((2 ** $clog2(DATA_WIDTH)) == DATA_WIDTH) ? $clog2(DATA_WIDTH/8) : $clog2(DATA_WIDTH/8)-1;
+    localparam ADDR_LINE_IDX_WIDTH = ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH;
 
     // Number of bytes in a data line
-    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
+    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / MASKED_SYMBOL_WIDTH;
 
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
     typedef logic [DATA_WIDTH-1 : 0] t_data;

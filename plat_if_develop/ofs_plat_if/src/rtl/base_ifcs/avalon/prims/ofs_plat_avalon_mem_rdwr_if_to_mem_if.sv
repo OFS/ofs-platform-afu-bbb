@@ -43,9 +43,10 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     localparam ADDR_WIDTH = mem_slave.ADDR_WIDTH_;
     localparam DATA_WIDTH = mem_slave.DATA_WIDTH_;
     localparam BURST_CNT_WIDTH = mem_slave.BURST_CNT_WIDTH_;
+    localparam MASKED_SYMBOL_WIDTH = mem_slave.MASKED_SYMBOL_WIDTH_;
     localparam USER_WIDTH = mem_slave.USER_WIDTH_;
 
-    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
+    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / MASKED_SYMBOL_WIDTH;
 
     typedef struct packed {
         logic [ADDR_WIDTH-1:0] address;

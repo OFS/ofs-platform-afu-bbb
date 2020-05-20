@@ -45,6 +45,10 @@ interface ofs_plat_avalon_mem_rdwr_if
     parameter ADDR_WIDTH = 0,
     parameter DATA_WIDTH = 0,
     parameter BURST_CNT_WIDTH = 0,
+
+    // How many data bits does a bytemask bit cover?
+    parameter MASKED_SYMBOL_WIDTH = 8,
+
     parameter RESPONSE_WIDTH = 2,
 
     // Extension - Optional user-defined payload.
@@ -73,11 +77,12 @@ interface ofs_plat_avalon_mem_rdwr_if
     localparam ADDR_WIDTH_ = $bits(logic [ADDR_WIDTH:0]) - 1;
     localparam DATA_WIDTH_ = $bits(logic [DATA_WIDTH:0]) - 1;
     localparam BURST_CNT_WIDTH_ = $bits(logic [BURST_CNT_WIDTH:0]) - 1;
+    localparam MASKED_SYMBOL_WIDTH_ = $bits(logic [MASKED_SYMBOL_WIDTH:0]) - 1;
     localparam RESPONSE_WIDTH_ = $bits(logic [RESPONSE_WIDTH:0]) - 1;
     localparam USER_WIDTH_ = $bits(logic [USER_WIDTH:0]) - 1;
 
     // Number of bytes in a data line
-    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
+    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / MASKED_SYMBOL_WIDTH;
 
 
     // Shared

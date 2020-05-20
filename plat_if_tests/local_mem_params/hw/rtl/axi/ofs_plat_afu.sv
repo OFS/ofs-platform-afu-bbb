@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Export local memory as Avalon interfaces.
+// Export the host channel as AXI interfaces.
 //
 
 `include "ofs_plat_if.vh"
@@ -44,37 +44,37 @@ module ofs_plat_afu
 
     // ====================================================================
     //
-    //  Get an Avalon host channel collection from the platform.
+    //  Get an AXI host channel collection from the platform.
     //
     // ====================================================================
 
     // Host memory AFU master
-    ofs_plat_avalon_mem_rdwr_if
+    ofs_plat_axi_mem_if
       #(
-        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
-        .BURST_CNT_WIDTH(1)
+        `HOST_CHAN_AXI_MEM_PARAMS,
+        .BURST_CNT_WIDTH(4),
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         host_mem_to_afu();
 
     // 64 bit read/write MMIO AFU slave
-    ofs_plat_avalon_mem_if
+    ofs_plat_axi_mem_lite_if
       #(
-        `HOST_CHAN_AVALON_MMIO_PARAMS(64),
+        `HOST_CHAN_AXI_MMIO_PARAMS(64),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         mmio64_to_afu();
 
-    ofs_plat_host_chan_as_avalon_mem_rdwr_with_mmio
+    ofs_plat_host_chan_as_axi_mem_with_mmio
       #(
         .ADD_CLOCK_CROSSING(1),
         .ADD_TIMING_REG_STAGES(1)
         )
-      primary_avalon
+      primary_axi
        (
         .to_fiu(plat_ifc.host_chan.ports[0]),
         .host_mem_to_afu,
         .mmio_to_afu(mmio64_to_afu),
-
 
 `ifdef TEST_PARAM_AFU_CLK
         .afu_clk(`TEST_PARAM_AFU_CLK),
@@ -86,8 +86,11 @@ module ofs_plat_afu
         );
 
     // Not using host memory
-    assign host_mem_to_afu.rd_read = 1'b0;
-    assign host_mem_to_afu.wr_write = 1'b0;
+    assign host_mem_to_afu.awvalid = 1'b0;
+    assign host_mem_to_afu.wvalid = 1'b0;
+    assign host_mem_to_afu.bready = 1'b1;
+    assign host_mem_to_afu.arvalid = 1'b0;
+    assign host_mem_to_afu.rready = 1'b1;
 
 
     // ====================================================================
@@ -118,19 +121,19 @@ module ofs_plat_afu
     // ====================================================================
 
 `ifdef TEST_PARAM_BURST_CNT_WIDTH_DELTA
-    localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH +
+    localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH - 1 +
                                     `TEST_PARAM_BURST_CNT_WIDTH_DELTA;
 `else
-    localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH;
+    localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH - 1;
 `endif
 
-    ofs_plat_avalon_mem_if
+    ofs_plat_axi_mem_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
 `ifndef TEST_FULL_LOCAL_MEM_BUS
-        `LOCAL_MEM_AVALON_MEM_PARAMS,
+        `LOCAL_MEM_AXI_MEM_PARAMS,
 `else
-        `LOCAL_MEM_AVALON_MEM_PARAMS_FULL_BUS,
+        `LOCAL_MEM_AXI_MEM_PARAMS_FULL_BUS,
 `endif
         .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
         )
@@ -152,7 +155,7 @@ module ofs_plat_afu
             if (AUTO_CLOCK_CROSSING)
             begin
                 // Handle the clock crossing in the OFS module.
-                ofs_plat_local_mem_as_avalon_mem
+                ofs_plat_local_mem_as_axi_mem
                   #(
                     .ADD_CLOCK_CROSSING(1),
                     // Vary the number of register stages for testing.
@@ -170,16 +173,16 @@ module ofs_plat_afu
             begin
                 // Don't use the OFS-provided clock crossing. We still
                 // need a clock crossing, but the test here confirms that
-                // ofs_plat_local_mem_as_avalon_mem() does the right thing
+                // ofs_plat_local_mem_as_axi_mem() does the right thing
                 // when not crossing.
-                ofs_plat_avalon_mem_if
+                ofs_plat_axi_mem_if
                   #(
-                    `LOCAL_MEM_AVALON_MEM_PARAMS,
+                    `LOCAL_MEM_AXI_MEM_PARAMS,
                     .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
                     )
                   local_mem_if();
 
-                ofs_plat_local_mem_as_avalon_mem
+                ofs_plat_local_mem_as_axi_mem
                   #(
                     .ADD_CLOCK_CROSSING(0),
                     // Vary the number of register stages for testing.
@@ -194,16 +197,16 @@ module ofs_plat_afu
                     );
 
                 //
-                // The rest of the code here consumes the PIM-generated Avalon
+                // The rest of the code here consumes the PIM-generated AXI
                 // interface. It adds a clock crossing and some buffering. The
                 // test uses the PIM modules because they are available, though
                 // AFU designers are free to use non-PIM equivalent modules.
                 //
 
                 // Manage the clock crossing
-                ofs_plat_avalon_mem_if
+                ofs_plat_axi_mem_if
                   #(
-                    `LOCAL_MEM_AVALON_MEM_PARAMS,
+                    `LOCAL_MEM_AXI_MEM_PARAMS,
                     .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
                     )
                   local_mem_cross_if();
@@ -222,7 +225,7 @@ module ofs_plat_afu
                     );
 
                 // Clock crossing
-                ofs_plat_avalon_mem_if_async_shim
+                ofs_plat_axi_mem_if_async_shim
                   mem_async_shim
                    (
                     .mem_slave(local_mem_if),
@@ -230,7 +233,7 @@ module ofs_plat_afu
                     );
 
                 // Add register stages for timing
-                ofs_plat_avalon_mem_if_reg_slave_clk
+                ofs_plat_axi_mem_if_reg_slave_clk
                   #(
                     .N_REG_STAGES(2)
                     )
