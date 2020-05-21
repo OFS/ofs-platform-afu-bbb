@@ -47,6 +47,13 @@
 `include "ofs_plat_if.vh"
 
 module ofs_plat_axi_mem_if_to_avalon_rdwr_if
+  #(
+    // Generate read response metadata internally by holding request ID and
+    // user data in a FIFO? Also generates RLAST if non-zero.
+    parameter GEN_RD_RESPONSE_METADATA = 0,
+
+    parameter RD_RESPONSE_FIFO_DEPTH = 256
+    )
    (
     ofs_plat_avalon_mem_rdwr_if.to_slave avmm_slave,
     ofs_plat_axi_mem_if.to_master axi_master
@@ -80,10 +87,12 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     // Stop traffic on read error
     (* preserve *) logic rd_error;
 
+    logic rd_meta_fifo_ready;
+
     always_comb
     begin
         // Read request
-        axi_master.arready = !avmm_slave.rd_waitrequest;
+        axi_master.arready = !avmm_slave.rd_waitrequest && rd_meta_fifo_ready;
         avmm_slave.rd_read = axi_master.arvalid;
         avmm_slave.rd_address = axi_master.ar.addr[AXI_ADDR_START_BIT +: ADDR_WIDTH];
         avmm_slave.rd_burstcount = t_burst_cnt'(axi_master.ar.len) + 1;
@@ -95,9 +104,44 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
         axi_master.rvalid = avmm_slave.rd_readdatavalid && !rd_error;
         axi_master.r.data = avmm_slave.rd_readdata;
         axi_master.r.resp = avmm_slave.rd_response;
-        { axi_master.r.user, axi_master.r.id } = /*avmm_slave.rd_readresponseuser*/ '0; // XXXX
-        axi_master.r.last = 'x;
     end
+
+    // Read response metadata. Either consume it from the slave or generate
+    // it locally by saving request state and matching it with responses.
+    generate
+        if (GEN_RD_RESPONSE_METADATA == 0)
+        begin : nrm
+            assign rd_meeta_fifo_ready = 1'b1;
+            assign { axi_master.r.user, axi_master.r.id } = avmm_slave.rd_readresponseuser;
+            assign axi_master.r.last = 'x;
+        end
+        else
+        begin : rm
+            ofs_plat_axi_mem_if_to_avalon_rdwr_if_rd_meta
+              #(
+                .RD_RESPONSE_FIFO_DEPTH(RD_RESPONSE_FIFO_DEPTH),
+                .BURST_CNT_WIDTH(axi_master.BURST_CNT_WIDTH),
+                .RID_WIDTH(axi_master.RID_WIDTH),
+                .USER_WIDTH(axi_master.USER_WIDTH)
+                )
+              rd_meta
+               (
+                .clk,
+                .reset_n,
+
+                .notFull(rd_meta_fifo_ready),
+                .process_req(axi_master.arvalid && axi_master.arready),
+                .req_len(axi_master.ar.len),
+                .req_id(axi_master.ar.id),
+                .req_user(axi_master.ar.user),
+
+                .process_rsp(avmm_slave.rd_readdatavalid && axi_master.rready),
+                .rsp_id(axi_master.r.id),
+                .rsp_user(axi_master.r.user),
+                .rsp_last(axi_master.r.last)
+                );
+        end
+    endgenerate
 
     always_ff @(posedge clk)
     begin
@@ -305,3 +349,71 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     // synthesis translate_on
 
 endmodule // ofs_plat_avalon_mem_if_to_rdwr_if
+
+
+//
+// Track read metadata (RID, RUSER and RLAST) by storing them in a FIFO as
+// requests arrive. Avalon returns responses in order, so we can match them
+// with responses from the slave.
+//
+module ofs_plat_axi_mem_if_to_avalon_rdwr_if_rd_meta
+  #(
+    parameter RD_RESPONSE_FIFO_DEPTH = 256,
+    parameter BURST_CNT_WIDTH = 8,
+    parameter RID_WIDTH = 1,
+    parameter USER_WIDTH = 1
+    )
+   (
+    input  logic clk,
+    input  logic reset_n,
+
+    output logic notFull,
+    input  logic process_req,
+    input  logic [BURST_CNT_WIDTH-1 : 0] req_len,
+    input  logic [RID_WIDTH-1 : 0] req_id,
+    input  logic [USER_WIDTH-1 : 0] req_user,
+
+    input  logic process_rsp,
+    output logic [RID_WIDTH-1 : 0] rsp_id,
+    output logic [USER_WIDTH-1 : 0] rsp_user,
+    output logic rsp_last
+    );
+
+    logic [BURST_CNT_WIDTH-1 : 0] rsp_len;
+
+    // Store request metadata as it arrives, then return it with ordered responses.
+    ofs_plat_prim_fifo_lutram
+      #(
+        .N_DATA_BITS(BURST_CNT_WIDTH + RID_WIDTH + USER_WIDTH),
+        .N_ENTRIES(RD_RESPONSE_FIFO_DEPTH),
+        .REGISTER_OUTPUT(1)
+        )
+      meta_fifo
+       (
+        .clk,
+        .reset_n,
+        .enq_data({ req_len, req_id, req_user }),
+        .enq_en(process_req),
+        .notFull,
+        .first({ rsp_len, rsp_id, rsp_user }),
+        .deq_en(process_rsp && rsp_last),
+        .notEmpty(),
+        .almostFull()
+        );
+
+    // Track eop (last) on response stream.
+    ofs_plat_prim_burstcount0_sop_tracker
+      #(
+        .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
+        )
+      sop_tracker
+       (
+        .clk,
+        .reset_n,
+        .flit_valid(process_rsp),
+        .burstcount(rsp_len),
+        .sop(),
+        .eop(rsp_last)
+        );
+
+endmodule // ofs_plat_axi_mem_if_to_avalon_rdwr_if_rd_meta

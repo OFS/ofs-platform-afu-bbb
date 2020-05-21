@@ -51,7 +51,14 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Add extra pipeline stages, typically for timing.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Native Avalon will already return responses in order,
+    // so these don't matter in this case. They are defined so the interface
+    // remains consistent with devices that return responses out of order.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 1
     )
    (
     // AFU clock for memory when a clock crossing is requested
@@ -244,13 +251,19 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     //
     // ====================================================================
 
+    // Avalon user width must hold AXI "id" and "user" fields
+    localparam AVMM_USER_WIDTH =
+        to_afu.USER_WIDTH +
+        // Larger of RID/WID
+        ((to_afu.RID_WIDTH > to_afu.WID_WIDTH) ? to_afu.RID_WIDTH : to_afu.WID_WIDTH);
+
     ofs_plat_avalon_mem_rdwr_if
       #(
         .ADDR_WIDTH(to_afu.ADDR_LINE_IDX_WIDTH),
         .DATA_WIDTH(to_afu.DATA_WIDTH_),
         .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH_),
         .BURST_CNT_WIDTH(to_afu.BURST_CNT_WIDTH_ + 1),
-        .USER_WIDTH(2)
+        .USER_WIDTH(AVMM_USER_WIDTH)
         )
       afu_avmm_rdwr_if();
 
@@ -260,7 +273,8 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         // The AFU may pick a data width narrower than the FIU. Reduce it here.
         .DATA_WIDTH(to_fiu.DATA_WIDTH_),
         .MASKED_SYMBOL_WIDTH(to_fiu.MASKED_SYMBOL_WIDTH_),
-        .BURST_CNT_WIDTH(afu_avmm_rdwr_if.BURST_CNT_WIDTH_)
+        .BURST_CNT_WIDTH(afu_avmm_rdwr_if.BURST_CNT_WIDTH_),
+        .USER_WIDTH(AVMM_USER_WIDTH)
         )
       afu_burst_if();
 
@@ -314,7 +328,11 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     assign afu_avmm_rdwr_if.reset_n = afu_mem_if.reset_n;
     assign afu_avmm_rdwr_if.instance_number = afu_mem_if.instance_number;
 
-    ofs_plat_avalon_mem_rdwr_if_to_mem_if avmm_rdwr_to_avmm
+    ofs_plat_avalon_mem_rdwr_if_to_mem_if
+      #(
+        .LOCAL_WR_RESPONSE(1)
+        )
+      avmm_rdwr_to_avmm
        (
         .mem_slave(afu_burst_if),
         .mem_master(afu_avmm_rdwr_if)
@@ -334,7 +352,11 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     assign afu_axi_if.reset_n = afu_mem_if.reset_n;
     assign afu_axi_if.instance_number = afu_mem_if.instance_number;
 
-    ofs_plat_axi_mem_if_to_avalon_rdwr_if axi_to_avmm_rdwr
+    ofs_plat_axi_mem_if_to_avalon_rdwr_if
+      #(
+        .GEN_RD_RESPONSE_METADATA(1)
+        )
+      axi_to_avmm_rdwr
        (
         .avmm_slave(afu_avmm_rdwr_if),
         .axi_master(afu_axi_if)

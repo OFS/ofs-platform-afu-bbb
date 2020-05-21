@@ -60,8 +60,8 @@ interface ofs_plat_axi_mem_if
     parameter ADDR_WIDTH = 0,
     parameter DATA_WIDTH = 0,
     parameter BURST_CNT_WIDTH = 8,
-    parameter RID_WIDTH = 1,
-    parameter WID_WIDTH = 1,
+    parameter RID_WIDTH = 8,
+    parameter WID_WIDTH = 8,
     parameter USER_WIDTH = 1,
 
     // How many data bits does a bytemask bit cover?
@@ -415,11 +415,11 @@ interface ofs_plat_axi_mem_if
                 // Read data
                 if (reset_n && rvalid && rready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d R  resp 0x%x id 0x%x data 0x%x user 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d R  resp 0x%x id 0x%x data 0x%x last %x user 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            r.resp, r.id, r.data, r.user);
+                            r.resp, r.id, r.data, r.last, r.user);
                 end
             end
         end

@@ -59,6 +59,7 @@ typedef struct
 {
     uint32_t data_byte_width;
     uint32_t max_burst_size;
+    uint32_t eng_type;
     bool natural_bursts;
     bool ordered_read_responses;
 }
@@ -92,8 +93,17 @@ testDumpEngineState(
     printf("    in reset: %ld\n", 1 & (status >> 32));
     printf("    waitrequest: 0x%lx\n", 7 & (status >> 40));
     printf("    read burst requests: %ld\n", csrEngRead(s_csr_handle, e, 1));
+    if (2 == s_eng_bufs[e].eng_type)
+    {
+        // AXI marks RLAST so counting burst responses is possible
+        printf("    read burst responses: %ld\n", csrEngRead(s_csr_handle, e, 6));
+    }
     printf("    read line responses: %ld\n", csrEngRead(s_csr_handle, e, 2));
     printf("    write line requests: %ld\n", csrEngRead(s_csr_handle, e, 3));
+    if (2 == s_eng_bufs[e].eng_type)
+    {
+        printf("    write burst responses: %ld\n", csrEngRead(s_csr_handle, e, 4));
+    }
 }
 
 
@@ -668,7 +678,8 @@ testLocalMemParams(
         s_eng_bufs[e].max_burst_size = r & 0x7fff;
         s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
         s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
-        printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 7]);
+        s_eng_bufs[e].eng_type = (r >> 35) & 7;
+        printf("  Engine %d type: %s\n", e, engine_type[s_eng_bufs[e].eng_type]);
         printf("  Engine %d data byte width: %d\n", e, s_eng_bufs[e].data_byte_width);
         printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
         printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);

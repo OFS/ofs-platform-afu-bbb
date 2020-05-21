@@ -78,8 +78,12 @@
 //
 //   3: Number of write lines sent
 //
+//   4: Number of write responses received
+//
 //   5: Read validation information
 //       [63: 0] - Hash of lines read (for ordered memory interfaces)
+//
+//   6: Number of read burst responses (using AXI RLAST flag)
 //
 
 module local_mem_engine_axi
@@ -118,6 +122,13 @@ module local_mem_engine_axi
     localparam ADDR_BYTE_IDX_WIDTH = local_mem_if.ADDR_BYTE_IDX_WIDTH;
     typedef logic [ADDR_BYTE_IDX_WIDTH-1 : 0] t_byte_idx;
 
+    localparam USER_WIDTH = local_mem_if.USER_WIDTH;
+    typedef logic [USER_WIDTH-1 : 0] t_user;
+    localparam RID_WIDTH = local_mem_if.RID_WIDTH;
+    typedef logic [RID_WIDTH-1 : 0] t_rid;
+    localparam WID_WIDTH = local_mem_if.WID_WIDTH;
+    typedef logic [WID_WIDTH-1 : 0] t_wid;
+
     localparam COUNTER_WIDTH = 48;
     typedef logic [COUNTER_WIDTH-1 : 0] t_counter;
 
@@ -125,8 +136,8 @@ module local_mem_engine_axi
     typedef logic [15:0] t_num_burst_reqs;
 
     logic [63:0] rd_data_hash;
-    t_counter rd_bursts_req, rd_lines_req, rd_lines_resp;
-    t_counter wr_bursts_req, wr_lines_req;
+    t_counter rd_bursts_req, rd_lines_req, rd_bursts_resp, rd_lines_resp;
+    t_counter wr_bursts_req, wr_lines_req, wr_bursts_resp;
 
     //
     // Write configuration registers
@@ -198,10 +209,11 @@ module local_mem_engine_axi
         csrs.rd_data[1] = 64'(rd_bursts_req);
         csrs.rd_data[2] = 64'(rd_lines_resp);
         csrs.rd_data[3] = 64'(wr_lines_req);
-        csrs.rd_data[4] = 64'h0;
+        csrs.rd_data[4] = 64'(wr_bursts_resp);
         csrs.rd_data[5] = rd_data_hash;
+        csrs.rd_data[6] = 64'(rd_bursts_resp);
 
-        for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
+        for (int e = 7; e < csrs.NUM_CSRS; e = e + 1)
         begin
             csrs.rd_data[e] = 64'h0;
         end
@@ -223,6 +235,7 @@ module local_mem_engine_axi
     t_num_burst_reqs rd_num_burst_reqs_left, wr_num_burst_reqs_left;
     logic rd_unlimited, wr_unlimited;
     logic rd_done, wr_done;
+    t_rid rd_id;
 
     always_ff @(posedge clk)
     begin
@@ -247,12 +260,14 @@ module local_mem_engine_axi
         begin
             rd_cur_addr <= rd_cur_addr + rd_req_burst_len;
             rd_num_burst_reqs_left <= rd_num_burst_reqs_left - 1;
+            rd_id <= rd_id + 1;
             rd_done <= ! rd_unlimited && (rd_num_burst_reqs_left == t_num_burst_reqs'(1));
         end
 
         if (state_reset)
         begin
             rd_cur_addr <= t_addr'(rd_start_addr);
+            rd_id <= 0;
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
@@ -287,6 +302,8 @@ module local_mem_engine_axi
         local_mem_if.ar.addr = { rd_cur_addr, t_byte_idx'(0) };
         local_mem_if.ar.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.ar.len = rd_req_burst_len - 1;
+        local_mem_if.ar.id = rd_id;
+        local_mem_if.ar.user = ~t_user'(rd_id);
     end
 
 
@@ -298,6 +315,7 @@ module local_mem_engine_axi
     logic wr_sop;
     t_data wr_data;
     logic [127:0] wr_byteenable;
+    t_wid wr_id;
 
     logic do_write_line;
     assign do_write_line = ((state_run && ! wr_done) || ! wr_sop) &&
@@ -315,6 +333,7 @@ module local_mem_engine_axi
             wr_sop <= 1'b0;
             // Rotate byte enable mask
             wr_byteenable <= { wr_byteenable[126:0], wr_byteenable[127] };
+            wr_id <= wr_id + wr_sop;
 
             // Done with all flits in the burst?
             if (wr_eop)
@@ -335,6 +354,7 @@ module local_mem_engine_axi
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
             wr_byteenable <= wr_start_byteenable;
+            wr_id <= 0;
         end
 
         if (!reset_n || state_reset)
@@ -369,6 +389,8 @@ module local_mem_engine_axi
         local_mem_if.aw.addr = { wr_cur_addr, t_byte_idx'(0) };
         local_mem_if.aw.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.aw.len = wr_flits_left - 1;
+        local_mem_if.aw.id = wr_id;
+        local_mem_if.aw.user = ~t_user'(wr_id);
 
         local_mem_if.wvalid = (state_run && ! wr_done) || ! wr_sop && local_mem_if.awready;
         local_mem_if.w = '0;
@@ -388,7 +410,9 @@ module local_mem_engine_axi
     begin
         csrs.status_active <= (state_run && ! (rd_done && wr_done)) ||
                               ! wr_sop ||
-                              (rd_lines_req != rd_lines_resp);
+                              (rd_lines_req != rd_lines_resp) ||
+                              (rd_bursts_req != rd_bursts_resp) ||
+                              (wr_bursts_req != wr_bursts_resp);
     end
 
 
@@ -401,20 +425,23 @@ module local_mem_engine_axi
 
     logic incr_rd_req;
     t_burst_cnt incr_rd_req_lines;
-    logic incr_rd_resp;
+    logic incr_rd_resp, incr_rd_resp_lines;
 
     logic incr_wr_req;
     logic incr_wr_req_lines;
+    logic incr_wr_resp;
 
     always_ff @(posedge clk)
     begin
         incr_rd_req <= local_mem_if.arvalid && local_mem_if.arready;
         incr_rd_req_lines <= (local_mem_if.arvalid && local_mem_if.arready) ?
                              rd_req_burst_len : t_burst_cnt'(0);
-        incr_rd_resp <= local_mem_if.rvalid;
+        incr_rd_resp <= local_mem_if.rvalid && local_mem_if.r.last && local_mem_if.rready;
+        incr_rd_resp_lines <= local_mem_if.rvalid && local_mem_if.rready;
 
         incr_wr_req <= local_mem_if.awvalid && local_mem_if.awready;
         incr_wr_req_lines <= local_mem_if.wvalid && local_mem_if.wready;
+        incr_wr_resp <= local_mem_if.bvalid;
     end
 
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req
@@ -438,6 +465,14 @@ module local_mem_engine_axi
         .clk,
         .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_rd_resp)),
+        .value(rd_bursts_resp)
+        );
+
+    counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_resp_lines
+       (
+        .clk,
+        .reset_n(reset_n && !state_reset),
+        .incr_by(COUNTER_WIDTH'(incr_rd_resp_lines)),
         .value(rd_lines_resp)
         );
 
@@ -455,6 +490,14 @@ module local_mem_engine_axi
         .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_req_lines)),
         .value(wr_lines_req)
+        );
+
+    counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_resp
+       (
+        .clk,
+        .reset_n(reset_n && !state_reset),
+        .incr_by(COUNTER_WIDTH'(incr_wr_resp)),
+        .value(wr_bursts_resp)
         );
 
 endmodule // local_mem_engine_axi

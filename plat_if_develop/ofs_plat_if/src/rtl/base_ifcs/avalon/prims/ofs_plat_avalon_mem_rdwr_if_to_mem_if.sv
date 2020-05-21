@@ -35,6 +35,13 @@
 `include "ofs_plat_if.vh"
 
 module ofs_plat_avalon_mem_rdwr_if_to_mem_if
+  #(
+    // Generate a write response inside this module as write requests
+    // commit? Some Avalon slaves may not generate write responses.
+    // With LOCAL_WR_RESPONSE set, write responses are generated as
+    // soon as write requests win arbitration.
+    parameter LOCAL_WR_RESPONSE = 0
+    )
    (
     ofs_plat_avalon_mem_if.to_slave mem_slave,
     ofs_plat_avalon_mem_rdwr_if.to_master mem_master
@@ -228,10 +235,30 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         mem_master.rd_readdatavalid = mem_slave.readdatavalid;
         mem_master.rd_response = mem_slave.response;
         mem_master.rd_readresponseuser = mem_slave.readresponseuser;
+    end
 
-        mem_master.wr_writeresponsevalid = mem_slave.writeresponsevalid;
-        mem_master.wr_response = mem_slave.writeresponse;
-        mem_master.wr_writeresponseuser = mem_slave.writeresponseuser;
+    always_ff @(posedge clk)
+    begin
+        if (LOCAL_WR_RESPONSE == 0)
+        begin
+            // Slave will generate a response
+            mem_master.wr_writeresponsevalid <= mem_slave.writeresponsevalid;
+            mem_master.wr_response <= mem_slave.writeresponse;
+            mem_master.wr_writeresponseuser <= mem_slave.writeresponseuser;
+        end
+        else
+        begin
+            // Response generated here as writes win arbitrarion
+            mem_master.wr_writeresponsevalid <= arb_grant_write && !mem_slave.waitrequest &&
+                                                !wr_burst_active;
+            mem_master.wr_response <= '0;
+            mem_master.wr_writeresponseuser <= wr_req.user;
+        end
+
+        if (!reset_n)
+        begin
+            mem_master.wr_writeresponsevalid <= 1'b0;
+        end
     end
 
 endmodule // ofs_plat_avalon_mem_rdwr_if_to_mem_if
