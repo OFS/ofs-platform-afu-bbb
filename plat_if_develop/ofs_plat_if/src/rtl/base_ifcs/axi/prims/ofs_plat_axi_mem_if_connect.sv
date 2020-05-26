@@ -45,6 +45,10 @@ module ofs_plat_axi_mem_if_connect
         `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
+
 endmodule // ofs_plat_axi_mem_if_connect
 
 
@@ -66,6 +70,10 @@ module ofs_plat_axi_mem_if_connect_slave_clk
         `OFS_PLAT_AXI_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
         `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
+
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
 
 endmodule // ofs_plat_axi_mem_if_connect_slave_clk
 
@@ -89,4 +97,41 @@ module ofs_plat_axi_mem_if_connect_master_clk
         `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
+
 endmodule // ofs_plat_axi_mem_if_connect_slave_clk
+
+
+//
+// Wire together two AXI memory instances, copying field-by-field. This is
+// needed when field width parameters vary between the interfaces.
+//
+module ofs_plat_axi_mem_if_connect_by_field
+   (
+    ofs_plat_axi_mem_if.to_slave mem_slave,
+    ofs_plat_axi_mem_if.to_master mem_master
+    );
+
+    always_comb
+    begin
+        mem_slave.awvalid = mem_master.awvalid;
+        mem_slave.wvalid = mem_master.wvalid;
+        mem_slave.bready = mem_master.bready;
+        mem_slave.arvalid = mem_master.arvalid;
+        mem_slave.rready = mem_master.rready;
+        `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_slave.aw, =, mem_master.aw);
+        `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_slave.w, =, mem_master.w);
+        `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_slave.ar, =, mem_master.ar);
+
+        mem_master.awready = mem_slave.awready;
+        mem_master.wready = mem_slave.wready;
+        mem_master.bvalid = mem_slave.bvalid;
+        mem_master.arready = mem_slave.arready;
+        mem_master.rvalid = mem_slave.rvalid;
+        `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_master.b, =, mem_slave.b);
+        `OFS_PLAT_AXI_MEM_IF_COPY_R(mem_master.r, =, mem_slave.r);
+    end
+
+endmodule // ofs_plat_axi_mem_if_connect

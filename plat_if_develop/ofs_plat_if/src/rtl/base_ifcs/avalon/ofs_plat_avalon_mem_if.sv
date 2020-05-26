@@ -256,7 +256,7 @@ interface ofs_plat_avalon_mem_if
     // Track burst count
     always_ff @(posedge clk)
     begin
-        if (write && (!waitrequest) || (WAIT_REQUEST_ALLOWANCE != 0))
+        if (write && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
         begin
             // Track write bursts in order to print "sop"
             if (wr_bursts_rem == 0)

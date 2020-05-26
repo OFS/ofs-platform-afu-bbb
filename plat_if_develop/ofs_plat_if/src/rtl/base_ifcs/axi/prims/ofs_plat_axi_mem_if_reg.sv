@@ -46,6 +46,10 @@ module ofs_plat_axi_mem_if_reg
     ofs_plat_axi_mem_if.to_master mem_master
     );
 
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
+
     genvar s;
     generate
         if (N_REG_STAGES == 0)

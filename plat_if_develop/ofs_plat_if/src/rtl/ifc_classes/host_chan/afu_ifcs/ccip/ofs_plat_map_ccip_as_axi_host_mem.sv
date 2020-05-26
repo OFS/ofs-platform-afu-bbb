@@ -247,6 +247,10 @@ module ofs_plat_map_ccip_as_axi_host_mem
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
+        .RID_WIDTH(host_mem_to_afu.RID_WIDTH_),
+        .WID_WIDTH(host_mem_to_afu.WID_WIDTH_),
+        // Extra bit for tracking burst mapping packets
+        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_ + 1),
         .BURST_CNT_WIDTH(3)
         )
       axi_fiu_burst_if();
@@ -255,7 +259,6 @@ module ofs_plat_map_ccip_as_axi_host_mem
     assign axi_fiu_burst_if.reset_n = reset_n;
     assign axi_fiu_burst_if.instance_number = to_fiu.instance_number;
 
-    logic fiu_burst_expects_response;
     ofs_plat_axi_mem_if_map_bursts
       #(
         .NATURAL_ALIGNMENT(1)
@@ -263,13 +266,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
       map_bursts
        (
         .mem_master(axi_fiu_reg_if),
-        .mem_slave(axi_fiu_burst_if),
-
-        // The AFU interface requires one response per AFU-sized burst.
-        // When mapping a single AFU burst to multiple FIU write bursts
-        // only the last FIU write burst should generate a response to
-        // the AFU.
-        .wr_slave_burst_expects_response(fiu_burst_expects_response)
+        .mem_slave(axi_fiu_burst_if)
         );
 
 
@@ -352,7 +349,6 @@ module ofs_plat_map_ccip_as_axi_host_mem
         if (wr_sop)
         begin
             to_fiu.sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            to_fiu.sTx.c1.hdr.mdata[0] <= fiu_burst_expects_response;
 
             if (! axi_fiu_burst_if.wr_function)
             begin

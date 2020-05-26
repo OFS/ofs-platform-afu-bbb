@@ -66,7 +66,10 @@ interface ofs_plat_axi_mem_lite_if
     parameter DATA_WIDTH = 0,
     parameter RID_WIDTH = 1,
     parameter WID_WIDTH = 1,
-    parameter USER_WIDTH = 1
+    parameter USER_WIDTH = 1,
+
+    // Disable simulation time checks? Normally this should be left enabled.
+    parameter DISABLE_CHECKER = 0
     );
 
     import ofs_plat_axi_mem_pkg::*;

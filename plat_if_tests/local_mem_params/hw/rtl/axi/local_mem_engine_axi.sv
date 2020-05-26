@@ -318,8 +318,8 @@ module local_mem_engine_axi
     t_wid wr_id;
 
     logic do_write_line;
-    assign do_write_line = ((state_run && ! wr_done) || ! wr_sop) &&
-                           local_mem_if.awready && local_mem_if.wready;
+    assign do_write_line = ((state_run && !wr_done) || !wr_sop) &&
+                           (!wr_sop || local_mem_if.awready) && local_mem_if.wready;
 
     always_ff @(posedge clk)
     begin
@@ -392,7 +392,7 @@ module local_mem_engine_axi
         local_mem_if.aw.id = wr_id;
         local_mem_if.aw.user = ~t_user'(wr_id);
 
-        local_mem_if.wvalid = (state_run && ! wr_done) || ! wr_sop && local_mem_if.awready;
+        local_mem_if.wvalid = do_write_line;
         local_mem_if.w = '0;
         local_mem_if.w.data = wr_zeros ? '0 : wr_data;
         local_mem_if.w.strb = wr_byteenable;

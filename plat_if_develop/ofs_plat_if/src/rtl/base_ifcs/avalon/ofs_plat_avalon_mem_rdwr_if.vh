@@ -57,63 +57,52 @@
 // Macros allow modules to operate without knowing some of the minor interface
 // fields.
 //
+// General copy macros take OPER so the macro can be used in both combinational
+// and registered contexts. Specify an operator: usually = or <=.
+//
+
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER) \
+    MEM_SLAVE.rd_read OPER MEM_MASTER.rd_read; \
+    MEM_SLAVE.rd_burstcount OPER MEM_MASTER.rd_burstcount; \
+    MEM_SLAVE.rd_byteenable OPER MEM_MASTER.rd_byteenable; \
+    MEM_SLAVE.rd_address OPER MEM_MASTER.rd_address; \
+    MEM_SLAVE.rd_function OPER MEM_MASTER.rd_function; \
+    MEM_SLAVE.rd_user OPER MEM_MASTER.rd_user; \
+    MEM_SLAVE.wr_burstcount OPER MEM_MASTER.wr_burstcount; \
+    MEM_SLAVE.wr_writedata OPER MEM_MASTER.wr_writedata; \
+    MEM_SLAVE.wr_address OPER MEM_MASTER.wr_address; \
+    MEM_SLAVE.wr_function OPER MEM_MASTER.wr_function; \
+    MEM_SLAVE.wr_write OPER MEM_MASTER.wr_write; \
+    MEM_SLAVE.wr_byteenable OPER MEM_MASTER.wr_byteenable; \
+    MEM_SLAVE.wr_user OPER MEM_MASTER.wr_user
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(MEM_SLAVE, MEM_MASTER) \
-    MEM_SLAVE.rd_read = MEM_MASTER.rd_read; \
-    MEM_SLAVE.rd_burstcount = MEM_MASTER.rd_burstcount; \
-    MEM_SLAVE.rd_byteenable = MEM_MASTER.rd_byteenable; \
-    MEM_SLAVE.rd_address = MEM_MASTER.rd_address; \
-    MEM_SLAVE.rd_function = MEM_MASTER.rd_function; \
-    MEM_SLAVE.rd_user = MEM_MASTER.rd_user; \
-    MEM_SLAVE.wr_burstcount = MEM_MASTER.wr_burstcount; \
-    MEM_SLAVE.wr_writedata = MEM_MASTER.wr_writedata; \
-    MEM_SLAVE.wr_address = MEM_MASTER.wr_address; \
-    MEM_SLAVE.wr_function = MEM_MASTER.wr_function; \
-    MEM_SLAVE.wr_write = MEM_MASTER.wr_write; \
-    MEM_SLAVE.wr_byteenable = MEM_MASTER.wr_byteenable; \
-    MEM_SLAVE.wr_user = MEM_MASTER.wr_user
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, =, MEM_MASTER)
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
-    MEM_SLAVE.rd_read <= MEM_MASTER.rd_read; \
-    MEM_SLAVE.rd_burstcount <= MEM_MASTER.rd_burstcount; \
-    MEM_SLAVE.rd_byteenable <= MEM_MASTER.rd_byteenable; \
-    MEM_SLAVE.rd_address <= MEM_MASTER.rd_address; \
-    MEM_SLAVE.rd_function <= MEM_MASTER.rd_function; \
-    MEM_SLAVE.rd_user <= MEM_MASTER.rd_user; \
-    MEM_SLAVE.wr_burstcount <= MEM_MASTER.wr_burstcount; \
-    MEM_SLAVE.wr_writedata <= MEM_MASTER.wr_writedata; \
-    MEM_SLAVE.wr_address <= MEM_MASTER.wr_address; \
-    MEM_SLAVE.wr_function <= MEM_MASTER.wr_function; \
-    MEM_SLAVE.wr_write <= MEM_MASTER.wr_write; \
-    MEM_SLAVE.wr_byteenable <= MEM_MASTER.wr_byteenable; \
-    MEM_SLAVE.wr_user <= MEM_MASTER.wr_user
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, <=, MEM_MASTER)
 
 
 // Note these do not set clk, reset or instance_number since those
 // fields may be handled specially.
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER(MEM_MASTER, OPER, MEM_SLAVE) \
+    MEM_MASTER.rd_readdata OPER MEM_SLAVE.rd_readdata; \
+    MEM_MASTER.rd_readdatavalid OPER MEM_SLAVE.rd_readdatavalid; \
+    MEM_MASTER.rd_response OPER MEM_SLAVE.rd_response; \
+    MEM_MASTER.rd_readresponseuser OPER MEM_SLAVE.rd_readresponseuser; \
+    MEM_MASTER.wr_writeresponsevalid OPER MEM_SLAVE.wr_writeresponsevalid; \
+    MEM_MASTER.wr_response OPER MEM_SLAVE.wr_response; \
+    MEM_MASTER.wr_writeresponseuser OPER MEM_SLAVE.wr_writeresponseuser
+
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_COMB(MEM_MASTER, MEM_SLAVE) \
     MEM_MASTER.rd_waitrequest = MEM_SLAVE.rd_waitrequest; \
-    MEM_MASTER.rd_readdata = MEM_SLAVE.rd_readdata; \
-    MEM_MASTER.rd_readdatavalid = MEM_SLAVE.rd_readdatavalid; \
-    MEM_MASTER.rd_response = MEM_SLAVE.rd_response; \
-    MEM_MASTER.rd_readresponseuser = MEM_SLAVE.rd_readresponseuser; \
     MEM_MASTER.wr_waitrequest = MEM_SLAVE.wr_waitrequest; \
-    MEM_MASTER.wr_writeresponsevalid = MEM_SLAVE.wr_writeresponsevalid; \
-    MEM_MASTER.wr_response = MEM_SLAVE.wr_response; \
-    MEM_MASTER.wr_writeresponseuser = MEM_SLAVE.wr_writeresponseuser
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER(MEM_MASTER, =, MEM_SLAVE)
 
 // Note the lack of waitrequest in the non-blocking assignment. The
 // ready/enable protocol must be handled explicitly.
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_FF(MEM_MASTER, MEM_SLAVE) \
-    MEM_MASTER.rd_waitrequest <= MEM_SLAVE.rd_waitrequest; \
-    MEM_MASTER.rd_readdata <= MEM_SLAVE.rd_readdata; \
-    MEM_MASTER.rd_readdatavalid <= MEM_SLAVE.rd_readdatavalid; \
-    MEM_MASTER.rd_response <= MEM_SLAVE.rd_response; \
-    MEM_MASTER.rd_readresponseuser <= MEM_SLAVE.rd_readresponseuser; \
-    MEM_MASTER.wr_waitrequest <= MEM_SLAVE.wr_waitrequest; \
-    MEM_MASTER.wr_writeresponsevalid <= MEM_SLAVE.wr_writeresponsevalid; \
-    MEM_MASTER.wr_response <= MEM_SLAVE.wr_response; \
-    MEM_MASTER.wr_writeresponseuser = MEM_SLAVE.wr_writeresponseuser
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER(MEM_MASTER, <=, MEM_SLAVE)
 
 
 //
@@ -125,49 +114,40 @@
 // obvious that these fields are not part of the protocol.
 //
 
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER(MEM_MASTER, OPER) \
+    MEM_MASTER.rd_read OPER 1'b0; \
+    MEM_MASTER.rd_burstcount OPER '0; \
+    MEM_MASTER.rd_byteenable OPER '0; \
+    MEM_MASTER.rd_address OPER '0; \
+    MEM_MASTER.rd_function OPER '0; \
+    MEM_MASTER.wr_burstcount OPER '0; \
+    MEM_MASTER.wr_writedata OPER '0; \
+    MEM_MASTER.wr_address OPER '0; \
+    MEM_MASTER.wr_function OPER '0; \
+    MEM_MASTER.wr_write OPER 1'b0; \
+    MEM_MASTER.wr_byteenable OPER '0
+
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_COMB(MEM_MASTER) \
-    MEM_MASTER.rd_read = 1'b0; \
-    MEM_MASTER.rd_burstcount = '0; \
-    MEM_MASTER.rd_byteenable = '0; \
-    MEM_MASTER.rd_address = '0; \
-    MEM_MASTER.rd_function = '0; \
-    MEM_MASTER.wr_burstcount = '0; \
-    MEM_MASTER.wr_writedata = '0; \
-    MEM_MASTER.wr_address = '0; \
-    MEM_MASTER.wr_function = '0; \
-    MEM_MASTER.wr_write = 1'b0; \
-    MEM_MASTER.wr_byteenable = '0
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER(MEM_MASTER, =)
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER_FF(MEM_MASTER) \
-    MEM_MASTER.rd_read <= 1'b0; \
-    MEM_MASTER.rd_burstcount <= '0; \
-    MEM_MASTER.rd_byteenable <= '0; \
-    MEM_MASTER.rd_address <= '0; \
-    MEM_MASTER.rd_function <= '0; \
-    MEM_MASTER.wr_burstcount <= '0; \
-    MEM_MASTER.wr_writedata <= '0; \
-    MEM_MASTER.wr_address <= '0; \
-    MEM_MASTER.wr_function <= '0; \
-    MEM_MASTER.wr_write <= 1'b0; \
-    MEM_MASTER.wr_byteenable <= '0
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_MASTER(MEM_MASTER, <=)
+
+
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE(MEM_SLAVE, OPER) \
+    MEM_SLAVE.rd_waitrequest OPER 1'b0; \
+    MEM_SLAVE.rd_readdata OPER '0; \
+    MEM_SLAVE.rd_readdatavalid OPER 1'b0; \
+    MEM_SLAVE.rd_response OPER '0; \
+    MEM_SLAVE.wr_waitrequest OPER 1'b0; \
+    MEM_SLAVE.wr_writeresponsevalid OPER 1'b0; \
+    MEM_SLAVE.wr_response OPER '0
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_COMB(MEM_SLAVE) \
-    MEM_SLAVE.rd_waitrequest = 1'b0; \
-    MEM_SLAVE.rd_readdata = '0; \
-    MEM_SLAVE.rd_readdatavalid = 1'b0; \
-    MEM_SLAVE.rd_response = '0; \
-    MEM_SLAVE.wr_waitrequest = 1'b0; \
-    MEM_SLAVE.wr_writeresponsevalid = 1'b0; \
-    MEM_SLAVE.wr_response = '0
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE(MEM_SLAVE, =)
 
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_FF(MEM_SLAVE) \
-    MEM_SLAVE.rd_waitrequest <= 1'b0; \
-    MEM_SLAVE.rd_readdata <= '0; \
-    MEM_SLAVE.rd_readdatavalid <= 1'b0; \
-    MEM_SLAVE.rd_response <= '0; \
-    MEM_SLAVE.wr_waitrequest <= 1'b0; \
-    MEM_SLAVE.wr_writeresponsevalid <= 1'b0; \
-    MEM_SLAVE.wr_response <= '0
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE(MEM_SLAVE, <=)
 
 
 `endif // __OFS_PLAT_AVALON_MEM_RDWR_IF_VH__

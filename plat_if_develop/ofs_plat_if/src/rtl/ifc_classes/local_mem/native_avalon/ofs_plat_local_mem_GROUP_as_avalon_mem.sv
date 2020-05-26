@@ -103,139 +103,6 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
 
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
 
-    ofs_plat_avalon_mem_if
-      #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-        .USER_WIDTH(1)
-        )
-        afu_mem_if();
-
-    generate
-        if (ADD_CLOCK_CROSSING == 0)
-        begin : nc
-            //
-            // No clock crossing, maybe register stages.
-            //
-            ofs_plat_avalon_mem_if_reg_slave_clk
-              #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
-                )
-              mem_pipe
-               (
-                .mem_slave(to_fiu),
-                .mem_master(afu_mem_if)
-                );
-        end
-        else
-        begin : ofs_plat_clock_crossing
-            //
-            // Register stages for timing at the FIU edge.
-            //
-            ofs_plat_avalon_mem_if
-              #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
-                )
-                fiu_reg_if();
-
-            ofs_plat_avalon_mem_if_reg_slave_clk
-              #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
-                )
-              fiu_reg
-               (
-                .mem_slave(to_fiu),
-                .mem_master(fiu_reg_if)
-                );
-
-            // We assume that a single waitrequest signal can propagate faster
-            // than the entire bus, so limit the number of stages.
-            localparam NUM_WAITREQUEST_STAGES =
-                // If pipeline is 4 stages or fewer then use the pipeline depth.
-                (NUM_TIMING_REG_STAGES <= 4 ? NUM_TIMING_REG_STAGES :
-                    // Up to depth 16 pipelines, use 4 waitrequest stages.
-                    // Beyond 16 stages, set the waitrequest depth to 1/4 the
-                    // base pipeline depth.
-                    (NUM_TIMING_REG_STAGES <= 16 ? 4 : (NUM_TIMING_REG_STAGES >> 2)));
-
-            // A few extra stages to avoid off-by-one errors. There is plenty of
-            // space in the FIFO, so this has no performance consequences.
-            localparam NUM_EXTRA_STAGES = (NUM_TIMING_REG_STAGES != 0) ? 4 : 0;
-
-            // Set the almost full threshold to satisfy the buffering pipeline depth
-            // plus the depth of the waitrequest pipeline plus a little extra to
-            // avoid having to worry about off-by-one errors.
-            localparam NUM_ALMFULL_SLOTS = NUM_TIMING_REG_STAGES +
-                                           NUM_WAITREQUEST_STAGES +
-                                           NUM_EXTRA_STAGES;
-
-            //
-            // Cross to the specified clock.
-            //
-            ofs_plat_avalon_mem_if
-              #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-                .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
-                )
-                mem_cross_if();
-
-            assign mem_cross_if.clk = afu_clk;
-            assign mem_cross_if.instance_number = to_fiu.instance_number;
-
-            // Generate a local reset for timing. This isn't actually a clock
-            // crossing reset. We use it because it relaxes the timing on the
-            // entire local memory domain here. Waitrequest will be asserted
-            // during this reset, so the delay is safe.
-            ofs_plat_prim_clock_crossing_reset uClk_usr_reset
-               (
-                .clk_src(afu_clk),
-                .clk_dst(afu_clk),
-                .reset_in(afu_reset_n),
-                .reset_out(mem_cross_if.reset_n)
-                );
-
-            // synthesis translate_off
-            always_ff @(negedge afu_clk)
-            begin
-                if (afu_reset_n === 1'bx)
-                begin
-                    $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
-                end
-            end
-            // synthesis translate_on
-
-            ofs_plat_avalon_mem_if_async_shim
-              #(
-                .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
-                )
-              mem_async_shim
-               (
-                .mem_slave(fiu_reg_if),
-                .mem_master(mem_cross_if)
-                );
-
-            // Add requested register stages on the AFU side of the clock crossing.
-            // In this case the register stages are a simple pipeline because
-            // the clock crossing FIFO reserves space for these stages to drain
-            // after waitrequest is asserted.
-            ofs_plat_avalon_mem_if_reg_simple
-              #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES),
-                .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
-                )
-              mem_pipe
-               (
-                .mem_slave(mem_cross_if),
-                .mem_master(afu_mem_if)
-                );
-
-            assign afu_mem_if.clk = mem_cross_if.clk;
-            assign afu_mem_if.reset_n = mem_cross_if.reset_n;
-            // Debugging signal
-            assign afu_mem_if.instance_number = mem_cross_if.instance_number;
-        end
-    endgenerate
-
-
     // ====================================================================
     //
     // The AFU's burst counter may be a different size than the FIU's
@@ -265,6 +132,20 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     end
     // synthesis translate_on
 
+    // Connect to the to_afu instance, including passing the clock.
+    ofs_plat_avalon_mem_if_connect_slave_clk conn_to_afu
+       (
+        .mem_master(to_afu),
+        .mem_slave(afu_burst_if)
+        );
+
+    ofs_plat_avalon_mem_if
+      #(
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
+        .USER_WIDTH(1)
+        )
+        afu_mem_if();
+
     generate
         if (to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)
         begin : nb
@@ -272,8 +153,8 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
             // the connection to the next stage.
             ofs_plat_avalon_mem_if_connect_slave_clk conn
                (
-                .mem_slave(afu_mem_if),
-                .mem_master(afu_burst_if)
+                .mem_master(afu_burst_if),
+                .mem_slave(afu_mem_if)
                 );
         end
         else
@@ -290,17 +171,139 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
             // writeresponseuser[0].
             ofs_plat_avalon_mem_if_map_bursts burst
                (
-                .mem_slave(afu_mem_if),
-                .mem_master(afu_burst_if)
+                .mem_master(afu_burst_if),
+                .mem_slave(afu_mem_if)
                 );
         end
     endgenerate
 
-    // Make the final connection to the to_afu instance, including passing the clock.
-    ofs_plat_avalon_mem_if_connect_slave_clk conn_to_afu
-       (
-        .mem_slave(afu_burst_if),
-        .mem_master(to_afu)
-        );
+
+    //
+    // Clock crossing between AFU and FIU?
+    //
+    generate
+        if (ADD_CLOCK_CROSSING == 0)
+        begin : nc
+            //
+            // No clock crossing, maybe register stages.
+            //
+            ofs_plat_avalon_mem_if_reg_slave_clk
+              #(
+                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
+                )
+              mem_pipe
+               (
+                .mem_slave(to_fiu),
+                .mem_master(afu_mem_if)
+                );
+        end
+        else
+        begin : cc
+            // We assume that a single waitrequest signal can propagate faster
+            // than the entire bus, so limit the number of stages.
+            localparam NUM_WAITREQUEST_STAGES =
+                // If pipeline is 4 stages or fewer then use the pipeline depth.
+                (NUM_TIMING_REG_STAGES <= 4 ? NUM_TIMING_REG_STAGES :
+                    // Up to depth 16 pipelines, use 4 waitrequest stages.
+                    // Beyond 16 stages, set the waitrequest depth to 1/4 the
+                    // base pipeline depth.
+                    (NUM_TIMING_REG_STAGES <= 16 ? 4 : (NUM_TIMING_REG_STAGES >> 2)));
+
+            // A few extra stages to avoid off-by-one errors. There is plenty of
+            // space in the FIFO, so this has no performance consequences.
+            localparam NUM_EXTRA_STAGES = (NUM_TIMING_REG_STAGES != 0) ? 4 : 0;
+
+            // Set the almost full threshold to satisfy the buffering pipeline depth
+            // plus the depth of the waitrequest pipeline plus a little extra to
+            // avoid having to worry about off-by-one errors.
+            localparam NUM_ALMFULL_SLOTS = NUM_TIMING_REG_STAGES +
+                                           NUM_WAITREQUEST_STAGES +
+                                           NUM_EXTRA_STAGES;
+
+
+            //
+            // Cross to the specified clock.
+            //
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
+                .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
+                )
+                mem_cross_if();
+
+            assign mem_cross_if.clk = afu_clk;
+            assign mem_cross_if.instance_number = to_fiu.instance_number;
+
+            assign afu_mem_if.clk = mem_cross_if.clk;
+            assign afu_mem_if.reset_n = mem_cross_if.reset_n;
+            assign afu_mem_if.instance_number = mem_cross_if.instance_number;
+
+            // Add requested register stages on the AFU side of the clock crossing.
+            // In this case the register stages are a simple pipeline because
+            // the clock crossing FIFO reserves space for these stages to drain
+            // after waitrequest is asserted.
+            ofs_plat_avalon_mem_if_reg_simple
+              #(
+                .N_REG_STAGES(NUM_TIMING_REG_STAGES),
+                .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
+                )
+              mem_pipe
+               (
+                .mem_master(afu_mem_if),
+                .mem_slave(mem_cross_if)
+                );
+
+            // Generate a local reset for timing. This isn't actually a clock
+            // crossing reset. We use it because it relaxes the timing on the
+            // entire local memory domain here. Waitrequest will be asserted
+            // during this reset, so the delay is safe.
+            ofs_plat_prim_clock_crossing_reset uClk_usr_reset
+               (
+                .clk_src(afu_clk),
+                .clk_dst(afu_clk),
+                .reset_in(afu_reset_n),
+                .reset_out(mem_cross_if.reset_n)
+                );
+
+            // synthesis translate_off
+            always_ff @(negedge afu_clk)
+            begin
+                if (afu_reset_n === 1'bx)
+                begin
+                    $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
+                end
+            end
+            // synthesis translate_on
+
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+                )
+                fiu_reg_if();
+
+            ofs_plat_avalon_mem_if_async_shim
+              #(
+                .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
+                )
+              mem_async_shim
+               (
+                .mem_master(mem_cross_if),
+                .mem_slave(fiu_reg_if)
+                );
+
+            //
+            // Register stages for timing at the FIU edge.
+            //
+            ofs_plat_avalon_mem_if_reg_slave_clk
+              #(
+                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
+                )
+              fiu_reg
+               (
+                .mem_master(fiu_reg_if),
+                .mem_slave(to_fiu)
+                );
+        end
+    endgenerate
 
 endmodule // ofs_plat_local_mem_@group@_as_avalon_mem

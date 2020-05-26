@@ -67,6 +67,9 @@ interface ofs_plat_axi_mem_if
     // How many data bits does a bytemask bit cover?
     parameter MASKED_SYMBOL_WIDTH = 8,
 
+    // Disable simulation time checks? Normally this should be left enabled.
+    parameter DISABLE_CHECKER = 0,
+
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by
     // the slave. Be careful to consider the registered delay of the waitrequest

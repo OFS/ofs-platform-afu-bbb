@@ -45,6 +45,10 @@ module ofs_plat_axi_mem_lite_if_connect
         `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_LITE_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
+
 endmodule // ofs_plat_axi_mem_lite_if_connect
 
 
@@ -67,6 +71,10 @@ module ofs_plat_axi_mem_lite_if_connect_slave_clk
         `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
 
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_LITE_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
+
 endmodule // ofs_plat_axi_mem_lite_if_connect_slave_clk
 
 
@@ -88,5 +96,9 @@ module ofs_plat_axi_mem_lite_if_connect_master_clk
         `OFS_PLAT_AXI_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
         `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
     end
+
+    // synthesis translate_off
+    `OFS_PLAT_AXI_MEM_LITE_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    // synthesis translate_on
 
 endmodule // ofs_plat_axi_mem_lite_if_connect_slave_clk

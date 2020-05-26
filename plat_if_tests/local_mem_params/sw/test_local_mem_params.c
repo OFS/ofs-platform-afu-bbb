@@ -175,7 +175,7 @@ runEnginesTest(
     // the engine is enabled and the active flag goes low.
     struct timespec wait_time;
     // Poll less often in simulation
-    wait_time.tv_sec = (s_is_ase ? 1 : 0);
+    wait_time.tv_sec = (s_is_ase ? 2 : 0);
     wait_time.tv_nsec = 1000000;
     int trips = 0;
     while (true)

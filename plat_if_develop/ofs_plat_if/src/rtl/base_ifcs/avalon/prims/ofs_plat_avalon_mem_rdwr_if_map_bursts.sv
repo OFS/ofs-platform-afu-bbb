@@ -116,11 +116,11 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                  .clk,
                  .reset_n,
 
-                 .m_new_req(rd_next),
+                 .m_new_req(rd_next && mem_master.rd_read),
                  .m_addr(mem_master.rd_address),
                  .m_burstcount(mem_master.rd_burstcount),
 
-                 .s_accept_req(! mem_slave.rd_waitrequest),
+                 .s_accept_req(mem_slave.rd_read && ! mem_slave.rd_waitrequest),
                  .s_req_complete(rd_complete),
                  .s_addr(mem_slave.rd_address),
                  .s_burstcount(mem_slave.rd_burstcount)
@@ -251,7 +251,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             // synthesis translate_off
 
             //
-            // Validated in simulation: confirm that the parent module is properly
+            // Validated in simulation: confirm that the slave is properly
             // returning wr_writeresponseuser[0] based on wr_slave.wr_user[0] for
             // burst tracking. The test here is simple: if there are more write
             // responses than write requests from the master then something is wrong.
@@ -262,7 +262,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             begin
                 if (m_num_write_responses > m_num_writes)
                 begin
-                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the parent module returning wr_writeresponseuser[0]?");
+                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the slave returning wr_writeresponseuser[0]?");
                 end
 
                 if (mem_master.wr_write && ! mem_master.wr_waitrequest && m_wr_sop)

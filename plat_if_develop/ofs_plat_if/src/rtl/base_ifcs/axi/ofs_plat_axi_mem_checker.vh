@@ -38,7 +38,7 @@
 // Validate signals
 always_ff @(negedge clk)
 begin
-    if (reset_n)
+    if (reset_n && (DISABLE_CHECKER == 0))
     begin
         if (awvalid === 1'bx)
         begin
@@ -83,112 +83,112 @@ begin
         begin
             $fatal(2, "** ERROR ** %m: rready is uninitialized!");
         end
-    end
 
-    if (reset_n && awvalid)
-    begin
-        if (^aw.id === 1'bx)
+        if (awvalid)
         begin
-            $fatal(2, "** ERROR ** %m: aw.id undefined, currently 0x%x", aw.id);
+            if (^aw.id === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: aw.id undefined, currently 0x%x", aw.id);
+            end
+
+            if (^aw.addr === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: aw.addr undefined, currently 0x%x", aw.addr);
+            end
+
+            if (^aw.size === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: aw.size undefined, currently 0x%x", aw.size);
+            end
+
+            if (^aw.prot === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: aw.prot undefined, currently 0x%x", aw.prot);
+            end
+
+            if (^aw.user === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: aw.user undefined, currently 0x%x", aw.user);
+            end
         end
 
-        if (^aw.addr === 1'bx)
+        if (wvalid)
         begin
-            $fatal(2, "** ERROR ** %m: aw.addr undefined, currently 0x%x", aw.addr);
+            if (^w.strb === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: w.strb undefined, currently 0x%x", w.strb);
+            end
+
+            if (^w.user === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: w.user undefined, currently 0x%x", w.user);
+            end
         end
 
-        if (^aw.size === 1'bx)
+        if (bvalid)
         begin
-            $fatal(2, "** ERROR ** %m: aw.size undefined, currently 0x%x", aw.size);
+            if (^b.id === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: b.id undefined, currently 0x%x", b.id);
+            end
+
+            if (^b.resp === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: b.resp undefined, currently 0x%x", b.resp);
+            end
+
+            if (^b.user === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: b.user undefined, currently 0x%x", b.user);
+            end
         end
 
-        if (^aw.prot === 1'bx)
+        if (arvalid)
         begin
-            $fatal(2, "** ERROR ** %m: aw.prot undefined, currently 0x%x", aw.prot);
+            if (^ar.id === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: ar.id undefined, currently 0x%x", ar.id);
+            end
+
+            if (^ar.addr === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: ar.addr undefined, currently 0x%x", ar.addr);
+            end
+
+            if (^ar.size === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: ar.size undefined, currently 0x%x", ar.size);
+            end
+
+            if (^ar.prot === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: ar.prot undefined, currently 0x%x", ar.prot);
+            end
+
+            if (^ar.user === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: ar.user undefined, currently 0x%x", ar.user);
+            end
         end
 
-        if (^aw.user === 1'bx)
+        if (rvalid)
         begin
-            $fatal(2, "** ERROR ** %m: aw.user undefined, currently 0x%x", aw.user);
-        end
-    end
+            if (^r.id === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: r.id undefined, currently 0x%x", r.id);
+            end
 
-    if (reset_n && wvalid)
-    begin
-        if (^w.strb === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: w.strb undefined, currently 0x%x", w.strb);
-        end
+            if (^r.resp === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: r.resp undefined, currently 0x%x", r.resp);
+            end
 
-        if (^w.user === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: w.user undefined, currently 0x%x", w.user);
+            if (^r.user === 1'bx)
+            begin
+                $fatal(2, "** ERROR ** %m: r.user undefined, currently 0x%x", r.user);
+            end
         end
-    end
-
-    if (reset_n && bvalid)
-    begin
-        if (^b.id === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: b.id undefined, currently 0x%x", b.id);
-        end
-
-        if (^b.resp === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: b.resp undefined, currently 0x%x", b.resp);
-        end
-
-        if (^b.user === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: b.user undefined, currently 0x%x", b.user);
-        end
-    end
-
-    if (reset_n && arvalid)
-    begin
-        if (^ar.id === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: ar.id undefined, currently 0x%x", ar.id);
-        end
-
-        if (^ar.addr === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: ar.addr undefined, currently 0x%x", ar.addr);
-        end
-
-        if (^ar.size === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: ar.size undefined, currently 0x%x", ar.size);
-        end
-
-        if (^ar.prot === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: ar.prot undefined, currently 0x%x", ar.prot);
-        end
-
-        if (^ar.user === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: ar.user undefined, currently 0x%x", ar.user);
-        end
-    end
-
-    if (reset_n && rvalid)
-    begin
-        if (^r.id === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: r.id undefined, currently 0x%x", r.id);
-        end
-
-        if (^r.resp === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: r.resp undefined, currently 0x%x", r.resp);
-        end
-
-        if (^r.user === 1'bx)
-        begin
-            $fatal(2, "** ERROR ** %m: r.user undefined, currently 0x%x", r.user);
-        end
-    end
+    end // if (reset_n && (DISABLE_CHECKER == 0))
 end
 
 // synthesis translate_on
