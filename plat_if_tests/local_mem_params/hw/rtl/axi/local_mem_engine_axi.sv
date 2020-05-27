@@ -56,6 +56,12 @@
 //
 //   4: Byte enable masks (127:64)
 //
+//   5: Ready mask (for limiting receive rate on B and R channels.
+//      Low bit of each range is the current cycle's ready value.
+//      The mask rotates every cycle.
+//       [63:32] - B mask
+//       [31: 0] - R mask
+//
 // Read status registers:
 //
 //   0: Engine configuration
@@ -152,6 +158,8 @@ module local_mem_engine_axi
     logic [127:0] wr_start_byteenable;
     logic wr_zeros;
 
+    logic [63:0] ready_mask;
+
     always_ff @(posedge clk)
     begin
         if (csrs.wr_req)
@@ -175,6 +183,7 @@ module local_mem_engine_axi
                 4'h2: wr_seed <= csrs.wr_data;
                 4'h3: wr_start_byteenable[63:0] <= csrs.wr_data;
                 4'h4: wr_start_byteenable[127:64] <= csrs.wr_data;
+                4'h5: ready_mask <= csrs.wr_data;
             endcase // case (csrs.wr_idx)
         end
 
@@ -183,6 +192,7 @@ module local_mem_engine_axi
             rd_enabled <= 1'b0;
             wr_enabled <= 1'b0;
             wr_start_byteenable <= ~128'b0;
+            ready_mask <= ~64'b0;
         end
     end
 
@@ -226,9 +236,6 @@ module local_mem_engine_axi
     //
     // ====================================================================
 
-    assign local_mem_if.bready = 1'b1;
-    assign local_mem_if.rready = 1'b1;
-
     logic state_reset;
     logic state_run;
     t_addr rd_cur_addr, wr_cur_addr;
@@ -236,6 +243,7 @@ module local_mem_engine_axi
     logic rd_unlimited, wr_unlimited;
     logic rd_done, wr_done;
     t_rid rd_id;
+    logic [31:0] r_ready_mask;
 
     always_ff @(posedge clk)
     begin
@@ -279,6 +287,19 @@ module local_mem_engine_axi
         end
     end
 
+    // Rotate mask governing ready signal on R channel
+    assign local_mem_if.rready = r_ready_mask[0];
+
+    always_ff @(posedge clk)
+    begin
+        r_ready_mask <= { r_ready_mask[30:0], r_ready_mask[31] };
+
+        if (!reset_n || state_reset)
+        begin
+            r_ready_mask <= ready_mask[31:0];
+        end
+    end
+
     // Generate a check hash of read responses
     test_data_chk
       #(
@@ -288,7 +309,7 @@ module local_mem_engine_axi
        (
         .clk,
         .reset_n(!state_reset),
-        .new_data_en(local_mem_if.rvalid),
+        .new_data_en(local_mem_if.rvalid && local_mem_if.rready),
         .new_data(local_mem_if.r.data),
         .hash(rd_data_hash)
         );
@@ -316,6 +337,7 @@ module local_mem_engine_axi
     t_data wr_data;
     logic [127:0] wr_byteenable;
     t_wid wr_id;
+    logic [31:0] b_ready_mask;
 
     logic do_write_line;
     assign do_write_line = ((state_run && !wr_done) || !wr_sop) &&
@@ -361,6 +383,19 @@ module local_mem_engine_axi
         begin
             wr_done <= ! wr_enabled;
             wr_sop <= 1'b1;
+        end
+    end
+
+    // Rotate mask governing ready signal on B channel
+    assign local_mem_if.bready = b_ready_mask[0];
+
+    always_ff @(posedge clk)
+    begin
+        b_ready_mask <= { b_ready_mask[30:0], b_ready_mask[31] };
+
+        if (!reset_n || state_reset)
+        begin
+            b_ready_mask <= ready_mask[63:32];
         end
     end
 
@@ -441,7 +476,7 @@ module local_mem_engine_axi
 
         incr_wr_req <= local_mem_if.awvalid && local_mem_if.awready;
         incr_wr_req_lines <= local_mem_if.wvalid && local_mem_if.wready;
-        incr_wr_resp <= local_mem_if.bvalid;
+        incr_wr_resp <= local_mem_if.bvalid && local_mem_if.bready;
     end
 
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req

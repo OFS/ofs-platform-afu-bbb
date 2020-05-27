@@ -160,7 +160,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     always_ff @(negedge clk)
     begin
         if (reset_n && rd_error)
-            $fatal(2, "** ERROR ** %m: Lost read response -- master have its own read response buffering!");
+            $fatal(2, "** ERROR ** %m: Lost read response -- master must have its own read response buffering!");
 
         if (reset_n)
         begin
@@ -298,7 +298,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     always_ff @(negedge clk)
     begin
         if (reset_n && wr_error)
-            $fatal(2, "** ERROR ** %m: Lost write response -- master have its own write response buffering!");
+            $fatal(2, "** ERROR ** %m: Lost write response -- master must have its own write response buffering!");
 
         if (reset_n)
         begin

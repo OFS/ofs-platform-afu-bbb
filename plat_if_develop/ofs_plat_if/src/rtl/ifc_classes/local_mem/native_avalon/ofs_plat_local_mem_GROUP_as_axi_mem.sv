@@ -94,22 +94,20 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         // Were timing registers requested?
         int n_stages = ADD_TIMING_REG_STAGES;
 
-        // Override the register request if a clock crossing is being
-        // inserted here.
-        if (ADD_CLOCK_CROSSING)
+        // Use at least two stages
+        if (n_stages < 2)
+            n_stages = 2;
+
+        // Use at least the recommended number of stages
+        if (`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_SUGGESTED_TIMING_REG_STAGES > n_stages)
         begin
-            // Use at least the recommended number of stages
-            if (`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_SUGGESTED_TIMING_REG_STAGES > n_stages)
-            begin
-                n_stages = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_SUGGESTED_TIMING_REG_STAGES;
-            end
+            n_stages = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_SUGGESTED_TIMING_REG_STAGES;
         end
 
         return n_stages;
     endfunction
 
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
-
 
     //
     // Connect to the to_afu instance, including passing the clock.
@@ -120,9 +118,16 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       axi_afu_if();
 
-    assign axi_afu_if.clk = afu_mem_if.clk;
-    assign axi_afu_if.reset_n = afu_mem_if.reset_n;
-    assign axi_afu_if.instance_number = afu_mem_if.instance_number;
+    assign axi_afu_if.clk = (ADD_CLOCK_CROSSING == 0) ? to_fiu.clk : afu_clk;
+    assign axi_afu_if.instance_number = to_fiu.instance_number;
+
+    logic reset_n = 1'b0;
+    always @(posedge axi_afu_if.clk)
+    begin
+        reset_n <= (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n;
+    end
+
+    assign axi_afu_if.reset_n = reset_n;
 
     ofs_plat_axi_mem_if_connect_slave_clk conn_to_afu
        (
@@ -147,14 +152,70 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       axi_fiu_burst_if();
 
-    assign axi_fiu_burst_if.clk = afu_mem_if.clk;
-    assign axi_fiu_burst_if.reset_n = afu_mem_if.reset_n;
-    assign axi_fiu_burst_if.instance_number = afu_mem_if.instance_number;
+    assign axi_fiu_burst_if.clk = axi_afu_if.clk;
+    assign axi_fiu_burst_if.reset_n = axi_afu_if.reset_n;
+    assign axi_fiu_burst_if.instance_number = to_fiu.instance_number;
 
     ofs_plat_axi_mem_if_map_bursts map_bursts
        (
         .mem_master(axi_afu_if),
         .mem_slave(axi_fiu_burst_if)
+        );
+
+
+    //
+    // Protect the read and write response buffers from overflow by tracking
+    // buffer credits. The memory driver in the FIM has no flow control.
+    //
+    ofs_plat_axi_mem_if
+      #(
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(axi_fiu_burst_if)
+        )
+      axi_fiu_credit_if();
+
+    assign axi_fiu_credit_if.clk = axi_afu_if.clk;
+    assign axi_fiu_credit_if.reset_n = axi_afu_if.reset_n;
+    assign axi_fiu_credit_if.instance_number = to_fiu.instance_number;
+
+    ofs_plat_axi_mem_if_rsp_credits
+      #(
+        .NUM_READ_CREDITS(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_RD),
+        .NUM_WRITE_CREDITS(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_WR)
+        )
+      rsp_credits
+       (
+        .mem_master(axi_fiu_burst_if),
+        .mem_slave(axi_fiu_credit_if)
+        );
+
+
+    //
+    // Clock crossing to slave clock. We insert this unconditionally because
+    // response buffers are needed anyway and the clock-crossing FIFOs are
+    // efficient. The FIFOs are also used for adding Hyperflex pipeline stages
+    // in each direction.
+    //
+    ofs_plat_axi_mem_if
+      #(
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(axi_fiu_burst_if)
+        )
+      axi_fiu_clk_if();
+
+    assign axi_fiu_clk_if.clk = to_fiu.clk;
+    assign axi_fiu_clk_if.reset_n = to_fiu.reset_n;
+    assign axi_fiu_clk_if.instance_number = to_fiu.instance_number;
+
+    ofs_plat_axi_mem_if_async_shim
+      #(
+        .ADD_TIMING_REG_STAGES(NUM_TIMING_REG_STAGES),
+        .SLAVE_RESPONSES_ALWAYS_READY(1),
+        .NUM_READ_CREDITS(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_RD),
+        .NUM_WRITE_CREDITS(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_WR)
+        )
+      async_shim
+       (
+        .mem_master(axi_fiu_credit_if),
+        .mem_slave(axi_fiu_clk_if)
         );
 
 
@@ -175,31 +236,32 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
         .USER_WIDTH(AVMM_USER_WIDTH)
         )
-      afu_avmm_rdwr_if();
+      avmm_rdwr_if();
 
-    assign afu_avmm_rdwr_if.clk = afu_mem_if.clk;
-    assign afu_avmm_rdwr_if.reset_n = afu_mem_if.reset_n;
-    assign afu_avmm_rdwr_if.instance_number = afu_mem_if.instance_number;
+    assign avmm_rdwr_if.clk = to_fiu.clk;
+    assign avmm_rdwr_if.reset_n = to_fiu.reset_n;
+    assign avmm_rdwr_if.instance_number = to_fiu.instance_number;
 
     // synthesis translate_off
     initial
     begin
-        if (afu_avmm_rdwr_if.DATA_WIDTH_ > to_fiu.DATA_WIDTH_)
+        if (avmm_rdwr_if.DATA_WIDTH_ > to_fiu.DATA_WIDTH_)
         begin
             $fatal(2, "** ERROR ** %m: AFU memory DATA_WIDTH (%0d) is wider than FIU (%0d)!",
-                   afu_avmm_rdwr_if.DATA_WIDTH_, to_fiu.DATA_WIDTH_);
+                   avmm_rdwr_if.DATA_WIDTH_, to_fiu.DATA_WIDTH_);
         end
     end
     // synthesis translate_on
 
     ofs_plat_axi_mem_if_to_avalon_rdwr_if
       #(
-        .GEN_RD_RESPONSE_METADATA(1)
+        .GEN_RD_RESPONSE_METADATA(1),
+        .RD_RESPONSE_FIFO_DEPTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_RD)
         )
       axi_to_avmm_rdwr
        (
-        .axi_master(axi_fiu_burst_if),
-        .avmm_slave(afu_avmm_rdwr_if)
+        .axi_master(axi_fiu_clk_if),
+        .avmm_slave(avmm_rdwr_if)
         );
 
 
@@ -211,7 +273,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
         .USER_WIDTH(1)
         )
-        afu_mem_if();
+        avmm_if();
 
     ofs_plat_avalon_mem_rdwr_if_to_mem_if
       #(
@@ -219,137 +281,22 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       avmm_rdwr_to_avmm
        (
-        .mem_master(afu_avmm_rdwr_if),
-        .mem_slave(afu_mem_if)
+        .mem_master(avmm_rdwr_if),
+        .mem_slave(avmm_if)
         );
 
 
     //
-    // Clock crossing between AFU and FIU?
+    // Connect to the FIU
     //
-    generate
-        if (ADD_CLOCK_CROSSING == 0)
-        begin : nc
-            //
-            // No clock crossing, maybe register stages.
-            //
-            ofs_plat_avalon_mem_if_reg_slave_clk
-              #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
-                )
-              mem_pipe
-               (
-                .mem_master(afu_mem_if),
-                .mem_slave(to_fiu)
-                );
-        end
-        else
-        begin : cc
-            // We assume that a single waitrequest signal can propagate faster
-            // than the entire bus, so limit the number of stages.
-            localparam NUM_WAITREQUEST_STAGES =
-                // If pipeline is 4 stages or fewer then use the pipeline depth.
-                (NUM_TIMING_REG_STAGES <= 4 ? NUM_TIMING_REG_STAGES :
-                    // Up to depth 16 pipelines, use 4 waitrequest stages.
-                    // Beyond 16 stages, set the waitrequest depth to 1/4 the
-                    // base pipeline depth.
-                    (NUM_TIMING_REG_STAGES <= 16 ? 4 : (NUM_TIMING_REG_STAGES >> 2)));
-
-            // A few extra stages to avoid off-by-one errors. There is plenty of
-            // space in the FIFO, so this has no performance consequences.
-            localparam NUM_EXTRA_STAGES = (NUM_TIMING_REG_STAGES != 0) ? 4 : 0;
-
-            // Set the almost full threshold to satisfy the buffering pipeline depth
-            // plus the depth of the waitrequest pipeline plus a little extra to
-            // avoid having to worry about off-by-one errors.
-            localparam NUM_ALMFULL_SLOTS = NUM_TIMING_REG_STAGES +
-                                           NUM_WAITREQUEST_STAGES +
-                                           NUM_EXTRA_STAGES;
-
-
-            //
-            // Cross to the specified clock.
-            //
-            ofs_plat_avalon_mem_if
-              #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-                .WAIT_REQUEST_ALLOWANCE(NUM_WAITREQUEST_STAGES)
-                )
-                mem_cross_if();
-
-            assign mem_cross_if.clk = afu_clk;
-            assign mem_cross_if.instance_number = to_fiu.instance_number;
-
-            assign afu_mem_if.clk = mem_cross_if.clk;
-            assign afu_mem_if.reset_n = mem_cross_if.reset_n;
-            assign afu_mem_if.instance_number = mem_cross_if.instance_number;
-
-            // Add requested register stages on the AFU side of the clock crossing.
-            // In this case the register stages are a simple pipeline because
-            // the clock crossing FIFO reserves space for these stages to drain
-            // after waitrequest is asserted.
-            ofs_plat_avalon_mem_if_reg_simple
-              #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES),
-                .N_WAITREQUEST_STAGES(NUM_WAITREQUEST_STAGES)
-                )
-              mem_pipe
-               (
-                .mem_master(afu_mem_if),
-                .mem_slave(mem_cross_if)
-                );
-
-            // Generate a local reset for timing. This isn't actually a clock
-            // crossing reset. We use it because it relaxes the timing on the
-            // entire local memory domain here. Waitrequest will be asserted
-            // during this reset, so the delay is safe.
-            ofs_plat_prim_clock_crossing_reset uClk_usr_reset
-               (
-                .clk_src(afu_clk),
-                .clk_dst(afu_clk),
-                .reset_in(afu_reset_n),
-                .reset_out(mem_cross_if.reset_n)
-                );
-
-            // synthesis translate_off
-            always_ff @(negedge afu_clk)
-            begin
-                if (afu_reset_n === 1'bx)
-                begin
-                    $fatal(2, "** ERROR ** %m: afu_reset_n port is uninitialized!");
-                end
-            end
-            // synthesis translate_on
-
-            ofs_plat_avalon_mem_if
-              #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
-                )
-                fiu_reg_if();
-
-            ofs_plat_avalon_mem_if_async_shim
-              #(
-                .COMMAND_ALMFULL_THRESHOLD(NUM_ALMFULL_SLOTS)
-                )
-              mem_async_shim
-               (
-                .mem_master(mem_cross_if),
-                .mem_slave(fiu_reg_if)
-                );
-
-            //
-            // Register stages for timing at the FIU edge.
-            //
-            ofs_plat_avalon_mem_if_reg_slave_clk
-              #(
-                .N_REG_STAGES(NUM_TIMING_REG_STAGES)
-                )
-              fiu_reg
-               (
-                .mem_master(fiu_reg_if),
-                .mem_slave(to_fiu)
-                );
-        end
-    endgenerate
+    ofs_plat_avalon_mem_if_reg_slave_clk
+      #(
+        .N_REG_STAGES(1)
+        )
+      mem_pipe
+       (
+        .mem_master(avmm_if),
+        .mem_slave(to_fiu)
+        );
 
 endmodule // ofs_plat_local_mem_@group@_as_avalon_mem

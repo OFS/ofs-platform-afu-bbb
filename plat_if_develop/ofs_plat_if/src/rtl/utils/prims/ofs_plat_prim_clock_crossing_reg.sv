@@ -118,13 +118,19 @@ module ofs_plat_prim_clock_crossing_reset_async
     output logic reset_out
     );
 
-    (* preserve *) logic ofs_plat_cc_reg_async = (ACTIVE_LOW ? 1'b0 : 1'b1);
+    logic INITIAL_VALUE = (ACTIVE_LOW ? 1'b0 : 1'b1);
+
+    (* preserve *) logic ofs_plat_cc_reg_async[3:0] = { INITIAL_VALUE,
+                                                        INITIAL_VALUE,
+                                                        INITIAL_VALUE,
+                                                        INITIAL_VALUE };
 
     always @(posedge clk)
     begin
-        ofs_plat_cc_reg_async <= reset_in;
+        ofs_plat_cc_reg_async[0] <= reset_in;
+        ofs_plat_cc_reg_async[3:1] <= ofs_plat_cc_reg_async[2:0];
     end
 
-    assign reset_out = ofs_plat_cc_reg_async;
+    assign reset_out = ofs_plat_cc_reg_async[3];
 
 endmodule // ofs_plat_prim_clock_crossing_reset_async
