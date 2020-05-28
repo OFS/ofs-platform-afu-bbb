@@ -80,7 +80,7 @@ module ofs_plat_axi_mem_if_async_shim
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
-        .N_ENTRIES(8),
+        .N_ENTRIES(16),
         .DATA_WIDTH(mem_slave.T_AW_WIDTH)
         )
       aw
@@ -103,7 +103,7 @@ module ofs_plat_axi_mem_if_async_shim
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
-        .N_ENTRIES(8),
+        .N_ENTRIES(16),
         .DATA_WIDTH(mem_slave.T_W_WIDTH)
         )
       w
@@ -156,7 +156,7 @@ module ofs_plat_axi_mem_if_async_shim
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
-        .N_ENTRIES(8),
+        .N_ENTRIES(16),
         .DATA_WIDTH(mem_slave.T_AR_WIDTH)
         )
       ar
