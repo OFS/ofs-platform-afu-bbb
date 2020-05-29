@@ -33,7 +33,7 @@
 
 //
 // Macro for replicating properties of an ofs_plat_axi_mem_if when
-// defininig another instance of the interface.
+// defining another instance of the interface.
 //
 `define OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(AXI_IF) \
     .ADDR_WIDTH(AXI_IF.ADDR_WIDTH_), \
@@ -50,7 +50,7 @@
 
 //
 // Macro for replicating properties of an ofs_plat_axi_mem_lite_if when
-// defininig another instance of the interface.
+// defining another instance of the interface.
 //
 `define OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(AXI_IF) \
     .ADDR_WIDTH(AXI_IF.ADDR_WIDTH_), \

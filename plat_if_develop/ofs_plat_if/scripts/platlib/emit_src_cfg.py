@@ -118,6 +118,22 @@ class emit_src_cfg(object):
                 if not fn.lower().endswith("_pkg.sv") and
                 not fn.lower().endswith(".vh")]
 
+    def is_sim_only(self, fn):
+        """Detect simulation-only sources by matching a directory named
+        "sim" or files beginning with "sim_" or "ase_"."""
+
+        # Match any case
+        fn = fn.lower()
+        # Files beginning with "ase_" or "sim_" are simulation only
+        base_name = os.path.basename(fn)
+        if base_name.startswith("ase_") or base_name.startswith("sim_"):
+            return True
+        if base_name == "sim":
+            return True
+        if os.path.basename(os.path.dirname(fn)) == "sim":
+            return True
+        return False
+
     def emit_sim_includes(self, dir, fname):
         """Generate the simulator include file (probably
         platform_if_includes.txt)."""
@@ -230,6 +246,10 @@ set IS_OFS_AFU [info exists platform_cfg::PLATFORM_PROVIDES_OFS_PLAT_IF]
 
                 # Include paths
                 for d in self.include_dirs():
+                    # Skip ASE-specific sources
+                    if self.is_sim_only(d):
+                        continue
+
                     rp = os.path.relpath(d, dir)
                     outf.write('set_global_assignment -name ' +
                                'SEARCH_PATH' +
@@ -246,11 +266,11 @@ set IS_OFS_AFU [info exists platform_cfg::PLATFORM_PROVIDES_OFS_PLAT_IF]
 
                 # Now normal sources
                 for f in self.src_rtl():
-                    rp = os.path.relpath(f, dir)
-                    if os.path.basename(rp).lower().startswith('ase_'):
-                        # Skip ASE-specific sources
+                    # Skip ASE-specific sources
+                    if self.is_sim_only(f):
                         continue
 
+                    rp = os.path.relpath(f, dir)
                     # Map suffix to a Quartus type
                     t = self.src_map[os.path.splitext(rp.lower())[1]]
                     outf.write(('set_global_assignment -name {0: <18} ' +

@@ -102,7 +102,7 @@ module afu
 
     t_mmio_value wr_data_512;
     logic [63:0] wr_mask_512;
-    logic [$bits(mmio512_if.address)-1 : 0] wr_addr_512;
+    logic [mmio512_if.ADDR_WIDTH_-1 : 0] wr_addr_512;
     // Byte offset within the 512 bit entry
     logic [5:0] wr_byte_idx_512;
 

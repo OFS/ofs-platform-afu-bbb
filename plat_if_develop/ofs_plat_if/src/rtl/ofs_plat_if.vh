@@ -42,6 +42,7 @@
 `include "ofs_plat_avalon_mem_if.vh"
 `include "ofs_plat_avalon_mem_rdwr_if.vh"
 `include "ofs_plat_axi_mem_if.vh"
+`include "ofs_plat_axi_stream_if.vh"
 
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
   `include "ofs_plat_host_chan_wrapper.vh"
