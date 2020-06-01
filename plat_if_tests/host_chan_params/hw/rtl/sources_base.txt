@@ -1,4 +1,9 @@
 # Common sources used by all tests
+host_chan_params.json
+
 C:../../../common/hw/rtl/sources.txt
+
+# Engines are in the common space because they are used by tests
+# other than host_chan_params.
 host_mem_rdwr_engine_avalon.sv
 host_mem_rdwr_engine_ccip.sv

@@ -3,4 +3,4 @@
 # Multiple register stages
 +define+TEST_PARAM_AFU_REG_STAGES=3
 
-C:sources_ccip.txt
+C:avalon_ccip/sources_ccip.txt

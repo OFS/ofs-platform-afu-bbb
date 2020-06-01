@@ -3,4 +3,4 @@
 # Add register stages to the host channel path for timing
 +define+TEST_PARAM_AFU_REG_STAGES=1
 
-C:sources_avalon.txt
+C:avalon_ccip/sources_avalon.txt

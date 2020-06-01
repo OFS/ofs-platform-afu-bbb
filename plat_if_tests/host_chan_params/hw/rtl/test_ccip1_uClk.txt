@@ -2,4 +2,4 @@
 +define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.uClk_usr
 +define+TEST_PARAM_AFU_REG_STAGES=0
 
-C:sources_ccip.txt
+C:avalon_ccip/sources_ccip.txt
