@@ -1,0 +1,4 @@
+# Multiple register stages
++define+TEST_PARAM_AFU_REG_STAGES=2
+
+C:axi/sources_axi.txt

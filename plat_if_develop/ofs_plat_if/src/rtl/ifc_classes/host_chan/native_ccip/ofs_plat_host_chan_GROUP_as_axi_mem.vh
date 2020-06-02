@@ -40,7 +40,7 @@
 // whatever works in the AFU. The PIM will transform bursts into legal
 // CCI-P requests.
 `define HOST_CHAN_@GROUP@_AXI_MEM_PARAMS \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
+    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH + $clog2(ccip_if_pkg::CCIP_CLDATA_BYTE_WIDTH)), \
     .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
 
 // CCI-P to AXI MMIO ofs_plat_axi_mem_lite_if parameters. In order to

@@ -1,0 +1,6 @@
+# Use uClk instead of the default clock
++define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.uClk_usr
+# Multiple register stages
++define+TEST_PARAM_AFU_REG_STAGES=5
+
+C:axi/sources_axi.txt

@@ -60,10 +60,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
             // Pipeline stages.
             ofs_plat_avalon_mem_rdwr_if
               #(
-                .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
-                .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
-                .USER_WIDTH(USER_WIDTH)
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(mem_slave)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
@@ -196,9 +193,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
 
     ofs_plat_avalon_mem_rdwr_if
       #(
-        .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(mem_slave)
         )
       mem_reg();
 
@@ -240,9 +235,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_master_clk
 
     ofs_plat_avalon_mem_rdwr_if
       #(
-        .ADDR_WIDTH(mem_slave.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_slave.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(mem_slave)
         )
       mem_reg();
 

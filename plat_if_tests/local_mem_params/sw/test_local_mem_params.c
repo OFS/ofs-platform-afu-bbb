@@ -74,8 +74,8 @@ static double s_afu_mhz;
 static char *engine_type[] = 
 {
     "CCI-P",
-    "Avalon",
-    "AXI",
+    "Avalon-MM",
+    "AXI-MM",
     NULL
 };
 

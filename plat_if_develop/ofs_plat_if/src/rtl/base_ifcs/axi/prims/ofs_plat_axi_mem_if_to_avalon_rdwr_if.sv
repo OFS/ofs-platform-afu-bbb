@@ -184,6 +184,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     // be merged to form an Avalon request.
     localparam T_AW_WIDTH = axi_master.T_AW_WIDTH;
     localparam T_W_WIDTH = axi_master.T_W_WIDTH;
+    localparam AVMM_USER_WIDTH = avmm_slave.USER_WIDTH;
 
     // AXI interface used internally as a convenient way to recreate
     // the data structures.
@@ -257,6 +258,8 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
         end
     end
 
+    logic [AVMM_USER_WIDTH-1 : 0] wr_user_reg;
+
     always_comb
     begin
         avmm_slave.wr_write = (axi_reg.awvalid || !wr_is_sop) && axi_reg.wvalid;
@@ -273,12 +276,20 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
         begin
             avmm_slave.wr_address = 'x;
             avmm_slave.wr_burstcount = 'x;
-            avmm_slave.wr_user = 'x;
+            avmm_slave.wr_user = wr_user_reg;
         end
 
         axi_master.bvalid = avmm_slave.wr_writeresponsevalid && !wr_error;
         axi_master.b.resp = avmm_slave.wr_response;
         { axi_master.b.user, axi_master.b.id } = avmm_slave.wr_writeresponseuser;
+    end
+
+    always_ff @(posedge clk)
+    begin
+        if (wr_is_sop)
+        begin
+            wr_user_reg <= { axi_reg.aw.user, axi_reg.aw.id };
+        end
     end
 
     always_ff @(posedge clk)

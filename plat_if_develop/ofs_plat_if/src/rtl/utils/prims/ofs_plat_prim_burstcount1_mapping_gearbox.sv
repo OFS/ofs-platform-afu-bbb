@@ -248,7 +248,8 @@ module ofs_plat_prim_burstcount1_natural_mapping_gearbox
                                                 t_addr addr);
         logic not_last =
               // Burst is larger than slave's maximum
-              (burst_req > t_master_burst_cnt'(SLAVE_MAX_BURST)) ||
+              ((MASTER_BURST_WIDTH > SLAVE_BURST_WIDTH) &&
+               (burst_req > t_master_burst_cnt'(SLAVE_MAX_BURST))) ||
               // More than one bit is set in burst_req -- can only send one at a time
               |(burst_req & (burst_req - 1)) ||
               // Address isn't aligned to burst size

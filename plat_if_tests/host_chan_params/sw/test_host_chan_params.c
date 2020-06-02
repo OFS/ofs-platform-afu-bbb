@@ -114,6 +114,7 @@ typedef struct
     struct bitmask* numa_mem_mask;
     uint32_t max_burst_size;
     uint32_t group;
+    uint32_t eng_type;
     t_fpga_addr_mode addr_mode;
     bool natural_bursts;
     bool ordered_read_responses;
@@ -129,7 +130,8 @@ static double s_afu_mhz;
 static char *engine_type[] = 
 {
     "CCI-P",
-    "Avalon",
+    "Avalon-MM",
+    "AXI-MM",
     NULL
 };
 
@@ -265,8 +267,9 @@ initEngine(
     s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
     s_eng_bufs[e].addr_mode = (r >> 40) & 3;
     s_eng_bufs[e].group = (r >> 47) & 7;
+    s_eng_bufs[e].eng_type = (r >> 35) & 7;
     uint32_t eng_num = (r >> 42) & 31;
-    printf("  Engine %d type: %s\n", e, engine_type[(r >> 35) & 1]);
+    printf("  Engine %d type: %s\n", e, engine_type[s_eng_bufs[e].eng_type]);
     printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
     printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
     printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);

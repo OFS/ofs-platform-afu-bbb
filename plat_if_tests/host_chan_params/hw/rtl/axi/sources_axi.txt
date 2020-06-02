@@ -1,0 +1,5 @@
++define+TEST_PARAM_IFC_AXI
+
+C:../sources_base.txt
+ofs_plat_afu_axi.sv
+afu_axi.sv

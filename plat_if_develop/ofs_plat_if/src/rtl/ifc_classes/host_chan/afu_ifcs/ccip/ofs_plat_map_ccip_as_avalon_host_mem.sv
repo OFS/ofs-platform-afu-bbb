@@ -134,7 +134,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         .BURST_CNT_WIDTH(3),
         // ofs_plat_avalon_mem_rdwr_if_map_bursts records whether write
         // responses are expected on wr_user[0].
-        .USER_WIDTH(1)
+        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_ + 1)
         )
       avmm_fiu_burst_if();
 
@@ -163,13 +163,15 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // of read and write requests in rd_user and wr_user fields.
     // Size the user fields using whichever index space is larger.
     localparam USER_WIDTH =
+        host_mem_to_afu.USER_WIDTH_ + 1 +
         $clog2((MAX_ACTIVE_RD_LINES > MAX_ACTIVE_WR_LINES) ? MAX_ACTIVE_RD_LINES :
                                                              MAX_ACTIVE_WR_LINES);
 
     ofs_plat_avalon_mem_rdwr_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(avmm_fiu_burst_if),
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(avmm_fiu_burst_if),
+        .BURST_CNT_WIDTH(avmm_fiu_burst_if.BURST_CNT_WIDTH_),
         .USER_WIDTH(USER_WIDTH)
         )
       avmm_fiu_clk_if();

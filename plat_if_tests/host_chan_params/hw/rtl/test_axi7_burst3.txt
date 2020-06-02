@@ -1,0 +1,4 @@
+# AXI host memory burst count matching CCI-P exactly
++define+TEST_PARAM_BURST_CNT_WIDTH=3
+
+C:axi/sources_axi.txt

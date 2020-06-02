@@ -342,7 +342,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     // ofs_plat_map_ccip_as_avalon_host_mem below, where sorting and
     // clock crossing can share a buffer.
     //
-    ofs_plat_host_ccip_if sorted_ccip_if();
+    ofs_plat_host_ccip_if packed_ccip_if();
 
     ofs_plat_host_chan_@group@_as_ccip
       #(
@@ -351,7 +351,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
       ccip_sort
        (
         .to_fiu,
-        .to_afu(sorted_ccip_if),
+        .to_afu(packed_ccip_if),
         .afu_clk(),
         .afu_reset_n()
         );
@@ -362,7 +362,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     ofs_plat_host_ccip_if host_mem_ccip_if();
     ofs_plat_shim_ccip_split_mmio split_mmio
        (
-        .to_fiu(sorted_ccip_if),
+        .to_fiu(packed_ccip_if),
         .host_mem(host_mem_ccip_if),
         .mmio(ccip_mmio)
         );

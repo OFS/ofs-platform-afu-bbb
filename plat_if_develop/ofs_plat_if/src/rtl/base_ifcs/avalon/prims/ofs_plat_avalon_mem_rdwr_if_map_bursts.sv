@@ -76,6 +76,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     localparam SLAVE_BURST_WIDTH = mem_slave.BURST_CNT_WIDTH_;
     typedef logic [MASTER_BURST_WIDTH-1 : 0] t_master_burst_cnt;
 
+    localparam USER_WIDTH = mem_master.USER_WIDTH_;
+
     generate
         if ((! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
             (MASTER_BURST_WIDTH == 1))
@@ -136,6 +138,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.rd_read <= mem_master.rd_read;
                     mem_slave.rd_byteenable <= mem_master.rd_byteenable;
                     mem_slave.rd_function <= mem_master.rd_function;
+                    mem_slave.rd_user <= { mem_master.rd_user, 1'b0 };
                 end
 
                 if (!reset_n)
@@ -148,6 +151,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             assign mem_master.rd_readdata = mem_slave.rd_readdata;
             assign mem_master.rd_readdatavalid = mem_slave.rd_readdatavalid;
             assign mem_master.rd_response = mem_slave.rd_response;
+            assign mem_master.rd_readresponseuser = mem_slave.rd_readresponseuser[1 +: USER_WIDTH];
 
 
             //
@@ -201,6 +205,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.wr_writedata <= mem_master.wr_writedata;
                     mem_slave.wr_byteenable <= mem_master.wr_byteenable;
                     mem_slave.wr_function <= mem_master.wr_function;
+                    mem_slave.wr_user[1 +: USER_WIDTH] <= mem_master.wr_user;
                 end
 
                 if (!reset_n)
@@ -246,6 +251,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             assign mem_master.wr_writeresponsevalid =
                 mem_slave.wr_writeresponsevalid && mem_slave.wr_writeresponseuser[0];
             assign mem_master.wr_response = mem_slave.wr_response;
+            assign mem_master.wr_writeresponseuser = mem_slave.wr_writeresponseuser[1 +: USER_WIDTH];
 
 
             // synthesis translate_off
