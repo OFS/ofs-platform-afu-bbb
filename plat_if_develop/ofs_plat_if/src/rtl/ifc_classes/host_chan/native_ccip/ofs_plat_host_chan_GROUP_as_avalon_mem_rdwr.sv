@@ -375,6 +375,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(ccip_@group@_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0]),
         .MAX_ACTIVE_WR_LINES(ccip_@group@_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0]),
+        .BYTE_EN_SUPPORTED(ccip_@group@_cfg_pkg::BYTE_EN_SUPPORTED),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
         )
       av_host_mem

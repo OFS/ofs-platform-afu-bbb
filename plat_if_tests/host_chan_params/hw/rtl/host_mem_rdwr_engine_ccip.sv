@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Avalon host memory test engine.
+// CCI-P host memory test engine.
 //
 
 //
@@ -53,11 +53,16 @@
 //   4: Address mask, applied to incremented address counters to limit address
 //      ranges.
 //
+//   5: Byte-level write data mask. (Using a data mask makes the interface
+//      consistent on CCI-P, Avalon and AXI.) The selected bytes must be
+//      contiguous, with zeros only at the beginning and end.
+//
 //
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:50] - Reserved
+//       [63:51] - Reserved
+//       [50]    - Masked write supported?
 //       [49:47] - Engine group
 //       [46:42] - Engine number
 //       [41:40] - Address space (0 for IOADDR, 1 for host physical, 2 reserved, 3 virtual)
@@ -141,6 +146,7 @@ module host_mem_rdwr_engine_ccip
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     t_addr_low base_addr_low_mask;
+    logic [63:0] wr_data_mask;
 
     always_ff @(posedge clk)
     begin
@@ -162,7 +168,13 @@ module host_mem_rdwr_engine_ccip
                         wr_req_burst_len <= t_burst_cnt'(csrs.wr_data[15:0]);
                     end
                 4'h4: base_addr_low_mask <= t_addr_low'(csrs.wr_data);
+                4'h5: wr_data_mask <= csrs.wr_data;
             endcase // case (csrs.wr_idx)
+        end
+
+        if (!reset_n)
+        begin
+            wr_data_mask <= ~64'b0;
         end
     end
 
@@ -185,7 +197,8 @@ module host_mem_rdwr_engine_ccip
 
     always_comb
     begin
-        csrs.rd_data[0] = { 14'h0,
+        csrs.rd_data[0] = { 13'h0,
+                            1'(ccip_cfg_pkg::BYTE_EN_SUPPORTED),
                             3'(ENGINE_GROUP),
                             5'(ENGINE_NUMBER),
                             address_space_info(ADDRESS_SPACE),
@@ -334,6 +347,10 @@ module host_mem_rdwr_engine_ccip
     logic wr_fence_done;
     logic [7:0] wr_mdata;
 
+    // Masked write config
+    t_ccip_mem_access_mode wr_mode;
+    t_ccip_clByteIdx wr_byte_start, wr_byte_end, wr_byte_len;
+
     logic wr_valid;
     assign wr_valid = ((state_run && (! wr_done || ! wr_fence_done)) || ! wr_sop) &&
                       ! host_mem_if.sRx.c1TxAlmFull;
@@ -356,6 +373,12 @@ module host_mem_rdwr_engine_ccip
             host_mem_if.sTx.c1.hdr.address <= t_addr'(0);
             host_mem_if.sTx.c1.hdr.cl_len <= eCL_LEN_1;
             host_mem_if.sTx.c1.hdr.sop <= 1'b0;
+        end
+        else
+        begin
+            host_mem_if.sTx.c1.hdr.mode <= wr_mode;
+            host_mem_if.sTx.c1.hdr.byte_start <= wr_byte_start;
+            host_mem_if.sTx.c1.hdr.byte_len <= wr_byte_len;
         end
 
         host_mem_if.sTx.c1.data <= t_data'(0);
@@ -406,6 +429,35 @@ module host_mem_rdwr_engine_ccip
         end
     end
 
+    // Convert mask for writes into byte_start/byte_len
+    always_ff @(posedge clk)
+    begin
+        // Masked write will have a zero in either the low or high bit
+        wr_mode <= (wr_data_mask[63] & wr_data_mask[0]) ? eMOD_CL : eMOD_BYTE;
+
+        // First byte to write
+        for (int i = 0; i <= 63; i = i + 1)
+        begin
+            if (wr_data_mask[i])
+            begin
+                wr_byte_start <= t_ccip_clByteIdx'(i);
+                break;
+            end
+        end
+
+        // Last byte to write
+        for (int i = 0; i <= 63; i = i + 1)
+        begin
+            if (wr_data_mask[i])
+            begin
+                wr_byte_end <= t_ccip_clByteIdx'(i);
+            end
+        end
+
+        // Length. This takes an extra cycle to converge. There will be at
+        // least a cycle between mask update and the write command.
+        wr_byte_len <= wr_byte_end - wr_byte_start + 1;
+    end
 
     // ====================================================================
     //

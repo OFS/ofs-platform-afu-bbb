@@ -53,7 +53,11 @@
 //   4: Address mask, applied to incremented address counters to limit address
 //      ranges.
 //
-//   5: Ready mask (for limiting receive rate on B and R channels.
+//   5: Byte-level write data mask. (Using a data mask makes the interface
+//      consistent on CCI-P, Avalon and AXI.) The selected bytes must be
+//      contiguous, with zeros only at the beginning and end.
+//
+//   6: Ready mask (for limiting receive rate on B and R channels.
 //      Low bit of each range is the current cycle's ready value.
 //      The mask rotates every cycle.
 //       [63:32] - B mask
@@ -63,7 +67,8 @@
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:50] - Reserved
+//       [63:51] - Reserved
+//       [50]    - Masked write supported?
 //       [49:47] - Engine group
 //       [46:42] - Engine number
 //       [41:40] - Address space (0 for IOADDR, 1 for host physical, 2 reserved, 3 virtual)
@@ -154,6 +159,7 @@ module host_mem_rdwr_engine_axi
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     t_addr_low base_addr_low_mask;
+    logic [63:0] wr_data_mask;
     logic [63:0] ready_mask;
 
     always_ff @(posedge clk)
@@ -176,12 +182,14 @@ module host_mem_rdwr_engine_axi
                         wr_req_burst_len <= csrs.wr_data[15:0];
                     end
                 4'h4: base_addr_low_mask <= t_addr_low'(csrs.wr_data);
-                4'h5: ready_mask <= csrs.wr_data;
+                4'h5: wr_data_mask <= csrs.wr_data;
+                4'h6: ready_mask <= csrs.wr_data;
             endcase // case (csrs.wr_idx)
         end
 
         if (!reset_n)
         begin
+            wr_data_mask <= ~64'b0;
             ready_mask <= ~64'b0;
         end
     end
@@ -205,7 +213,8 @@ module host_mem_rdwr_engine_axi
 
     always_comb
     begin
-        csrs.rd_data[0] = { 14'h0,
+        csrs.rd_data[0] = { 13'h0,
+                            1'(ccip_cfg_pkg::BYTE_EN_SUPPORTED),
                             3'(ENGINE_GROUP),
                             5'(ENGINE_NUMBER),
                             address_space_info(ADDRESS_SPACE),
@@ -386,7 +395,7 @@ module host_mem_rdwr_engine_axi
         host_mem_if.w.data = t_data'(0);
         host_mem_if.w.data[$bits(t_data)-1 -: 64] = 64'hdeadbeef;
         host_mem_if.w.data[63 : 0] = 64'(wr_base_addr | (wr_cur_addr_low & base_addr_low_mask));
-        host_mem_if.w.strb = ~64'b0;
+        host_mem_if.w.strb = wr_data_mask;
         host_mem_if.w.last = wr_eop;
     end
 

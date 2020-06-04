@@ -43,6 +43,9 @@ module ofs_plat_map_ccip_as_axi_host_mem
     parameter MAX_ACTIVE_RD_LINES = 256,
     parameter MAX_ACTIVE_WR_LINES = 256,
 
+    // Does this platform's CCI-P implementation support byte write ranges?
+    parameter BYTE_EN_SUPPORTED = 1,
+
     parameter ADD_TIMING_REG_STAGES = 0
     )
    (
@@ -147,6 +150,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES),
+        .BYTE_EN_SUPPORTED(BYTE_EN_SUPPORTED),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
         )
       avmm_rdwr_to_ccip

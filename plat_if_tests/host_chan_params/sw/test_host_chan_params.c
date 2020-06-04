@@ -118,6 +118,7 @@ typedef struct
     t_fpga_addr_mode addr_mode;
     bool natural_bursts;
     bool ordered_read_responses;
+    bool masked_writes;
 }
 t_engine_buf;
 
@@ -265,6 +266,7 @@ initEngine(
     s_eng_bufs[e].max_burst_size = r & 0x7fff;
     s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
     s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
+    s_eng_bufs[e].masked_writes = (r >> 50) & 1;
     s_eng_bufs[e].addr_mode = (r >> 40) & 3;
     s_eng_bufs[e].group = (r >> 47) & 7;
     s_eng_bufs[e].eng_type = (r >> 35) & 7;
@@ -273,6 +275,7 @@ initEngine(
     printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
     printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
     printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
+    printf("  Engine %d masked writes allowed: %d\n", e, s_eng_bufs[e].masked_writes);
     printf("  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
     printf("  Engine %d group: %d\n", e, s_eng_bufs[e].group);
 
@@ -417,6 +420,84 @@ testExpectedWrites(
     if (buf[7] != 0) return false;
 
     return true;
+}
+
+
+static int
+testMaskedWrite(
+    uint32_t e
+)
+{
+    int num_errors = 0;
+    uint64_t emask = (uint64_t)1 << e;
+
+    // No support for masked writes?
+    if (! s_eng_bufs[e].masked_writes)
+    {
+        printf("  Engine %d does not support masked writes\n", e);
+        return 0;
+    }
+
+    // No read
+    csrEngWrite(s_csr_handle, e, 0, 0);
+    // Configure write
+    csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+
+    // Write 1 line (1 burst of 1 line)
+    csrEngWrite(s_csr_handle, e, 2, ((uint64_t)1 << 32) | 1);
+    csrEngWrite(s_csr_handle, e, 3, ((uint64_t)1 << 32) | 1);
+
+    uint64_t mask = 0x3fffffffffffffe;
+
+    // Test a simple mask -- just prove that the mask reaches the FIM
+    csrEngWrite(s_csr_handle, e, 5, mask);
+
+    // Set the line to all ones to make it easier to observe the mask
+    memset((void*)s_eng_bufs[e].wr_buf, ~0, CL(1));
+    flushRange((void*)s_eng_bufs[e].wr_buf, CL(1));
+
+    printf("  Write engine %d, mask 0x%016" PRIx64 " - ", e, mask);
+
+    // Start engine
+    csrEnableEngines(s_csr_handle, emask);
+
+    // Wait for it to start
+    struct timespec wait_time;
+    wait_time.tv_sec = (s_is_ase ? 1 : 0);
+    wait_time.tv_nsec = 1000000;
+    while ((csrGetEnginesEnabled(s_csr_handle) == 0) ||
+           csrGetEnginesActive(s_csr_handle))
+    {
+        nanosleep(&wait_time, NULL);
+    }
+
+    csrDisableEngines(s_csr_handle, emask);
+
+    uint64_t *buf = (uint64_t*)s_eng_bufs[e].wr_buf;
+
+    // Test expected values (assuming mask of 0x3fffffffffffffe
+    uint64_t buf_ioaddr = s_eng_bufs[e].wr_buf_ioaddr / CL(1);
+    if (buf[0] != (buf_ioaddr | 0xff))
+    {
+        printf("FAIL (expected low 0x%016" PRIx64 ", found 0x%016" PRIx64 "\n",
+               buf_ioaddr | 0xff, buf[0]);
+        num_errors += 1;
+    }
+    else if (buf[7] != 0xffffffffffffbeef)
+    {
+        printf("FAIL (expected high 0x%016" PRIx64 ", found 0x%016" PRIx64 "\n",
+               0xffffffffffffbeef, buf[7]);
+        num_errors += 1;
+    }
+    else
+    {
+        printf("PASS\n");
+    }
+
+    // Clear the write mask
+    csrEngWrite(s_csr_handle, e, 5, ~(uint64_t)0);
+
+    return num_errors;
 }
 
 
@@ -762,6 +843,18 @@ testHostChanParams(
     if (num_engines > 1)
     {
         if (testSmallRegions(num_engines, ((uint64_t)1 << num_engines) - 1))
+        {
+            // Quit on error
+            result = 1;
+            goto done;
+        }
+    }
+
+    // Masked writes
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        printf("\nTesting masked writes:\n");
+        if (testMaskedWrite(e))
         {
             // Quit on error
             result = 1;

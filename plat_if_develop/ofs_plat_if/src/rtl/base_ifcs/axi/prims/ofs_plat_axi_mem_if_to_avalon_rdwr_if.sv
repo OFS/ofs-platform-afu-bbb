@@ -111,7 +111,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     generate
         if (GEN_RD_RESPONSE_METADATA == 0)
         begin : nrm
-            assign rd_meeta_fifo_ready = 1'b1;
+            assign rd_meta_fifo_ready = 1'b1;
             assign { axi_master.r.user, axi_master.r.id } = avmm_slave.rd_readresponseuser;
             assign axi_master.r.last = 'x;
         end

@@ -53,11 +53,16 @@
 //   4: Address mask, applied to incremented address counters to limit address
 //      ranges.
 //
+//   5: Byte-level write data mask. (Using a data mask makes the interface
+//      consistent on CCI-P, Avalon and AXI.) The selected bytes must be
+//      contiguous, with zeros only at the beginning and end.
+//
 //
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:50] - Reserved
+//       [63:51] - Reserved
+//       [50]    - Masked write supported?
 //       [49:47] - Engine group
 //       [46:42] - Engine number
 //       [41:40] - Address space (0 for IOADDR, 1 for host physical, 2 reserved, 3 virtual)
@@ -136,6 +141,7 @@ module host_mem_rdwr_engine_avalon
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     t_addr_low base_addr_low_mask;
+    logic [63:0] wr_data_mask;
 
     always_ff @(posedge clk)
     begin
@@ -157,7 +163,13 @@ module host_mem_rdwr_engine_avalon
                         wr_req_burst_len <= csrs.wr_data[15:0];
                     end
                 4'h4: base_addr_low_mask <= t_addr_low'(csrs.wr_data);
+                4'h5: wr_data_mask <= csrs.wr_data;
             endcase // case (csrs.wr_idx)
+        end
+
+        if (!reset_n)
+        begin
+            wr_data_mask <= ~64'b0;
         end
     end
 
@@ -180,7 +192,8 @@ module host_mem_rdwr_engine_avalon
 
     always_comb
     begin
-        csrs.rd_data[0] = { 14'h0,
+        csrs.rd_data[0] = { 13'h0,
+                            1'(ccip_cfg_pkg::BYTE_EN_SUPPORTED),
                             3'(ENGINE_GROUP),
                             5'(ENGINE_NUMBER),
                             address_space_info(ADDRESS_SPACE),
@@ -316,7 +329,7 @@ module host_mem_rdwr_engine_avalon
         host_mem_if.wr_address = wr_base_addr | (wr_cur_addr_low & base_addr_low_mask);
         host_mem_if.wr_write = (state_run && (! wr_done || ! wr_fence_done)) || ! wr_sop;
         host_mem_if.wr_burstcount = wr_flits_left;
-        host_mem_if.wr_byteenable = ~64'b0;
+        host_mem_if.wr_byteenable = wr_data_mask;
         host_mem_if.wr_function = 1'b0;
 
         // Emit a write fence at the end

@@ -45,6 +45,9 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     parameter MAX_ACTIVE_RD_LINES = 256,
     parameter MAX_ACTIVE_WR_LINES = 256,
 
+    // Does this platform's CCI-P implementation support byte write ranges?
+    parameter BYTE_EN_SUPPORTED = 1,
+
     parameter ADD_TIMING_REG_STAGES = 0
     )
    (
@@ -253,35 +256,39 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     assign wr_eop = (wr_sop && (avmm_fiu_clk_if.wr_burstcount == 3'b1)) ||
                     (!wr_sop && (wr_cl_num == t_ccip_clNum'(wr_cl_len)));
 
+    // Decoding masked writes into CCI-P's range encoding takes two cycles.
+    // Generate most of the request into c1Tx while the range is prepared.
+    t_if_ccip_c1_Tx c1Tx, c1Tx_q;
+
     always_ff @(posedge clk)
     begin
-        to_fiu.sTx.c1.valid <= wr_beat_valid;
-        to_fiu.sTx.c1.data <= avmm_fiu_clk_if.wr_writedata;
+        c1Tx.valid <= wr_beat_valid;
+        c1Tx.data <= avmm_fiu_clk_if.wr_writedata;
 
         if (wr_sop)
         begin
-            to_fiu.sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            to_fiu.sTx.c1.hdr.mdata <= t_ccip_mdata'(avmm_fiu_clk_if.wr_user);
+            c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
+            c1Tx.hdr.mdata <= t_ccip_mdata'(avmm_fiu_clk_if.wr_user);
 
             if (! avmm_fiu_clk_if.wr_function)
             begin
                 // Normal write
-                to_fiu.sTx.c1.hdr.address <= avmm_fiu_clk_if.wr_address;
-                to_fiu.sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
-                to_fiu.sTx.c1.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.wr_burstcount - 3'b1);
-                to_fiu.sTx.c1.hdr.sop <= 1'b1;
+                c1Tx.hdr.address <= avmm_fiu_clk_if.wr_address;
+                c1Tx.hdr.req_type <= eREQ_WRLINE_I;
+                c1Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.wr_burstcount - 3'b1);
+                c1Tx.hdr.sop <= 1'b1;
             end
             else
             begin
                 // Write fence. req_type and mdata are in the same places in the
                 // header as a normal write.
-                to_fiu.sTx.c1.hdr.req_type <= eREQ_WRFENCE;
+                c1Tx.hdr.req_type <= eREQ_WRFENCE;
             end
         end
         else
         begin
-            to_fiu.sTx.c1.hdr.address[1:0] <= wr_cl_addr | wr_cl_num;
-            to_fiu.sTx.c1.hdr.sop <= 1'b0;
+            c1Tx.hdr.address[1:0] <= wr_cl_addr | wr_cl_num;
+            c1Tx.hdr.sop <= 1'b0;
         end
 
         // Update multi-line state
@@ -305,14 +312,61 @@ module ofs_plat_map_ccip_as_avalon_host_mem
             end
         end
 
+        c1Tx_q <= c1Tx;
+
         if (!reset_n)
         begin
-            to_fiu.sTx.c1.valid <= 1'b0;
+            c1Tx.valid <= 1'b0;
+            c1Tx_q.valid <= 1'b0;
             wr_sop <= 1'b1;
             wr_cl_len <= eCL_LEN_1;
             wr_cl_num <= t_ccip_clNum'(0);
         end
     end
+
+    // Decode masked range
+    t_ccip_mem_access_mode wr_mode;
+    t_ccip_clByteIdx wr_byte_start, wr_byte_len;
+
+    ofs_plat_utils_ccip_decode_bmask bmask
+       (
+        .clk,
+        .reset_n,
+        .bmask(avmm_fiu_clk_if.wr_byteenable),
+        .T2_wr_mode(wr_mode),
+        .T2_byte_start(wr_byte_start),
+        .T2_byte_len(wr_byte_len)
+        );
+
+    // Forward write request to the FIU
+    always_comb
+    begin
+        to_fiu.sTx.c1 = c1Tx_q;
+
+        if (BYTE_EN_SUPPORTED &&
+            ((c1Tx_q.hdr.req_type == eREQ_WRLINE_I) || (c1Tx_q.hdr.req_type == eREQ_WRLINE_M)))
+        begin
+            to_fiu.sTx.c1.hdr.mode = wr_mode;
+            to_fiu.sTx.c1.hdr.byte_start = wr_byte_start;
+            to_fiu.sTx.c1.hdr.byte_len = wr_byte_len;
+        end
+    end
+
+    // synthesis translate_off
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && (BYTE_EN_SUPPORTED == 0))
+        begin
+            if (c1Tx_q.valid &&
+                (wr_mode == eMOD_BYTE) &&
+                ((c1Tx_q.hdr.req_type == eREQ_WRLINE_I) || (c1Tx_q.hdr.req_type == eREQ_WRLINE_M)))
+            begin
+                $fatal(2, "CCI-P byte range write not supported on this platform!");
+            end
+        end
+    end
+    // synthesis translate_on
+
 
     always_ff @(posedge clk)
     begin
