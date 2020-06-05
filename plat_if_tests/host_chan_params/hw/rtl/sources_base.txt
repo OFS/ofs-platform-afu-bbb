@@ -1,6 +1,4 @@
 # Common sources used by all tests
-host_chan_params.json
-
 C:../../../common/hw/rtl/sources.txt
 
 # Engines are in the common space because they are used by tests

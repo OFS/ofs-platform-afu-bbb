@@ -119,8 +119,8 @@ module host_mem_rdwr_engine_avalon
     localparam DATA_WIDTH = host_mem_if.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
-    localparam ADDR_LOW_WIDTH = 32;
-    typedef logic [ADDR_LOW_WIDTH-1 : 0] t_addr_low;
+    localparam ADDR_OFFSET_WIDTH = 32;
+    typedef logic [ADDR_OFFSET_WIDTH-1 : 0] t_addr_offset;
 
     localparam COUNTER_WIDTH = 48;
     typedef logic [COUNTER_WIDTH-1 : 0] t_counter;
@@ -137,10 +137,10 @@ module host_mem_rdwr_engine_avalon
     //
 
     t_addr rd_base_addr, wr_base_addr;
-    t_addr_low rd_start_addr_low, wr_start_addr_low;
+    t_addr_offset rd_start_addr_offset, wr_start_addr_offset;
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
-    t_addr_low base_addr_low_mask;
+    t_addr_offset base_addr_offset_mask;
     logic [63:0] wr_data_mask;
 
     always_ff @(posedge clk)
@@ -153,16 +153,16 @@ module host_mem_rdwr_engine_avalon
                 4'h2:
                     begin
                         rd_num_burst_reqs <= csrs.wr_data[47:32];
-                        rd_start_addr_low <= csrs.wr_data[31:16];
+                        rd_start_addr_offset <= csrs.wr_data[31:16];
                         rd_req_burst_len <= csrs.wr_data[15:0];
                     end
                 4'h3:
                     begin
                         wr_num_burst_reqs <= csrs.wr_data[47:32];
-                        wr_start_addr_low <= csrs.wr_data[31:16];
+                        wr_start_addr_offset <= csrs.wr_data[31:16];
                         wr_req_burst_len <= csrs.wr_data[15:0];
                     end
-                4'h4: base_addr_low_mask <= t_addr_low'(csrs.wr_data);
+                4'h4: base_addr_offset_mask <= t_addr_offset'(csrs.wr_data);
                 4'h5: wr_data_mask <= csrs.wr_data;
             endcase // case (csrs.wr_idx)
         end
@@ -203,7 +203,7 @@ module host_mem_rdwr_engine_avalon
                             csrs.status_active,
                             csrs.state_run,
                             csrs.state_reset,
-                            16'(ADDR_LOW_WIDTH),
+                            16'(ADDR_OFFSET_WIDTH),
                             1'b0,
                             15'(1 << (host_mem_if.BURST_CNT_WIDTH-1)) };
         csrs.rd_data[1] = 64'(rd_bursts_req);
@@ -227,7 +227,7 @@ module host_mem_rdwr_engine_avalon
 
     logic state_reset;
     logic state_run;
-    t_addr_low rd_cur_addr_low, wr_cur_addr_low;
+    t_addr_offset rd_cur_addr_offset, wr_cur_addr_offset;
     t_num_burst_reqs rd_num_burst_reqs_left, wr_num_burst_reqs_left;
     logic rd_unlimited, wr_unlimited;
     logic rd_done, wr_done;
@@ -250,7 +250,7 @@ module host_mem_rdwr_engine_avalon
     //
     always_comb
     begin
-        host_mem_if.rd_address = rd_base_addr | (rd_cur_addr_low & base_addr_low_mask);
+        host_mem_if.rd_address = rd_base_addr + rd_cur_addr_offset;
         host_mem_if.rd_read = (state_run && ! rd_done);
         host_mem_if.rd_burstcount = rd_req_burst_len;
         host_mem_if.rd_byteenable = ~64'b0;
@@ -262,14 +262,14 @@ module host_mem_rdwr_engine_avalon
         // Was the read request accepted?
         if (state_run && ! rd_done && ! host_mem_if.rd_waitrequest)
         begin
-            rd_cur_addr_low <= rd_cur_addr_low + rd_req_burst_len;
+            rd_cur_addr_offset <= (rd_cur_addr_offset + rd_req_burst_len) & base_addr_offset_mask;
             rd_num_burst_reqs_left <= rd_num_burst_reqs_left - 1;
             rd_done <= ! rd_unlimited && (rd_num_burst_reqs_left == t_num_burst_reqs'(1));
         end
 
         if (state_reset)
         begin
-            rd_cur_addr_low <= rd_start_addr_low;
+            rd_cur_addr_offset <= rd_start_addr_offset;
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
@@ -326,7 +326,7 @@ module host_mem_rdwr_engine_avalon
 
     always_comb
     begin
-        host_mem_if.wr_address = wr_base_addr | (wr_cur_addr_low & base_addr_low_mask);
+        host_mem_if.wr_address = wr_base_addr + wr_cur_addr_offset;
         host_mem_if.wr_write = (state_run && (! wr_done || ! wr_fence_done)) || ! wr_sop;
         host_mem_if.wr_burstcount = wr_flits_left;
         host_mem_if.wr_byteenable = wr_data_mask;
@@ -342,7 +342,7 @@ module host_mem_rdwr_engine_avalon
 
         host_mem_if.wr_writedata = t_data'(0);
         host_mem_if.wr_writedata[$bits(t_data)-1 -: 64] = 64'hdeadbeef;
-        host_mem_if.wr_writedata[63 : 0] = 64'(wr_base_addr | (wr_cur_addr_low & base_addr_low_mask));
+        host_mem_if.wr_writedata[63 : 0] = 64'(wr_base_addr + wr_cur_addr_offset);
     end
 
     always_ff @(posedge clk)
@@ -351,7 +351,7 @@ module host_mem_rdwr_engine_avalon
         if (((state_run && ! wr_done) || ! wr_sop) && ! host_mem_if.wr_waitrequest)
         begin
             // Advance one line, reduce the flit count by one
-            wr_cur_addr_low <= wr_cur_addr_low + t_addr_low'(1);
+            wr_cur_addr_offset <= (wr_cur_addr_offset + t_addr_offset'(1)) & base_addr_offset_mask;
             wr_flits_left <= wr_flits_left - t_burst_cnt'(1);
             wr_sop <= 1'b0;
 
@@ -372,7 +372,7 @@ module host_mem_rdwr_engine_avalon
 
         if (state_reset)
         begin
-            wr_cur_addr_low <= wr_start_addr_low;
+            wr_cur_addr_offset <= wr_start_addr_offset;
             wr_flits_left <= wr_req_burst_len;
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
