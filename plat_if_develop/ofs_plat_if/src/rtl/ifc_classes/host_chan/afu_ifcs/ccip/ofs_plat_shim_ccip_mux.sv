@@ -449,8 +449,11 @@ module ofs_plat_shim_ccip_mux
                 // Forward arbitration winner. One of the deq_en bits will be
                 // high only if a request is available and the FIU isn't full.
                 fiu_c1Tx <= afu_c1Tx[afu_c1Tx_grantIdx];
-                fiu_c1Tx.hdr.mdata[$bits(t_tracker_idx)-1:0] <= fiu_c1Tx_next_tracker_idx;
                 fiu_c1Tx.valid <= (|(afu_c1Tx_deq_en));
+                if (afu_c1Tx[afu_c1Tx_grantIdx].hdr.req_type != eREQ_INTR)
+                begin
+                    fiu_c1Tx.hdr.mdata[$bits(t_tracker_idx)-1:0] <= fiu_c1Tx_next_tracker_idx;
+                end
 
                 if (|(afu_c1Tx_deq_en))
                 begin

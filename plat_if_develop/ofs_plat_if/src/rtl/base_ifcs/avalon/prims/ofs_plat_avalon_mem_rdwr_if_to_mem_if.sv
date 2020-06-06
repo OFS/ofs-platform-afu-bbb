@@ -53,7 +53,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     localparam MASKED_SYMBOL_WIDTH = mem_slave.MASKED_SYMBOL_WIDTH_;
     localparam USER_WIDTH = mem_master.USER_WIDTH_;
 
-    localparam DATA_N_BYTES = (DATA_WIDTH + 7) / MASKED_SYMBOL_WIDTH;
+    localparam DATA_N_BYTES = mem_slave.DATA_N_BYTES;
 
     typedef struct packed {
         logic [ADDR_WIDTH-1:0] address;
@@ -61,6 +61,8 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         logic [DATA_N_BYTES-1:0] byteenable;
         logic [USER_WIDTH-1:0] user;
     } t_rd_req;
+    // Some simulators weren't happy with $bits(t_rd_req)
+    localparam T_RD_REQ_WIDTH = ADDR_WIDTH + BURST_CNT_WIDTH + DATA_N_BYTES + USER_WIDTH;
 
     typedef struct packed {
         logic [ADDR_WIDTH-1:0] address;
@@ -71,6 +73,9 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         logic wr_function;
         logic eop;
     } t_wr_req;
+    // Some simulators weren't happy with $bits(t_rd_req)
+    localparam T_WR_REQ_WIDTH = ADDR_WIDTH + BURST_CNT_WIDTH +
+                                DATA_WIDTH + DATA_N_BYTES + USER_WIDTH + 2;
 
     wire clk;
     assign clk = mem_slave.clk;
@@ -126,7 +131,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS($bits(t_rd_req))
+        .N_DATA_BITS(T_RD_REQ_WIDTH)
         )
       rd_req_fifo
        (
@@ -148,7 +153,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS($bits(t_wr_req))
+        .N_DATA_BITS(T_WR_REQ_WIDTH)
         )
       wr_req_fifo
        (
