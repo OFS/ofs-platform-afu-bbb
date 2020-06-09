@@ -332,7 +332,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     //
     // Connect to a CCI-P stream in which all write responses are packed.
     // Responses may still be out of order. Sorting will be handled in
-    // ofs_plat_map_ccip_as_avalon_host_mem below, where sorting and
+    // ofs_plat_map_ccip_as_axi_host_mem below, where sorting and
     // clock crossing can share a buffer.
     //
     ofs_plat_host_ccip_if packed_ccip_if();
@@ -341,7 +341,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
       #(
         .MERGE_UNPACKED_WRITE_RESPONSES(1)
         )
-      ccip_sort
+      ccip_packed
        (
         .to_fiu,
         .to_afu(packed_ccip_if),

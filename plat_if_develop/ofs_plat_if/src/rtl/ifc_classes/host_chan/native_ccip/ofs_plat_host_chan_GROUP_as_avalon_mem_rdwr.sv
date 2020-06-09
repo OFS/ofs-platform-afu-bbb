@@ -348,7 +348,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
       #(
         .MERGE_UNPACKED_WRITE_RESPONSES(1)
         )
-      ccip_sort
+      ccip_packed
        (
         .to_fiu,
         .to_afu(packed_ccip_if),

@@ -36,8 +36,8 @@
 //
 module ofs_plat_axi_mem_if_fixup_wlast
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_if.to_master mem_master,
+    ofs_plat_axi_mem_if.to_slave mem_slave
     );
 
     // synthesis translate_off
@@ -127,8 +127,12 @@ module ofs_plat_axi_mem_if_fixup_wlast
         .notEmpty(w_avail)
         );
 
+
     always_comb
     begin
+        // Setting mem_slave.w to 0 before overwriting the whole field is silly,
+        // but works around a bug in QuestaSim that was missing the .last assignment.
+        mem_slave.w = '0;
         mem_slave.w = w;
         // All the logic in this module is just to set this bit
         mem_slave.w.last = w_eop;

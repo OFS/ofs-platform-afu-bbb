@@ -166,7 +166,6 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // of read and write requests in rd_user and wr_user fields.
     // Size the user fields using whichever index space is larger.
     localparam USER_WIDTH =
-        host_mem_to_afu.USER_WIDTH_ + 1 +
         $clog2((MAX_ACTIVE_RD_LINES > MAX_ACTIVE_WR_LINES) ? MAX_ACTIVE_RD_LINES :
                                                              MAX_ACTIVE_WR_LINES);
 
@@ -222,7 +221,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         end
     end
 
-    // CCI-P responses are already sorted. Just forward them to Avalon.
+    // CCI-P read responses
     always_ff @(posedge clk)
     begin
         avmm_fiu_clk_if.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);

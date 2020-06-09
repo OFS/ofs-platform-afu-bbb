@@ -97,7 +97,7 @@ module ofs_plat_axi_mem_if_map_bursts
             // When bursts are broken up the last flag on write data needs
             // to be set at the end of new packets.
             ofs_plat_axi_mem_if_fixup_wlast
-              simple_conn
+              fixup_wlast
                (
                 .mem_master(slave_burst_if),
                 .mem_slave
