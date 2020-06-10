@@ -123,43 +123,8 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         .mem_slave(avmm_afu_clk_if)
         );
 
-
     //
-    // The AFU has set the burst count width of host_mem_to_afu to whatever
-    // is expected by the AFU. CCI-P requires bursts no larger than 4 lines.
-    // The bursts must also be naturally aligned. Transform host_mem_to_afu
-    // bursts to legal CCI-P bursts.
-    //
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
-        .BURST_CNT_WIDTH(3),
-        // ofs_plat_avalon_mem_rdwr_if_map_bursts records whether write
-        // responses are expected on wr_user[0].
-        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_ + 1)
-        )
-      avmm_fiu_burst_if();
-
-    assign avmm_fiu_burst_if.clk = avmm_afu_clk_if.clk;
-    assign avmm_fiu_burst_if.reset_n = avmm_afu_clk_if.reset_n;
-    assign avmm_fiu_burst_if.instance_number = avmm_afu_clk_if.instance_number;
-
-    ofs_plat_avalon_mem_rdwr_if_map_bursts
-      #(
-        .NATURAL_ALIGNMENT(1)
-        )
-      map_bursts
-       (
-        .mem_master(avmm_afu_clk_if),
-        .mem_slave(avmm_fiu_burst_if)
-        );
-
-
-    //
-    // Cross to the FIU clock and add register stages. The two are combined
-    // because the clock crossing buffer can also be used to simplify the
-    // Avalon waitrequest protocol.
+    // Cross to the FIU clock, sort responses and map bursts to FIU sizes.
     //
 
     // ofs_plat_avalon_mem_rdwr_if_async_rob records the ROB indices
@@ -172,8 +137,9 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     ofs_plat_avalon_mem_rdwr_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(avmm_fiu_burst_if),
-        .BURST_CNT_WIDTH(avmm_fiu_burst_if.BURST_CNT_WIDTH_),
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(avmm_afu_clk_if),
+        // CCI-P supports up to 4 line bursts
+        .BURST_CNT_WIDTH(2),
         .USER_WIDTH(USER_WIDTH)
         )
       avmm_fiu_clk_if();
@@ -182,15 +148,16 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     assign avmm_fiu_clk_if.reset_n = reset_n;
     assign avmm_fiu_clk_if.instance_number = to_fiu.instance_number;
 
-    ofs_plat_avalon_mem_rdwr_if_async_rob
+    ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .NATURAL_ALIGNMENT(1),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
         )
       rob
        (
-        .mem_master(avmm_fiu_burst_if),
+        .mem_master(avmm_afu_clk_if),
         .mem_slave(avmm_fiu_clk_if)
         );
 

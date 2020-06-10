@@ -110,67 +110,8 @@ module ofs_plat_map_ccip_as_axi_host_mem
         .mem_slave(axi_afu_clk_if)
         );
 
-
     //
-    // Map AFU-sized bursts to FIU-sized bursts. (The AFU may generate larger
-    // bursts than the FIU will accept.)
-    //
-    ofs_plat_axi_mem_if
-      #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
-        // CCI-P supports up to 4 line bursts
-        .BURST_CNT_WIDTH(2),
-        .RID_WIDTH(host_mem_to_afu.RID_WIDTH_),
-        .WID_WIDTH(host_mem_to_afu.WID_WIDTH_),
-        // Extra bit to tag bursts generated inside the burst mapper
-        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_ + 1)
-        )
-      axi_fiu_burst_if();
-
-    assign axi_fiu_burst_if.clk = axi_afu_clk_if.clk;
-    assign axi_fiu_burst_if.reset_n = axi_afu_clk_if.reset_n;
-    assign axi_fiu_burst_if.instance_number = to_fiu.instance_number;
-
-    ofs_plat_axi_mem_if_map_bursts
-      #(
-        .NATURAL_ALIGNMENT(1)
-        )
-      map_bursts
-       (
-        .mem_master(axi_afu_clk_if),
-        .mem_slave(axi_fiu_burst_if)
-        );
-
-
-    //
-    // Protect the read and write response buffers from overflow by tracking
-    // buffer credits. The memory driver in the FIM has no flow control.
-    //
-    ofs_plat_axi_mem_if
-      #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(axi_fiu_burst_if)
-        )
-      axi_fiu_credit_if();
-
-    assign axi_fiu_credit_if.clk = axi_afu_clk_if.clk;
-    assign axi_fiu_credit_if.reset_n = axi_afu_clk_if.reset_n;
-    assign axi_fiu_credit_if.instance_number = to_fiu.instance_number;
-
-    ofs_plat_axi_mem_if_rsp_credits
-      #(
-        .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
-        )
-      rsp_credits
-       (
-        .mem_master(axi_fiu_burst_if),
-        .mem_slave(axi_fiu_credit_if)
-        );
-
-
-    //
-    // Cross to the FIU clock and add sort responses. The two are combined
-    // because the clock crossing buffer can also be used for sorting.
+    // Cross to the FIU clock, sort responses and map bursts to FIU sizes.
     //
 
     // ofs_plat_axi_mem_if_async_rob records the ROB indices of read and
@@ -184,7 +125,8 @@ module ofs_plat_map_ccip_as_axi_host_mem
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
-        .BURST_CNT_WIDTH(axi_fiu_burst_if.BURST_CNT_WIDTH_),
+        // CCI-P supports up to 4 line bursts
+        .BURST_CNT_WIDTH(2),
         .RID_WIDTH(host_mem_to_afu.RID_WIDTH_),
         .WID_WIDTH(host_mem_to_afu.WID_WIDTH_),
         .USER_WIDTH(USER_WIDTH)
@@ -195,21 +137,23 @@ module ofs_plat_map_ccip_as_axi_host_mem
     assign axi_fiu_clk_if.reset_n = reset_n;
     assign axi_fiu_clk_if.instance_number = to_fiu.instance_number;
 
-    ofs_plat_axi_mem_if_async_rob
+    ofs_plat_map_axi_mem_if_to_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
+        .NATURAL_ALIGNMENT(1),
+        .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
+        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
         )
       rob
        (
-        .mem_master(axi_fiu_credit_if),
+        .mem_master(axi_afu_clk_if),
         .mem_slave(axi_fiu_clk_if)
         );
 
 
     //
-    // Convert to CCI-P
+    // Convert AXI to CCI-P. AXI clocks and burst sizes in axi_fiu_clk_if are
+    // the same as CCI-P.
     //
 
     // AXI uses byte-level addressing, CCI-P uses line-level addressing.

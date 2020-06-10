@@ -1,0 +1,106 @@
+//
+// Copyright (c) 2020, Intel Corporation
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// Redistributions of source code must retain the above copyright notice, this
+// list of conditions and the following disclaimer.
+//
+// Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// Neither the name of the Intel Corporation nor the names of its contributors
+// may be used to endorse or promote products derived from this software
+// without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+`include "ofs_plat_if.vh"
+
+//
+// Map an Avalon port to the properties required a host memory port. Maximum
+// burst size, alignment and response ordering are all handled here.
+// The slave remains in Avalon format. The final, protocol-specific, host
+// port conversion is handled outside this module.
+//
+module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
+  #(
+    // When non-zero the master and slave use different clocks.
+    parameter ADD_CLOCK_CROSSING = 0,
+
+    // Does the host memory port require natural alignment?
+    parameter NATURAL_ALIGNMENT = 0,
+
+    // Sizes of the response buffers in the ROB and clock crossing.
+    parameter MAX_ACTIVE_RD_LINES = 256,
+    parameter MAX_ACTIVE_WR_LINES = 256
+    )
+   (
+    // mem_master parameters should match the master's field widths.
+    ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
+
+    // mem_slave parameters should match the requirements of the host
+    // memory port. The user fields should be sized to hold reorder
+    // buffer indices for read and write responses.
+    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave
+    );
+
+    //
+    // Map AFU-sized bursts to FIU-sized bursts. (The AFU may generate larger
+    // bursts than the FIU will accept.)
+    //
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(mem_master),
+        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
+        // ofs_plat_avalon_mem_rdwr_if_map_bursts records whether write
+        // responses are expected on wr_user[0].
+        .USER_WIDTH(mem_master.USER_WIDTH_ + 1)
+        )
+      avmm_fiu_burst_if();
+
+    assign avmm_fiu_burst_if.clk = mem_master.clk;
+    assign avmm_fiu_burst_if.reset_n = mem_master.reset_n;
+    assign avmm_fiu_burst_if.instance_number = mem_slave.instance_number;
+
+    ofs_plat_avalon_mem_rdwr_if_map_bursts
+      #(
+        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+        )
+      map_bursts
+       (
+        .mem_master(mem_master),
+        .mem_slave(avmm_fiu_burst_if)
+        );
+
+
+    //
+    // Cross to the FIU clock and add sort responses. The two are combined
+    // because the clock crossing buffer can also be used for sorting.
+    //
+    ofs_plat_avalon_mem_rdwr_if_async_rob
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
+        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
+        )
+      rob
+       (
+        .mem_master(avmm_fiu_burst_if),
+        .mem_slave
+        );
+
+endmodule // ofs_plat_map_avalon_mem_rdwr_if_to_host_mem

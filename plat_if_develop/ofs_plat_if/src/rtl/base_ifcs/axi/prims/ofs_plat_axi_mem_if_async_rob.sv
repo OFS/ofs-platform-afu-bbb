@@ -61,23 +61,6 @@ module ofs_plat_axi_mem_if_async_rob
     ofs_plat_axi_mem_if.to_master mem_master
     );
 
-    logic master_reset_n;
-    ofs_plat_prim_clock_crossing_reset_async m_reset_n
-       (
-        .clk(mem_master.clk),
-        .reset_in(mem_master.reset_n),
-        .reset_out(master_reset_n)
-        );
-
-    logic slave_reset_n;
-    ofs_plat_prim_clock_crossing_reset_async s_reset_n
-       (
-        .clk(mem_slave.clk),
-        .reset_in(mem_slave.reset_n),
-        .reset_out(slave_reset_n)
-        );
-
-
     //
     // Copies of the slave and master interfaces that can be used for
     // internal, intermediate states using the sized data structures.
@@ -137,7 +120,7 @@ module ofs_plat_axi_mem_if_async_rob
       wr_rob
        (
         .clk(mem_master.clk),
-        .reset_n(master_reset_n),
+        .reset_n(mem_master.reset_n),
         .alloc_en(mem_master.awvalid && mem_master.awready),
         .allocCnt(1'b1),
         .allocMeta({ mem_master.aw.id, mem_master.aw.user }),
@@ -147,7 +130,7 @@ module ofs_plat_axi_mem_if_async_rob
 
         // Responses
         .enq_clk(mem_slave.clk),
-        .enq_reset_n(slave_reset_n),
+        .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.bvalid),
         .enqDataIdx(t_wr_rob_idx'(mem_slave.b.user)),
         .enqData(mem_slave.b.resp),
@@ -175,14 +158,14 @@ module ofs_plat_axi_mem_if_async_rob
       aw
        (
         .clk_in(mem_master.clk),
-        .reset_n_in(master_reset_n),
+        .reset_n_in(mem_master.reset_n),
 
         .ready_in(wr_fifo_notFull),
         .valid_in(mem_master.awvalid && mem_master.awready),
         .data_in(mem_slave_local.aw),
 
         .clk_out(mem_slave.clk),
-        .reset_n_out(slave_reset_n),
+        .reset_n_out(mem_slave.reset_n),
 
         .ready_out(mem_slave.awready),
         .valid_out(mem_slave.awvalid),
@@ -205,14 +188,14 @@ module ofs_plat_axi_mem_if_async_rob
       w
        (
         .clk_in(mem_master.clk),
-        .reset_n_in(master_reset_n),
+        .reset_n_in(mem_master.reset_n),
 
         .ready_in(mem_master.wready),
         .valid_in(mem_master.wvalid),
         .data_in(mem_slave_local.w),
 
         .clk_out(mem_slave.clk),
-        .reset_n_out(slave_reset_n),
+        .reset_n_out(mem_slave.reset_n),
 
         .ready_out(mem_slave.wready),
         .valid_out(mem_slave.wvalid),
@@ -238,7 +221,7 @@ module ofs_plat_axi_mem_if_async_rob
       b
        (
         .clk(mem_master.clk),
-        .reset_n(master_reset_n),
+        .reset_n(mem_master.reset_n),
 
         .enq_data(mem_master_local.b),
         .enq_en(mem_master_local.bvalid),
@@ -289,7 +272,7 @@ module ofs_plat_axi_mem_if_async_rob
       rd_rob
        (
         .clk(mem_master.clk),
-        .reset_n(master_reset_n),
+        .reset_n(mem_master.reset_n),
         .alloc_en(mem_master.arvalid && mem_master.arready),
         .allocCnt(t_rd_alloc_cnt'(mem_master.ar.len) + t_rd_alloc_cnt'(1)),
         .allocMeta({ mem_master.ar.id, mem_master.ar.user }),
@@ -299,7 +282,7 @@ module ofs_plat_axi_mem_if_async_rob
 
         // Responses
         .enq_clk(mem_slave.clk),
-        .enq_reset_n(slave_reset_n),
+        .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.rvalid),
         .enqDataIdx(t_rd_rob_idx'(mem_slave.r.user)),
         .enqData(mem_slave.r),
@@ -327,14 +310,14 @@ module ofs_plat_axi_mem_if_async_rob
       ar
        (
         .clk_in(mem_master.clk),
-        .reset_n_in(master_reset_n),
+        .reset_n_in(mem_master.reset_n),
 
         .ready_in(rd_fifo_notFull),
         .valid_in(mem_master.arvalid && mem_master.arready),
         .data_in(mem_slave_local.ar),
 
         .clk_out(mem_slave.clk),
-        .reset_n_out(slave_reset_n),
+        .reset_n_out(mem_slave.reset_n),
 
         .ready_out(mem_slave.arready),
         .valid_out(mem_slave.arvalid),
@@ -365,7 +348,7 @@ module ofs_plat_axi_mem_if_async_rob
             end
         end
 
-        if (!master_reset_n)
+        if (!mem_master.reset_n)
         begin
             rd_sop <= 1'b1;
         end
@@ -399,7 +382,7 @@ module ofs_plat_axi_mem_if_async_rob
       r
        (
         .clk(mem_master.clk),
-        .reset_n(master_reset_n),
+        .reset_n(mem_master.reset_n),
 
         .enq_data(mem_master_local.r),
         .enq_en(mem_master_local.rvalid),
