@@ -46,7 +46,10 @@ module ofs_plat_map_axi_mem_if_to_host_mem
 
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
-    parameter MAX_ACTIVE_WR_LINES = 256
+    parameter MAX_ACTIVE_WR_LINES = 256,
+
+    // First bit in the user fields where the ROB indices should be stored.
+    parameter USER_ROB_IDX_START = 0
     )
    (
     // mem_master parameters should match the master's field widths.
@@ -68,8 +71,7 @@ module ofs_plat_map_axi_mem_if_to_host_mem
         .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
         .RID_WIDTH(mem_master.RID_WIDTH_),
         .WID_WIDTH(mem_master.WID_WIDTH_),
-        // Extra bit to tag bursts generated inside the burst mapper
-        .USER_WIDTH(mem_master.USER_WIDTH_ + 1)
+        .USER_WIDTH(mem_master.USER_WIDTH_)
         )
       axi_fiu_burst_if();
 
@@ -79,6 +81,7 @@ module ofs_plat_map_axi_mem_if_to_host_mem
 
     ofs_plat_axi_mem_if_map_bursts
       #(
+        .UFLAG_NO_REPLY(ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_NO_REPLY),
         .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
         )
       map_bursts
@@ -122,12 +125,34 @@ module ofs_plat_map_axi_mem_if_to_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
+        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES),
+        .USER_ROB_IDX_START(USER_ROB_IDX_START)
         )
       rob
        (
         .mem_master(axi_fiu_credit_if),
         .mem_slave
         );
+
+
+    // synthesis translate_off
+    always_ff @(negedge mem_master.clk)
+    begin
+        if (mem_master.reset_n)
+        begin
+            if (mem_master.awvalid && mem_master.awready)
+            begin
+                // Memory fence?
+                if (mem_master.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+                begin
+                    if (mem_master.aw.len)
+                    begin
+                        $fatal(2, "** ERROR ** %m: Memory fence AWLEN must be 0!");
+                    end
+                end
+            end
+        end
+    end
+    // synthesis translate_on
 
 endmodule // ofs_plat_map_axi_mem_if_to_host_mem

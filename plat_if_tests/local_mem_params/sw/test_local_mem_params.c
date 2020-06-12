@@ -41,6 +41,7 @@
 #include <inttypes.h>
 #include <uuid/uuid.h>
 #include <time.h>
+#include <string.h>
 
 #include <opae/fpga.h>
 

@@ -35,19 +35,17 @@
 //
 module ofs_plat_axi_mem_if_map_bursts
   #(
+    // Which bit in the mem_slave user flags should be set to indicate
+    // injected bursts that should be dropped so that the AFU sees
+    // only responses to its original bursts?
+    parameter UFLAG_NO_REPLY = 0,
+
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0
     )
    (
     ofs_plat_axi_mem_if.to_master mem_master,
-
-    //
-    // The high bit in each of aw.user and ar.user is used to indicate
-    // whether the AFU expects a burst responses for writes and LAST set
-    // for reads. Typically, the width of USER fields is one larger in the
-    // slave than the master in order to avoid overwriting master data.
-    //
     ofs_plat_axi_mem_if.to_slave mem_slave
     );
 
@@ -86,6 +84,7 @@ module ofs_plat_axi_mem_if_map_bursts
 
             ofs_plat_axi_mem_if_map_bursts_impl
               #(
+                .UFLAG_NO_REPLY(UFLAG_NO_REPLY),
                 .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
                 )
               mapper
@@ -115,19 +114,17 @@ endmodule // ofs_plat_axi_mem_if_map_bursts
 //
 module ofs_plat_axi_mem_if_map_bursts_impl
   #(
+    // Which bit in the mem_slave user flags should be set to indicate
+    // injected bursts that should be dropped so that the AFU sees
+    // only responses to its original bursts?
+    parameter UFLAG_NO_REPLY = 0,
+
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0
     )
    (
     ofs_plat_axi_mem_if.to_master mem_master,
-
-    //
-    // The high bit in each of aw.user and ar.user is used to indicate
-    // whether the AFU expects a burst responses for writes and LAST set
-    // for reads. Typically, the width of USER fields is one larger in the
-    // slave than the master in order to avoid overwriting master data.
-    //
     ofs_plat_axi_mem_if.to_slave mem_slave
     );
 
@@ -144,8 +141,6 @@ module ofs_plat_axi_mem_if_map_bursts_impl
     localparam MASTER_BURST_WIDTH = mem_master.BURST_CNT_WIDTH_;
     localparam SLAVE_BURST_WIDTH = mem_slave.BURST_CNT_WIDTH_;
     typedef logic [MASTER_BURST_WIDTH-1 : 0] t_master_burst_cnt;
-
-    localparam SLAVE_USER_HIGH_BIT = mem_slave.USER_WIDTH_ - 1;
 
     // Instantiate an interface to use the properly sized internal structs
     // as registers.
@@ -202,11 +197,11 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         mem_slave.ar.addr[ADDR_START +: ADDR_WIDTH] = s_rd_address;
         mem_slave.ar.len = s_rd_burstcount;
 
-        // Set the high bit of ar.user to indicate whether a read
+        // Set a bit in ar.user to indicate whether a read
         // request is from the master (and thus completes a master
         // read request) or is generated here and should not get an
         // r.last tag.
-        mem_slave.ar.user[SLAVE_USER_HIGH_BIT] = rd_complete;
+        mem_slave.ar.user[UFLAG_NO_REPLY] = rd_complete;
     end
 
     // Register read request state coming from the master that isn't held
@@ -240,7 +235,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
 
             // Don't mark end of burst unless it corresponds to a master burst
             mem_master.r.last <= mem_slave.r.last &&
-                                 mem_slave.r.user[SLAVE_USER_HIGH_BIT];
+                                 mem_slave.r.user[UFLAG_NO_REPLY];
         end
 
         if (!reset_n)
@@ -296,10 +291,10 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         mem_slave.aw.addr[ADDR_START +: ADDR_WIDTH] = s_wr_address;
         mem_slave.aw.len = s_wr_burstcount;
 
-        // Set the high bit of aw.user to indicate whether a write
+        // Set a bit in aw.user to indicate whether a write
         // request is from the master (and should get a response) or
         // generated here and the response should be squashed.
-        mem_slave.aw.user[SLAVE_USER_HIGH_BIT] = wr_complete;
+        mem_slave.aw.user[UFLAG_NO_REPLY] = wr_complete;
     end
 
     // Register write request state coming from the master that isn't held
@@ -346,7 +341,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         begin
             // Don't forward bursts generated here
             mem_master.bvalid <= mem_slave.bvalid &&
-                                 mem_slave.b.user[SLAVE_USER_HIGH_BIT];
+                                 mem_slave.b.user[UFLAG_NO_REPLY];
 
             // Field-by-field copy (sizes changed)
             `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_master.b, <=, mem_slave.b);

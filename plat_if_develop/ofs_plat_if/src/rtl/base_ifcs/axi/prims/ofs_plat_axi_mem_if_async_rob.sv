@@ -54,7 +54,11 @@ module ofs_plat_axi_mem_if_async_rob
     parameter SLAVE_RESPONSES_ALWAYS_READY = 0,
 
     parameter NUM_READ_CREDITS = 256,
-    parameter NUM_WRITE_CREDITS = 128
+    parameter NUM_WRITE_CREDITS = 128,
+
+    // First bit in the slave's user fields where the ROB indices should be
+    // stored.
+    parameter USER_ROB_IDX_START = 0
     )
    (
     ofs_plat_axi_mem_if.to_slave mem_slave,
@@ -79,9 +83,6 @@ module ofs_plat_axi_mem_if_async_rob
         .DISABLE_CHECKER(1)
         )
       mem_master_local();
-
-    localparam SLAVE_USER_WIDTH = mem_slave.USER_WIDTH_;
-    typedef logic [SLAVE_USER_WIDTH-1 : 0] t_slave_user;
 
 
     // ====================================================================
@@ -132,7 +133,7 @@ module ofs_plat_axi_mem_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.bvalid),
-        .enqDataIdx(t_wr_rob_idx'(mem_slave.b.user)),
+        .enqDataIdx(mem_slave.b.user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)]),
         .enqData(mem_slave.b.resp),
 
         .deq_en(wr_rsp_valid && !wr_rsp_almostFull),
@@ -146,7 +147,8 @@ module ofs_plat_axi_mem_if_async_rob
     begin
         `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_slave_local.aw, =, mem_master.aw);
 
-        mem_slave_local.aw.user = t_slave_user'(wr_next_allocIdx);
+        mem_slave_local.aw.user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)] =
+            wr_next_allocIdx;
     end
 
     ofs_plat_axi_mem_if_async_shim_channel
@@ -284,7 +286,7 @@ module ofs_plat_axi_mem_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.rvalid),
-        .enqDataIdx(t_rd_rob_idx'(mem_slave.r.user)),
+        .enqDataIdx(mem_slave.r.user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
         .enqData(mem_slave.r),
 
         .deq_en(rd_rsp_valid && !rd_rsp_almostFull),
@@ -298,7 +300,8 @@ module ofs_plat_axi_mem_if_async_rob
     begin
         `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_slave_local.ar, =, mem_master.ar);
 
-        mem_slave_local.ar.user = t_slave_user'(rd_next_allocIdx);
+        mem_slave_local.ar.user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)] =
+            rd_next_allocIdx;
     end
 
     ofs_plat_axi_mem_if_async_shim_channel

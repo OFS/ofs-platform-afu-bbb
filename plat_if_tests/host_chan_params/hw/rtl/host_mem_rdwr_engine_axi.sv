@@ -101,7 +101,7 @@ module host_mem_rdwr_engine_axi
   #(
     parameter ENGINE_NUMBER = 0,
     parameter ENGINE_GROUP = 0,
-    parameter WRITE_FENCE_SUPPORTED = 0,
+    parameter WRITE_FENCE_SUPPORTED = 1,
     parameter string ADDRESS_SPACE = "IOADDR"
     )
    (
@@ -268,6 +268,9 @@ module host_mem_rdwr_engine_axi
         end
     end
 
+    // AFU private bits in the user fields
+    localparam AFU_PVT_USER_WIDTH = USER_WIDTH -
+                                    ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX - 1;
 
     //
     // Generate read requests
@@ -282,7 +285,8 @@ module host_mem_rdwr_engine_axi
         host_mem_if.ar.size = host_mem_if.ADDR_BYTE_IDX_WIDTH;
         host_mem_if.ar.len = rd_req_burst_len - 1;
         host_mem_if.ar.id = rd_id;
-        host_mem_if.ar.user = ~t_user'(rd_id);
+        host_mem_if.ar.user[USER_WIDTH-1 : ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1] =
+            ~AFU_PVT_USER_WIDTH'(rd_id);
     end
 
     always_ff @(posedge clk)
@@ -372,7 +376,7 @@ module host_mem_rdwr_engine_axi
 
     always_comb
     begin
-        host_mem_if.awvalid = (state_run && (! wr_done || ! wr_fence_done)) &&
+        host_mem_if.awvalid = (state_run && (!wr_done || !wr_fence_done)) &&
                                wr_sop && host_mem_if.wready;
         host_mem_if.aw = '0;
         host_mem_if.aw.addr = { wr_base_addr + wr_cur_addr_offset,
@@ -380,14 +384,17 @@ module host_mem_rdwr_engine_axi
         host_mem_if.aw.size = host_mem_if.ADDR_BYTE_IDX_WIDTH;
         host_mem_if.aw.len = wr_flits_left - 1;
         host_mem_if.aw.id = wr_id;
-        host_mem_if.aw.user = ~t_user'(wr_id);
+        // Just pass something in the user fields as a test. The low command
+        // flag bits must be 0 since they are interpreted by the device.
+        host_mem_if.aw.user[USER_WIDTH-1 : ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1] =
+            ~AFU_PVT_USER_WIDTH'(wr_id);
 
         // Emit a write fence at the end
-        if (wr_done && ! wr_fence_done)
+        if (wr_done && !wr_fence_done)
         begin
             host_mem_if.aw.addr = t_addr'(0);
-            host_mem_if.aw.len = t_burst_cnt'(1);
-            // Need to encode a fence -- not implemented yet
+            host_mem_if.aw.len = t_burst_cnt'(0);
+            host_mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE] = 1'b1;
         end
 
         host_mem_if.wvalid = do_write_line;
@@ -399,13 +406,13 @@ module host_mem_rdwr_engine_axi
         host_mem_if.w.last = wr_eop;
     end
 
-    assign do_write_line = ((state_run && !wr_done) || !wr_sop) &&
+    assign do_write_line = ((state_run && (!wr_done || !wr_fence_done)) || !wr_sop) &&
                            (!wr_sop || host_mem_if.awready) && host_mem_if.wready;
 
     always_ff @(posedge clk)
     begin
         // Was the write request accepted?
-        if (do_write_line)
+        if (do_write_line && !wr_done)
         begin
             // Advance one line, reduce the flit count by one
             wr_cur_addr_offset <= (wr_cur_addr_offset + t_addr_offset'(1)) & base_addr_offset_mask;
@@ -425,9 +432,10 @@ module host_mem_rdwr_engine_axi
             end
         end
 
-        if (wr_done && ! wr_fence_done)
+        if (wr_done && !wr_fence_done)
         begin
             wr_fence_done <= host_mem_if.awready && host_mem_if.wready;
+            wr_sop <= 1'b1;
         end
 
         if (state_reset)
@@ -492,7 +500,6 @@ module host_mem_rdwr_engine_axi
     logic incr_wr_req;
     logic incr_wr_req_lines;
     logic incr_wr_resp;
-    t_burst_cnt incr_wr_resp_lines;
 
     always_ff @(posedge clk)
     begin
@@ -505,8 +512,6 @@ module host_mem_rdwr_engine_axi
         incr_wr_req <= host_mem_if.awvalid && host_mem_if.awready;
         incr_wr_req_lines <= host_mem_if.wvalid && host_mem_if.wready;
         incr_wr_resp <= host_mem_if.bvalid && host_mem_if.bready;
-        incr_wr_resp_lines <= host_mem_if.bvalid && host_mem_if.bready ?
-                              wr_req_burst_len : t_burst_cnt'(0);
     end
 
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req

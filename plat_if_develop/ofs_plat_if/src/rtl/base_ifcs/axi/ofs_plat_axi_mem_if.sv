@@ -62,7 +62,7 @@ interface ofs_plat_axi_mem_if
     parameter BURST_CNT_WIDTH = 8,
     parameter RID_WIDTH = 8,
     parameter WID_WIDTH = 8,
-    parameter USER_WIDTH = 1,
+    parameter USER_WIDTH = 8,
 
     // How many data bits does a bytemask bit cover?
     parameter MASKED_SYMBOL_WIDTH = 8,

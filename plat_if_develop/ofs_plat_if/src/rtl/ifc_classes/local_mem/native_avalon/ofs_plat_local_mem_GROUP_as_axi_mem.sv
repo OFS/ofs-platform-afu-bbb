@@ -147,8 +147,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_ - 1),
         .RID_WIDTH(to_afu.RID_WIDTH_),
         .WID_WIDTH(to_afu.WID_WIDTH_),
-        // Extra bit to tag bursts generated inside the burst mapper
-        .USER_WIDTH(to_afu.USER_WIDTH_ + 1)
+        .USER_WIDTH(to_afu.USER_WIDTH_)
         )
       axi_fiu_burst_if();
 
@@ -156,7 +155,11 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     assign axi_fiu_burst_if.reset_n = axi_afu_if.reset_n;
     assign axi_fiu_burst_if.instance_number = to_fiu.instance_number;
 
-    ofs_plat_axi_mem_if_map_bursts map_bursts
+    ofs_plat_axi_mem_if_map_bursts
+      #(
+        .UFLAG_NO_REPLY(ofs_plat_local_mem_axi_mem_pkg::LM_AXI_UFLAG_NO_REPLY)
+        )
+      map_bursts
        (
         .mem_master(axi_afu_if),
         .mem_slave(axi_fiu_burst_if)
