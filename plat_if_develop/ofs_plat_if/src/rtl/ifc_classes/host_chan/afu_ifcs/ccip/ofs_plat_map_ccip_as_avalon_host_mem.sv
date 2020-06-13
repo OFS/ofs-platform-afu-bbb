@@ -128,11 +128,24 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     //
 
     // ofs_plat_avalon_mem_rdwr_if_async_rob records the ROB indices
-    // of read and write requests in rd_user and wr_user fields.
-    // Size the user fields using whichever index space is larger.
-    localparam USER_WIDTH =
+    // of read and write requests in rd_user and wr_user fields after the
+    // UC_AVALON_UFLAGs. Size the user fields using whichever index space
+    // is larger.
+    localparam ROB_IDX_WIDTH =
         $clog2((MAX_ACTIVE_RD_LINES > MAX_ACTIVE_WR_LINES) ? MAX_ACTIVE_RD_LINES :
                                                              MAX_ACTIVE_WR_LINES);
+    localparam USER_WIDTH =
+        ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1 + ROB_IDX_WIDTH;
+
+    function automatic logic [ROB_IDX_WIDTH-1:0] robIdxFromUser(logic [USER_WIDTH-1:0] user);
+        return user[USER_WIDTH-1 : ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1];
+    endfunction // robIdxFromUser
+
+    function automatic logic [USER_WIDTH-1:0] robIdxToUser(logic [ROB_IDX_WIDTH-1:0] idx);
+        logic [USER_WIDTH-1:0] user = 0;
+        user[USER_WIDTH-1 : ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1] = idx;
+        return user;
+    endfunction // robIdxToUser
 
     ofs_plat_avalon_mem_rdwr_if
       #(
@@ -153,7 +166,8 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .NATURAL_ALIGNMENT(1),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
-        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
+        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES),
+        .USER_ROB_IDX_START(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1)
         )
       rob
        (
@@ -177,7 +191,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         to_fiu.sTx.c0.valid <= avmm_fiu_clk_if.rd_read && ! avmm_fiu_clk_if.rd_waitrequest;
 
         to_fiu.sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
-        to_fiu.sTx.c0.hdr.mdata <= t_ccip_mdata'(avmm_fiu_clk_if.rd_user);
+        to_fiu.sTx.c0.hdr.mdata <= t_ccip_mdata'(robIdxFromUser(avmm_fiu_clk_if.rd_user));
         to_fiu.sTx.c0.hdr.address <= avmm_fiu_clk_if.rd_address;
         to_fiu.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
         to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.rd_burstcount - 3'b1);
@@ -194,7 +208,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         avmm_fiu_clk_if.rd_readdatavalid <= ccip_c0Rx_isReadRsp(sRx.c0);
         avmm_fiu_clk_if.rd_readdata <= sRx.c0.data;
         // Index of the ROB entry
-        avmm_fiu_clk_if.rd_readresponseuser <= USER_WIDTH'(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
+        avmm_fiu_clk_if.rd_readresponseuser <= robIdxToUser(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
 
         if (!reset_n)
         begin
@@ -234,9 +248,10 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         if (wr_sop)
         begin
             c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            c1Tx.hdr.mdata <= t_ccip_mdata'(avmm_fiu_clk_if.wr_user);
+            c1Tx.hdr.mdata <= t_ccip_mdata'(robIdxFromUser(avmm_fiu_clk_if.wr_user));
 
-            if (! avmm_fiu_clk_if.wr_function)
+            if ((avmm_fiu_clk_if.USER_WIDTH <= ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) ||
+                !avmm_fiu_clk_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
             begin
                 // Normal write
                 c1Tx.hdr.address <= avmm_fiu_clk_if.wr_address;
@@ -341,7 +356,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
 
         // Index of the ROB entry. Responses are already guaranteed packed by
         // the PIM's CCI-P shim.
-        avmm_fiu_clk_if.wr_writeresponseuser <= USER_WIDTH'(sRx.c1.hdr.mdata);
+        avmm_fiu_clk_if.wr_writeresponseuser <= robIdxToUser(sRx.c1.hdr.mdata);
 
         if (!reset_n)
         begin

@@ -51,14 +51,14 @@ interface ofs_plat_avalon_mem_if
     // Extension - Optional user-defined payload.
     // This defines the width of user, readresponseuser and writeresponseuser.
     //
-    // Most slaves do not implement these and the vast majority of OFS platform
-    // top-level wrapper modules return undefined values. The Platform Interface
-    // Manager uses these fields internally, without saving or restoring values
-    // passed in from AFU masters. The fields may be also be used by AFUs to add
-    // state to intra-AFU pipelines.
+    // The Avalon version of user fields has similar semantics to the AXI
+    // user fields. It is returned with responses and some fields have
+    // slave-specific meanings. E.g., write fence can be encoded as a user
+    // bit on write requests.
     //
-    // The default width of one is easier to handle than zero.
-    parameter USER_WIDTH = 1,
+    // Unlike AXI, most OFS Avalon slaves do not return user request fields
+    // along with responses.
+    parameter USER_WIDTH = 8,
 
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by

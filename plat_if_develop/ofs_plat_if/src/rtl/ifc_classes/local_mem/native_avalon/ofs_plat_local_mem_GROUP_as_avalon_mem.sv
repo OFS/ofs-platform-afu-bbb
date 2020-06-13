@@ -117,7 +117,8 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
         // The AFU may pick a data width narrower than the FIU. Reduce it here.
         .DATA_WIDTH(to_fiu.DATA_WIDTH_),
         .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH_),
-        .BURST_CNT_WIDTH(to_afu.BURST_CNT_WIDTH_)
+        .BURST_CNT_WIDTH(to_afu.BURST_CNT_WIDTH_),
+        .USER_WIDTH(to_afu.USER_WIDTH_)
         )
       afu_burst_if();
 
@@ -141,8 +142,7 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-        .USER_WIDTH(1)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
         )
         afu_mem_if();
 
@@ -164,12 +164,11 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
             assign afu_burst_if.reset_n = afu_mem_if.reset_n;
             assign afu_burst_if.instance_number = afu_mem_if.instance_number;
 
-            // Map bursts sets the "afu_mem_if.user[0]" field to indicate
-            // whether a write response is expected for a burst. For now,
-            // we assume that the slave at afu_mem_if either doesn't return
-            // write responses or that it preserves user[0] as
-            // writeresponseuser[0].
-            ofs_plat_avalon_mem_if_map_bursts burst
+            ofs_plat_avalon_mem_if_map_bursts
+              #(
+                .UFLAG_NO_REPLY(ofs_plat_local_mem_avalon_mem_pkg::LM_AVALON_UFLAG_NO_REPLY)
+                )
+              map_bursts
                (
                 .mem_master(afu_burst_if),
                 .mem_slave(afu_mem_if)

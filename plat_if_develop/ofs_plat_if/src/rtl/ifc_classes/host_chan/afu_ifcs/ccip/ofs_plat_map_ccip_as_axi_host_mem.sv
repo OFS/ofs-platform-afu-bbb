@@ -297,7 +297,8 @@ module ofs_plat_map_ccip_as_axi_host_mem
             c1Tx.hdr.req_type <= eREQ_WRLINE_I;
             c1Tx.hdr.sop <= 1'b1;
 
-            if (axi_reg.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+            if ((axi_reg.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE) &&
+                axi_reg.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
             begin
                 c1Tx.hdr.req_type <= eREQ_WRFENCE;
                 c1Tx.hdr.sop <= 1'b0;

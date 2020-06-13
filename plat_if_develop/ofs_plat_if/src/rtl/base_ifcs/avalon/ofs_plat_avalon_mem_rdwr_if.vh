@@ -67,12 +67,10 @@
     MEM_SLAVE.rd_burstcount OPER MEM_MASTER.rd_burstcount; \
     MEM_SLAVE.rd_byteenable OPER MEM_MASTER.rd_byteenable; \
     MEM_SLAVE.rd_address OPER MEM_MASTER.rd_address; \
-    MEM_SLAVE.rd_function OPER MEM_MASTER.rd_function; \
     MEM_SLAVE.rd_user OPER MEM_MASTER.rd_user; \
     MEM_SLAVE.wr_burstcount OPER MEM_MASTER.wr_burstcount; \
     MEM_SLAVE.wr_writedata OPER MEM_MASTER.wr_writedata; \
     MEM_SLAVE.wr_address OPER MEM_MASTER.wr_address; \
-    MEM_SLAVE.wr_function OPER MEM_MASTER.wr_function; \
     MEM_SLAVE.wr_write OPER MEM_MASTER.wr_write; \
     MEM_SLAVE.wr_byteenable OPER MEM_MASTER.wr_byteenable; \
     MEM_SLAVE.wr_user OPER MEM_MASTER.wr_user
@@ -107,7 +105,7 @@
 
 
 //
-// Initialization macros ought to just be tasks in the interface, but QuestSim
+// Initialization macros ought to just be tasks in the interface, but QuestaSim
 // treats tasks as active even if they are never invoked, leading to errors
 // about multiple drivers.
 //
@@ -120,11 +118,9 @@
     MEM_MASTER.rd_burstcount OPER '0; \
     MEM_MASTER.rd_byteenable OPER '0; \
     MEM_MASTER.rd_address OPER '0; \
-    MEM_MASTER.rd_function OPER '0; \
     MEM_MASTER.wr_burstcount OPER '0; \
     MEM_MASTER.wr_writedata OPER '0; \
     MEM_MASTER.wr_address OPER '0; \
-    MEM_MASTER.wr_function OPER '0; \
     MEM_MASTER.wr_write OPER 1'b0; \
     MEM_MASTER.wr_byteenable OPER '0
 

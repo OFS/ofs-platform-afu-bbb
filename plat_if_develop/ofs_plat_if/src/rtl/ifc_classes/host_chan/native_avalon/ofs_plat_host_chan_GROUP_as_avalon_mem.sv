@@ -78,21 +78,6 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
     localparam OUT_OF_ORDER = 0;
 `endif
 
-    // Does the FIU port return responses out of order? If so, the user
-    // port must be available as a tag.
-    // synthesis translate_off
-    initial
-    begin
-        if (OUT_OF_ORDER)
-        begin
-            assert (FIU_USER_WIDTH > 1) else
-                $fatal(2, " ** ERROR ** %m: Port is out of order but USER_WIDTH is too small!");
-
-            assert (FIU_BURST_CNT_WIDTH == 1) else
-                $fatal(2, " ** ERROR ** %m: Port is out of order but max. burst count is not 1!");
-        end
-    end
-    // synthesis translate_on
 
     // ====================================================================
     //
@@ -131,8 +116,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-        .USER_WIDTH(FIU_USER_WIDTH)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
         )
         fiu_reg_if();
 
@@ -178,9 +162,31 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
             //
             // Cross to the specified clock and/or add a reorder buffer
             //
+            localparam ROB_IDX_WIDTH =
+                $clog2((MAX_ACTIVE_RD_LINES > MAX_ACTIVE_WR_LINES) ? MAX_ACTIVE_RD_LINES :
+                                                                     MAX_ACTIVE_WR_LINES);
+
+            // Does the FIU port return responses out of order? If so, the user
+            // port must be available as a tag.
+            // synthesis translate_off
+            initial
+            begin
+                if (OUT_OF_ORDER)
+                begin
+                    assert (FIU_USER_WIDTH >= ROB_IDX_WIDTH) else
+                        $fatal(2, " ** ERROR ** %m: Port is out of order but USER_WIDTH is too small!");
+
+                    assert (FIU_BURST_CNT_WIDTH == 1) else
+                        $fatal(2, " ** ERROR ** %m: Port is out of order but max. burst count is not 1!");
+                end
+            end
+            // synthesis translate_on
+
             ofs_plat_avalon_mem_if
               #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_MEM_PARAMS(to_fiu),
+                .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
+                .USER_WIDTH(ROB_IDX_WIDTH)
                 )
                 mem_cross();
 
@@ -274,9 +280,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
             //
             ofs_plat_avalon_mem_if
               #(
-                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-                // user field bit 0 used to track required write responses
-                .USER_WIDTH(1)
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
                 )
               fiu_burst_if();
 
@@ -302,9 +306,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
                 );
 
             // One bit FIFO tracker indicating whether a write response should be
-            // forwarded to the AFU. The burst mapper expects this in user[0].
+            // forwarded to the AFU.
             logic wr_resp_fifo_notFull;
-            logic wr_resp_expected;
+            logic wr_resp_noreply;
 
             ofs_plat_prim_fifo_lutram
               #(
@@ -316,12 +320,12 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
                (
                 .clk(fiu_burst_if.clk),
                 .reset_n(fiu_burst_if.reset_n),
-                .enq_data(fiu_burst_if.user[0]),
+                .enq_data(fiu_burst_if.user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY]),
                 .enq_en(fiu_burst_if_sop && fiu_burst_if.write &&
                         !fiu_burst_if.waitrequest),
                 .notFull(wr_resp_fifo_notFull),
                 .almostFull(),
-                .first(wr_resp_expected),
+                .first(wr_resp_noreply),
                 .deq_en(fiu_burst_if.writeresponsevalid),
                 .notEmpty()
                 );
@@ -337,7 +341,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
                 afu_clk_if.write = fiu_burst_if.write && wr_resp_fifo_notFull;
 
                 fiu_burst_if.waitrequest = afu_clk_if.waitrequest || !wr_resp_fifo_notFull;
-                fiu_burst_if.writeresponseuser[0] = wr_resp_expected;
+                fiu_burst_if.writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY] =
+                    wr_resp_noreply;
             end
 
             //

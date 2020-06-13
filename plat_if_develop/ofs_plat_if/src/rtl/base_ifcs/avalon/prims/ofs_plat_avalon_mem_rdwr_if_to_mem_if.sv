@@ -70,12 +70,11 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         logic [DATA_WIDTH-1:0] data;
         logic [DATA_N_BYTES-1:0] byteenable;
         logic [USER_WIDTH-1:0] user;
-        logic wr_function;
         logic eop;
     } t_wr_req;
     // Some simulators weren't happy with $bits(t_rd_req)
     localparam T_WR_REQ_WIDTH = ADDR_WIDTH + BURST_CNT_WIDTH +
-                                DATA_WIDTH + DATA_N_BYTES + USER_WIDTH + 2;
+                                DATA_WIDTH + DATA_N_BYTES + USER_WIDTH + 1;
 
     wire clk;
     assign clk = mem_slave.clk;
@@ -101,7 +100,6 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         master_in_wr_req.data = mem_master.wr_writedata;
         master_in_wr_req.byteenable = mem_master.wr_byteenable;
         master_in_wr_req.user = mem_master.wr_user;
-        master_in_wr_req.wr_function = mem_master.wr_function;
     end
 
     // Track master write bursts so they stay contiguous
@@ -166,16 +164,6 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         .deq_en(wr_req_deq_en),
         .notEmpty(wr_req_notEmpty)
         );
-
-    // synthesis translate_off
-    always_ff @(negedge clk)
-    begin
-        if (reset_n && wr_req_notEmpty && wr_req.wr_function)
-        begin
-            $fatal(2, "** ERROR ** %m: Write fence unsupported -- they can't be encoded in ofs_plat_avalon_mem_if!");
-        end
-    end
-    // synthesis translate_on
 
     //
     // Arbiter -- map separate request channels into a single channel.

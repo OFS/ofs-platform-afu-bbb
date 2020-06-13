@@ -52,17 +52,16 @@ interface ofs_plat_avalon_mem_rdwr_if
     parameter RESPONSE_WIDTH = 2,
 
     // Extension - Optional user-defined payload.
-    // This defines the width of rd_user, rd_readresponseuser, wr_user and
-    // wr_writeresponseuser.
+    // This defines the width of user, readresponseuser and writeresponseuser.
     //
-    // Most slaves do not implement these and the vast majority of OFS platform
-    // top-level wrapper modules return undefined values. The Platform Interface
-    // Manager uses these fields internally, without saving or restoring values
-    // passed in from AFU masters. The fields may be also be used by AFUs to add
-    // state to intra-AFU pipelines.
+    // The Avalon version of user fields has similar semantics to the AXI
+    // user fields. It is returned with responses and some fields have
+    // slave-specific meanings. E.g., write fence can be encoded as a user
+    // bit on write requests.
     //
-    // The default width of one is easier to handle than zero.
-    parameter USER_WIDTH = 1,
+    // Unlike AXI, most OFS Avalon slaves do not return user request fields
+    // along with responses.
+    parameter USER_WIDTH = 8,
 
     // This parameter does not affect the interface. Instead, it is a guide to
     // the master indicating the waitrequestAllowance behavior offered by
@@ -102,9 +101,6 @@ interface ofs_plat_avalon_mem_rdwr_if
     logic rd_read;
     logic [BURST_CNT_WIDTH-1:0] rd_burstcount;
     logic [DATA_N_BYTES-1:0] rd_byteenable;
-    // rd_function is non-standard. It is currently reserved and should be set to
-    // zero. See wr_function for a more detailed explanation.
-    logic rd_function;
     // Extension - see USER_WIDTH parameter
     logic [USER_WIDTH-1:0] rd_user;
 
@@ -121,20 +117,6 @@ interface ofs_plat_avalon_mem_rdwr_if
     logic [BURST_CNT_WIDTH-1:0] wr_burstcount;
     logic [DATA_WIDTH-1:0] wr_writedata;
     logic [DATA_N_BYTES-1:0] wr_byteenable;
-    // wr_function is non-standard. When used as a host channel to host memory, the
-    // Avalon ordered bus does not map well to either AXI or CCI-P, which allow
-    // out-of-order completion. On some platforms, the semantics of Avalon ordering
-    // may be redefined to permit stores to be reordered in the FIU. (Despite this,
-    // writeresponsevalid always returns in request order so that responses can be
-    // matched with requests.) Setting the wr_function flag indicates a command to
-    // the FIU. Currently, the only command is a write fence. When wr_function is
-    // set the wr_address field must be all zeros. Non-zero addresses are reserved
-    // for future use.
-    //
-    // The simplest way to pass rd_function or wr_function through standard Avalon
-    // networks that lack the port is by widening the address field by one bit and
-    // sending request in parallel through the address port.
-    logic wr_function;
     // Extension - see USER_WIDTH parameter
     logic [USER_WIDTH-1:0] wr_user;
 
@@ -162,7 +144,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         output rd_read,
         output rd_burstcount,
         output rd_byteenable,
-        output rd_function,
         output rd_user,
 
         // Write bus
@@ -176,7 +157,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_burstcount,
         output wr_writedata,
         output wr_byteenable,
-        output wr_function,
         output wr_user,
 
         // Debugging
@@ -200,7 +180,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         output rd_read,
         output rd_burstcount,
         output rd_byteenable,
-        output rd_function,
         output rd_user,
 
         // Write bus
@@ -214,7 +193,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         output wr_burstcount,
         output wr_writedata,
         output wr_byteenable,
-        output wr_function,
         output wr_user,
 
         // Debugging
@@ -241,7 +219,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
-        input  rd_function,
         input  rd_user,
 
         // Write bus
@@ -255,7 +232,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_burstcount,
         input  wr_writedata,
         input  wr_byteenable,
-        input  wr_function,
         input  wr_user,
 
         // Debugging
@@ -279,7 +255,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  rd_read,
         input  rd_burstcount,
         input  rd_byteenable,
-        input  rd_function,
         input  rd_user,
 
         // Write bus
@@ -293,7 +268,6 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  wr_burstcount,
         input  wr_writedata,
         input  wr_byteenable,
-        input  wr_function,
         input  wr_user,
 
         // Debugging
@@ -370,15 +344,8 @@ interface ofs_plat_avalon_mem_rdwr_if
             begin
                 $fatal(2, "** ERROR ** %m: rd_burstcount undefined during a read, currently 0x%x", rd_burstcount);
             end
-
-            // rd_function must always be 0
-            if (rd_function !== 1'b0)
-            begin
-                $fatal(2, "** ERROR ** %m: rd_function must be 0, currently %0d", rd_function);
-            end
         end
 
-        // wr_function must be set and may not interrupt a burst
         if (reset_n && wr_write && !wr_waitrequest)
         begin
             if (wr_sop && (^wr_address === 1'bx))
@@ -389,29 +356,6 @@ interface ofs_plat_avalon_mem_rdwr_if
             if (wr_sop && (^wr_burstcount === 1'bx))
             begin
                 $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", wr_burstcount);
-            end
-
-            if (wr_function === 'x)
-            begin
-                $fatal(2, "** ERROR ** %m: wr_function is uninitialized during a write");
-            end
-
-            if (wr_function == 1'b1)
-            begin
-                if (! wr_sop)
-                begin
-                    $fatal(2, "** ERROR ** %m: wr_function may not be set in the middle of a burst");
-                end
-
-                if (wr_address != 0)
-                begin
-                    $fatal(2, "** ERROR ** %m: wr_address (0x%x) must be 0 when wr_function is set", wr_address);
-                end
-
-                if (wr_burstcount != 1)
-                begin
-                    $fatal(2, "** ERROR ** %m: wr_burstcount (0x%x) must be 1 when wr_function is set", wr_burstcount);
-                end
             end
         end
     end
@@ -453,11 +397,10 @@ interface ofs_plat_avalon_mem_rdwr_if
                 // Write request
                 if (reset_n && wr_write && (!wr_waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write %s0x%x %sburst 0x%x user 0x%x mask 0x%x data 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x user 0x%x mask 0x%x data 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            ((wr_function == 1'b0) ? "" : "fence "),
                             wr_address,
                             (wr_sop ? "sop " : ""),
                             wr_burstcount,

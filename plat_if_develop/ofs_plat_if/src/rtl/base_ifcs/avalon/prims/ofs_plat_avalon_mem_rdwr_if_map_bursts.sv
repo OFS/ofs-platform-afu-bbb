@@ -36,22 +36,17 @@
 //
 module ofs_plat_avalon_mem_rdwr_if_map_bursts
   #(
+    // Which bit in the mem_slave user flags should be set to indicate
+    // injected bursts that should be dropped so that the AFU sees
+    // only responses to its original bursts?
+    parameter UFLAG_NO_REPLY = 0,
+
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
-
-    //
-    // The wr_user field's low bit is used to indicate whether the AFU expects
-    // a write response for a write request. Write responses returned to
-    // mem_master must match the master's write burst count and not the
-    // slave's. The slave must return wr_user[0] in wr_writeresponseuser[0],
-    // which is used in this module on the response path to squash duplicate
-    // master write responses. Master write responses are only expected when
-    // mem_slave.wr_user[0] is 1.
-    //
     ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave
     );
 
@@ -76,7 +71,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     localparam SLAVE_BURST_WIDTH = mem_slave.BURST_CNT_WIDTH_;
     typedef logic [MASTER_BURST_WIDTH-1 : 0] t_master_burst_cnt;
 
-    localparam USER_WIDTH = mem_master.USER_WIDTH_;
+    localparam USER_WIDTH = mem_slave.USER_WIDTH_;
+    typedef logic [USER_WIDTH-1 : 0] t_user;
 
     generate
         if ((! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
@@ -137,8 +133,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     // New request -- the last one is complete
                     mem_slave.rd_read <= mem_master.rd_read;
                     mem_slave.rd_byteenable <= mem_master.rd_byteenable;
-                    mem_slave.rd_function <= mem_master.rd_function;
-                    mem_slave.rd_user <= { mem_master.rd_user, 1'b0 };
+                    mem_slave.rd_user <= mem_master.rd_user;
+                    mem_slave.rd_user[UFLAG_NO_REPLY] <= 1'b0;
                 end
 
                 if (!reset_n)
@@ -151,7 +147,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             assign mem_master.rd_readdata = mem_slave.rd_readdata;
             assign mem_master.rd_readdatavalid = mem_slave.rd_readdatavalid;
             assign mem_master.rd_response = mem_slave.rd_response;
-            assign mem_master.rd_readresponseuser = mem_slave.rd_readresponseuser[1 +: USER_WIDTH];
+            assign mem_master.rd_readresponseuser = mem_slave.rd_readresponseuser;
 
 
             //
@@ -164,6 +160,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             logic [ADDR_WIDTH-1 : 0] s_wr_address;
             logic [SLAVE_BURST_WIDTH-1 : 0] s_wr_burstcount;
             logic m_wr_sop, s_wr_sop;
+            t_user s_wr_user;
 
             // Map burst counts in the master to one or more bursts in the slave.
             ofs_plat_prim_burstcount1_mapping_gearbox
@@ -204,8 +201,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.wr_write <= mem_master.wr_write;
                     mem_slave.wr_writedata <= mem_master.wr_writedata;
                     mem_slave.wr_byteenable <= mem_master.wr_byteenable;
-                    mem_slave.wr_function <= mem_master.wr_function;
-                    mem_slave.wr_user[1 +: USER_WIDTH] <= mem_master.wr_user;
+                    s_wr_user <= mem_master.wr_user;
                 end
 
                 if (!reset_n)
@@ -216,7 +212,11 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
             // Write ACKs can flow back unchanged. It is up to the part of this
             // module to ensure that there is only one write ACK per master burst.
-            assign mem_slave.wr_user[0] = wr_complete && s_wr_sop;
+            always_comb
+            begin
+                mem_slave.wr_user = s_wr_user;
+                mem_slave.wr_user[UFLAG_NO_REPLY] = !(wr_complete && s_wr_sop);
+            end
 
             ofs_plat_prim_burstcount1_sop_tracker
               #(
@@ -247,20 +247,21 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 );
 
             // Forward only responses to master bursts. Extra slave bursts are
-            // indicated by 0 in wr_writeresponseuser[0].
+            // indicated by 1 in wr_writeresponseuser[UFLAG_NO_REPLY].
             assign mem_master.wr_writeresponsevalid =
-                mem_slave.wr_writeresponsevalid && mem_slave.wr_writeresponseuser[0];
+                mem_slave.wr_writeresponsevalid && !mem_slave.wr_writeresponseuser[UFLAG_NO_REPLY];
             assign mem_master.wr_response = mem_slave.wr_response;
-            assign mem_master.wr_writeresponseuser = mem_slave.wr_writeresponseuser[1 +: USER_WIDTH];
+            assign mem_master.wr_writeresponseuser = mem_slave.wr_writeresponseuser;
 
 
             // synthesis translate_off
 
             //
             // Validated in simulation: confirm that the slave is properly
-            // returning wr_writeresponseuser[0] based on wr_slave.wr_user[0] for
-            // burst tracking. The test here is simple: if there are more write
-            // responses than write requests from the master then something is wrong.
+            // returning wr_writeresponseuser[UFLAG_NO_REPLY] based on
+            // wr_slave.wr_user[UFLAG_NO_REPLY] for burst tracking. The test here is
+            // simple: if there are more write responses than write requests from the
+            // master then something is wrong.
             //
             int m_num_writes, m_num_write_responses;
 
@@ -268,7 +269,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             begin
                 if (m_num_write_responses > m_num_writes)
                 begin
-                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the slave returning wr_writeresponseuser[0]?");
+                    $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the slave returning wr_writeresponseuser[%0d]?", UFLAG_NO_REPLY);
                 end
 
                 if (mem_master.wr_write && ! mem_master.wr_waitrequest && m_wr_sop)

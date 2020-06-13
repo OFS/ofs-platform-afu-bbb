@@ -163,7 +163,6 @@ module ofs_plat_host_chan_@group@_as_ccip
         afu_avmm_rdwr_if.rd_address = afu_c0Tx.hdr.address;
         afu_avmm_rdwr_if.rd_burstcount = 3'(afu_c0Tx.hdr.cl_len) + 3'b1;
         afu_avmm_rdwr_if.rd_byteenable = ~'0;
-        afu_avmm_rdwr_if.rd_function = '0;
     end
 
     // Track read bursts in flight, required to fill in CCI-P details in responses
@@ -285,12 +284,12 @@ module ofs_plat_host_chan_@group@_as_ccip
         afu_avmm_rdwr_if.wr_burstcount = 3'(afu_c1Tx.hdr.cl_len) + 3'b1;
         afu_avmm_rdwr_if.wr_byteenable = afu_c1Tx.hdr.mode ? afu_c1Tx_byteenable : ~'0;
 
-        afu_avmm_rdwr_if.wr_function = '0;
+        afu_avmm_rdwr_if.wr_user = '0;
         if (afu_c1Tx.hdr.req_type == eREQ_WRFENCE)
         begin
             // Use AVMM special fence encoding
             afu_avmm_rdwr_if.wr_address = '0;
-            afu_avmm_rdwr_if.wr_function = 1'b1;
+            afu_avmm_rdwr_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE] = 1'b1;
         end
     end
 

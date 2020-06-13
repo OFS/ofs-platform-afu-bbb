@@ -201,7 +201,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         // request is from the master (and thus completes a master
         // read request) or is generated here and should not get an
         // r.last tag.
-        mem_slave.ar.user[UFLAG_NO_REPLY] = rd_complete;
+        mem_slave.ar.user[UFLAG_NO_REPLY] = !rd_complete;
     end
 
     // Register read request state coming from the master that isn't held
@@ -235,7 +235,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
 
             // Don't mark end of burst unless it corresponds to a master burst
             mem_master.r.last <= mem_slave.r.last &&
-                                 mem_slave.r.user[UFLAG_NO_REPLY];
+                                 !mem_slave.r.user[UFLAG_NO_REPLY];
         end
 
         if (!reset_n)
@@ -294,7 +294,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         // Set a bit in aw.user to indicate whether a write
         // request is from the master (and should get a response) or
         // generated here and the response should be squashed.
-        mem_slave.aw.user[UFLAG_NO_REPLY] = wr_complete;
+        mem_slave.aw.user[UFLAG_NO_REPLY] = !wr_complete;
     end
 
     // Register write request state coming from the master that isn't held
@@ -341,7 +341,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         begin
             // Don't forward bursts generated here
             mem_master.bvalid <= mem_slave.bvalid &&
-                                 mem_slave.b.user[UFLAG_NO_REPLY];
+                                 !mem_slave.b.user[UFLAG_NO_REPLY];
 
             // Field-by-field copy (sizes changed)
             `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_master.b, <=, mem_slave.b);

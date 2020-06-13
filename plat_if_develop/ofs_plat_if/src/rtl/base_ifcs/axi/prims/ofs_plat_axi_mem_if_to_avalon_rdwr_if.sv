@@ -97,7 +97,6 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
         avmm_slave.rd_address = axi_master.ar.addr[AXI_ADDR_START_BIT +: ADDR_WIDTH];
         avmm_slave.rd_burstcount = t_burst_cnt'(axi_master.ar.len) + 1;
         avmm_slave.rd_byteenable = ~t_byteenable'(0);
-        avmm_slave.rd_function = '0;
         avmm_slave.rd_user = { axi_master.ar.user, axi_master.ar.id };
 
         // Read response
@@ -265,7 +264,6 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
         avmm_slave.wr_write = (axi_reg.awvalid || !wr_is_sop) && axi_reg.wvalid;
         avmm_slave.wr_writedata = axi_reg.w.data;
         avmm_slave.wr_byteenable = axi_reg.w.strb;
-        avmm_slave.wr_function = '0;
         if (wr_is_sop)
         begin
             avmm_slave.wr_address = axi_reg.aw.addr[AXI_ADDR_START_BIT +: ADDR_WIDTH];

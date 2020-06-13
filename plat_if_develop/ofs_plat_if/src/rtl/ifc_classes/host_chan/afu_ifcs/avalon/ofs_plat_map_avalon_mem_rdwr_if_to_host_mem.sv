@@ -46,7 +46,10 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
 
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
-    parameter MAX_ACTIVE_WR_LINES = 256
+    parameter MAX_ACTIVE_WR_LINES = 256,
+
+    // First bit in the user fields where the ROB indices should be stored.
+    parameter USER_ROB_IDX_START = 0
     )
    (
     // mem_master parameters should match the master's field widths.
@@ -66,9 +69,7 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
       #(
         `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(mem_master),
         .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
-        // ofs_plat_avalon_mem_rdwr_if_map_bursts records whether write
-        // responses are expected on wr_user[0].
-        .USER_WIDTH(mem_master.USER_WIDTH_ + 1)
+        .USER_WIDTH(mem_master.USER_WIDTH_)
         )
       avmm_fiu_burst_if();
 
@@ -95,12 +96,35 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
-        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
+        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES),
+        .USER_ROB_IDX_START(USER_ROB_IDX_START)
         )
       rob
        (
         .mem_master(avmm_fiu_burst_if),
         .mem_slave
         );
+
+
+    // synthesis translate_off
+    always_ff @(negedge mem_master.clk)
+    begin
+        if (mem_master.reset_n)
+        begin
+            if (mem_master.wr_write && !mem_master.wr_waitrequest)
+            begin
+                // Memory fence?
+                if ((mem_master.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) &&
+                    mem_master.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
+                begin
+                    if (mem_master.wr_burstcount != 1)
+                    begin
+                        $fatal(2, "** ERROR ** %m: Memory fence burstcount must be 1!");
+                    end
+                end
+            end
+        end
+    end
+    // synthesis translate_on
 
 endmodule // ofs_plat_map_avalon_mem_rdwr_if_to_host_mem

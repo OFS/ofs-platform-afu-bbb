@@ -43,7 +43,11 @@ module ofs_plat_avalon_mem_rdwr_if_mux
 
     // Tracker depths govern the maximum number of bursts that may be in flight.
     parameter RD_TRACKER_DEPTH = 256,
-    parameter WR_TRACKER_DEPTH = 128
+    parameter WR_TRACKER_DEPTH = 128,
+
+    // Shift in this many zero bits at the low end of slave user fields.
+    // This simplifies protocol transformations after the MUX.
+    parameter SLAVE_USER_SHIFT = 0
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
@@ -111,7 +115,6 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             t_addr address;
             t_burstcount burstcount;
             t_byteenable byteenable;
-            logic func;
             t_user user;
         } t_req;
 
@@ -135,7 +138,6 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             assign rd_master_req.address = mem_master[p].rd_address;
             assign rd_master_req.burstcount = mem_master[p].rd_burstcount;
             assign rd_master_req.byteenable = mem_master[p].rd_byteenable;
-            assign rd_master_req.func = mem_master[p].rd_function;
             assign rd_master_req.user = mem_master[p].rd_user;
 
             logic rd_req_in_notFull;
@@ -186,7 +188,8 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             shared_if.rd_read = (|(rd_req_deq_en));
             shared_if.rd_burstcount = rd_req[rd_grantIdx].burstcount;
             shared_if.rd_byteenable = rd_req[rd_grantIdx].byteenable;
-            shared_if.rd_function = rd_req[rd_grantIdx].func;
+            shared_if.rd_user = '0;
+            shared_if.rd_user[SLAVE_USER_SHIFT +: USER_WIDTH] = rd_req[rd_grantIdx].user;
         end
 
         // Track the port and burst length of winners in order to send
@@ -268,7 +271,6 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             assign wr_master_req.address = mem_master[p].wr_address;
             assign wr_master_req.burstcount = mem_master[p].wr_burstcount;
             assign wr_master_req.byteenable = mem_master[p].wr_byteenable;
-            assign wr_master_req.func = mem_master[p].wr_function;
             assign wr_master_req.user = mem_master[p].wr_user;
 
             logic wr_req_in_notFull;
@@ -364,7 +366,8 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             shared_if.wr_write = (|(wr_req_deq_en));
             shared_if.wr_burstcount = wr_req[wr_winnerIdx].burstcount;
             shared_if.wr_byteenable = wr_req[wr_winnerIdx].byteenable;
-            shared_if.wr_function = wr_req[wr_winnerIdx].func;
+            shared_if.wr_user = '0;
+            shared_if.wr_user[SLAVE_USER_SHIFT +: USER_WIDTH] = wr_req[wr_winnerIdx].user;
             shared_if.wr_writedata = wr_writedata[wr_winnerIdx];
         end
 

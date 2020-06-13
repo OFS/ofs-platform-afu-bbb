@@ -273,8 +273,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     //
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu),
-        .USER_WIDTH(1)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
         )
         avmm_if();
 

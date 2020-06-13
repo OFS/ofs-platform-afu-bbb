@@ -143,7 +143,8 @@ module ofs_plat_map_axi_mem_if_to_host_mem
             if (mem_master.awvalid && mem_master.awready)
             begin
                 // Memory fence?
-                if (mem_master.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+                if ((mem_master.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE) &&
+                    mem_master.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
                 begin
                     if (mem_master.aw.len)
                     begin

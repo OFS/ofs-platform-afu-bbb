@@ -42,10 +42,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
 
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
-    parameter MAX_ACTIVE_WR_LINES = 256
+    parameter MAX_ACTIVE_WR_LINES = 256,
+
+    // First bit in the slave's user fields where the ROB indices should be
+    // stored.
+    parameter USER_ROB_IDX_START = 0
     )
    (
-    // BURST_CNT_WIDTH of both mem_slave and mem_master must be 3!
     ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
     ofs_plat_avalon_mem_rdwr_if.to_master mem_master
     );
@@ -110,7 +113,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.rd_readdatavalid),
-        .enqDataIdx(t_rd_rob_idx'(mem_slave.rd_readresponseuser)),
+        .enqDataIdx(mem_slave.rd_readresponseuser[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
         .enqData({ mem_slave.rd_response, mem_slave.rd_readdata }),
 
         .deq_en(rd_readdatavalid),
@@ -130,6 +133,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     // Forward requests to slave, along with the rob index.
     //
 
+    t_slave_user slave_rd_user;
+    always_comb
+    begin
+        slave_rd_user = t_slave_user'(mem_master.rd_user);
+        slave_rd_user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)] = rd_allocIdx;
+    end
+
     generate
         if (ADD_CLOCK_CROSSING)
         begin : rd_cc
@@ -139,7 +149,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .N_DATA_BITS(SLAVE_USER_WIDTH +
                              mem_master.BURST_CNT_WIDTH +
                              mem_master.DATA_N_BYTES +
-                             1 + // rd_function
                              mem_master.ADDR_WIDTH),
                 .N_ENTRIES(16)
                 )
@@ -147,10 +156,9 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                (
                 .enq_clk(mem_master.clk),
                 .enq_reset_n(mem_master.reset_n),
-                .enq_data({ t_slave_user'(rd_allocIdx),
+                .enq_data({ slave_rd_user,
                             mem_master.rd_burstcount,
                             mem_master.rd_byteenable,
-                            mem_master.rd_function,
                             mem_master.rd_address }),
                 .enq_en(rd_req_en),
                 .notFull(rd_fifo_notFull),
@@ -161,7 +169,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .first({ mem_slave.rd_user,
                          mem_slave.rd_burstcount,
                          mem_slave.rd_byteenable,
-                         mem_slave.rd_function,
                          mem_slave.rd_address }),
                 .deq_en(mem_slave.rd_read && !mem_slave.rd_waitrequest),
                 .notEmpty(mem_slave.rd_read)
@@ -175,7 +182,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .N_DATA_BITS(SLAVE_USER_WIDTH +
                              mem_master.BURST_CNT_WIDTH +
                              mem_master.DATA_N_BYTES +
-                             1 + // rd_function
                              mem_master.ADDR_WIDTH)
                 )
              rd_req_fifo
@@ -183,10 +189,9 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .clk(mem_master.clk),
                 .reset_n(mem_master.reset_n),
 
-                .enq_data({ t_slave_user'(rd_allocIdx),
+                .enq_data({ slave_rd_user,
                             mem_master.rd_burstcount,
                             mem_master.rd_byteenable,
-                            mem_master.rd_function,
                             mem_master.rd_address }),
                 .enq_en(rd_req_en),
                 .notFull(rd_fifo_notFull),
@@ -194,7 +199,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .first({ mem_slave.rd_user,
                          mem_slave.rd_burstcount,
                          mem_slave.rd_byteenable,
-                         mem_slave.rd_function,
                          mem_slave.rd_address }),
                 .deq_en(mem_slave.rd_read && !mem_slave.rd_waitrequest),
                 .notEmpty(mem_slave.rd_read)
@@ -269,7 +273,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.wr_writeresponsevalid),
-        .enqDataIdx(t_wr_rob_idx'(mem_slave.wr_writeresponseuser)),
+        .enqDataIdx(mem_slave.wr_writeresponseuser[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)]),
         .enqData(mem_slave.wr_response),
 
         .deq_en(wr_writeresponsevalid),
@@ -301,6 +305,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         end
     end
 
+    t_slave_user slave_wr_user;
+    always_comb
+    begin
+        slave_wr_user = t_slave_user'(mem_master.wr_user);
+        slave_wr_user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)] = wr_allocIdx;
+    end
+
     generate
         if (ADD_CLOCK_CROSSING)
         begin : wr_cc
@@ -311,7 +322,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                              mem_master.BURST_CNT_WIDTH +
                              mem_master.DATA_WIDTH +
                              mem_master.DATA_N_BYTES +
-                             1 + // wr_function
                              mem_master.ADDR_WIDTH),
                 .N_ENTRIES(16)
                 )
@@ -319,11 +329,10 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                (
                 .enq_clk(mem_master.clk),
                 .enq_reset_n(mem_master.reset_n),
-                .enq_data({ t_slave_user'(wr_allocIdx),
+                .enq_data({ slave_wr_user,
                             mem_master.wr_burstcount,
                             mem_master.wr_writedata,
                             mem_master.wr_byteenable,
-                            mem_master.wr_function,
                             mem_master.wr_address }),
                 .enq_en(wr_req_en),
                 .notFull(wr_fifo_notFull),
@@ -335,7 +344,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                          mem_slave.wr_burstcount,
                          mem_slave.wr_writedata,
                          mem_slave.wr_byteenable,
-                         mem_slave.wr_function,
                          mem_slave.wr_address }),
                 .deq_en(mem_slave.wr_write && !mem_slave.wr_waitrequest),
                 .notEmpty(mem_slave.wr_write)
@@ -350,7 +358,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                              mem_master.BURST_CNT_WIDTH +
                              mem_master.DATA_WIDTH +
                              mem_master.DATA_N_BYTES +
-                             1 + // wr_function
                              mem_master.ADDR_WIDTH)
                 )
              wr_req_fifo
@@ -358,11 +365,10 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                 .clk(mem_master.clk),
                 .reset_n(mem_master.reset_n),
 
-                .enq_data({ t_slave_user'(wr_allocIdx),
+                .enq_data({ slave_wr_user,
                             mem_master.wr_burstcount,
                             mem_master.wr_writedata,
                             mem_master.wr_byteenable,
-                            mem_master.wr_function,
                             mem_master.wr_address }),
                 .enq_en(wr_req_en),
                 .notFull(wr_fifo_notFull),
@@ -371,7 +377,6 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
                          mem_slave.wr_burstcount,
                          mem_slave.wr_writedata,
                          mem_slave.wr_byteenable,
-                         mem_slave.wr_function,
                          mem_slave.wr_address }),
                 .deq_en(mem_slave.wr_write && !mem_slave.wr_waitrequest),
                 .notEmpty(mem_slave.wr_write)

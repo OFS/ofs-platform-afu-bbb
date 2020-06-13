@@ -39,7 +39,8 @@
     .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
     .DATA_WIDTH(AVALON_IF.DATA_WIDTH_), \
     .MASKED_SYMBOL_WIDTH(AVALON_IF.MASKED_SYMBOL_WIDTH_), \
-    .BURST_CNT_WIDTH(AVALON_IF.BURST_CNT_WIDTH_)
+    .BURST_CNT_WIDTH(AVALON_IF.BURST_CNT_WIDTH_), \
+    .USER_WIDTH(AVALON_IF.USER_WIDTH_)
 
 `define OFS_PLAT_AVALON_MEM_IF_REPLICATE_MEM_PARAMS(AVALON_IF) \
     .ADDR_WIDTH(AVALON_IF.ADDR_WIDTH_), \
@@ -99,7 +100,7 @@
 
 
 //
-// Initialization macros ought to just be tasks in the interface, but QuestSim
+// Initialization macros ought to just be tasks in the interface, but QuestaSim
 // treats tasks as active even if they are never invoked, leading to errors
 // about multiple drivers.
 //

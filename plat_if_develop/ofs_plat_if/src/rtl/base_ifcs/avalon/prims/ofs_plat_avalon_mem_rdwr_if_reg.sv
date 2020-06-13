@@ -81,7 +81,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                 ofs_plat_utils_avalon_mm_bridge
                   #(
                     .DATA_WIDTH(mem_slave.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(1 + USER_WIDTH + mem_slave.ADDR_WIDTH),
+                    .HDL_ADDR_WIDTH(USER_WIDTH + mem_slave.ADDR_WIDTH),
                     .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
                     .RESPONSE_WIDTH(USER_WIDTH + mem_slave.RESPONSE_WIDTH)
                     )
@@ -97,8 +97,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                                    mem_pipe[s].rd_response }),
                     .s0_burstcount(mem_pipe[s].rd_burstcount),
                     .s0_writedata('0),
-                    .s0_address({ mem_pipe[s].rd_function,
-                                  mem_pipe[s].rd_user,
+                    .s0_address({ mem_pipe[s].rd_user,
                                   mem_pipe[s].rd_address }),
                     .s0_write(1'b0),
                     .s0_read(mem_pipe[s].rd_read),
@@ -112,8 +111,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                                    mem_pipe[s - 1].rd_response }),
                     .m0_burstcount(mem_pipe[s - 1].rd_burstcount),
                     .m0_writedata(),
-                    .m0_address({ mem_pipe[s - 1].rd_function,
-                                  mem_pipe[s - 1].rd_user,
+                    .m0_address({ mem_pipe[s - 1].rd_user,
                                   mem_pipe[s - 1].rd_address }),
                     .m0_write(),
                     .m0_read(mem_pipe[s - 1].rd_read),
@@ -124,7 +122,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                 ofs_plat_utils_avalon_mm_bridge
                   #(
                     .DATA_WIDTH(mem_slave.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(1 + USER_WIDTH + mem_slave.ADDR_WIDTH),
+                    .HDL_ADDR_WIDTH(USER_WIDTH + mem_slave.ADDR_WIDTH),
                     .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
                     .RESPONSE_WIDTH(USER_WIDTH + mem_slave.RESPONSE_WIDTH)
                     )
@@ -142,8 +140,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                                    mem_pipe[s].wr_response }),
                     .s0_burstcount(mem_pipe[s].wr_burstcount),
                     .s0_writedata(mem_pipe[s].wr_writedata),
-                    .s0_address({ mem_pipe[s].wr_function,
-                                  mem_pipe[s].wr_user,
+                    .s0_address({ mem_pipe[s].wr_user,
                                   mem_pipe[s].wr_address }),
                     .s0_write(mem_pipe[s].wr_write),
                     .s0_read(1'b0),
@@ -158,8 +155,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                                    mem_pipe[s - 1].wr_response }),
                     .m0_burstcount(mem_pipe[s - 1].wr_burstcount),
                     .m0_writedata(mem_pipe[s - 1].wr_writedata),
-                    .m0_address({ mem_pipe[s - 1].wr_function,
-                                  mem_pipe[s - 1].wr_user,
+                    .m0_address({ mem_pipe[s - 1].wr_user,
                                   mem_pipe[s - 1].wr_address }),
                     .m0_write(mem_pipe[s - 1].wr_write),
                     .m0_read(),

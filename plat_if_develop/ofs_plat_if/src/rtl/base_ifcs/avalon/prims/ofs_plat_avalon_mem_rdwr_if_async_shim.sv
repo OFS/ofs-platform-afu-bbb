@@ -75,7 +75,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
       #(
         // Leave room for passing "response" along with readdata
         .DATA_WIDTH($bits(t_response) + mem_slave.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(1 + mem_slave.ADDR_WIDTH),
+        .HDL_ADDR_WIDTH(mem_slave.USER_WIDTH + mem_slave.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(RD_COMMAND_FIFO_DEPTH),
         .RESPONSE_FIFO_DEPTH(RD_RESPONSE_PADDED_FIFO_DEPTH)
@@ -93,7 +93,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .s0_readdatavalid(mem_master.rd_readdatavalid),
         .s0_burstcount(mem_master.rd_burstcount),
         .s0_writedata('0),
-        .s0_address({mem_master.rd_function, mem_master.rd_address}),
+        .s0_address({mem_master.rd_user, mem_master.rd_address}),
         .s0_write(1'b0),
         .s0_read(mem_master.rd_read),
         .s0_byteenable(mem_master.rd_byteenable),
@@ -105,7 +105,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .m0_readdatavalid(mem_slave.rd_readdatavalid),
         .m0_burstcount(mem_slave.rd_burstcount),
         .m0_writedata(),
-        .m0_address({mem_slave.rd_function, mem_slave.rd_address}),
+        .m0_address({mem_slave.rd_user, mem_slave.rd_address}),
         .m0_write(),
         .m0_read(mem_slave.rd_read),
         .m0_byteenable(mem_slave.rd_byteenable),
@@ -118,7 +118,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
         .DATA_WIDTH(mem_slave.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(1 + mem_slave.ADDR_WIDTH),
+        .HDL_ADDR_WIDTH(mem_slave.USER_WIDTH + mem_slave.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(WR_COMMAND_FIFO_DEPTH),
         .RESPONSE_FIFO_DEPTH(WR_RESPONSE_FIFO_DEPTH)
@@ -136,7 +136,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .s0_readdatavalid(),
         .s0_burstcount(mem_master.wr_burstcount),
         .s0_writedata(mem_master.wr_writedata),
-        .s0_address({mem_master.wr_function, mem_master.wr_address}),
+        .s0_address({mem_master.wr_user, mem_master.wr_address}),
         .s0_write(mem_master.wr_write),
         .s0_read(1'b0),
         .s0_byteenable(mem_master.wr_byteenable),
@@ -148,7 +148,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         .m0_readdatavalid(1'b0),
         .m0_burstcount(mem_slave.wr_burstcount),
         .m0_writedata(mem_slave.wr_writedata),
-        .m0_address({mem_slave.wr_function, mem_slave.wr_address}),
+        .m0_address({mem_slave.wr_user, mem_slave.wr_address}),
         .m0_write(mem_slave.wr_write),
         .m0_read(),
         .m0_byteenable(mem_slave.wr_byteenable),

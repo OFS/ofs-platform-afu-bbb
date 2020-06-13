@@ -367,7 +367,8 @@ module ase_emulate_avalon_host_chan_group
       #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH),
-        .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
+        .BURST_CNT_WIDTH(BURST_CNT_WIDTH),
+        .USER_WIDTH(USER_WIDTH + ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1)
         )
         avmm_shared_slave_if();
 
@@ -396,7 +397,8 @@ module ase_emulate_avalon_host_chan_group
       #(
         .NUM_MASTER_PORTS(NUM_PORTS),
         .RD_TRACKER_DEPTH(RD_TRACKER_DEPTH),
-        .WR_TRACKER_DEPTH(WR_TRACKER_DEPTH)
+        .WR_TRACKER_DEPTH(WR_TRACKER_DEPTH),
+        .SLAVE_USER_SHIFT(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1)
         )
       avmm_mux
        (

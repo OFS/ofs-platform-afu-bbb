@@ -42,7 +42,11 @@ module ofs_plat_avalon_mem_if_async_rob
 
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
-    parameter MAX_ACTIVE_WR_LINES = 256
+    parameter MAX_ACTIVE_WR_LINES = 256,
+
+    // First bit in the slave's user fields where the ROB indices should be
+    // stored.
+    parameter USER_ROB_IDX_START = 0
     )
    (
     // BURST_CNT_WIDTH of both mem_slave and mem_master must be 3!
@@ -128,7 +132,7 @@ module ofs_plat_avalon_mem_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.readdatavalid),
-        .enqDataIdx(t_rd_rob_idx'(mem_slave.readresponseuser)),
+        .enqDataIdx(mem_slave.readresponseuser[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
         .enqData({ mem_slave.response, mem_slave.readdata }),
 
         .deq_en(readdatavalid),
@@ -210,7 +214,7 @@ module ofs_plat_avalon_mem_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.writeresponsevalid),
-        .enqDataIdx(t_wr_rob_idx'(mem_slave.writeresponseuser)),
+        .enqDataIdx(mem_slave.writeresponseuser[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)]),
         .enqData(mem_slave.writeresponse),
 
         .deq_en(writeresponsevalid),
@@ -255,6 +259,16 @@ module ofs_plat_avalon_mem_if_async_rob
     assign mem_slave.read = !cmd_is_write && cmd_fifo_notEmpty;
     assign mem_slave.write = cmd_is_write && cmd_fifo_notEmpty;
 
+    t_slave_user slave_user;
+    always_comb
+    begin
+        slave_user = t_slave_user'(mem_master.user);
+        if (mem_master.read)
+            slave_user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)] = rd_allocIdx;
+        else
+            slave_user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)] = wr_allocIdx;
+    end
+
     //
     // Forward commands to slave, along with the rob index.
     //
@@ -276,7 +290,7 @@ module ofs_plat_avalon_mem_if_async_rob
                (
                 .enq_clk(mem_master.clk),
                 .enq_reset_n(mem_master.reset_n),
-                .enq_data({ mem_master.read ? rd_allocIdx : wr_allocIdx,
+                .enq_data({ slave_user,
                             mem_master.burstcount,
                             mem_master.writedata,
                             mem_master.byteenable,
@@ -315,7 +329,7 @@ module ofs_plat_avalon_mem_if_async_rob
                 .clk(mem_master.clk),
                 .reset_n(mem_master.reset_n),
 
-                .enq_data({ mem_master.read ? rd_allocIdx : wr_allocIdx,
+                .enq_data({ slave_user,
                             mem_master.burstcount,
                             mem_master.writedata,
                             mem_master.byteenable,
