@@ -152,7 +152,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
         `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(avmm_afu_clk_if),
         // CCI-P supports up to 4 line bursts
-        .BURST_CNT_WIDTH(2),
+        .BURST_CNT_WIDTH(3),
         .USER_WIDTH(USER_WIDTH)
         )
       avmm_fiu_clk_if();
