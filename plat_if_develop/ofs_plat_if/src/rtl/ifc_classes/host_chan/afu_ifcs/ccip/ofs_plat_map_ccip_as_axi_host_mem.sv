@@ -285,6 +285,11 @@ module ofs_plat_map_ccip_as_axi_host_mem
     // Generate most of the request into c1Tx while the range is prepared.
     t_if_ccip_c1_Tx c1Tx, c1Tx_q;
 
+    // CCI-P doesn't return mdata with interrupt responses. There are only four
+    // interrupt vectors. Save the ROB index. Interrupts are sorted in the same
+    // ROB as write responses.
+    logic [ROB_IDX_WIDTH-1:0] intrRobIdx[4];
+
     always_ff @(posedge clk)
     begin
         c1Tx.valid <= fwd_wr_req;
@@ -296,16 +301,34 @@ module ofs_plat_map_ccip_as_axi_host_mem
             c1Tx.hdr.mdata <= t_ccip_mdata'(robIdxFromUser(axi_reg.aw.user));
             c1Tx.hdr.req_type <= eREQ_WRLINE_I;
             c1Tx.hdr.sop <= 1'b1;
+            c1Tx.hdr.address <= axi_reg.aw.addr[AXI_LINE_START_BIT +: CCIP_CLADDR_WIDTH];
+            c1Tx.hdr.cl_len <= t_ccip_clLen'(axi_reg.aw.len);
 
             if ((axi_reg.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE) &&
                 axi_reg.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
             begin
                 c1Tx.hdr.req_type <= eREQ_WRFENCE;
                 c1Tx.hdr.sop <= 1'b0;
+                c1Tx.hdr.address <= '0;
             end
 
-            c1Tx.hdr.address <= axi_reg.aw.addr[AXI_LINE_START_BIT +: CCIP_CLADDR_WIDTH];
-            c1Tx.hdr.cl_len <= t_ccip_clLen'(axi_reg.aw.len);
+            if ((axi_reg.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT) &&
+                axi_reg.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT])
+            begin
+                c1Tx.hdr.req_type <= eREQ_INTR;
+                c1Tx.hdr.sop <= 1'b0;
+                c1Tx.hdr.address <= '0;
+
+                // Low two bits of the interrupt header are the ID (overlayed with mdata).
+                // AXI passes them in the address field.
+                c1Tx.hdr.mdata <= '0;
+                c1Tx.hdr.mdata[1:0] <= axi_reg.aw.addr[1:0];
+                // Save the rob index so the interrupt response can be sorted.
+                if (fwd_wr_req)
+                begin
+                    intrRobIdx[axi_reg.aw.addr[1:0]] <= robIdxFromUser(axi_reg.aw.user);
+                end
+            end
         end
         else
         begin
@@ -393,12 +416,21 @@ module ofs_plat_map_ccip_as_axi_host_mem
     always_ff @(posedge clk)
     begin
         axi_fiu_clk_if.bvalid <=
-            (ccip_c1Rx_isWriteRsp(sRx.c1) || ccip_c1Rx_isWriteFenceRsp(sRx.c1));
+            (ccip_c1Rx_isWriteRsp(sRx.c1) ||
+             ccip_c1Rx_isWriteFenceRsp(sRx.c1) ||
+             ccip_c1Rx_isInterruptRsp(sRx.c1));
 
         // Index of the ROB entry. Responses are already guaranteed packed by
         // the PIM's CCI-P shim.
         axi_fiu_clk_if.b <= '0;
         axi_fiu_clk_if.b.user <= robIdxToUser(sRx.c1.hdr.mdata);
+
+        // Interrupts only have a vector index in their responses. Recover the
+        // ROB index.
+        if (sRx.c1.hdr.resp_type == eRSP_INTR)
+        begin
+            axi_fiu_clk_if.b.user <= robIdxToUser(intrRobIdx[sRx.c1.hdr.mdata[1:0]]);
+        end
 
         if (!reset_n)
         begin

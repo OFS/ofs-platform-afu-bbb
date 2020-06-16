@@ -1,0 +1,7 @@
++define+TEST_PARAM_IFC_CCIP
+
+../host_chan_intr.json
+
+C:../sources_base.txt
+ofs_plat_afu.sv
+afu.sv

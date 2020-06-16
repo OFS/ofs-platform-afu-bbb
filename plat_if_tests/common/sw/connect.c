@@ -126,10 +126,6 @@ connectToAccel(const char *accel_uuid, const t_target_bdf *bdf)
     assert(FPGA_OK == r);
 
   out_destroy:
-    // Done with token
-    if (accel_token)
-        fpgaDestroyToken(&accel_token);
-
     fpgaDestroyProperties(&filter);
 
     return accel_handle;

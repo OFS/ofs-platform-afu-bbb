@@ -240,6 +240,11 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // Generate most of the request into c1Tx while the range is prepared.
     t_if_ccip_c1_Tx c1Tx, c1Tx_q;
 
+    // CCI-P doesn't return mdata with interrupt responses. There are only four
+    // interrupt vectors. Save the ROB index. Interrupts are sorted in the same
+    // ROB as write responses.
+    logic [ROB_IDX_WIDTH-1:0] intrRobIdx[4];
+
     always_ff @(posedge clk)
     begin
         c1Tx.valid <= wr_beat_valid;
@@ -250,20 +255,37 @@ module ofs_plat_map_ccip_as_avalon_host_mem
             c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
             c1Tx.hdr.mdata <= t_ccip_mdata'(robIdxFromUser(avmm_fiu_clk_if.wr_user));
 
-            if ((avmm_fiu_clk_if.USER_WIDTH <= ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) ||
-                !avmm_fiu_clk_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
+            if ((avmm_fiu_clk_if.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) &
+                avmm_fiu_clk_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
+            begin
+                // Write fence. req_type and mdata are in the same places in the
+                // header as a normal write.
+                c1Tx.hdr.req_type <= eREQ_WRFENCE;
+            end
+            else if ((avmm_fiu_clk_if.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT) &
+                avmm_fiu_clk_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT])
+            begin
+                // Write fence. req_type and mdata are in the same places in the
+                // header as a normal write.
+                c1Tx.hdr.req_type <= eREQ_INTR;
+                // Low two bits of the interrupt header are the ID (overlayed with mdata).
+                // Avalon passes them in the address field.
+                c1Tx.hdr.mdata <= '0;
+                c1Tx.hdr.mdata[1:0] <= avmm_fiu_clk_if.wr_address[1:0];
+                // Save the rob index so the interrupt response can be sorted.
+                if (wr_beat_valid)
+                begin
+                    intrRobIdx[avmm_fiu_clk_if.wr_address[1:0]] <=
+                        robIdxFromUser(avmm_fiu_clk_if.wr_user);
+                end
+            end
+            else
             begin
                 // Normal write
                 c1Tx.hdr.address <= avmm_fiu_clk_if.wr_address;
                 c1Tx.hdr.req_type <= eREQ_WRLINE_I;
                 c1Tx.hdr.cl_len <= t_ccip_clLen'(avmm_fiu_clk_if.wr_burstcount - 3'b1);
                 c1Tx.hdr.sop <= 1'b1;
-            end
-            else
-            begin
-                // Write fence. req_type and mdata are in the same places in the
-                // header as a normal write.
-                c1Tx.hdr.req_type <= eREQ_WRFENCE;
             end
         end
         else
@@ -352,11 +374,21 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     always_ff @(posedge clk)
     begin
         avmm_fiu_clk_if.wr_writeresponsevalid <=
-            (ccip_c1Rx_isWriteRsp(sRx.c1) || ccip_c1Rx_isWriteFenceRsp(sRx.c1));
+            (ccip_c1Rx_isWriteRsp(sRx.c1) ||
+             ccip_c1Rx_isWriteFenceRsp(sRx.c1) ||
+             ccip_c1Rx_isInterruptRsp(sRx.c1));
 
         // Index of the ROB entry. Responses are already guaranteed packed by
         // the PIM's CCI-P shim.
         avmm_fiu_clk_if.wr_writeresponseuser <= robIdxToUser(sRx.c1.hdr.mdata);
+
+        // Interrupts only have a vector index in their responses. Recover the
+        // ROB index.
+        if (sRx.c1.hdr.resp_type == eRSP_INTR)
+        begin
+            avmm_fiu_clk_if.wr_writeresponseuser <=
+                robIdxToUser(intrRobIdx[sRx.c1.hdr.mdata[1:0]]);
+        end
 
         if (!reset_n)
         begin

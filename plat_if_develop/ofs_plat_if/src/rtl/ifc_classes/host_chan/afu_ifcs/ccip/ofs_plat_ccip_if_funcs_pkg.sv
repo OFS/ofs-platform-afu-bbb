@@ -212,4 +212,11 @@ package ofs_plat_ccip_if_funcs_pkg;
         return r.rspValid && (r.hdr.resp_type == eRSP_WRFENCE);
     endfunction
 
+    function automatic logic ccip_c1Rx_isInterruptRsp(
+        input t_if_ccip_c1_Rx r
+        );
+
+        return r.rspValid && (r.hdr.resp_type == eRSP_INTR);
+    endfunction
+
 endpackage // ofs_plat_ccip_if_funcs_pkg
