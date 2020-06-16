@@ -54,11 +54,7 @@ module ofs_plat_axi_mem_if_async_rob
     parameter SLAVE_RESPONSES_ALWAYS_READY = 0,
 
     parameter NUM_READ_CREDITS = 256,
-    parameter NUM_WRITE_CREDITS = 128,
-
-    // First bit in the slave's user fields where the ROB indices should be
-    // stored.
-    parameter USER_ROB_IDX_START = 0
+    parameter NUM_WRITE_CREDITS = 128
     )
    (
     ofs_plat_axi_mem_if.to_slave mem_slave,
@@ -83,6 +79,19 @@ module ofs_plat_axi_mem_if_async_rob
         .DISABLE_CHECKER(1)
         )
       mem_master_local();
+
+    // synthesis translate_off
+    initial
+    begin
+        assert (mem_slave.RID_WIDTH >= $clog2(NUM_READ_CREDITS)) else
+            $fatal(2, "** ERROR ** %m: mem_slave.RID_WIDTH (%d) is too small for ROB index (%d)!",
+                   mem_slave.RID_WIDTH, NUM_READ_CREDITS);
+
+        assert (mem_slave.WID_WIDTH >= $clog2(NUM_WRITE_CREDITS)) else
+            $fatal(2, "** ERROR ** %m: mem_slave.WID_WIDTH (%d) is too small for ROB index (%d)!",
+                   mem_slave.WID_WIDTH, NUM_WRITE_CREDITS);
+    end
+    // synthesis translate_on
 
 
     // ====================================================================
@@ -133,7 +142,7 @@ module ofs_plat_axi_mem_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.bvalid),
-        .enqDataIdx(mem_slave.b.user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)]),
+        .enqDataIdx(mem_slave.b.id[0 +: $clog2(WR_ROB_N_ENTRIES)]),
         .enqData(mem_slave.b.resp),
 
         .deq_en(wr_rsp_valid && !wr_rsp_almostFull),
@@ -142,13 +151,12 @@ module ofs_plat_axi_mem_if_async_rob
         .T2_firstMeta({ mem_master_local.b.id, mem_master_local.b.user })
         );
 
-    // Construct the AW slave payload, saving the ROB index as the user field
+    // Construct the AW slave payload, saving the ROB index as the ID field
     always_comb
     begin
         `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_slave_local.aw, =, mem_master.aw);
 
-        mem_slave_local.aw.user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)] =
-            wr_next_allocIdx;
+        mem_slave_local.aw.id = wr_next_allocIdx;
     end
 
     ofs_plat_axi_mem_if_async_shim_channel
@@ -286,7 +294,7 @@ module ofs_plat_axi_mem_if_async_rob
         .enq_clk(mem_slave.clk),
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.rvalid),
-        .enqDataIdx(mem_slave.r.user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
+        .enqDataIdx(mem_slave.r.id[0 +: $clog2(RD_ROB_N_ENTRIES)]),
         .enqData(mem_slave.r),
 
         .deq_en(rd_rsp_valid && !rd_rsp_almostFull),
@@ -295,13 +303,12 @@ module ofs_plat_axi_mem_if_async_rob
         .T2_firstMeta({ rd_id, rd_user })
         );
 
-    // Construct the AR slave payload, saving the ROB index as the user field
+    // Construct the AR slave payload, saving the ROB index as the ID field
     always_comb
     begin
         `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_slave_local.ar, =, mem_master.ar);
 
-        mem_slave_local.ar.user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)] =
-            rd_next_allocIdx;
+        mem_slave_local.ar.id = rd_next_allocIdx;
     end
 
     ofs_plat_axi_mem_if_async_shim_channel

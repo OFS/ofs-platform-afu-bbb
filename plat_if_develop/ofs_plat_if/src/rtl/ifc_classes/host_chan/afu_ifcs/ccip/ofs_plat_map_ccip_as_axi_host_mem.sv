@@ -115,23 +115,10 @@ module ofs_plat_map_ccip_as_axi_host_mem
     //
 
     // ofs_plat_axi_mem_if_async_rob records the ROB indices of read and
-    // write requests in user fields after the HC_AXI_UFLAGs. Size the user
-    // fields using whichever index space is larger.
-    localparam ROB_IDX_WIDTH =
-        $clog2((MAX_ACTIVE_RD_LINES > MAX_ACTIVE_WR_LINES) ? MAX_ACTIVE_RD_LINES :
-                                                             MAX_ACTIVE_WR_LINES);
-    localparam USER_WIDTH =
-        ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX + 1 + ROB_IDX_WIDTH;
-
-    function automatic logic [ROB_IDX_WIDTH-1:0] robIdxFromUser(logic [USER_WIDTH-1:0] user);
-        return user[USER_WIDTH-1 : ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1];
-    endfunction // robIdxFromUser
-
-    function automatic logic [USER_WIDTH-1:0] robIdxToUser(logic [ROB_IDX_WIDTH-1:0] idx);
-        logic [USER_WIDTH-1:0] user = 0;
-        user[USER_WIDTH-1 : ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1] = idx;
-        return user;
-    endfunction // robIdxToUser
+    // write requests in ID fields. The original values are recorded in the
+    // ROB and returned to the master.
+    localparam ROB_RID_WIDTH = $clog2(MAX_ACTIVE_RD_LINES);
+    localparam ROB_WID_WIDTH = $clog2(MAX_ACTIVE_WR_LINES);
 
     ofs_plat_axi_mem_if
       #(
@@ -139,9 +126,9 @@ module ofs_plat_map_ccip_as_axi_host_mem
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
         // CCI-P supports up to 4 line bursts
         .BURST_CNT_WIDTH(2),
-        .RID_WIDTH(host_mem_to_afu.RID_WIDTH_),
-        .WID_WIDTH(host_mem_to_afu.WID_WIDTH_),
-        .USER_WIDTH(USER_WIDTH)
+        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_),
+        .RID_WIDTH(ROB_RID_WIDTH),
+        .WID_WIDTH(ROB_WID_WIDTH)
         )
       axi_fiu_clk_if();
 
@@ -154,8 +141,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .NATURAL_ALIGNMENT(1),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
-        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES),
-        .USER_ROB_IDX_START(ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1)
+        .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES)
         )
       rob
        (
@@ -186,7 +172,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
         // Store length in mdata along with the ROB index in order to detect the
         // last read response.
         to_fiu.sTx.c0.hdr.mdata <= t_ccip_mdata'({ axi_fiu_clk_if.ar.len,
-                                                   robIdxFromUser(axi_fiu_clk_if.ar.user) });
+                                                   axi_fiu_clk_if.ar.id });
         to_fiu.sTx.c0.hdr.address <= axi_fiu_clk_if.ar.addr[AXI_LINE_START_BIT +: CCIP_CLADDR_WIDTH];
         to_fiu.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
         to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(axi_fiu_clk_if.ar.len);
@@ -205,11 +191,11 @@ module ofs_plat_map_ccip_as_axi_host_mem
         axi_fiu_clk_if.r <= '0;
         axi_fiu_clk_if.r.data <= sRx.c0.data;
         // Index of the ROB entry
-        axi_fiu_clk_if.r.user <= robIdxToUser(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
+        axi_fiu_clk_if.r.id <= ROB_RID_WIDTH'(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
         // The request length was stored in mdata in order to tag the last read
         // response.
         axi_fiu_clk_if.r.last <=
-            (sRx.c0.hdr.mdata[ROB_IDX_WIDTH +: $bits(t_ccip_clNum)] == sRx.c0.hdr.cl_num);
+            (sRx.c0.hdr.mdata[ROB_RID_WIDTH +: $bits(t_ccip_clNum)] == sRx.c0.hdr.cl_num);
 
         if (!reset_n)
         begin
@@ -288,7 +274,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
     // CCI-P doesn't return mdata with interrupt responses. There are only four
     // interrupt vectors. Save the ROB index. Interrupts are sorted in the same
     // ROB as write responses.
-    logic [ROB_IDX_WIDTH-1:0] intrRobIdx[4];
+    logic [ROB_WID_WIDTH-1:0] intrRobIdx[4];
 
     always_ff @(posedge clk)
     begin
@@ -298,7 +284,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
         if (wr_sop)
         begin
             c1Tx.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            c1Tx.hdr.mdata <= t_ccip_mdata'(robIdxFromUser(axi_reg.aw.user));
+            c1Tx.hdr.mdata <= t_ccip_mdata'(axi_reg.aw.id);
             c1Tx.hdr.req_type <= eREQ_WRLINE_I;
             c1Tx.hdr.sop <= 1'b1;
             c1Tx.hdr.address <= axi_reg.aw.addr[AXI_LINE_START_BIT +: CCIP_CLADDR_WIDTH];
@@ -326,7 +312,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
                 // Save the rob index so the interrupt response can be sorted.
                 if (fwd_wr_req)
                 begin
-                    intrRobIdx[axi_reg.aw.addr[1:0]] <= robIdxFromUser(axi_reg.aw.user);
+                    intrRobIdx[axi_reg.aw.addr[1:0]] <= axi_reg.aw.id;
                 end
             end
         end
@@ -423,13 +409,13 @@ module ofs_plat_map_ccip_as_axi_host_mem
         // Index of the ROB entry. Responses are already guaranteed packed by
         // the PIM's CCI-P shim.
         axi_fiu_clk_if.b <= '0;
-        axi_fiu_clk_if.b.user <= robIdxToUser(sRx.c1.hdr.mdata);
+        axi_fiu_clk_if.b.id <= ROB_WID_WIDTH'(sRx.c1.hdr.mdata);
 
         // Interrupts only have a vector index in their responses. Recover the
         // ROB index.
         if (sRx.c1.hdr.resp_type == eRSP_INTR)
         begin
-            axi_fiu_clk_if.b.user <= robIdxToUser(intrRobIdx[sRx.c1.hdr.mdata[1:0]]);
+            axi_fiu_clk_if.b.id <= intrRobIdx[sRx.c1.hdr.mdata[1:0]];
         end
 
         if (!reset_n)

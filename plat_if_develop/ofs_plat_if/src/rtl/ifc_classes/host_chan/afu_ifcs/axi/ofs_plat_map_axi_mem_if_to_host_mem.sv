@@ -46,17 +46,14 @@ module ofs_plat_map_axi_mem_if_to_host_mem
 
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
-    parameter MAX_ACTIVE_WR_LINES = 256,
-
-    // First bit in the user fields where the ROB indices should be stored.
-    parameter USER_ROB_IDX_START = 0
+    parameter MAX_ACTIVE_WR_LINES = 256
     )
    (
     // mem_master parameters should match the master's field widths.
     ofs_plat_axi_mem_if.to_master mem_master,
 
     // mem_slave parameters should match the requirements of the host
-    // memory port. The user fields should be sized to hold reorder
+    // memory port. The RID and WID fields should be sized to hold reorder
     // buffer indices for read and write responses.
     ofs_plat_axi_mem_if.to_slave mem_slave
     );
@@ -125,8 +122,7 @@ module ofs_plat_map_axi_mem_if_to_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES),
-        .USER_ROB_IDX_START(USER_ROB_IDX_START)
+        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
         )
       rob
        (
