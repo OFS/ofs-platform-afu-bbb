@@ -130,8 +130,7 @@ rm -rf hw/lib/build/platform/ofs_plat_if
 
 # Copy platform DB
 echo "Updating hw/lib/platform/platform_db..."
-MEM_NUM_BANKS=$(grep 'LOCAL_MEM_NUM_BANKS ' hw/lib/build/platform/ofs_plat_if/rtl/ofs_plat_if_top_config.vh | sed -e 's/.*BANKS //')
-sed -e "s/__REPLACE_WITH_MEM_NUM_BANKS__/${MEM_NUM_BANKS}/" "${SCRIPT_DIR}"/files/platform_db/s10_pac_dc_hssi.json > hw/lib/platform/platform_db/s10_pac_dc_hssi.json
+"${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_json -c "${cfg_file}" -v hw/lib/platform/platform_db/s10_pac_dc_hssi.json
 
 # Copy the HSSI interface file to ofs_plat_if. Also make it an .sv file instead
 # if a .vh include file. First, rename it away from the original location in

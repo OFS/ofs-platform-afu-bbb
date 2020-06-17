@@ -1,0 +1,380 @@
+#!/usr/bin/env python
+
+#
+# Copyright (c) 2020, Intel Corporation
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# Neither the name of the Intel Corporation nor the names of its contributors
+# may be used to endorse or promote products derived from this software
+# without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+import os
+import sys
+import fnmatch
+from distutils import dir_util, file_util, text_file
+
+from platlib.ofs_plat_cfg import ofs_plat_cfg
+from platlib.emit_src_cfg import emit_src_cfg
+from platlib.ofs_template import ofs_template
+import platlib.gen_ofs_class_if as ofsc
+
+
+def errorExit(msg):
+    sys.stderr.write(msg)
+    sys.exit(1)
+
+
+def parse_args():
+    """Parse command line arguments."""
+
+    msg = """
+Given an input .ini configuration file, gen_ofs_plat_if constructs an
+ofs_plat_if tree that is tailored to the target platform.
+"""
+
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Generate a platform-specific ofs_plat_if tree.",
+        epilog=msg)
+
+    # Positional arguments
+    parser.add_argument(
+        '-c', '--config', required=1,
+        help="""Platform configuration .ini file path.""")
+
+    # Default sources are in the same tree as the script
+    src_root = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), 'src')
+    parser.add_argument(
+        '-s', '--source', default=src_root,
+        help="""Source directory containing ofs_plat_if components.
+                (Default: """ + src_root + ")")
+
+    parser.add_argument(
+        'target', type=str,
+        help="""Target JSON file.""")
+
+    # Verbose/quiet
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '-v', '--verbose', action='store_true',
+        help="""Verbose output.""")
+    group.add_argument(
+        '-q', '--quiet', action='store_true',
+        help="""Reduce output.""")
+
+    global args
+    args = parser.parse_args()
+
+
+def load_config():
+    """Load the platform configuration .ini file."""
+
+    # Does the .ini file exist?
+    if (not os.path.isfile(args.config)):
+        errorExit('Configuration file "' + args.config + '" not found!\n')
+
+    global plat_cfg
+    plat_cfg = ofs_plat_cfg(src=args.source, ini_file=args.config,
+                            quiet=args.quiet)
+
+
+def get_fpga_family():
+    """Return FPGA family by walking macros in the .ini file."""
+
+    if (not plat_cfg.config.has_section('define')):
+        return None
+
+    for d in plat_cfg.config['define']:
+        if (d.lower().startswith('platform_fpga_family_')):
+            family = d[21:].upper()
+            if (family):
+                return family
+
+    return None
+
+
+def gen_json_define(jf):
+    """Generate "define" section in JSON file."""
+
+    if (not plat_cfg.config.has_section('define')):
+        return None
+
+    jf.write('''
+  "comment":
+    [
+      "These will be defined as Verilog preprocessor macros and may be",
+      "tested in RTL after platform_if.vh is loaded."
+    ],
+  "define":
+    [
+''')
+
+    first = True
+    for d in plat_cfg.config['define']:
+        if (d != 'native_class'):
+            if (not first):
+                jf.write(',\n')
+            first = False
+
+            jf.write('      "{}"'.format(d.upper()))
+
+    jf.write('\n    ],\n')
+
+
+def gen_json_module_ports_required(jf):
+    """Generate the initial portion of "module-ports-offered"."""
+
+    jf.write('''
+  "comment":
+    [
+      "Only class 'ofs_plat_if' is required, in which case only AFUs",
+      "using the OFS platform interface standard will be supported.",
+      "",
+      "In order to support the legacy ccip_std_afu() top-level interface",
+      "clocks, power, cci-p, etc. must be defined. When possible, values",
+      "are derived from the equivalent OFS platform macros in order to",
+      "reduce the possibility of errors."
+    ],
+  "module-ports-offered" :
+    [
+      {
+        "class": "ofs_plat_if",
+        "interface": "afu"
+      },
+
+      {
+        "class": "clocks",
+        "interface": "pClk3_usr2",
+        "params":
+          {
+            "pclk-freq": "`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ"
+          }
+      },
+      {
+        "class": "power",
+        "interface": "2bit",
+        "optional": true
+      },
+      {
+        "class": "error",
+        "interface": "1bit",
+        "optional": true
+      }''')
+
+
+def gen_json_ccip(jf):
+    """Define a CCI-P port if available."""
+
+    if (plat_cfg.config.has_option('host_chan', 'native_class')):
+        host_chan_class = plat_cfg.config['host_chan']['native_class']
+    elif (plat_cfg.config.has_option('host_chan.0', 'native_class')):
+        host_chan_class = plat_cfg.config['host_chan']['native_class']
+    else:
+        host_chan_class = None
+
+    if (host_chan_class not in ['native_ccip', 'native_pcie_tlp']):
+        return
+
+    if (not args.quiet):
+        print('Found CCI-P')
+
+    if (plat_cfg.config.has_option('host_chan', 'vc_supported')):
+        vc_supported = plat_cfg.config['host_chan']['vc_supported']
+    elif (plat_cfg.config.has_option('host_chan.0', 'vc_supported')):
+        vc_supported = plat_cfg.config['host_chan']['vc_supported']
+    else:
+        vc_supported = None
+
+    jf.write(''',
+
+      {
+        "class": "cci-p",
+        "interface": "struct",
+        "params":
+          {
+''')
+
+    if (vc_supported):
+        jf.write('            "vc-supported": "{}",'.format(vc_supported))
+
+    jf.write('''
+            "c0-supported-reqs": "`OFS_PLAT_PARAM_HOST_CHAN_C0_SUPPORTED_REQS",
+            "c1-supported-reqs": "`OFS_PLAT_PARAM_HOST_CHAN_C1_SUPPORTED_REQS",
+            "cl-len-supported": "`OFS_PLAT_PARAM_HOST_CHAN_CL_LEN_SUPPORTED",
+            "byte-en-supported": "`OFS_PLAT_PARAM_HOST_CHAN_BYTE_EN_SUPPORTED",
+            "max-bw-active-lines-c0": "`OFS_PLAT_PARAM_HOST_CHAN_MAX_BW_ACTIVE_LINES_C0",
+            "max-bw-active-lines-c1": "`OFS_PLAT_PARAM_HOST_CHAN_MAX_BW_ACTIVE_LINES_C1",
+            "max-outstanding-mmio-rd-reqs": "`OFS_PLAT_PARAM_HOST_CHAN_MAX_OUTSTANDING_MMIO_RD_REQS",
+            "suggested-timing-reg-stages": "`OFS_PLAT_PARAM_HOST_CHAN_SUGGESTED_TIMING_REG_STAGES"
+          }
+      }''')
+
+
+def gen_json_local_mem(jf):
+    """Define local memory banks if available."""
+
+    if (plat_cfg.config.has_section('local_mem')):
+        local_mem_sect = 'local_mem'
+    elif (plat_cfg.config.has_section('local_mem.0')):
+        local_mem_sect = 'local_mem.0'
+    else:
+        local_mem_sect = None
+
+    if (not local_mem_sect):
+        return
+
+    local_mem_noun = plat_cfg.section_instance_noun(local_mem_sect)
+    local_mem_banks = plat_cfg.get(local_mem_sect, 'num_' + local_mem_noun)
+
+    if (not args.quiet):
+        print('Found local memory')
+
+    jf.write(''',
+
+      {
+        "class": "local-memory",
+        "interface": "avalon_mm",
+        "optional": true,
+        "vector": true,
+''')
+
+    jf.write('        "max-entries": {},'.format(local_mem_banks))
+
+    jf.write('''
+        "params":
+           {
+             "addr-width": "`OFS_PLAT_PARAM_LOCAL_MEM_ADDR_WIDTH",
+             "data-width": "`OFS_PLAT_PARAM_LOCAL_MEM_DATA_WIDTH",
+             "burst-cnt-width": "`OFS_PLAT_PARAM_LOCAL_MEM_BURST_CNT_WIDTH",
+             "suggested-timing-reg-stages": "`OFS_PLAT_PARAM_LOCAL_MEM_SUGGESTED_TIMING_REG_STAGES"
+           }
+      },
+      {
+        "class": "local-memory",
+        "interface": "avalon_mm_legacy_wires_2bank",
+        "optional": true,
+        "define": [ "INCLUDE_DDR4" ],
+        "params":
+           {
+             "addr-width": "`OFS_PLAT_PARAM_LOCAL_MEM_ADDR_WIDTH",
+             "data-width": "`OFS_PLAT_PARAM_LOCAL_MEM_DATA_WIDTH",
+             "burst-cnt-width": "`OFS_PLAT_PARAM_LOCAL_MEM_BURST_CNT_WIDTH",
+             "suggested-timing-reg-stages": "`OFS_PLAT_PARAM_LOCAL_MEM_SUGGESTED_TIMING_REG_STAGES"
+           }
+      }''')
+
+
+def gen_json_hssi(jf):
+    """Define HSSI ports if available."""
+
+    if (plat_cfg.config.has_section('hssi')):
+        hssi_sect = 'hssi'
+    elif (plat_cfg.config.has_section('hssi.0')):
+        hssi_sect = 'hssi.0'
+    else:
+        hssi_sect = None
+
+    if (not hssi_sect):
+        return
+
+    hssi_noun = plat_cfg.section_instance_noun(hssi_sect)
+    hssi_ports = plat_cfg.get(hssi_sect, 'num_' + hssi_noun)
+
+    if (not args.quiet):
+        print('Found HSSI')
+
+    jf.write(''',
+
+      {
+        "class": "hssi",
+        "interface": "raw_pr",''')
+    if (int(hssi_ports) > 1):
+        jf.write('''
+        "vector": true,
+        "min-entries": 1,
+''')
+        jf.write('        "max-entries": {},'.format(hssi_ports))
+
+    jf.write('''
+        "params":
+           {
+              "bandwidth-offered": "`OFS_PLAT_PARAM_HSSI_BANDWIDTH_OFFERED",
+              "raw-num-lanes": "`OFS_PLAT_PARAM_HSSI_RAW_NUM_LANES",
+              "raw-lane-width": "`OFS_PLAT_PARAM_HSSI_RAW_LANE_WIDTH"
+           }
+      }''')
+
+
+def gen_json():
+    """Generate legacy platform DB JSON file."""
+
+    # Assume that the platform name is the same as the file name
+    platform_name = os.path.splitext(os.path.basename(args.target))[0]
+    if (not platform_name):
+        errorExit('Can\'t determine platform name!\n')
+
+    jf = open(args.target, 'w')
+
+    jf.write('{\n')
+    jf.write('  "version": 1,\n')
+    jf.write('  "platform-name": "{}",\n'.format(platform_name))
+    jf.write('  "description": "Legacy platform description for {}",\n'.format(
+        platform_name))
+    jf.write('  "ase-platform": "discrete",\n')
+
+    fpga_family = get_fpga_family()
+    if (fpga_family):
+        jf.write('  "fpga-family": "{}",\n'.format(fpga_family))
+
+    # "define" section
+    gen_json_define(jf)
+
+    # "module-ports-offered" initial required portion
+    gen_json_module_ports_required(jf)
+    gen_json_ccip(jf)
+    gen_json_local_mem(jf)
+    gen_json_hssi(jf)
+
+    jf.write('\n    ]\n')
+    jf.write('}\n')
+
+    jf.close()
+
+
+def main():
+    # Parse command line arguments
+    parse_args()
+
+    # Load platform .ini file
+    load_config()
+
+    gen_json()
+
+
+if __name__ == "__main__":
+    main()

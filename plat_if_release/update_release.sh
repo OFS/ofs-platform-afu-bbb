@@ -57,22 +57,22 @@ fi
 if [ -f "${tgt_dir}"/hw/lib/platform/platform_db/s10_pac_dc_hssi.json ]; then
 
     echo "Updating D5005 (S10 SX PAC -- Darby Creek) FPGA release"
-    "${SCRIPT_DIR}"/ofs_plat_if_compat/d5005_ias/install.sh "$@"
+    "${SCRIPT_DIR}"/templates/ofs_plat_if_compat/d5005_ias/install.sh "$@"
 
 elif [ -f "${tgt_dir}"/hw/lib/platform/platform_db/a10_gx_pac_hssi.json ]; then
 
     echo "Updating A10 GX PAC FPGA (Rush Creek) release"
-    "${SCRIPT_DIR}"/ofs_plat_if_compat/a10_gx_pac_ias/install.sh "$@"
+    "${SCRIPT_DIR}"/templates/ofs_plat_if_compat/a10_gx_pac_ias/install.sh "$@"
 
 elif [ -d "${tgt_dir}"/BBS_6.4.0/skx_pr_pkg ]; then
 
     echo "Updating SR-6.4.0 for Skylake integrated FPGA release"
-    "${SCRIPT_DIR}"/ofs_plat_if_compat/SR-6.4.0/install.sh "$@"
+    "${SCRIPT_DIR}"/templates/ofs_plat_if_compat/SR-6.4.0/install.sh "$@"
 
 elif [ -d "${tgt_dir}"/Base/HW/bdw_503_pr_pkg ]; then
 
     echo "Updating SR-5.0.3 for Broadwell integrated FPGA release"
-    "${SCRIPT_DIR}"/ofs_plat_if_compat/SR-5.0.3-Release/install.sh "$@"
+    "${SCRIPT_DIR}"/templates/ofs_plat_if_compat/SR-5.0.3-Release/install.sh "$@"
 
 else
 

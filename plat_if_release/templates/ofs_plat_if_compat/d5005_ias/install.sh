@@ -26,14 +26,14 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 ##
-## Update the A10 GX PAC tree for use with the platform database.
+## Update the S10 SX PAC tree for use with the platform database.
 ##
 
 SCRIPTNAME="$(basename -- "$0")"
 SCRIPT_DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd -P)"
 
 function usage {
-    echo "Usage: ${SCRIPTNAME} <A10 GX PAC dir>"
+    echo "Usage: ${SCRIPTNAME} <S10 SX PAC dir>"
     exit 1
 }
 
@@ -61,12 +61,23 @@ if [ "${OFS_PLAT_SRC}" == "" ]; then
 fi
 
 cd "$tgt_dir"
-if [ ! -f hw/lib/platform/platform_db/a10_gx_pac_hssi.json ]; then
-    not_release "hw/lib/platform/platform_db/a10_gx_pac_hssi.json"
+if [ ! -f hw/lib/platform/platform_db/s10_pac_dc_hssi.json ]; then
+    not_release "hw/lib/platform/platform_db/s10_pac_dc_hssi.json"
 fi
 
-if [ ! -f hw/lib/build/afu_fit.qsf ]; then
-    not_release "hw/lib/build/afu_fit.qsf"
+if [ ! -f hw/lib/build/afu_default.qsf ]; then
+    not_release "hw/lib/build/afu_default.qsf"
+fi
+
+# Release v2.0.1 and later support CCI-P writes with byte ranges. Pick the
+# correct PIM configuration.
+if [ ! -f hw/lib/platform/platform_db/s10_pac_dc_hssi.json.orig ]; then
+    mv -f hw/lib/platform/platform_db/s10_pac_dc_hssi.json hw/lib/platform/platform_db/s10_pac_dc_hssi.json.orig
+fi
+if grep -q byte-en-supported hw/lib/platform/platform_db/s10_pac_dc_hssi.json.orig; then
+    REL_VER=v2_0_1
+else
+    REL_VER=v2_0_0
 fi
 
 # Copy updated green_bs.sv
@@ -74,15 +85,15 @@ echo "Updating hw/lib/build/platform/green_bs.sv..."
 if [ ! -f hw/lib/build/platform/green_bs.sv.orig ]; then
     mv -f hw/lib/build/platform/green_bs.sv hw/lib/build/platform/green_bs.sv.orig
 fi
-cp "${SCRIPT_DIR}/files/green_bs.sv" hw/lib/build/platform/
+cp "${SCRIPT_DIR}/files/${REL_VER}/green_bs.sv" hw/lib/build/platform/
 
 # Copy platform DB
 echo "Updating hw/lib/platform/platform_db..."
-cp -f "${SCRIPT_DIR}"/files/platform_db/*[^~] hw/lib/platform/platform_db/
+"${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_json -c "${OFS_PLAT_SRC}"/src/config/d5005_pac_ias_${REL_VER}.ini -v hw/lib/platform/platform_db/s10_pac_dc_hssi.json
 
 # Generate ofs_plat_if tree
 rm -rf hw/lib/build/platform/ofs_plat_if
-"${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_if -c "${OFS_PLAT_SRC}"/src/config/a10_gx_pac_ias.ini -t hw/lib/build/platform/ofs_plat_if -v
+"${OFS_PLAT_SRC}"/scripts/gen_ofs_plat_if -c "${OFS_PLAT_SRC}"/src/config/d5005_pac_ias_${REL_VER}.ini -t hw/lib/build/platform/ofs_plat_if -v
 
 # Copy the HSSI interface file to ofs_plat_if. Also make it an .sv file instead
 # if a .vh include file. First, rename it away from the original location in
@@ -92,7 +103,7 @@ if [ -f hw/lib/build/platform/pr_hssi_if.vh ]; then
 fi
 grep -v PR_HSSI_IF_VH hw/lib/build/platform/pr_hssi_if.vh.orig > hw/lib/build/platform/ofs_plat_if/rtl/ifc_classes/hssi/pr_hssi_if.sv
 # Tie off file is specific to this platform
-cp -f "${SCRIPT_DIR}"/files/ofs_plat_hssi_fiu_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/ifc_classes/hssi/
+cp -f "${SCRIPT_DIR}"/files/${REL_VER}/ofs_plat_hssi_fiu_if_tie_off.sv hw/lib/build/platform/ofs_plat_if/rtl/ifc_classes/hssi/
 
 echo ""
 echo "Update complete."
