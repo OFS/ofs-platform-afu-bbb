@@ -78,6 +78,11 @@ ofs_plat_if tree that is tailored to the target platform.
         'target', type=str,
         help="""Target JSON file.""")
 
+    parser.add_argument(
+        '--disable-group', nargs='+',
+        help="""Disable one or more groups defined in the configuration
+                .ini file.""")
+
     # Verbose/quiet
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -100,7 +105,7 @@ def load_config():
 
     global plat_cfg
     plat_cfg = ofs_plat_cfg(src=args.source, ini_file=args.config,
-                            quiet=args.quiet)
+                            disable=args.disable_group, quiet=args.quiet)
 
 
 def get_fpga_family():

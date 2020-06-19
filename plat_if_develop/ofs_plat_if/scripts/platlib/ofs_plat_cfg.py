@@ -66,7 +66,7 @@ except ImportError:
 
 class ofs_plat_cfg(object):
 
-    def __init__(self, src=None, ini_file=None, quiet=False):
+    def __init__(self, src=None, ini_file=None, disable=None, quiet=False):
         self.src = src
         self.ini_file = ini_file
         self.quiet = quiet
@@ -95,6 +95,10 @@ class ofs_plat_cfg(object):
 
         # Are the section names legal?
         self.__validate_section_names()
+
+        # Drop sections we've been told to disable
+        self.__drop_disabled_sections(disable)
+
         # Generate final section dictionaries by including defaults
         self.__merge_config_and_defaults()
 
@@ -183,6 +187,15 @@ class ofs_plat_cfg(object):
             if (not native_class):
                 msg = "Section '" + s + "' must define a 'native_class'"
                 self.__errorExit(msg)
+
+    def __drop_disabled_sections(self, disable):
+        """Drop sections that aren't wanted."""
+
+        if (not disable):
+            return
+
+        for s in disable:
+            self.config.remove_section(s)
 
     def __merge_config_and_defaults(self):
         """Generate new dictionaries for each section, incorporating default
