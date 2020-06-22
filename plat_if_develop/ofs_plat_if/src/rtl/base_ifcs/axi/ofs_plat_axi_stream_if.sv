@@ -29,9 +29,9 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// AXI stream interface. The payload type, TDATA_TYPE, is a parameter to the
-// interface. If the interface is instantiated with a struct, the fields
-// can be accessed by name in both masters and slaves.
+// AXI stream interface. The payload and user types, TDATA_TYPE and TUSER_TYPE,
+// are parameters to the interface. If the interface is instantiated with a
+// struct, the fields can be accessed by name in both masters and slaves.
 //
 
 interface ofs_plat_axi_stream_if
@@ -40,8 +40,8 @@ interface ofs_plat_axi_stream_if
     parameter ofs_plat_log_pkg::t_log_class LOG_CLASS = ofs_plat_log_pkg::NONE,
 
     parameter type TDATA_TYPE,
+    parameter type TUSER_TYPE,
     parameter TID_WIDTH = 1,
-    parameter TUSER_WIDTH = 1,
 
     // Disable simulation time checks? Normally this should be left enabled.
     parameter DISABLE_CHECKER = 0
@@ -51,15 +51,17 @@ interface ofs_plat_axi_stream_if
     // incorrectly when trying to make a new ofs_plat_axi_stream_if from
     // an existing one's parameters.
     localparam TID_WIDTH_ = $bits(logic [TID_WIDTH:0]) - 1;
-    localparam TUSER_WIDTH_ = $bits(logic [TUSER_WIDTH:0]) - 1;
 
     // Size of the data payload
     localparam TDATA_WIDTH = $bits(TDATA_TYPE);
     // For consistency with ofs_plat_axi_stream_opaque_if
     localparam TDATA_WIDTH_ = $bits(logic [TDATA_WIDTH:0]) - 1;
 
+    // Size of the tuser payload
+    localparam TUSER_WIDTH = $bits(TUSER_TYPE);
+    localparam TUSER_WIDTH_ = $bits(logic [TUSER_WIDTH:0]) - 1;
+
     typedef logic [TID_WIDTH-1 : 0] t_id;
-    typedef logic [TUSER_WIDTH-1 : 0] t_user;
 
     wire clk;
     logic reset_n;
@@ -68,7 +70,7 @@ interface ofs_plat_axi_stream_if
     typedef struct packed {
         logic last;
         t_id id;
-        t_user user;
+        TUSER_TYPE user;
         TDATA_TYPE data;
     } t_payload;
     localparam T_PAYLOAD_WIDTH = $bits(t_payload);

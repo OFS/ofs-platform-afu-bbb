@@ -43,8 +43,8 @@ interface ofs_plat_axi_stream_opaque_if
     parameter ofs_plat_log_pkg::t_log_class LOG_CLASS = ofs_plat_log_pkg::NONE,
 
     parameter TDATA_WIDTH,
-    parameter TID_WIDTH = 1,
     parameter TUSER_WIDTH = 1,
+    parameter TID_WIDTH = 1,
 
     // Disable simulation time checks? Normally this should be left enabled.
     parameter DISABLE_CHECKER = 0
