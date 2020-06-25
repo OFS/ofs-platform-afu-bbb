@@ -355,6 +355,41 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
                    avmm_slave.DATA_WIDTH, axi_master.DATA_WIDTH);
         end
     end
+
+    // Make sure last is set correctly on writes.
+    logic expect_sop, expect_eop;
+
+    always_ff @(negedge clk)
+    begin
+        if (reset_n && fwd_wr_req)
+        begin
+            if (expect_eop != axi_reg.w.last)
+            begin
+                $fatal(2, "** ERROR ** %m: W stream failed to set WLAST on EOP from AWLEN!");
+            end
+
+            if (expect_sop != wr_is_sop)
+            begin
+                $fatal(2, "** ERROR ** %m: W stream missed detecting SOP!");
+            end
+        end
+    end
+
+    ofs_plat_prim_burstcount0_sop_tracker
+      #(
+        .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
+        )
+       (
+        .clk,
+        .reset_n,
+
+        .flit_valid(fwd_wr_req),
+        .burstcount(axi_reg.aw.len),
+
+        .sop(expect_sop),
+        .eop(expect_eop)
+        );
+
     // synthesis translate_on
 
 endmodule // ofs_plat_avalon_mem_if_to_rdwr_if
