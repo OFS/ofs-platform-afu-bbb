@@ -32,7 +32,7 @@
 // Generic ready/enable pipeline register. This implementation is a simple,
 // systolic pipeline with control shared by all registers in a chain.
 // For a version that breaks apart control flow into separate stages
-// see ofs_plat_prim_ready_enable_fifo().
+// see ofs_plat_prim_ready_enable_skid().
 //
 
 module ofs_plat_prim_ready_enable_reg

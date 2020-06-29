@@ -52,7 +52,7 @@ interface ofs_plat_host_chan_@group@_fiu_if
     // interface's parameters.
     localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
 
-    ofs_plat_host_@group@_axis_pcie_tlp_if
+    ofs_plat_host_chan_GROUP_axis_pcie_tlp_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
         )

@@ -41,16 +41,10 @@ interface ofs_plat_axi_stream_if
 
     parameter type TDATA_TYPE,
     parameter type TUSER_TYPE,
-    parameter TID_WIDTH = 1,
 
     // Disable simulation time checks? Normally this should be left enabled.
     parameter DISABLE_CHECKER = 0
     );
-
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new ofs_plat_axi_stream_if from
-    // an existing one's parameters.
-    localparam TID_WIDTH_ = $bits(logic [TID_WIDTH:0]) - 1;
 
     // Size of the data payload
     localparam TDATA_WIDTH = $bits(TDATA_TYPE);
@@ -61,15 +55,12 @@ interface ofs_plat_axi_stream_if
     localparam TUSER_WIDTH = $bits(TUSER_TYPE);
     localparam TUSER_WIDTH_ = $bits(logic [TUSER_WIDTH:0]) - 1;
 
-    typedef logic [TID_WIDTH-1 : 0] t_id;
-
     wire clk;
     logic reset_n;
 
     // Data stream
     typedef struct packed {
         logic last;
-        t_id id;
         TUSER_TYPE user;
         TDATA_TYPE data;
     } t_payload;
@@ -176,11 +167,11 @@ interface ofs_plat_axi_stream_if
                 // Write address
                 if (reset_n && tvalid && tready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d last %0d id 0x%x user 0x%x data 0x%x\n",
+                    $fwrite(log_fd, "%m: %t %s %0d last %0d user 0x%x data 0x%x\n",
                             $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            t.last, t.id, t.user, t.data);
+                            t.last, t.user, t.data);
                 end
             end
         end

@@ -36,7 +36,7 @@
 // at the expense of area.
 //
 
-module ofs_plat_prim_ready_enable_fifo
+module ofs_plat_prim_ready_enable_skid
   #(
     parameter N_DATA_BITS = 32
     )
@@ -75,4 +75,4 @@ module ofs_plat_prim_ready_enable_fifo
         .notEmpty(enable_to_dst)
         );
 
-endmodule // ofs_plat_prim_ready_enable_fifo
+endmodule // ofs_plat_prim_ready_enable_skid

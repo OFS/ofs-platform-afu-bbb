@@ -30,7 +30,7 @@
 
 `include "ofs_plat_if.vh"
 
-interface ofs_plat_host_@group@_axis_pcie_tlp_if
+interface ofs_plat_host_chan_GROUP_axis_pcie_tlp_if
   #(
     // Log events for this instance?
     parameter ofs_plat_log_pkg::t_log_class LOG_CLASS = ofs_plat_log_pkg::NONE
@@ -39,20 +39,14 @@ interface ofs_plat_host_@group@_axis_pcie_tlp_if
     wire clk;
     logic reset_n;
 
+    import ofs_plat_host_chan_GROUP_pcie_tlp_pkg::*;
+
     // Debugging state.  This will typically be driven to a constant by the
     // code that instantiates the interface object.
     int unsigned instance_number;
 
-    typedef ofs_fim_if_pkg::t_axis_pcie_tdata [ofs_fim_if_pkg::FIM_PCIE_TLP_CH-1:0]
-        t_ofs_plat_axis_pcie_tdata_vec;
-    typedef ofs_fim_if_pkg::t_axis_pcie_tx_tuser [ofs_fim_if_pkg::FIM_PCIE_TLP_CH-1:0]
-        t_ofs_plat_axis_pcie_tx_tuser_vec;
-    typedef ofs_fim_if_pkg::t_axis_pcie_rx_tuser [ofs_fim_if_pkg::FIM_PCIE_TLP_CH-1:0]
-        t_ofs_plat_axis_pcie_rx_tuser_vec;
-
     ofs_plat_axi_stream_if
       #(
-        .LOG_CLASS(LOG_CLASS),
         .TDATA_TYPE(t_ofs_plat_axis_pcie_tdata_vec),
         .TUSER_TYPE(t_ofs_plat_axis_pcie_tx_tuser_vec)
         )
@@ -60,7 +54,6 @@ interface ofs_plat_host_@group@_axis_pcie_tlp_if
 
     ofs_plat_axi_stream_if
       #(
-        .LOG_CLASS(LOG_CLASS),
         .TDATA_TYPE(t_ofs_plat_axis_pcie_tdata_vec),
         .TUSER_TYPE(t_ofs_plat_axis_pcie_rx_tuser_vec)
         )
@@ -69,7 +62,7 @@ interface ofs_plat_host_@group@_axis_pcie_tlp_if
     ofs_plat_axi_stream_if
       #(
         .LOG_CLASS(LOG_CLASS),
-        .TDATA_TYPE(ofs_fim_if_pkg::t_axis_irq_tdata),
+        .TDATA_TYPE(t_ofs_plat_axis_pcie_irq_data),
         .TUSER_TYPE(logic)
         )
       afu_irq_rx_st();
@@ -86,4 +79,10 @@ interface ofs_plat_host_@group@_axis_pcie_tlp_if
     assign afu_irq_rx_st.reset_n = reset_n;
     assign afu_irq_rx_st.instance_number = instance_number;
 
-endinterface
+
+    // synthesis translate_off
+    `LOG_OFS_PLAT_HOST_CHAN_GROUP_AXIS_PCIE_TLP_TX(LOG_CLASS, afu_tx_st)
+    `LOG_OFS_PLAT_HOST_CHAN_GROUP_AXIS_PCIE_TLP_RX(LOG_CLASS, afu_rx_st)
+    // synthesis translate_on
+
+endinterface // ofs_plat_host_chan_GROUP_axis_pcie_tlp_if

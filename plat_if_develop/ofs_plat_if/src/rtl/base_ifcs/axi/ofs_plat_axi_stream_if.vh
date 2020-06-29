@@ -40,14 +40,11 @@
 //
 `define OFS_PLAT_AXI_STREAM_IF_REPLICATE_OPAQUE(AXI_IF) \
     .TDATA_WIDTH(AXI_IF.TDATA_WIDTH), \
-    .TID_WIDTH(AXI_IF.TID_WIDTH_), \
     .TUSER_WIDTH(AXI_IF.TUSER_WIDTH_)
 
 // Replicate AXI stream interface but don't set type data type so
 // that other code can set it.
-`define OFS_PLAT_AXI_STREAM_IF_REPLICATE_PARAMS(AXI_IF) \
-    .TID_WIDTH(AXI_IF.TID_WIDTH_), \
-    .TUSER_WIDTH(AXI_IF.TUSER_WIDTH_)
+`define OFS_PLAT_AXI_STREAM_IF_REPLICATE_PARAMS(AXI_IF)
 
 
 //
@@ -122,9 +119,6 @@
 `define OFS_PLAT_AXI_STREAM_IF_CHECK_PARAMS_MATCH(STREAM_IFC0, STREAM_IFC1) \
     initial \
     begin \
-        if (STREAM_IFC0.TID_WIDTH != STREAM_IFC1.TID_WIDTH) \
-            $fatal(2, "** ERROR ** %m: AXI-S interface TID_WIDTH mismatch (%0d vs. %0d)!", \
-                   STREAM_IFC0.TID_WIDTH, STREAM_IFC1.TID_WIDTH); \
         if (STREAM_IFC0.TUSER_WIDTH != STREAM_IFC1.TUSER_WIDTH) \
             $fatal(2, "** ERROR ** %m: AXI-S interface TUSER_WIDTH mismatch (%0d vs. %0d)!", \
                    STREAM_IFC0.TUSER_WIDTH, STREAM_IFC1.TUSER_WIDTH); \

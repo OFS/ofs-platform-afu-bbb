@@ -81,7 +81,7 @@ module ofs_plat_axi_mem_lite_if_reg
 
                 // Each of the 5 buses is a separate ready/enable bus
 
-                ofs_plat_prim_ready_enable_fifo
+                ofs_plat_prim_ready_enable_skid
                   #(
                     .N_DATA_BITS(mem_slave.T_AW_WIDTH)
                     )
@@ -99,7 +99,7 @@ module ofs_plat_axi_mem_lite_if_reg
                     .ready_from_dst(mem_pipe[s-1].awready)
                     );
 
-                ofs_plat_prim_ready_enable_fifo
+                ofs_plat_prim_ready_enable_skid
                   #(
                     .N_DATA_BITS(mem_slave.T_W_WIDTH)
                     )
@@ -117,7 +117,7 @@ module ofs_plat_axi_mem_lite_if_reg
                     .ready_from_dst(mem_pipe[s-1].wready)
                     );
 
-                ofs_plat_prim_ready_enable_fifo
+                ofs_plat_prim_ready_enable_skid
                   #(
                     .N_DATA_BITS(mem_slave.T_B_WIDTH)
                     )
@@ -135,7 +135,7 @@ module ofs_plat_axi_mem_lite_if_reg
                     .ready_from_dst(mem_pipe[s].bready)
                     );
 
-                ofs_plat_prim_ready_enable_fifo
+                ofs_plat_prim_ready_enable_skid
                   #(
                     .N_DATA_BITS(mem_slave.T_AR_WIDTH)
                     )
@@ -153,7 +153,7 @@ module ofs_plat_axi_mem_lite_if_reg
                     .ready_from_dst(mem_pipe[s-1].arready)
                     );
 
-                ofs_plat_prim_ready_enable_fifo
+                ofs_plat_prim_ready_enable_skid
                   #(
                     .N_DATA_BITS(mem_slave.T_R_WIDTH)
                     )

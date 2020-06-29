@@ -38,7 +38,7 @@
 
 module ofs_plat_host_chan_@group@_fiu_if_tie_off
    (
-    ofs_plat_host_@group@_axis_pcie_tlp_if port
+    ofs_plat_host_chan_GROUP_axis_pcie_tlp_if port
     );
 
     assign afu_tx_st.tvalid = 1'b0;
