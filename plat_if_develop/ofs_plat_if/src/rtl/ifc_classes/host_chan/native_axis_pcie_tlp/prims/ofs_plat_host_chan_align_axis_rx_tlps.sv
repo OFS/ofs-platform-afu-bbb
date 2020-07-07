@@ -313,7 +313,7 @@ module ofs_plat_host_chan_align_axis_tlps
             for (int i = 0; i < NUM_MASTER_TLP_CH; i = i + 1)
             begin
                 work_data[i + next_insertion_idx] <= master_dense.t.data[i];
-                work_user[i + next_insertion_idx] <= master_dense.t.data[i];
+                work_user[i + next_insertion_idx] <= master_dense.t.user[i];
             end
         end
 

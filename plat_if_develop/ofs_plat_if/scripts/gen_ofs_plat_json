@@ -202,7 +202,7 @@ def gen_json_ccip(jf):
     else:
         host_chan_class = None
 
-    if (host_chan_class not in ['native_ccip', 'native_pcie_tlp']):
+    if (host_chan_class not in ['native_ccip', 'native_axis_pcie_tlp']):
         return
 
     if (not args.quiet):

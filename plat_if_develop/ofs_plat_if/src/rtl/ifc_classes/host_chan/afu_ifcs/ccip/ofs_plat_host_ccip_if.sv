@@ -202,6 +202,8 @@ interface ofs_plat_host_ccip_if
 
     initial
     begin : logger_proc
+        string ctx_name = $sformatf("%m");
+
         // Watch traffic
         if (LOG_CLASS != ofs_plat_log_pkg::NONE)
         begin
@@ -213,22 +215,23 @@ interface ofs_plat_host_ccip_if
                 /******************* AFU -> MEM Read Request ******************/
                 if (reset_n && sTx.c0.valid)
                 begin
-                    $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s\t%x\t%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\t%s\t%0d\t%s\t%x\t%x\n",
+                            ctx_name, $time,
                             print_channel(sTx.c0.hdr.vc_sel),
                             sTx.c0.hdr.cl_len,
                             print_c0_reqtype(sTx.c0.hdr.req_type),
                             sTx.c0.hdr.mdata,
                             sTx.c0.hdr.address);
 
+                    $fflush(log_fd);
                 end
 
                 //////////////////////// C1 TX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* AFU -> MEM Write Request *****************/
                 if (reset_n && sTx.c1.valid)
                 begin
-                    $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s\t%s\t%x\t%x\t%x",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\t%s\t%0d\t%s\t%s\t%x\t%x\t%x",
+                            ctx_name, $time,
                             print_channel(sTx.c1.hdr.vc_sel),
                             sTx.c1.hdr.cl_len,
                             (sTx.c1.hdr.sop ? "S" : "x"),
@@ -244,42 +247,46 @@ interface ofs_plat_host_ccip_if
                     end
 
                     $fwrite(log_fd, "\n");
+                    $fflush(log_fd);
                 end
 
                 //////////////////////// C2 TX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* AFU -> MMIO Read Response *****************/
                 if (reset_n && sTx.c2.mmioRdValid)
                 begin
-                    $fwrite(log_fd, "%m:\t%t\tMMIORdRsp\t%x\t%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\tMMIORdRsp\t%x\t%x\n",
+                            ctx_name, $time,
                             sTx.c2.hdr.tid,
                             sTx.c2.data);
+                    $fflush(log_fd);
                 end
 
                 //////////////////////// C0 RX CHANNEL TRANSACTIONS //////////////////////////
                 /******************* MEM -> AFU Read Response *****************/
                 if (reset_n && sRx.c0.rspValid)
                 begin
-                    $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s%s\t%x\t%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\t%s\t%0d\t%s%s\t%x\t%x\n",
+                            ctx_name, $time,
                             print_channel(sRx.c0.hdr.vc_used),
                             sRx.c0.hdr.cl_num,
                             print_c0_resptype(sRx.c0.hdr.resp_type),
                             (sRx.c0.hdr.error ? "ERROR " : ""),
                             sRx.c0.hdr.mdata,
                             sRx.c0.data);
+                    $fflush(log_fd);
                 end
 
                 /****************** MEM -> AFU Write Response *****************/
                 if (reset_n && sRx.c1.rspValid)
                 begin
-                    $fwrite(log_fd, "%m:\t%t\t%s\t%0d\t%s\t%s\t%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\t%s\t%0d\t%s\t%s\t%x\n",
+                            ctx_name, $time,
                             print_channel(sRx.c1.hdr.vc_used),
                             sRx.c1.hdr.cl_num,
                             (sRx.c1.hdr.format ? "F" : "x"),
                             print_c1_resptype(sRx.c1.hdr.resp_type),
                             sRx.c1.hdr.mdata);
+                    $fflush(log_fd);
                 end
 
                 /******************* SW -> AFU Config Write *******************/
@@ -288,12 +295,13 @@ interface ofs_plat_host_ccip_if
                     t_ccip_c0_ReqMmioHdr mmio_hdr;
                     mmio_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
 
-                    $fwrite(log_fd, "%m:\t%t\tMMIOWrReq\t%x\t%d bytes\t%x\t%s\n",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\tMMIOWrReq\t%x\t%d bytes\t%x\t%s\n",
+                            ctx_name, $time,
                             mmio_hdr.tid,
                             csr_len(mmio_hdr.length),
                             mmio_hdr.address,
                             csr_data(csr_len(mmio_hdr.length), sRx.c0.data));
+                    $fflush(log_fd);
                 end
 
                 /******************* SW -> AFU Config Read *******************/
@@ -302,11 +310,12 @@ interface ofs_plat_host_ccip_if
                     t_ccip_c0_ReqMmioHdr mmio_hdr;
                     mmio_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
 
-                    $fwrite(log_fd, "%m:\t%t\tMMIORdReq\t%x\t%d bytes\t%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s:\t%t\tMMIORdReq\t%x\t%d bytes\t%x\n",
+                            ctx_name, $time,
                             mmio_hdr.tid,
                             csr_len(mmio_hdr.length),
                             mmio_hdr.address);
+                    $fflush(log_fd);
                 end
             end
         end
