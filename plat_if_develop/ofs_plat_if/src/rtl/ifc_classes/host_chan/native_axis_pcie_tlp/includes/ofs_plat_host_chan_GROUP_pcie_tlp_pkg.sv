@@ -42,6 +42,9 @@ package ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg;
     // Tag values must be less than the maximum number of tags
     localparam MAX_OUTSTANDING_DMA_RD_REQS = ofs_fim_pcie_pkg::PCIE_EP_MAX_TAGS;
     localparam MAX_OUTSTANDING_MMIO_RD_REQS = ofs_fim_cfg_pkg::PCIE_RP_MAX_TAGS;
+    // Number of tags to reserve for write fences. Tags 0 through
+    // MAX_OUTSTANDING_DMA_WR_FENCES will never be used for normal reads.
+    localparam MAX_OUTSTANDING_DMA_WR_FENCES = 4;
 
     // Tags, reduced from the TLP's 8 bits to the FIM-enforced maximum
     typedef logic [$clog2(MAX_OUTSTANDING_DMA_RD_REQS)-1 : 0] t_dma_rd_tag;

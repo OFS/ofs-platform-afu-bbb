@@ -254,11 +254,8 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
     assign rx_cpl_tlps.t.data = aligned_rx_st.t.data;
     assign rx_cpl_tlps.t.user = aligned_rx_st.t.user;
 
-    // Tag streams from read to write pipeline for fences
-    `AXI_STREAM_INSTANCE(wr_fence_req_tag, t_dma_rd_tag);
-    `AXI_STREAM_INSTANCE(wr_fence_cpl_tag, t_dma_rd_tag);
-    assign wr_fence_req_tag.tready = 1'b0;
-    assign wr_fence_cpl_tag.tready = 1'b1;
+    // Write fence completions
+    `AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
 
     ofs_plat_host_chan_@GROUP@_gen_rd_tlps rd_req_to_tlps
        (
@@ -277,10 +274,8 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
         // Read responses to AFU
         .afu_rd_rsp,
 
-        // Tags for write fence requests (to write pipeline)
-        .wr_fence_req_tag,
         // Tags of write fence responses (dataless completion TLP)
-        .wr_fence_cpl_tag,
+        .wr_fence_cpl,
 
         .error()
         );
@@ -308,6 +303,9 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
 
         // Write responses to AFU (once the packet is completely sent)
         .afu_wr_rsp,
+
+        // Tags of write fence responses (dataless completion TLP)
+        .wr_fence_cpl,
 
         .error()
         );

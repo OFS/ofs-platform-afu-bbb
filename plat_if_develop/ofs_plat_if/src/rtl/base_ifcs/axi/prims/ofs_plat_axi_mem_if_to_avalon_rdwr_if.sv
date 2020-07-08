@@ -379,6 +379,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
       #(
         .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
         )
+      sop_tracker
        (
         .clk,
         .reset_n,

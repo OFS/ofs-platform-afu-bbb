@@ -34,7 +34,9 @@
 
 module ofs_plat_prim_uid
   #(
-    parameter N_ENTRIES = 32
+    parameter N_ENTRIES = 32,
+    // Number of low entries to reserve that will never be allocated
+    parameter N_RESERVED = 0
     )
    (
     input  logic clk,
@@ -119,13 +121,13 @@ module ofs_plat_prim_uid
             test_uid <= test_uid + 1;
             if (test_uid == t_uid'(N_ENTRIES-1))
             begin
-                test_uid <= 0;
+                test_uid <= N_RESERVED;
             end
         end
 
         if (!reset_n || !test_ready)
         begin
-            test_uid <= 0;
+            test_uid <= N_RESERVED;
         end
     end
 

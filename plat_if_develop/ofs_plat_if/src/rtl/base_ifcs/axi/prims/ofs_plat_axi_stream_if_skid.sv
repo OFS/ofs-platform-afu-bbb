@@ -32,6 +32,8 @@
 // Connect a pair of AXI stream interfaces with a skid buffer.
 //
 
+`include "ofs_plat_if.vh"
+
 // Pass clock from slave to master
 module ofs_plat_axi_stream_if_skid_slave_clk
    (
