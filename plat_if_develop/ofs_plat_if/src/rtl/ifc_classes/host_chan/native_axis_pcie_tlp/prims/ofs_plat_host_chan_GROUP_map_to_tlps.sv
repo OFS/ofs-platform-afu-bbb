@@ -67,9 +67,9 @@
     assign instance_name.instance_number = to_fiu_tlp.instance_number
 
 
-module ofs_plat_host_chan_@GROUP@_map_to_tlps
+module ofs_plat_host_chan_@group@_map_to_tlps
    (
-    ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if to_fiu_tlp,
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
 
     // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
     ofs_plat_axi_stream_if.to_slave host_mmio_req,
@@ -87,8 +87,8 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
     ofs_plat_axi_stream_if.to_slave afu_wr_rsp
     );
 
-    import ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::*;
-    import ofs_plat_host_chan_@GROUP@_gen_tlps_pkg::*;
+    import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
+    import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;
@@ -214,7 +214,7 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TX_TLP_STREAM_INSTANCE(tx_mmio_tlps);
 
-    ofs_plat_host_chan_@GROUP@_gen_mmio_tlps mmio_rsp_to_tlps
+    ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_rsp_to_tlps
        (
         .clk,
         .reset_n,
@@ -257,7 +257,7 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
     // Write fence completions
     `AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
 
-    ofs_plat_host_chan_@GROUP@_gen_rd_tlps rd_req_to_tlps
+    ofs_plat_host_chan_@group@_gen_rd_tlps rd_req_to_tlps
        (
         .clk,
         .reset_n,
@@ -290,7 +290,7 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
     // Output write request stream to host (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TX_TLP_STREAM_INSTANCE(tx_wr_tlps);
 
-    ofs_plat_host_chan_@GROUP@_gen_wr_tlps wr_req_to_tlps
+    ofs_plat_host_chan_@group@_gen_wr_tlps wr_req_to_tlps
        (
         .clk,
         .reset_n,
@@ -342,4 +342,4 @@ module ofs_plat_host_chan_@GROUP@_map_to_tlps
         end
     end
 
-endmodule // ofs_plat_host_chan_@GROUP@_map_to_tlps
+endmodule // ofs_plat_host_chan_@group@_map_to_tlps

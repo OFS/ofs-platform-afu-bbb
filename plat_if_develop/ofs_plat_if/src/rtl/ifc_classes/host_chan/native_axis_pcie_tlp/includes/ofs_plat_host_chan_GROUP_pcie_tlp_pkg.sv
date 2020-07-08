@@ -34,7 +34,7 @@
 
 `include "ofs_plat_if.vh"
 
-package ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg;
+package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
 
     // Number of parallel TLP channels in the interface
     localparam NUM_FIU_PCIE_TLP_CH = ofs_fim_if_pkg::FIM_PCIE_TLP_CH;
@@ -188,4 +188,4 @@ package ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg;
 
     // synthesis translate_on
 
-endpackage // ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg
+endpackage // ofs_plat_host_chan_@group@_pcie_tlp_pkg

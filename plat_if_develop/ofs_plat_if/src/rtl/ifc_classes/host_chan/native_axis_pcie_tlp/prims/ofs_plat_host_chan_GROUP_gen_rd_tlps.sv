@@ -35,7 +35,7 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_@GROUP@_gen_rd_tlps
+module ofs_plat_host_chan_@group@_gen_rd_tlps
    (
     input  logic clk,
     input  logic reset_n,
@@ -62,8 +62,8 @@ module ofs_plat_host_chan_@GROUP@_gen_rd_tlps
     output logic error
     );
 
-    import ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::*;
-    import ofs_plat_host_chan_@GROUP@_gen_tlps_pkg::*;
+    import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
+    import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
 
     assign error = 1'b0;
 
@@ -368,4 +368,4 @@ module ofs_plat_host_chan_@GROUP@_gen_rd_tlps
     end
     // synthesis translate_on
 
-endmodule // ofs_plat_host_chan_@GROUP@_gen_rd_tlps
+endmodule // ofs_plat_host_chan_@group@_gen_rd_tlps

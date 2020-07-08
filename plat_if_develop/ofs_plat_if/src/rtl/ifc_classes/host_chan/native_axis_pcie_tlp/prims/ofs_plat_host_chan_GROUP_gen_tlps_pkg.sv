@@ -35,9 +35,9 @@
 
 `include "ofs_plat_if.vh"
 
-package ofs_plat_host_chan_@GROUP@_gen_tlps_pkg;
+package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
-    import ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::*;
+    import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
 
     //
     // Generic TLP stream with a width set to match the standard 512 bit

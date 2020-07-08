@@ -30,7 +30,7 @@
 
 `include "ofs_plat_if.vh"
 
-interface ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if
+interface ofs_plat_host_chan_@group@_axis_pcie_tlp_if
   #(
     // Log events for this instance?
     parameter ofs_plat_log_pkg::t_log_class LOG_CLASS = ofs_plat_log_pkg::NONE
@@ -39,7 +39,7 @@ interface ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if
     wire clk;
     logic reset_n;
 
-    import ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::*;
+    import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
 
     // Debugging state.  This will typically be driven to a constant by the
     // code that instantiates the interface object.
@@ -85,4 +85,4 @@ interface ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if
     `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(LOG_CLASS, afu_rx_st)
     // synthesis translate_on
 
-endinterface // ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if
+endinterface // ofs_plat_host_chan_@group@_axis_pcie_tlp_if

@@ -67,7 +67,7 @@ module ofs_plat_host_chan_@group@_as_ccip
     parameter SORT_WRITE_RESPONSES = 0
     )
    (
-    ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if to_fiu,
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
     ofs_plat_host_ccip_if.to_afu to_afu,
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
@@ -115,7 +115,7 @@ module ofs_plat_host_chan_@group@_as_ccip
 
     ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) fiu_ccip_if();
 
-    ofs_plat_host_chan_@GROUP@_map_as_ccip tlp_as_ccip
+    ofs_plat_host_chan_@group@_map_as_ccip tlp_as_ccip
        (
         .to_fiu_tlp(to_fiu),
         .to_afu_ccip(fiu_ccip_if)

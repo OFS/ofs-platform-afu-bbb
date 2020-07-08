@@ -51,14 +51,14 @@
     assign instance_name.instance_number = to_fiu_tlp.instance_number
 
 
-module ofs_plat_host_chan_@GROUP@_map_as_ccip
+module ofs_plat_host_chan_@group@_map_as_ccip
    (
-    ofs_plat_host_chan_@GROUP@_axis_pcie_tlp_if to_fiu_tlp,
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
     ofs_plat_host_ccip_if.to_afu to_afu_ccip
     );
 
-    import ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::*;
-    import ofs_plat_host_chan_@GROUP@_gen_tlps_pkg::*;
+    import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
+    import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;
@@ -343,7 +343,7 @@ module ofs_plat_host_chan_@GROUP@_map_as_ccip
     //
     // ====================================================================
 
-    ofs_plat_host_chan_@GROUP@_map_to_tlps tlp_mapper
+    ofs_plat_host_chan_@group@_map_to_tlps tlp_mapper
        (
         .to_fiu_tlp,
 

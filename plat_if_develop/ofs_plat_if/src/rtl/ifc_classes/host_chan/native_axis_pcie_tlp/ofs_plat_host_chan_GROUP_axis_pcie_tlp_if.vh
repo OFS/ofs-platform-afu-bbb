@@ -49,7 +49,7 @@
             begin \
                 if (tx_st.reset_n && tx_st.tvalid && tx_st.tready) \
                 begin \
-                    ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::log_afu_tx_st( \
+                    ofs_plat_host_chan_@group@_pcie_tlp_pkg::log_afu_tx_st( \
                         log_fd, ofs_plat_log_pkg::instance_name[LOG_CLASS], \
                         ctx_name, tx_st.instance_number, \
                         tx_st.t.data, tx_st.t.user); \
@@ -70,7 +70,7 @@
             begin \
                 if (rx_st.reset_n && rx_st.tvalid && rx_st.tready) \
                 begin \
-                    ofs_plat_host_chan_@GROUP@_pcie_tlp_pkg::log_afu_rx_st( \
+                    ofs_plat_host_chan_@group@_pcie_tlp_pkg::log_afu_rx_st( \
                         log_fd, ofs_plat_log_pkg::instance_name[LOG_CLASS], \
                         ctx_name, rx_st.instance_number, \
                         rx_st.t.data, rx_st.t.user); \

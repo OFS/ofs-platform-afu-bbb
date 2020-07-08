@@ -93,16 +93,16 @@ package ccip_@group@_cfg_pkg;
     parameter C1_SUPPORTED_REQS = int'(C1_REQ_WRLINE_S | C1_REQ_WRLINE_I | C1_REQ_WRFENCE | C1_REQ_INTR);
 
     // Use this to set the buffer depth for incoming MMIO read requests
-    parameter MAX_OUTSTANDING_MMIO_RD_REQS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_OUTSTANDING_MMIO_RD_REQS;
+    parameter MAX_OUTSTANDING_MMIO_RD_REQS = ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_OUTSTANDING_MMIO_RD_REQS;
 
     // Recommended numbers of lines in flight to achieve maximum bandwidth.
     // Maximum bandwidth tends to be a function of the number of lines in
     // flight and not the number of requests.  Each of these is indexed
     // by virtual channel (t_ccip_vc).
     parameter int C0_BW_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_RD /
-                                `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_TLP_CHANNELS;
+                                ofs_plat_host_chan_@group@_pcie_tlp_pkg::NUM_FIU_PCIE_TLP_CH;
     parameter int C1_BW_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_WR /
-                                `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_TLP_CHANNELS;
+                                ofs_plat_host_chan_@group@_pcie_tlp_pkg::NUM_FIU_PCIE_TLP_CH;
     parameter int C0_MAX_BW_ACTIVE_LINES[4] = { C0_BW_LINES, C0_BW_LINES, C0_BW_LINES, C0_BW_LINES };
     parameter int C1_MAX_BW_ACTIVE_LINES[4] = { C1_BW_LINES, C1_BW_LINES, C1_BW_LINES, C1_BW_LINES };
 
