@@ -102,9 +102,11 @@ class emit_src_cfg(object):
 
     def src_packages(self):
         """Return a list of all SystemVerilog packages (files matching
-        *_pkg.sv)."""
+        *_pkg.sv or *_def.sv). (The FIM uses _def for some packages.)"""
 
-        return [fn for fn in self.all_files if fn.lower().endswith("_pkg.sv")]
+        return [fn for fn in self.all_files
+                if (fn.lower().endswith("_pkg.sv") or
+                    fn.lower().endswith("_def.sv"))]
 
     def src_rtl(self):
         """Return a list of all files that are RTL sources."""

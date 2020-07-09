@@ -26,10 +26,9 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 ##
-## Given a path to a release tree:
-##  - Identify the release by inspecting the existing files.
-##  - Invoke the proper script to upgrade the release to support the OFS
-##    platform interface.
+## Generate an initial platform-specific release tree using a .ini file
+## and the PIM configuration scripts. The generated tree is structured
+## for use with afu_sim_setup and afu_synth_setup.
 ##
 
 SCRIPTNAME="$(basename -- "$0")"

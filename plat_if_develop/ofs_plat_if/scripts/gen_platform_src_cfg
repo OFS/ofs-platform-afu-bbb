@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+
+#
+# Copyright (c) 2020, Intel Corporation
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# Neither the name of the Intel Corporation nor the names of its contributors
+# may be used to endorse or promote products derived from this software
+# without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+import os
+import sys
+import fnmatch
+from distutils import dir_util, file_util, text_file
+
+from platlib.emit_src_cfg import emit_src_cfg
+
+
+def errorExit(msg):
+    sys.stderr.write(msg)
+    sys.exit(1)
+
+
+def parse_args():
+    """Parse command line arguments."""
+
+    msg = """
+Generate the Quartus and simulator configuration files that load an
+ofs_plat_if tree.
+"""
+
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Load a platform-specific ofs_plat_if tree.",
+        epilog=msg)
+
+    parser.add_argument(
+        '-t', '--target', required=1,
+        help="""Target directory.""")
+
+    # Verbose/quiet
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '-v', '--verbose', action='store_true',
+        help="""Verbose output.""")
+    group.add_argument(
+        '-q', '--quiet', action='store_true',
+        help="""Reduce output.""")
+
+    global args
+    args = parser.parse_args()
+
+
+def gen_platform_addenda():
+    """Once all files are copied to the target, generate configuration files
+    that load sources into either Quartus or a simulator."""
+
+    if (args.verbose):
+        print("\nGenerating files to import ofs_plat_if:")
+
+    # Simulator sources
+    sim_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
+                                     os.path.join(args.target, 'sim')],
+                               verbose=args.verbose)
+    sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
+                                  'platform_if_includes.txt')
+    sim_src_cfg.emit_sim_sources(os.path.join(args.target, 'sim'),
+                                 'platform_if_addenda.txt')
+
+    # Quartus sources
+    qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
+                                     os.path.join(args.target, 'par')],
+                               verbose=args.verbose)
+    qsf_src_cfg.emit_qsf_sources(os.path.join(args.target, 'par'),
+                                 'platform_if_addenda.qsf')
+
+
+def main():
+    # Parse command line arguments
+    parse_args()
+
+    # Construct configuration files to load the target sources
+    gen_platform_addenda()
+
+
+if __name__ == "__main__":
+    main()
