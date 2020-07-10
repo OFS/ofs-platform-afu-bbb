@@ -51,9 +51,11 @@ module ase_top_ofs_plat
     logic softReset;
 
 
+    // ====================================================================
     //
-    // Clocks
+    //  Clocks
     //
+    // ====================================================================
 
     ofs_plat_std_clocks_gen_resets_from_active_high clocks
        (
@@ -69,230 +71,33 @@ module ase_top_ofs_plat
     assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
 
 
+    // ====================================================================
     //
-    // CCI-P emulator (defined in the ASE core library)
+    //  Emulate a CCI-P native FIU connection.
     //
+    // ====================================================================
 
-    // Construct the primary ASE CCI-P interface
-    ofs_plat_host_ccip_if ccip_fiu();
-
-    assign ccip_fiu.clk = pClk;
-    assign ccip_fiu.reset_n = plat_ifc.softReset_n;
-    assign ccip_fiu.instance_number = 0;
-
-    ccip_emulator ccip_emulator
+    ase_emul_host_chan_native_ccip ccip
        (
-        .pClk,
-        .pClkDiv2,
-        .pClkDiv4,
-        .uClk_usr,
-        .uClk_usrDiv2,
-        // Output signals, mapped to the platform interface
-        .pck_cp2af_softReset(softReset),
-        .pck_cp2af_pwrState(plat_ifc.pwrState),
-        .pck_cp2af_error(ccip_fiu.error),
-        .pck_af2cp_sTx(ccip_fiu.sTx),
-        .pck_cp2af_sRx(ccip_fiu.sRx)
-        );
-
-    // Map the ASE CCI-P interface to the number of CCI-P interfaces
-    // we must emulate for the simulated platform. ASE's core library
-    // can only instantiate a single ccip_emulator, so we must multiplex
-    // it if more than one interface is needed.
-    //
-    // This code currently supports up to three groups of ports.
-    localparam NUM_AFU_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
+        .clocks(plat_ifc.clocks),
+        .host_chan_ports(plat_ifc.host_chan.ports),
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
-  `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_CCIP
-                               + `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
-  `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON
-                               // Transform only 1 port to Avalon and multiplex
-                               // it. This is much less resource intensive, since
-                               // CCI-P to Avalon requires sorting responses.
-                               + 1
-  `else
-        *** ERROR *** Unsupported native interface!
-  `endif
+        .host_chan_g1_ports(plat_ifc.host_chan_g1.ports),
 `endif
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
-  `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_CCIP
-                               + `OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
-  `elsif OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_AVALON
-                               // Transform only 1 port to Avalon and multiplex
-                               // it. This is much less resource intensive, since
-                               // CCI-P to Avalon requires sorting responses.
-                               + 1
-  `else
-        *** ERROR *** Unsupported native interface!
-  `endif
+        .host_chan_g2_ports(plat_ifc.host_chan_g2.ports),
 `endif
-                               ;
-
-    ofs_plat_host_ccip_if ccip_afu[NUM_AFU_PORTS]();
-
-    ofs_plat_shim_ccip_mux
-      #(
-        .NUM_AFU_PORTS(NUM_AFU_PORTS)
-        )
-      ccip_mux
-       (
-        .to_fiu(ccip_fiu),
-        .to_afu(ccip_afu)
+        .softReset,
+        .pwrState(plat_ifc.pwrState)
         );
 
-    genvar p;
-    generate
-        // ================================================================
-        //
-        //  Primary CCI-P port group (usually just 1 main port)
-        //
-        // ================================================================
 
-        for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS; p = p + 1)
-        begin : hc_0
-            ofs_plat_shim_ccip_reg
-              #(
-                .N_REG_STAGES(0)
-                )
-              ccip_conn
-               (
-                .to_fiu(ccip_afu[p]),
-                .to_afu(plat_ifc.host_chan.ports[p])
-                );
-        end
-
-        localparam CCIP_PORT_G1_START = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS;
-
-
-        // ================================================================
-        //
-        //  Group 1 ports, either CCI-P or Avalon, emulated by multiplexing
-        //  the primary CCI-P port.
-        //
-        // ================================================================
-
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
-  `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_CCIP
-
-        // Emulate a second group of CCI-P ports
-        for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS; p = p + 1)
-        begin : hc_1
-            ofs_plat_shim_ccip_reg
-              #(
-                .N_REG_STAGES(0)
-                )
-              ccip_conn
-               (
-                .to_fiu(ccip_afu[p + CCIP_PORT_G1_START]),
-                .to_afu(plat_ifc.host_chan_g1.ports[p])
-                );
-        end
-
-        localparam CCIP_PORT_G2_START = CCIP_PORT_G1_START +
-                                        `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS;
-
-  `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON
-
-        // Emulate a group of Avalon memory mapped ports.
-
-        ase_emulate_avalon_host_chan_group
-          #(
-            .INSTANCE_BASE(`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS),
-            .NUM_PORTS(`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS),
-            .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_ADDR_WIDTH),
-            .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_DATA_WIDTH),
-            .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_BURST_CNT_WIDTH),
-            .USER_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_USER_WIDTH != 0 ?
-                          `OFS_PLAT_PARAM_HOST_CHAN_G1_USER_WIDTH : 1),
-            .RD_TRACKER_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_MAX_BW_ACTIVE_LINES_RD),
-            .WR_TRACKER_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_G1_MAX_BW_ACTIVE_LINES_WR),
-    `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_OUT_OF_ORDER
-            .OUT_OF_ORDER(1)
-    `else
-            .OUT_OF_ORDER(0)
-    `endif
-            )
-          hc_1
-           (
-            .to_fiu(ccip_afu[CCIP_PORT_G1_START]),
-            .emul_ports(plat_ifc.host_chan_g1.ports)
-            );
-
-        localparam CCIP_PORT_G2_START = CCIP_PORT_G1_START + 1;
-
-  `else
-        *** ERROR *** Unsupported native interface!
-  `endif
-`endif
-
-
-        // ================================================================
-        //
-        //  Group 2 ports, either CCI-P or Avalon, emulated by multiplexing
-        //  the primary CCI-P port.
-        //
-        // ================================================================
-
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
-  `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_CCIP
-
-        // Emulate a second group of CCI-P ports
-        for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS; p = p + 1)
-        begin : hc_2
-            ofs_plat_shim_ccip_reg
-              #(
-                .N_REG_STAGES(0)
-                )
-              ccip_conn
-               (
-                .to_fiu(ccip_afu[p + CCIP_PORT_G2_START]),
-                .to_afu(plat_ifc.host_chan_g2.ports[p])
-                );
-        end
-
-        localparam CCIP_PORT_G3_START = CCIP_PORT_G2_START +
-                                        `OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS;
-
-  `elsif OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_AVALON
-
-        // Emulate a group of Avalon memory mapped ports.
-
-        ase_emulate_avalon_host_chan_group
-          #(
-            .INSTANCE_BASE(`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS +
-                           `OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS),
-            .NUM_PORTS(`OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS),
-            .ADDR_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G2_ADDR_WIDTH),
-            .DATA_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G2_DATA_WIDTH),
-            .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G2_BURST_CNT_WIDTH),
-            .USER_WIDTH(`OFS_PLAT_PARAM_HOST_CHAN_G2_USER_WIDTH != 0 ?
-                          `OFS_PLAT_PARAM_HOST_CHAN_G2_USER_WIDTH : 1),
-            .RD_TRACKER_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_G2_MAX_BW_ACTIVE_LINES_RD),
-            .WR_TRACKER_DEPTH(`OFS_PLAT_PARAM_HOST_CHAN_G2_MAX_BW_ACTIVE_LINES_WR),
-    `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_OUT_OF_ORDER
-            .OUT_OF_ORDER(1)
-    `else
-            .OUT_OF_ORDER(0)
-    `endif
-            )
-          hc_2
-           (
-            .to_fiu(ccip_afu[CCIP_PORT_G2_START]),
-            .emul_ports(plat_ifc.host_chan_g2.ports)
-            );
-
-        localparam CCIP_PORT_G3_START = CCIP_PORT_G2_START + 1;
-
-  `else
-        *** ERROR *** Unsupported native interface!
-  `endif
-`endif
-    endgenerate
-
-
+    // ====================================================================
     //
-    // Local memory (model provided by the ASE core library)
+    //  Local memory (model provided by the ASE core library)
     //
+    // ====================================================================
+
 `ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
 
     localparam NUM_LOCAL_MEM_BANKS = plat_ifc.local_mem.NUM_BANKS;
@@ -330,115 +135,15 @@ module ase_top_ofs_plat
 `endif
 
 
+    // ====================================================================
     //
-    // Instantiate the AFU
+    //  Instantiate the AFU
     //
+    // ====================================================================
+
     `PLATFORM_SHIM_MODULE_NAME `PLATFORM_SHIM_MODULE_NAME
        (
         .plat_ifc
         );
 
 endmodule // ase_top_ofs_plat
-
-
-//
-// Emulate a group of Avalon host channels given a CCI-P port. The Avalon
-// channels will be multiplexed on top of the single CCI-P port.
-//
-module ase_emulate_avalon_host_chan_group
-  #(
-    parameter INSTANCE_BASE = 0,
-    parameter NUM_PORTS = 0,
-    parameter ADDR_WIDTH = 0,
-    parameter DATA_WIDTH = 0,
-    parameter BURST_CNT_WIDTH = 0,
-    parameter USER_WIDTH = 0,
-    parameter RD_TRACKER_DEPTH = 0,
-    parameter WR_TRACKER_DEPTH = 0,
-    parameter OUT_OF_ORDER = 0
-    )
-   (
-    ofs_plat_host_ccip_if.to_fiu to_fiu,
-    ofs_plat_avalon_mem_if emul_ports[NUM_PORTS]
-    );
-
-    // Begin by transforming the CCI-P port to a single Avalon port.
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH),
-        .BURST_CNT_WIDTH(BURST_CNT_WIDTH),
-        .USER_WIDTH(USER_WIDTH + ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1)
-        )
-        avmm_shared_slave_if();
-
-    ofs_plat_host_chan_as_avalon_mem_rdwr avmm_to_ccip
-       (
-        .to_fiu,
-        .host_mem_to_afu(avmm_shared_slave_if),
-        .afu_clk(),
-        .afu_reset_n()
-        );
-
-    // Multiplex the single Avalon slave into the required number of ports
-    ofs_plat_avalon_mem_rdwr_if
-      #(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH),
-        .BURST_CNT_WIDTH(BURST_CNT_WIDTH),
-        .USER_WIDTH(USER_WIDTH)
-        )
-        avmm_port_slave_if[NUM_PORTS]();
-
-    // The MUX preservers the master's "user" extension fields, making it
-    // possible to use algorithms that depend on user fields in responses
-    // matching requests.
-    ofs_plat_avalon_mem_rdwr_if_mux
-      #(
-        .NUM_MASTER_PORTS(NUM_PORTS),
-        .RD_TRACKER_DEPTH(RD_TRACKER_DEPTH),
-        .WR_TRACKER_DEPTH(WR_TRACKER_DEPTH),
-        .SLAVE_USER_SHIFT(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1)
-        )
-      avmm_mux
-       (
-        .mem_slave(avmm_shared_slave_if),
-        .mem_master(avmm_port_slave_if)
-        );
-
-    // Convert split-bus read/write Avalon to standard Avalon
-    genvar p;
-    for (p = 0; p < NUM_PORTS; p = p + 1)
-    begin : e
-        // Emulate ports that return results out of order
-        ofs_plat_avalon_mem_rdwr_if
-          #(
-            .ADDR_WIDTH(ADDR_WIDTH),
-            .DATA_WIDTH(DATA_WIDTH),
-            .BURST_CNT_WIDTH(BURST_CNT_WIDTH),
-            .USER_WIDTH(USER_WIDTH)
-            )
-            avmm_ooo_if();
-
-        ase_emul_ooo_avalon_mem_rdwr_if
-          #(
-            .OUT_OF_ORDER(OUT_OF_ORDER)
-            )
-          ooo_port
-           (
-            .mem_slave(avmm_port_slave_if[p]),
-            .mem_master(avmm_ooo_if)
-            );
-
-        ofs_plat_avalon_mem_if_to_rdwr_if avmm_to_rdwr
-           (
-            .mem_slave(avmm_ooo_if),
-            .mem_master(emul_ports[p])
-            );
-
-        assign emul_ports[p].clk = avmm_port_slave_if[p].clk;
-        assign emul_ports[p].reset_n = avmm_port_slave_if[p].reset_n;
-        assign emul_ports[p].instance_number = INSTANCE_BASE + p;
-    end
-
-endmodule // ase_emulate_avalon_host_chan_group
