@@ -46,6 +46,8 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     // MAX_OUTSTANDING_DMA_WR_FENCES will never be used for normal reads.
     localparam MAX_OUTSTANDING_DMA_WR_FENCES = 4;
 
+    localparam NUM_AFU_INTERRUPTS = ofs_fim_cfg_pkg::NUM_AFU_INTERRUPTS;
+
     // Tags, reduced from the TLP's 8 bits to the FIM-enforced maximum
     typedef logic [$clog2(MAX_OUTSTANDING_DMA_RD_REQS)-1 : 0] t_dma_rd_tag;
     typedef logic [$clog2(MAX_OUTSTANDING_MMIO_RD_REQS)-1 : 0] t_mmio_rd_tag;

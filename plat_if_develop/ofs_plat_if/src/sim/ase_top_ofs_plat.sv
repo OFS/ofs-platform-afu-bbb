@@ -71,6 +71,27 @@ module ase_top_ofs_plat
     assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
 
 
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP
+
+    // ====================================================================
+    //
+    //  Emulate an AXI-S PCIe TLP host channel.
+    //
+    // ====================================================================
+
+    ase_emul_host_chan_native_axis_pcie_tlp pcie_tlp
+       (
+        .clocks(plat_ifc.clocks),
+        .host_chan_ports(plat_ifc.host_chan.ports),
+        .softReset,
+        .pwrState(plat_ifc.pwrState)
+        );
+
+`endif
+
+
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_CCIP
+
     // ====================================================================
     //
     //  Emulate a CCI-P native FIU connection.
@@ -91,6 +112,7 @@ module ase_top_ofs_plat
         .pwrState(plat_ifc.pwrState)
         );
 
+`endif
 
     // ====================================================================
     //

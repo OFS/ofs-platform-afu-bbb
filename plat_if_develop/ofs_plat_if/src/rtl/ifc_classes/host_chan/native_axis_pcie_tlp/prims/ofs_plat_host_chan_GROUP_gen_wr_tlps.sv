@@ -213,8 +213,9 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
                         (tx_wr_tlps.tready || !tx_wr_tlps.tvalid);
     assign tx_wr_tlps.t.user = '0;
 
-    ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tlp_mem_hdr, tlp_mem_hdr_q;
+    ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tlp_mem_hdr;
     logic [AFU_TAG_WIDTH-1 : 0] wr_req_tag_q;
+    t_tlp_payload_line_idx wr_req_last_line_idx_q;
 
     always_comb
     begin
@@ -255,8 +256,8 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         begin
             if (wr_req_ready && wr_req.sop)
             begin
-                tlp_mem_hdr_q <= tlp_mem_hdr;
                 wr_req_tag_q <= wr_req.tag;
+                wr_req_last_line_idx_q <= t_tlp_payload_line_idx'(wr_req.line_count - 1);
             end
         end
     end
@@ -278,8 +279,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             tx_wr_tlps.t.data[1].valid <= wr_req_notEmpty && !wr_req.is_fence;
             tx_wr_tlps.t.data[1].eop <= wr_req_notEmpty && wr_req.eop && !wr_req.is_fence;
 
-            tx_wr_tlps.t.data[0].hdr <= (wr_req.sop ? tlp_mem_hdr : tlp_mem_hdr_q);
-            tx_wr_tlps.t.data[1].hdr <= (wr_req.sop ? tlp_mem_hdr : tlp_mem_hdr_q);
+            tx_wr_tlps.t.data[0].hdr <= (wr_req.sop ? tlp_mem_hdr : '0);
 
             { tx_wr_tlps.t.data[1].payload, tx_wr_tlps.t.data[0].payload } <= wr_req.payload;
         end
@@ -308,7 +308,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         begin
             wr_rsp.tag = (wr_req.sop ? wr_req.tag : wr_req_tag_q);
         end
-        wr_rsp.line_idx = '0;
+        wr_rsp.line_idx = (wr_req.sop ? '0 : wr_req_last_line_idx_q);
         wr_rsp.is_fence = wr_fence_cpl_valid;
     end
 
