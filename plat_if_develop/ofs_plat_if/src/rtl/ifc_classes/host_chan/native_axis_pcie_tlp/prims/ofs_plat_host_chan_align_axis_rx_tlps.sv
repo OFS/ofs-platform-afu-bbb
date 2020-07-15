@@ -261,6 +261,21 @@ module ofs_plat_host_chan_align_axis_tlps
         end
     end
 
+    // Does the work vector have an SOP entry that isn't in the lowest
+    // slot? If so, then even if work_out_ready is true there may not
+    // be enough space for incoming values.
+    logic work_has_blocking_sop;
+
+    always_comb
+    begin
+        work_has_blocking_sop = 1'b0;
+        for (int i = 1; i < NUM_SLAVE_TLP_CH; i = i + 1)
+        begin
+            work_has_blocking_sop = work_has_blocking_sop ||
+                                    (work_valid[i] && work_sop[i]);
+        end
+    end
+
     // Index of the currently first invalid channel in the vector
     t_work_ch_idx work_first_invalid;
 
@@ -286,7 +301,8 @@ module ofs_plat_host_chan_align_axis_tlps
     //
     // Finally, we are ready to update the work vectors.
     //
-    assign master_dense.tready = (!work_full || work_out_ready);
+    assign master_dense.tready = (!work_full ||
+                                  (work_out_ready && !work_has_blocking_sop));
 
     always_ff @(posedge clk)
     begin
