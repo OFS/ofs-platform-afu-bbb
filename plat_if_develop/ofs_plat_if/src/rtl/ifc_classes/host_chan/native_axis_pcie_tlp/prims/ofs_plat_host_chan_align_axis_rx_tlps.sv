@@ -279,8 +279,9 @@ module ofs_plat_host_chan_align_axis_tlps
 
     // Next insertion point, taking into account outbound entries
     t_work_ch_idx next_insertion_idx;
-    assign next_insertion_idx = work_first_invalid -
-                                (work_out_ready ? work_out_num_valid : 0);
+    assign next_insertion_idx =
+        work_first_invalid -
+        ((work_out_valid & work_out_ready) ? work_out_num_valid : 0);
 
     //
     // Finally, we are ready to update the work vectors.

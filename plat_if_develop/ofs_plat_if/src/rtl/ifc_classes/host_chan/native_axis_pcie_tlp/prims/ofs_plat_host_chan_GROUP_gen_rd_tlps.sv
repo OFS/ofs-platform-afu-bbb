@@ -206,7 +206,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     begin
         if (tx_rd_tlps.tready || !tx_rd_tlps.tvalid)
         begin
-            tx_rd_tlps.tvalid <= rd_req_notEmpty;
+            tx_rd_tlps.tvalid <= rd_req_notEmpty && req_tlp_tag_ready;
 
             tx_rd_tlps.t.data <= '0;
 

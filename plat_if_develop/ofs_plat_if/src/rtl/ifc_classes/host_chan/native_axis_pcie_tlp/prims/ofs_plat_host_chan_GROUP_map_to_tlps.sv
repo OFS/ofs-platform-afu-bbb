@@ -317,20 +317,52 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     //
     // ====================================================================
 
+    typedef enum logic [1:0] {
+        ARB_NONE,
+        ARB_LOCK_MMIO,
+        ARB_LOCK_WR
+    } t_arb_state;
+
+    t_arb_state arb_state;
+    logic [2:0] arb_req;
+    logic [2:0] arb_grant;
+
+    ofs_plat_prim_arb_rr
+      #(
+        .NUM_CLIENTS(3)
+        )
+      tx_arb
+       (
+        .clk,
+        .reset_n,
+
+        .ena(to_fiu_tlp.afu_tx_st.tready),
+        .request(arb_req),
+        .grant(arb_grant),
+        .grantIdx()
+        );
+
+    assign arb_req[0] = tx_mmio_tlps.tvalid &&
+                        ((arb_state == ARB_NONE) || (arb_state == ARB_LOCK_MMIO));
+    assign arb_req[1] = tx_rd_tlps.tvalid &&
+                        (arb_state == ARB_NONE);
+    assign arb_req[2] = tx_wr_tlps.tvalid &&
+                        ((arb_state == ARB_NONE) || (arb_state == ARB_LOCK_WR));
+
     always_comb
     begin
-        to_fiu_tlp.afu_tx_st.tvalid = tx_mmio_tlps.tvalid || tx_rd_tlps.tvalid || tx_wr_tlps.tvalid;
+        to_fiu_tlp.afu_tx_st.tvalid = to_fiu_tlp.afu_tx_st.tready && |(arb_req);
 
-        tx_mmio_tlps.tready = to_fiu_tlp.afu_tx_st.tready;
-        tx_rd_tlps.tready = to_fiu_tlp.afu_tx_st.tready && !tx_mmio_tlps.tvalid;
-        tx_wr_tlps.tready = to_fiu_tlp.afu_tx_st.tready && !tx_mmio_tlps.tvalid && !tx_rd_tlps.tvalid;
+        tx_mmio_tlps.tready = arb_grant[0];
+        tx_rd_tlps.tready = arb_grant[1];
+        tx_wr_tlps.tready = arb_grant[2];
 
-        if (tx_mmio_tlps.tvalid)
+        if (tx_mmio_tlps.tready)
         begin
             to_fiu_tlp.afu_tx_st.t.data = tx_mmio_tlps.t.data;
             to_fiu_tlp.afu_tx_st.t.user = tx_mmio_tlps.t.user;
         end
-        else if (tx_rd_tlps.tvalid)
+        else if (tx_rd_tlps.tready)
         begin
             to_fiu_tlp.afu_tx_st.t.data = tx_rd_tlps.t.data;
             to_fiu_tlp.afu_tx_st.t.user = tx_rd_tlps.t.user;
@@ -341,5 +373,47 @@ module ofs_plat_host_chan_@group@_map_to_tlps
             to_fiu_tlp.afu_tx_st.t.user = tx_wr_tlps.t.user;
         end
     end
+
+    // Track multi-beat messages and hold arbitration
+    always_ff @(posedge clk)
+    begin
+        //
+        // Ready signals in the local protocol here are true only when
+        // arbitration is won.
+        //
+
+        if (tx_mmio_tlps.tready &&
+            !tx_mmio_tlps.t.data[0].eop &&
+            !tx_mmio_tlps.t.data[1].eop)
+        begin
+            arb_state <= ARB_LOCK_MMIO;
+        end
+        else if (tx_wr_tlps.tready &&
+                 !tx_wr_tlps.t.data[0].eop &&
+                 !tx_wr_tlps.t.data[1].eop)
+        begin
+            arb_state <= ARB_LOCK_WR;
+        end
+        else if (to_fiu_tlp.afu_tx_st.tvalid)
+        begin
+            arb_state <= ARB_NONE;
+        end
+
+        if (!reset_n)
+        begin
+            arb_state <= ARB_NONE;
+        end
+    end
+
+    // synthesis translate_off
+    always_ff @(negedge clk)
+    begin
+        if (reset_n)
+        begin
+            assert(to_fiu_tlp.afu_tx_st.tvalid == |(arb_grant)) else
+                $fatal(2, " ** ERROR ** %m: Arbitration request doesn't match winners!");
+        end
+    end
+    // synthesis translate_on
 
 endmodule // ofs_plat_host_chan_@group@_map_to_tlps
