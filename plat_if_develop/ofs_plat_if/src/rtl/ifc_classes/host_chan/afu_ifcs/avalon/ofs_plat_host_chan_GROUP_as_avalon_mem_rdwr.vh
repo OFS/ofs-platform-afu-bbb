@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2020, Intel Corporation
+// Copyright (c) 2019, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,33 +28,29 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__
-`define __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__
+`ifndef __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
+`define __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
 
 //
-// Macros for setting parameters to AXI memory interfaces.
+// Macros for setting parameters to Avalon split-bus read/write interfaces.
 //
 
-// CCI-P to AXI host memory ofs_plat_axi_mem_if parameters.
-// AFUs may set BURST_CNT_WIDTH, RID_WIDTH, WID_WIDTH and USER_WIDTH to
-// whatever works in the AFU. The PIM will transform bursts into legal
-// CCI-P requests.
-`define HOST_CHAN_@GROUP@_AXI_MEM_PARAMS \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH + $clog2(ccip_if_pkg::CCIP_CLDATA_BYTE_WIDTH)), \
-    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
+// Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
+// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
+// transform bursts into legal native host channel requests.
+`define HOST_CHAN_@GROUP@_AVALON_MEM_RDWR_PARAMS \
+    .ADDR_WIDTH(ofs_plat_host_chan_@group@_pkg::ADDR_WIDTH_LINES), \
+    .DATA_WIDTH(ofs_plat_host_chan_@group@_pkg::DATA_WIDTH)
 
-// CCI-P to AXI MMIO ofs_plat_axi_mem_lite_if parameters. In order to
-// keep the MMIO representation general, independent of particular
-// platform protocols, addresses are to bytes within the space. AFUs that
-// deal only with aligned data can simply ignore the low address bits.
-// CCI-P's MMIO addresses are to 32 bit words, so 2 low bits of address
-// are added here. On native CCI-P platforms these bits will always be 0.
-//
-// The read ID field holds the CCI-P tid and the index of the requested
-// word on the bus. CCI-P minimum addressable MMIO size is 32 bits.
-`define HOST_CHAN_@GROUP@_AXI_MMIO_PARAMS(BUSWIDTH) \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH + 2), \
+// Avalon MMIO ofs_plat_avalon_mem_if parameters. For Avalon MMIO
+// we encode the address as the index of BUSWIDTH-sized words in the
+// MMIO space. For example, for 64 bit BUSWIDTH address 1 is the second
+// 64 bit word in MMIO space. Smaller requests in the MMIO space use
+// byteenable.
+`define HOST_CHAN_@GROUP@_AVALON_MMIO_PARAMS(BUSWIDTH) \
+    .ADDR_WIDTH(ofs_plat_host_chan_@group@_pkg::MMIO_ADDR_WIDTH_BYTES - $clog2(BUSWIDTH/8)), \
     .DATA_WIDTH(BUSWIDTH), \
-    .RID_WIDTH($clog2(BUSWIDTH / 32) + ccip_if_pkg::CCIP_TID_WIDTH)
+    .BURST_CNT_WIDTH(1)
 
-`endif // __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__
+
+`endif // __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__

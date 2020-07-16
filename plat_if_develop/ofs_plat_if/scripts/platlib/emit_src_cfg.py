@@ -43,6 +43,7 @@ scripts."""
 
 import os
 import sys
+import re
 
 
 class emit_src_cfg(object):
@@ -89,6 +90,10 @@ class emit_src_cfg(object):
             for fn in e[2]:
                 self.all_files.append(os.path.join(e[0], fn))
 
+        # Sort packages in dependence order. Simulators and Quartus expect
+        # to encounter packages in order.
+        self.__sort_packages()
+
     def include_dirs(self):
         """Return a list of directories that contain header files."""
 
@@ -100,13 +105,84 @@ class emit_src_cfg(object):
                 return True
         return False
 
-    def src_packages(self):
-        """Return a list of all SystemVerilog packages (files matching
-        *_pkg.sv or *_def.sv). (The FIM uses _def for some packages.)"""
+    def __sort_packages(self):
+        """Sort the list of sources that are packages in dependence order,
+        computed by parsing each package and looking for references to
+        other packages."""
 
-        return [fn for fn in self.all_files
+        # We assume that packages all end in either _pkg.sv or _def.sv.
+        pkgs = [fn for fn in self.all_files
                 if (fn.lower().endswith("_pkg.sv") or
                     fn.lower().endswith("_def.sv"))]
+
+        # Dictionary mapping package leaf name to path
+        pkg_path_map = {}
+        # Dictionary mapping package leaf name to packages on which it
+        # depends.
+        pkg_deps = {}
+        # List of package leaf names.
+        pkg_list = []
+        for fn in pkgs:
+            # Drop ".sv" from the key
+            p = os.path.basename(fn)
+            if (p.lower().endswith(".sv")):
+                p = p[:-3]
+            pkg_list.append(p)
+            pkg_path_map[p] = fn
+            pkg_deps[p] = self.__read_dep_packages(fn)
+
+        # Global __pkgs_visited breaks dependence cycles
+        self.__pkgs_visited = set()
+        sorted_pkg_list = []
+        for p in pkg_list:
+            sorted_pkg_list = sorted_pkg_list + \
+                self.__dep_first_packages(p, pkg_deps)
+
+        # Map back from a list of leaf names to full path names
+        self.__src_package_list = []
+        for p in sorted_pkg_list:
+            self.__src_package_list.append(pkg_path_map[p])
+
+    def __dep_first_packages(self, pkg, pkg_deps):
+        """Compute a dependence-order list of packages."""
+
+        # Package already visited (and therefore in the list already)?
+        if (pkg in self.__pkgs_visited):
+            return []
+
+        # Unknown package name. Probably an external reference. Ignore it.
+        if (pkg not in pkg_deps):
+            return []
+
+        # Recursive dependence walk
+        sorted_pkg_list = []
+        if pkg in pkg_deps:
+            for p in pkg_deps[pkg]:
+                sorted_pkg_list = sorted_pkg_list + \
+                    self.__dep_first_packages(p, pkg_deps)
+
+        # Put the current package on the list now that packages on which
+        # it depends are listed.
+        if (pkg not in self.__pkgs_visited):
+            self.__pkgs_visited.add(pkg)
+            sorted_pkg_list = sorted_pkg_list + [pkg]
+
+        return sorted_pkg_list
+
+    def __read_dep_packages(self, filename):
+        """Return a set of packages on which filename depends, computed
+        by reading the file and looking for package references."""
+
+        text = open(filename, 'r').read()
+        p = re.compile('([\\w]+_pkg|[\\w]+_def)::', re.IGNORECASE)
+        return set(p.findall(text))
+
+    def src_packages(self):
+        """Return a list of all SystemVerilog packages (files matching
+        *_pkg.sv or *_def.sv). (The FIM uses _def for some packages.)
+        Packages are sorted in dependence order."""
+
+        return self.__src_package_list
 
     def src_rtl(self):
         """Return a list of all files that are RTL sources."""
@@ -118,6 +194,7 @@ class emit_src_cfg(object):
         # Filter out packages and includes
         return [fn for fn in rtl
                 if not fn.lower().endswith("_pkg.sv") and
+                not fn.lower().endswith("_def.sv") and
                 not fn.lower().endswith(".vh")]
 
     def is_sim_only(self, fn):

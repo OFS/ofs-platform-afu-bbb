@@ -132,7 +132,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     ofs_plat_host_chan_align_axis_tlps
       #(
         .NUM_MASTER_TLP_CH(NUM_FIU_PCIE_TLP_CH),
-        .NUM_SLAVE_TLP_CH(2),
+        .NUM_SLAVE_TLP_CH(NUM_PIM_PCIE_TLP_CH),
         .TDATA_TYPE(t_ofs_plat_axis_pcie_tdata),
         .TUSER_TYPE(t_ofs_plat_axis_pcie_rx_tuser)
         )

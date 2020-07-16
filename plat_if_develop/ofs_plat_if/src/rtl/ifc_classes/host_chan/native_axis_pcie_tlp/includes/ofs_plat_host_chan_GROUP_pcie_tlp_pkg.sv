@@ -39,6 +39,9 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     // Number of parallel TLP channels in the interface
     localparam NUM_FIU_PCIE_TLP_CH = ofs_fim_if_pkg::FIM_PCIE_TLP_CH;
 
+    // Payload width of a single FIM channel
+    localparam FIU_PCIE_TLP_CH_PW = ofs_fim_if_pkg::AXIS_PCIE_PW;
+
     // Tag values must be less than the maximum number of tags
     localparam MAX_OUTSTANDING_DMA_RD_REQS = ofs_fim_pcie_pkg::PCIE_EP_MAX_TAGS;
     localparam MAX_OUTSTANDING_MMIO_RD_REQS = ofs_fim_cfg_pkg::PCIE_RP_MAX_TAGS;

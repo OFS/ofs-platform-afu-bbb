@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,29 +28,27 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-`ifndef __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
-`define __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
+`include "ofs_plat_if.vh"
 
 //
-// Macros for setting parameters to Avalon split-bus read/write interfaces.
+// Platform-independent configuration details for host channels, available
+// on any platform.
 //
 
-// CCI-P to Avalon host memory ofs_plat_avalon_mem_rdwr_if parameters.
-// AFUs may set BURST_CNT_WIDTH to whatever works in the AFU. The PIM will
-// transform bursts into legal CCI-P requests.
-`define HOST_CHAN_@GROUP@_AVALON_MEM_RDWR_PARAMS \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_CLADDR_WIDTH), \
-    .DATA_WIDTH(ccip_if_pkg::CCIP_CLDATA_WIDTH)
+package ofs_plat_host_chan_@group@_pkg;
 
-// CCI-P to Avalon MMIO ofs_plat_avalon_mem_if parameters. For Avalon MMIO
-// we encode the address as the index of BUSWIDTH-sized words in the
-// MMIO space. For example, for 64 bit BUSWIDTH address 1 is the second
-// 64 bit word in MMIO space. Smaller requests in the MMIO space use
-// byteenable.
-`define HOST_CHAN_@GROUP@_AVALON_MMIO_PARAMS(BUSWIDTH) \
-    .ADDR_WIDTH(ccip_if_pkg::CCIP_MMIOADDR_WIDTH - $clog2(BUSWIDTH/32)), \
-    .DATA_WIDTH(BUSWIDTH), \
-    .BURST_CNT_WIDTH(1)
+    localparam NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_PORTS;
 
+    localparam DATA_WIDTH = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_DATA_WIDTH;
+    localparam DATA_WIDTH_BYTES = DATA_WIDTH / 8;
 
-`endif // __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AVALON_MEM_RDWR__
+    // Address width to address lines (DATA_WIDTH)
+    localparam ADDR_WIDTH_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_ADDR_WIDTH;
+    // Address width to address bytes
+    localparam ADDR_WIDTH_BYTES = ADDR_WIDTH_LINES + $clog2(DATA_WIDTH_BYTES);
+
+    // AFU's MMIO address size (byte-level, despite PCIe using 32 bit
+    // DWORD granularity.
+    localparam MMIO_ADDR_WIDTH_BYTES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MMIO_ADDR_WIDTH;
+
+endpackage
