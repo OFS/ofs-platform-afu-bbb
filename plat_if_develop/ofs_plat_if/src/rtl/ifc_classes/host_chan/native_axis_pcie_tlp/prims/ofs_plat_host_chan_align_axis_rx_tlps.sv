@@ -42,7 +42,7 @@
 // flits arrive to satisfy #3.
 //
 
-module ofs_plat_host_chan_align_axis_tlps
+module ofs_plat_host_chan_align_axis_rx_tlps
   #(
     parameter NUM_MASTER_TLP_CH = 2,
     parameter NUM_SLAVE_TLP_CH = 2,
@@ -389,4 +389,4 @@ module ofs_plat_host_chan_align_axis_tlps
         .ready_from_dst(stream_slave.tready)
         );
 
-endmodule // ofs_plat_host_chan_align_axis_tlps
+endmodule // ofs_plat_host_chan_align_axis_rx_tlps

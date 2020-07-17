@@ -111,8 +111,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     //
     // ====================================================================
 
-    typedef t_ofs_plat_axis_pcie_tdata [1:0] t_axis_pcie_tdata_vec;
-    typedef t_ofs_plat_axis_pcie_rx_tuser [1:0] t_axis_pcie_rx_tuser_vec;
+    typedef t_ofs_plat_axis_pcie_tdata [NUM_PIM_PCIE_TLP_CH-1 : 0] t_axis_pcie_tdata_vec;
+    typedef t_ofs_plat_axis_pcie_rx_tuser [NUM_PIM_PCIE_TLP_CH-1 : 0] t_axis_pcie_rx_tuser_vec;
 
     ofs_plat_axi_stream_if
       #(
@@ -129,7 +129,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(ofs_plat_log_pkg::HOST_CHAN, aligned_rx_st)
     // synthesis translate_on
 
-    ofs_plat_host_chan_align_axis_tlps
+    ofs_plat_host_chan_align_axis_rx_tlps
       #(
         .NUM_MASTER_TLP_CH(NUM_FIU_PCIE_TLP_CH),
         .NUM_SLAVE_TLP_CH(NUM_PIM_PCIE_TLP_CH),
@@ -144,6 +144,48 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     logic rx_cpl_handler_ready;
     assign aligned_rx_st.tready = rx_cpl_handler_ready && host_mmio_req.tready;
+
+
+    // ====================================================================
+    //
+    //  Map the PIM-aligned outgoing TX stream to the FIU's width. This
+    //  is simpler than the incoming RX stream, since the FIU is reasonably
+    //  flexible. The TX alignment only handles mapping to narrower (fewer
+    //  channels, e.g. PCIe x8) or wider streams. A wider stream would,
+    //  of course, waste the available bandwidth and merely fill it with
+    //  invalids.
+    //
+    // ====================================================================
+
+    typedef t_ofs_plat_axis_pcie_tx_tuser [NUM_PIM_PCIE_TLP_CH-1 : 0] t_axis_pcie_tx_tuser_vec;
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(t_axis_pcie_tdata_vec),
+        .TUSER_TYPE(t_axis_pcie_tx_tuser_vec)
+        )
+      aligned_tx_st();
+
+    assign aligned_tx_st.clk = clk;
+    assign aligned_tx_st.reset_n = reset_n;
+    assign aligned_tx_st.instance_number = to_fiu_tlp.instance_number;
+
+    // synthesis translate_off
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_TX(ofs_plat_log_pkg::HOST_CHAN, aligned_tx_st)
+    // synthesis translate_on
+
+    ofs_plat_host_chan_align_axis_tx_tlps
+      #(
+        .NUM_MASTER_TLP_CH(NUM_PIM_PCIE_TLP_CH),
+        .NUM_SLAVE_TLP_CH(NUM_FIU_PCIE_TLP_CH),
+        .TDATA_TYPE(t_ofs_plat_axis_pcie_tdata),
+        .TUSER_TYPE(t_ofs_plat_axis_pcie_tx_tuser)
+        )
+      align_tx
+       (
+        .stream_master(aligned_tx_st),
+        .stream_slave(to_fiu_tlp.afu_tx_st)
+        );
 
 
     // ====================================================================
@@ -336,7 +378,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         .clk,
         .reset_n,
 
-        .ena(to_fiu_tlp.afu_tx_st.tready),
+        .ena(aligned_tx_st.tready),
         .request(arb_req),
         .grant(arb_grant),
         .grantIdx()
@@ -351,7 +393,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     always_comb
     begin
-        to_fiu_tlp.afu_tx_st.tvalid = to_fiu_tlp.afu_tx_st.tready && |(arb_req);
+        aligned_tx_st.tvalid = aligned_tx_st.tready && |(arb_req);
 
         tx_mmio_tlps.tready = arb_grant[0];
         tx_rd_tlps.tready = arb_grant[1];
@@ -359,18 +401,18 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         if (tx_mmio_tlps.tready)
         begin
-            to_fiu_tlp.afu_tx_st.t.data = tx_mmio_tlps.t.data;
-            to_fiu_tlp.afu_tx_st.t.user = tx_mmio_tlps.t.user;
+            aligned_tx_st.t.data = tx_mmio_tlps.t.data;
+            aligned_tx_st.t.user = tx_mmio_tlps.t.user;
         end
         else if (tx_rd_tlps.tready)
         begin
-            to_fiu_tlp.afu_tx_st.t.data = tx_rd_tlps.t.data;
-            to_fiu_tlp.afu_tx_st.t.user = tx_rd_tlps.t.user;
+            aligned_tx_st.t.data = tx_rd_tlps.t.data;
+            aligned_tx_st.t.user = tx_rd_tlps.t.user;
         end
         else
         begin
-            to_fiu_tlp.afu_tx_st.t.data = tx_wr_tlps.t.data;
-            to_fiu_tlp.afu_tx_st.t.user = tx_wr_tlps.t.user;
+            aligned_tx_st.t.data = tx_wr_tlps.t.data;
+            aligned_tx_st.t.user = tx_wr_tlps.t.user;
         end
     end
 
@@ -394,7 +436,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         begin
             arb_state <= ARB_LOCK_WR;
         end
-        else if (to_fiu_tlp.afu_tx_st.tvalid)
+        else if (aligned_tx_st.tvalid)
         begin
             arb_state <= ARB_NONE;
         end
@@ -410,7 +452,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     begin
         if (reset_n)
         begin
-            assert(to_fiu_tlp.afu_tx_st.tvalid == |(arb_grant)) else
+            assert(aligned_tx_st.tvalid == |(arb_grant)) else
                 $fatal(2, " ** ERROR ** %m: Arbitration request doesn't match winners!");
         end
     end
