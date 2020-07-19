@@ -479,13 +479,13 @@ testMaskedWrite(
     uint64_t buf_ioaddr = s_eng_bufs[e].wr_buf_ioaddr / CL(1);
     if (buf[0] != (buf_ioaddr | 0xff))
     {
-        printf("FAIL (expected low 0x%016" PRIx64 ", found 0x%016" PRIx64 "\n",
+        printf("FAIL (expected low 0x%016" PRIx64 ", found 0x%016" PRIx64 ")\n",
                buf_ioaddr | 0xff, buf[0]);
         num_errors += 1;
     }
     else if (buf[7] != 0xffffffffffffbeef)
     {
-        printf("FAIL (expected high 0x%016" PRIx64 ", found 0x%016" PRIx64 "\n",
+        printf("FAIL (expected high 0x%016" PRIx64 ", found 0x%016" PRIx64 ")\n",
                0xffffffffffffbeef, buf[7]);
         num_errors += 1;
     }

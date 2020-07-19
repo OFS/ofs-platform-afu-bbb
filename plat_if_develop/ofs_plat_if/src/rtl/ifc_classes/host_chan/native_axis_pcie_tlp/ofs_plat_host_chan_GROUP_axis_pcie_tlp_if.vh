@@ -40,11 +40,11 @@
 `define LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_TX(LOG_CLASS, tx_st) \
     initial \
     begin \
-        string ctx_name = $sformatf("%m.%s", `"tx_st`"); \
+        static string ctx_name = $sformatf("%m.%s", `"tx_st`"); \
         // Watch traffic \
         if (LOG_CLASS != ofs_plat_log_pkg::NONE) \
         begin \
-            int log_fd = ofs_plat_log_pkg::get_fd(LOG_CLASS); \
+            static int log_fd = ofs_plat_log_pkg::get_fd(LOG_CLASS); \
             forever @(posedge tx_st.clk) \
             begin \
                 if (tx_st.reset_n && tx_st.tvalid && tx_st.tready) \
@@ -61,11 +61,11 @@
 `define LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(LOG_CLASS, rx_st) \
     initial \
     begin \
-        string ctx_name = $sformatf("%m.%s", `"rx_st`"); \
+        static string ctx_name = $sformatf("%m.%s", `"rx_st`"); \
         // Watch traffic \
         if (LOG_CLASS != ofs_plat_log_pkg::NONE) \
         begin \
-            int log_fd = ofs_plat_log_pkg::get_fd(LOG_CLASS); \
+            static int log_fd = ofs_plat_log_pkg::get_fd(LOG_CLASS); \
             forever @(posedge rx_st.clk) \
             begin \
                 if (rx_st.reset_n && rx_st.tvalid && rx_st.tready) \

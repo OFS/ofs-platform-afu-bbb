@@ -202,7 +202,7 @@ interface ofs_plat_host_ccip_if
 
     initial
     begin : logger_proc
-        string ctx_name = $sformatf("%m");
+        static string ctx_name = $sformatf("%m");
 
         // Watch traffic
         if (LOG_CLASS != ofs_plat_log_pkg::NONE)

@@ -311,6 +311,10 @@ module ofs_plat_host_chan_@group@_map_as_ccip
     assign afu_wr_req.t.data.line_count = count_from_cl_len(afu_c1Tx.hdr.cl_len);
     assign afu_wr_req.t.data.addr = { '0, afu_c1Tx.hdr.address, 6'b0 };
 
+    assign afu_wr_req.t.data.enable_byte_range = (afu_c1Tx.hdr.mode == eMOD_BYTE);
+    assign afu_wr_req.t.data.byte_start_idx = afu_c1Tx.hdr.byte_start;
+    assign afu_wr_req.t.data.byte_len = afu_c1Tx.hdr.byte_len;
+
     assign afu_wr_req.t.data.payload = afu_c1Tx.data;
 
 

@@ -123,7 +123,19 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         logic [AFU_TAG_WIDTH-1 : 0] tag;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
+        // Byte address, but the code assumes byte offset bits within a line are 0.
         logic [63:0] addr;
+
+        // Write only a subset of the line? The write handler allows subsets
+        // only when line_count is 1 since the payload length has to be known
+        // in the header. Anything more flexible would require buffering entire
+        // writes in order to track the mask. When enable_byte_range is set,
+        // addr should still be line-aligned. The payload should remain aligned
+        // to the line. The internal write processing logic will shift the
+        // payload as needed.
+        logic enable_byte_range;
+        t_tlp_payload_line_byte_idx byte_start_idx;
+        t_tlp_payload_line_byte_idx byte_len;
 
         logic [PAYLOAD_LINE_SIZE-1 : 0] payload;
     } t_gen_tx_afu_wr_req;

@@ -76,13 +76,16 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
 
     // Maximum packet size (bits)
     localparam MAX_PAYLOAD_SIZE = 2048;
-    // Maximum number of 512 bit lines in a packet
-    localparam PAYLOAD_LINE_SIZE = 512;
+    localparam PAYLOAD_LINE_SIZE = ofs_plat_host_chan_@group@_pkg::DATA_WIDTH;
+    // Maximum number of lines in a packet
     localparam MAX_PAYLOAD_LINES = MAX_PAYLOAD_SIZE / PAYLOAD_LINE_SIZE;
     // Line count -- number of lines -- must represent 0 .. MAX_PAYLOAD_LINES
     typedef logic [$clog2(MAX_PAYLOAD_LINES+1)-1 : 0] t_tlp_payload_line_count;
     // Line index -- line offset from 0 -- must represent 0 .. MAX_PAYLOAD_LINES-1
     typedef logic [$clog2(MAX_PAYLOAD_LINES)-1 : 0] t_tlp_payload_line_idx;
+
+    localparam PAYLOAD_LINE_BYTES = PAYLOAD_LINE_SIZE / 8;
+    typedef logic [$clog2(PAYLOAD_LINE_BYTES)-1 : 0] t_tlp_payload_line_byte_idx;
 
     // Isolate just the line index portion of a byte-level address
     function automatic t_tlp_payload_line_idx byteAddrToPayloadLineIdx(logic [63:0] addr);
