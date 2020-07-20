@@ -367,7 +367,9 @@ interface ofs_plat_axi_mem_if
     end
 
     initial
-    begin : logger_proc
+    begin
+        static string ctx_name = $sformatf("%m");
+
         // Watch traffic
         if (LOG_CLASS != ofs_plat_log_pkg::NONE)
         begin
@@ -378,8 +380,8 @@ interface ofs_plat_axi_mem_if
                 // Write address
                 if (reset_n && awvalid && awready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d AW addr 0x%x burst 0x%x len 0x%x size 0x%x id 0x%x prot 0x%x user 0x%x lock 0x%x cache 0x%x qos 0x%x region 0x%x atop 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d AW addr 0x%x burst 0x%x len 0x%x size 0x%x id 0x%x prot 0x%x user 0x%x lock 0x%x cache 0x%x qos 0x%x region 0x%x atop 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             aw.addr, aw.burst, aw.len, aw.size, aw.id, aw.prot, aw.user, aw.lock, aw.cache, aw.qos, aw.region, aw.atop);
@@ -388,8 +390,8 @@ interface ofs_plat_axi_mem_if
                 // Write data
                 if (reset_n && wvalid && wready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d W  data 0x%x strb 0x%x last %x user 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d W  data 0x%x strb 0x%x last %x user 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             w.data, w.strb, w.last, w.user);
@@ -398,8 +400,8 @@ interface ofs_plat_axi_mem_if
                 // Write response
                 if (reset_n && bvalid && bready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d B  resp 0x%x id 0x%x user 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d B  resp 0x%x id 0x%x user 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             b.resp, b.id, b.user);
@@ -408,8 +410,8 @@ interface ofs_plat_axi_mem_if
                 // Read address
                 if (reset_n && arvalid && arready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d AR addr 0x%x burst 0x%x len 0x%x size 0x%x id 0x%x prot 0x%x user 0x%x lock 0x%x cache 0x%x qos 0x%x region 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d AR addr 0x%x burst 0x%x len 0x%x size 0x%x id 0x%x prot 0x%x user 0x%x lock 0x%x cache 0x%x qos 0x%x region 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             ar.addr, ar.burst, ar.len, ar.size, ar.id, ar.prot, ar.user, ar.lock, ar.cache, ar.qos, ar.region);
@@ -418,8 +420,8 @@ interface ofs_plat_axi_mem_if
                 // Read data
                 if (reset_n && rvalid && rready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d R  resp 0x%x id 0x%x data 0x%x last %x user 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d R  resp 0x%x id 0x%x data 0x%x last %x user 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             r.resp, r.id, r.data, r.last, r.user);

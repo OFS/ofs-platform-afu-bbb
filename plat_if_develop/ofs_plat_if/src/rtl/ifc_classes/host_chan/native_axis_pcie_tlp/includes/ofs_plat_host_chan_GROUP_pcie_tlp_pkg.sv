@@ -129,15 +129,30 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
             begin
                 if (data[i].sop)
                 begin
-                    $fwrite(log_fd, "%s: %t %s %0d ch%0d %s%s%s [%s]%s\n",
-                            ctx_name, $time,
-                            log_class_name,
-                            instance_number, i,
-                            (data[i].sop ? "sop " : ""),
-                            (data[i].eop ? "eop " : ""),
-                            ofs_fim_pcie_hdr_def::func_hdr_to_string(data[i].hdr),
-                            ofs_fim_if_pkg::func_tx_user_to_string(user[i]),
-                            pcie_payload_to_string(data[i]));
+                    if (!user[i].afu_irq)
+                    begin
+                        $fwrite(log_fd, "%s: %t %s %0d ch%0d %s%s%s [%s]%s\n",
+                                ctx_name, $time,
+                                log_class_name,
+                                instance_number, i,
+                                (data[i].sop ? "sop " : ""),
+                                (data[i].eop ? "eop " : ""),
+                                ofs_fim_pcie_hdr_def::func_hdr_to_string(data[i].hdr),
+                                ofs_fim_if_pkg::func_tx_user_to_string(user[i]),
+                                pcie_payload_to_string(data[i]));
+                    end
+                    else
+                    begin
+                        t_ofs_plat_axis_pcie_irq_data irq_hdr;
+                        irq_hdr = t_ofs_plat_axis_pcie_irq_data'(data[i].hdr);
+                        $fwrite(log_fd, "%s: %t %s %0d ch%0d %s%sirq_id %0d\n",
+                                ctx_name, $time,
+                                log_class_name,
+                                instance_number, i,
+                                (data[i].sop ? "sop " : ""),
+                                (data[i].eop ? "eop " : ""),
+                                irq_hdr.irq_id);
+                    end
                 end
                 else
                 begin

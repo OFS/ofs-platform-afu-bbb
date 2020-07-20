@@ -120,6 +120,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
         // This group is expected only on the first beat
         logic is_fence;
+        logic is_interrupt;	// Store the interrupt ID in the tag
         logic [AFU_TAG_WIDTH-1 : 0] tag;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
@@ -146,6 +147,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         // Line index of last line in multi-line write (zero based)
         t_tlp_payload_line_idx line_idx;
         logic is_fence;
+        logic is_interrupt;	// Store the interrupt ID in the tag
     } t_gen_tx_afu_wr_rsp;
 
 endpackage

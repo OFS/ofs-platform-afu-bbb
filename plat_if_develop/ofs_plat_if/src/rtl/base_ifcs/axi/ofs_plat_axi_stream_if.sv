@@ -156,7 +156,9 @@ interface ofs_plat_axi_stream_if
     end
 
     initial
-    begin : logger_proc
+    begin
+        static string ctx_name = $sformatf("%m");
+
         // Watch traffic
         if (LOG_CLASS != ofs_plat_log_pkg::NONE)
         begin
@@ -167,8 +169,8 @@ interface ofs_plat_axi_stream_if
                 // Write address
                 if (reset_n && tvalid && tready)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d last %0d user 0x%x data 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d last %0d user 0x%x data 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             t.last, t.user, t.data);

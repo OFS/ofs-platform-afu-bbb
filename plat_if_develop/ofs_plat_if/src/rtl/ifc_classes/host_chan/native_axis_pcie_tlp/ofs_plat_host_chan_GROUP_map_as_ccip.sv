@@ -305,9 +305,16 @@ module ofs_plat_host_chan_@group@_map_as_ccip
                             ((afu_c1Tx_pkt_len[1] == 1'b0) ||
                              (afu_c1Tx.hdr.address[1:0] == 2'b11)));
 
+    // c1Tx cast as an interrupt header (when req_type is eREQ_INTR)
+    t_ccip_c1_ReqIntrHdr c1Tx_intr_hdr;
+    assign c1Tx_intr_hdr = t_ccip_c1_ReqIntrHdr'(afu_c1Tx.hdr);
+
     // These have to be correct only on the first beat
     assign afu_wr_req.t.data.is_fence = (afu_c1Tx.hdr.req_type == eREQ_WRFENCE);
-    assign afu_wr_req.t.data.tag = afu_c1Tx.hdr.mdata;
+    assign afu_wr_req.t.data.is_interrupt = (afu_c1Tx.hdr.req_type == eREQ_INTR);
+    assign afu_wr_req.t.data.tag =
+        (afu_c1Tx.hdr.req_type != eREQ_INTR) ? afu_c1Tx.hdr.mdata :
+                                               { '0, c1Tx_intr_hdr.id };
     assign afu_wr_req.t.data.line_count = count_from_cl_len(afu_c1Tx.hdr.cl_len);
     assign afu_wr_req.t.data.addr = { '0, afu_c1Tx.hdr.address, 6'b0 };
 
@@ -331,8 +338,21 @@ module ofs_plat_host_chan_@group@_map_as_ccip
         to_afu_ccip.sRx.c1.hdr.vc_used <= eVC_VH0;
         to_afu_ccip.sRx.c1.hdr.format <= 1'b1;
         to_afu_ccip.sRx.c1.hdr.cl_num <= t_ccip_clNum'(afu_wr_rsp.t.data.line_idx);
-        to_afu_ccip.sRx.c1.hdr.resp_type <= (afu_wr_rsp.t.data.is_fence ? eRSP_WRFENCE : eRSP_WRLINE);
         to_afu_ccip.sRx.c1.hdr.mdata <= afu_wr_rsp.t.data.tag;
+        if (afu_wr_rsp.t.data.is_fence)
+        begin
+            to_afu_ccip.sRx.c1.hdr.resp_type <= eRSP_WRFENCE;
+        end
+        else if (afu_wr_rsp.t.data.is_interrupt)
+        begin
+            // "mdata" and interrupt header "id" are in the same position,
+            // so setting mdata from the tag already copies the ID properly.
+            to_afu_ccip.sRx.c1.hdr.resp_type <= eRSP_INTR;
+        end
+        else
+        begin
+            to_afu_ccip.sRx.c1.hdr.resp_type <= eRSP_WRLINE;
+        end
 
         if (!reset_n)
         begin

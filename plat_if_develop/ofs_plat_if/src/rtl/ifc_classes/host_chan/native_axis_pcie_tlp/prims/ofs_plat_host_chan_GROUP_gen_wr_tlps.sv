@@ -53,6 +53,9 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     // (t_dma_rd_tag)
     ofs_plat_axi_stream_if.to_master wr_fence_cpl,
 
+    // Interrupt completions from the FIU (t_ofs_plat_axis_pcie_irq_data)
+    ofs_plat_axi_stream_if.to_master irq_cpl,
+
     output logic error
     );
 
@@ -136,8 +139,8 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     logic req_tlp_tag_ready;
     t_wr_fence_tag req_tlp_tag;
 
-    logic free_tlp_tag;
-    t_wr_fence_tag free_tlp_tag_value;
+    logic free_wr_fence_tlp_tag;
+    t_wr_fence_tag wr_fence_cpl_tag;
 
     logic alloc_tlp_tag;
     assign alloc_tlp_tag = wr_req_deq && wr_req.sop && wr_req.is_fence;
@@ -158,8 +161,8 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .alloc_ready(req_tlp_tag_ready),
         .alloc_uid(req_tlp_tag),
 
-        .free(free_tlp_tag),
-        .free_uid(free_tlp_tag_value)
+        .free(free_wr_fence_tlp_tag),
+        .free_uid(wr_fence_cpl_tag)
         );
 
 
@@ -171,7 +174,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     always_ff @(posedge clk)
     begin
         // Track last write address (used in next fence)
-        if (wr_req_deq && wr_req.sop && !wr_req.is_fence)
+        if (wr_req_deq && wr_req.sop && !wr_req.is_fence && !wr_req.is_interrupt)
         begin
             last_wr_addr <= wr_req.addr;
         end
@@ -186,11 +189,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     // Register fence completion tags until forwarded to the AFU.
     //
     logic wr_fence_cpl_valid;
-    t_wr_fence_tag wr_fence_cpl_tag;
-
-    assign free_tlp_tag = wr_rsp_notFull && wr_fence_cpl_valid;
-    assign free_tlp_tag_value = wr_fence_cpl_tag;
-
+    assign free_wr_fence_tlp_tag = wr_rsp_notFull && wr_fence_cpl_valid;
     assign wr_fence_cpl.tready = !wr_fence_cpl_valid;
 
     always_ff @(posedge clk)
@@ -309,14 +308,16 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     //
     // ====================================================================
 
-    assign wr_req_ready = wr_req_notEmpty && req_tlp_tag_ready && !wr_fence_cpl_valid;
-    assign wr_req_deq = wr_req_ready && wr_rsp_notFull &&
+    logic std_wr_rsp_notFull;
+
+    assign wr_req_ready = wr_req_notEmpty && req_tlp_tag_ready;
+    assign wr_req_deq = wr_req_ready && std_wr_rsp_notFull &&
                         (tx_wr_tlps.tready || !tx_wr_tlps.tvalid);
-    assign tx_wr_tlps.t.user = '0;
 
     ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tlp_mem_hdr;
     logic [AFU_TAG_WIDTH-1 : 0] wr_req_tag_q;
     t_tlp_payload_line_idx wr_req_last_line_idx_q;
+    t_ofs_plat_axis_pcie_irq_data irq_hdr;
 
     always_comb
     begin
@@ -335,12 +336,21 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             tlp_mem_hdr.dw0.length = 1;
             tlp_mem_hdr.tag = req_tlp_tag;
         end
+        else if (wr_req.is_interrupt)
+        begin
+            // Interrupt ID is passed in from the AFU using the tag
+            irq_hdr = '0;
+            irq_hdr.irq_id = wr_req.tag[$bits(irq_hdr.irq_id)-1 : 0];
+            // Pass irq_hdr instead of normal TLP header. The afu_irq user bit will
+            // be set to indicate the interrupt header.
+            tlp_mem_hdr = { '0, irq_hdr };
+        end
         else
         begin
             // Normal write
 `ifdef USE_PCIE_ADDR32
             tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE32;
-            tlp_mem_hdr.addr = = wr_req_addr;
+            tlp_mem_hdr.addr = wr_req_addr;
 `else
             tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE64;
             { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = wr_req_addr;
@@ -384,7 +394,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     begin
         if (tx_wr_tlps.tready || !tx_wr_tlps.tvalid)
         begin
-            tx_wr_tlps.tvalid <= wr_req_ready && wr_rsp_notFull;
+            tx_wr_tlps.tvalid <= wr_req_ready && std_wr_rsp_notFull;
 
             tx_wr_tlps.t.data <= '0;
 
@@ -392,11 +402,15 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             tx_wr_tlps.t.data[0].sop <= wr_req_notEmpty && wr_req.sop;
             // The request is one empty read if it's a fence or a short byte
             // range, otherwise write data spans multiple channels.
-            tx_wr_tlps.t.data[0].eop <= wr_req_notEmpty && (wr_req.is_fence || wr_req_short_eop);
+            tx_wr_tlps.t.data[0].eop <=
+                wr_req_notEmpty &&
+                (wr_req.is_fence || wr_req.is_interrupt || wr_req_short_eop);
 
-            tx_wr_tlps.t.data[1].valid <= wr_req_notEmpty && !wr_req.is_fence &&
-                                          !wr_req_short_eop;
-            tx_wr_tlps.t.data[1].eop <= wr_req_notEmpty && wr_req.eop && !wr_req.is_fence;
+            tx_wr_tlps.t.data[1].valid <=
+                wr_req_notEmpty && !wr_req.is_fence && !wr_req.is_interrupt &&
+                !wr_req_short_eop;
+            tx_wr_tlps.t.data[1].eop <=
+                wr_req_notEmpty && wr_req.eop && !wr_req.is_fence && !wr_req.is_interrupt;
 
             tx_wr_tlps.t.data[0].hdr <= (wr_req.sop ? tlp_mem_hdr : '0);
 
@@ -405,6 +419,10 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             // full-line mode. Using the value from the shifter avoids an extra MUX.
             { tx_wr_tlps.t.data[1].payload, tx_wr_tlps.t.data[0].payload } <=
                 wr_req_shifted_payload;
+
+            // Request meta-data
+            tx_wr_tlps.t.user <= '0;
+            tx_wr_tlps.t.user[0].afu_irq <= wr_req.is_interrupt;
         end
 
         if (!reset_n)
@@ -413,26 +431,101 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         end
     end
 
+    // Write response queue. The output will be merged with fence and interrupt
+    // responses before being routed back to the AFU.
+    logic std_wr_rsp_valid;
+    logic std_wr_rsp_deq;
+    t_tlp_payload_line_idx std_wr_rsp_line_idx;
+    logic [AFU_TAG_WIDTH-1 : 0] std_wr_rsp_tag;
+
+    ofs_plat_prim_fifo2
+      #(
+        .N_DATA_BITS($bits(t_tlp_payload_line_idx) + AFU_TAG_WIDTH)
+        )
+      std_wr_rsp_fifo
+       (
+        .clk,
+        .reset_n,
+
+        .enq_data(wr_req.sop ? { '0, wr_req.tag } :
+                               { wr_req_last_line_idx_q, wr_req_tag_q }),
+        // Send a write response for the end of a normal write.
+        .enq_en((wr_req_deq && wr_req.eop && !wr_req.is_fence && !wr_req.is_interrupt)),
+        .notFull(std_wr_rsp_notFull),
+
+        .first({ std_wr_rsp_line_idx, std_wr_rsp_tag }),
+        .deq_en(std_wr_rsp_deq),
+        .notEmpty(std_wr_rsp_valid)
+        );
+
 
     // ====================================================================
     //
-    //  Generate write response on final packet
+    //  Register incoming interrupt completion. Don't bother pipelining
+    //  interrupt completions. They are very infrequent.
+    //
+    // ====================================================================
+
+    logic irq_cpl_reg_valid;
+    assign irq_cpl.tready = !irq_cpl_reg_valid;
+
+    t_ofs_plat_axis_pcie_irq_data irq_cpl_reg;
+
+    always_ff @(posedge clk)
+    begin
+        if (!irq_cpl_reg_valid)
+        begin
+            // IRQ completion register not occupied. Take any new completion.
+            irq_cpl_reg_valid <= irq_cpl.tvalid;
+            irq_cpl_reg <= irq_cpl.t.data;
+        end
+        else if (wr_rsp_notFull && !wr_fence_cpl_valid)
+        begin
+            // Can forward a registered completion this cycle. (Fences get
+            // priority.)
+            irq_cpl_reg_valid <= 1'b0;
+        end
+
+        if (!reset_n)
+        begin
+            irq_cpl_reg_valid <= 1'b0;
+        end
+    end
+
+
+    // ====================================================================
+    //
+    //  Generate write response for:
+    //   - Final packet of a normal write
+    //   - Write fence completion
+    //   - Interrupt completion
     //
     // ====================================================================
 
     t_gen_tx_afu_wr_rsp wr_rsp;
     always_comb
     begin
+        wr_rsp.is_fence = wr_fence_cpl_valid;
+        wr_rsp.is_interrupt = irq_cpl_reg_valid && !wr_fence_cpl_valid;
+
         if (wr_fence_cpl_valid)
         begin
             wr_rsp.tag = wr_fence_afu_tag;
+            wr_rsp.line_idx = 0;
+            std_wr_rsp_deq = 1'b0;
+        end
+        else if (irq_cpl_reg_valid)
+        begin
+            wr_rsp.tag = { '0, irq_cpl_reg.irq_id };
+            wr_rsp.line_idx = 0;
+            std_wr_rsp_deq = 1'b0;
         end
         else
         begin
-            wr_rsp.tag = (wr_req.sop ? wr_req.tag : wr_req_tag_q);
+            wr_rsp.tag = std_wr_rsp_tag;
+            wr_rsp.line_idx = std_wr_rsp_line_idx;
+            std_wr_rsp_deq = std_wr_rsp_valid && wr_rsp_notFull;
         end
-        wr_rsp.line_idx = (wr_req.sop ? '0 : wr_req_last_line_idx_q);
-        wr_rsp.is_fence = wr_fence_cpl_valid;
     end
 
     ofs_plat_prim_fifo2
@@ -445,9 +538,9 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .reset_n,
 
         .enq_data(wr_rsp),
-        // Send a write response for the end of a normal write or when a
-        // write fence completion arrives.
-        .enq_en((wr_req_deq && wr_req.eop && !wr_req.is_fence) || free_tlp_tag),
+        // Send a write response for the end of a normal write, when a
+        // write fence completion arrives, or when an interrupt completes.
+        .enq_en(wr_rsp_notFull && (std_wr_rsp_valid || wr_fence_cpl_valid || irq_cpl_reg_valid)),
         .notFull(wr_rsp_notFull),
 
         .first(afu_wr_rsp.t.data),

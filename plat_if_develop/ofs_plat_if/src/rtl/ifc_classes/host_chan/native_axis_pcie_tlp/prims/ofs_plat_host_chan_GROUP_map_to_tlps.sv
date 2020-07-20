@@ -95,8 +95,6 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     logic reset_n;
     assign reset_n = to_fiu_tlp.reset_n;
 
-    assign to_fiu_tlp.afu_irq_rx_st.tready = 1'b1;
-
 
     // ====================================================================
     //
@@ -348,6 +346,9 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         // Tags of write fence responses (dataless completion TLP)
         .wr_fence_cpl,
+
+        // Interrupt completions from the FIU
+        .irq_cpl(to_fiu_tlp.afu_irq_rx_st),
 
         .error()
         );
