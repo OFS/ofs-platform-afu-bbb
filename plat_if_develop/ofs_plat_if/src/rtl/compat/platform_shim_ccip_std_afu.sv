@@ -260,7 +260,7 @@ module platform_shim_ccip_std_afu_hssi
         begin : mb
 
             // Generate local memory reset in target clock domain if necessary
-`ifdef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK
+`ifndef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK_IS_DEFAULT
             logic local_mem_reset_n;
             ofs_plat_prim_clock_crossing_reset local_mem_reset_gen
                (
@@ -287,7 +287,7 @@ module platform_shim_ccip_std_afu_hssi
 `ifdef PLATFORM_PARAM_LOCAL_MEMORY_CLOCK_IS_DEFAULT
                 // Not used -- local memory clocks unchanged
                 .afu_clk(1'b0),
-                .afu_reset_n()
+                .afu_reset_n(),
 `else
                 // Updated target for local memory clock
                 .afu_clk(`PLATFORM_PARAM_LOCAL_MEMORY_CLOCK),
