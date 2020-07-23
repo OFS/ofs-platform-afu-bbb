@@ -101,11 +101,6 @@ module ofs_plat_host_chan_@group@_as_ccip
         return n_stages;
     endfunction
 
-    // Is some shim instantiated?
-    localparam SHIM_CCIP_IFC = ADD_TIMING_REG_STAGES +
-                               SORT_READ_RESPONSES +
-                               SORT_WRITE_RESPONSES;
-
     localparam NUM_TIMING_REG_STAGES = numTimingRegStages();
 
 
@@ -239,7 +234,7 @@ module ofs_plat_host_chan_@group@_as_ccip
 
     ofs_plat_shim_ccip_reg
       #(
-        .N_REG_STAGES(/*NUM_TIMING_REG_STAGES*/0)
+        .N_REG_STAGES(NUM_TIMING_REG_STAGES)
         )
       ccip_reg
        (

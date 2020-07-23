@@ -65,6 +65,9 @@ module ofs_plat_afu
 `ifdef TEST_PARAM_SORT_RD_RESP
         .SORT_READ_RESPONSES(1),
 `endif
+`ifdef TEST_PARAM_SORT_WR_RESP
+        .SORT_WRITE_RESPONSES(1),
+`endif
 `ifdef TEST_PARAM_AFU_REG_STAGES
         .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
 `endif

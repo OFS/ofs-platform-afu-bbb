@@ -1,0 +1,5 @@
++define+TEST_PARAM_SORT_RD_RESP=1
++define+TEST_PARAM_SORT_WR_RESP=1
++define+TEST_PARAM_AFU_REG_STAGES=2
+
+C:avalon_ccip/sources_ccip.txt

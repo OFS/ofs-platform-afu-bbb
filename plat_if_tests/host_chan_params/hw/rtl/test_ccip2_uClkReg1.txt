@@ -2,5 +2,7 @@
 +define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.uClk_usr
 # Add register stages to the host channel path for timing
 +define+TEST_PARAM_AFU_REG_STAGES=1
+# Sort write responses
++define+TEST_PARAM_SORT_WR_RESP=1
 
 C:avalon_ccip/sources_ccip.txt
