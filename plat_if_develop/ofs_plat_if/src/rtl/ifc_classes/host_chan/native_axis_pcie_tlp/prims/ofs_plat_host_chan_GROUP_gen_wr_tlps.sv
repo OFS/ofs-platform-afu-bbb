@@ -142,8 +142,35 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     logic free_wr_fence_tlp_tag;
     t_wr_fence_tag wr_fence_cpl_tag;
 
+    //
+    // Track write addresses so a fence can use the most recent address.
+    //
+    logic last_wr_addr_valid;
+    logic [63:0] last_wr_addr;
+
+    always_ff @(posedge clk)
+    begin
+        // Track last write address (used in next fence)
+        if (wr_req_deq && wr_req.sop && !wr_req.is_fence && !wr_req.is_interrupt)
+        begin
+            last_wr_addr <= wr_req.addr;
+            last_wr_addr_valid <= 1'b1;
+        end
+
+        if (!reset_n)
+        begin
+            last_wr_addr_valid <= 1'b0;
+        end
+    end
+
     logic alloc_tlp_tag;
-    assign alloc_tlp_tag = wr_req_deq && wr_req.sop && wr_req.is_fence;
+    assign alloc_tlp_tag = wr_req_deq && wr_req.sop &&
+                           wr_req.is_fence && last_wr_addr_valid;
+
+    // AFU asked for a fence but there hasn't been a write. No address to
+    // use and no point in a fence!
+    logic wr_req_is_invalid_fence;
+    assign wr_req_is_invalid_fence = wr_req.is_fence && !last_wr_addr_valid;
 
     ofs_plat_prim_uid
       #(
@@ -165,25 +192,6 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .free_uid(wr_fence_cpl_tag)
         );
 
-
-    //
-    // Track write addresses so a fence can use the most recent address.
-    //
-    logic [63:0] last_wr_addr;
-
-    always_ff @(posedge clk)
-    begin
-        // Track last write address (used in next fence)
-        if (wr_req_deq && wr_req.sop && !wr_req.is_fence && !wr_req.is_interrupt)
-        begin
-            last_wr_addr <= wr_req.addr;
-        end
-
-        if (!reset_n)
-        begin
-            last_wr_addr <= '0;
-        end
-    end
 
     //
     // Register fence completion tags until forwarded to the AFU.
@@ -398,7 +406,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
 
             tx_wr_tlps.t.data <= '0;
 
-            tx_wr_tlps.t.data[0].valid <= wr_req_notEmpty;
+            tx_wr_tlps.t.data[0].valid <= wr_req_notEmpty && !wr_req_is_invalid_fence;
             tx_wr_tlps.t.data[0].sop <= wr_req_notEmpty && wr_req.sop;
             // The request is one empty read if it's a fence or a short byte
             // range, otherwise write data spans multiple channels.
@@ -437,23 +445,26 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     logic std_wr_rsp_deq;
     t_tlp_payload_line_idx std_wr_rsp_line_idx;
     logic [AFU_TAG_WIDTH-1 : 0] std_wr_rsp_tag;
+    logic std_wr_rsp_is_fence;
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS($bits(t_tlp_payload_line_idx) + AFU_TAG_WIDTH)
+        .N_DATA_BITS($bits(t_tlp_payload_line_idx) + AFU_TAG_WIDTH + 1)
         )
       std_wr_rsp_fifo
        (
         .clk,
         .reset_n,
 
-        .enq_data(wr_req.sop ? { '0, wr_req.tag } :
-                               { wr_req_last_line_idx_q, wr_req_tag_q }),
-        // Send a write response for the end of a normal write.
-        .enq_en((wr_req_deq && wr_req.eop && !wr_req.is_fence && !wr_req.is_interrupt)),
+        .enq_data(wr_req.sop ? { '0, wr_req.tag, wr_req.is_fence } :
+                               { wr_req_last_line_idx_q, wr_req_tag_q, 1'b0 }),
+        // Send a write response for the end of a normal write or a
+        // fence with no available address.
+        .enq_en(wr_req_deq && wr_req.eop && !wr_req.is_interrupt &&
+                !(wr_req.is_fence && last_wr_addr_valid)),
         .notFull(std_wr_rsp_notFull),
 
-        .first({ std_wr_rsp_line_idx, std_wr_rsp_tag }),
+        .first({ std_wr_rsp_line_idx, std_wr_rsp_tag, std_wr_rsp_is_fence }),
         .deq_en(std_wr_rsp_deq),
         .notEmpty(std_wr_rsp_valid)
         );
@@ -505,23 +516,26 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     t_gen_tx_afu_wr_rsp wr_rsp;
     always_comb
     begin
-        wr_rsp.is_fence = wr_fence_cpl_valid;
-        wr_rsp.is_interrupt = irq_cpl_reg_valid && !wr_fence_cpl_valid;
-
         if (wr_fence_cpl_valid)
         begin
+            wr_rsp.is_fence = 1'b1;
+            wr_rsp.is_interrupt = 1'b0;
             wr_rsp.tag = wr_fence_afu_tag;
             wr_rsp.line_idx = 0;
             std_wr_rsp_deq = 1'b0;
         end
         else if (irq_cpl_reg_valid)
         begin
+            wr_rsp.is_fence = 1'b0;
+            wr_rsp.is_interrupt = 1'b1;
             wr_rsp.tag = { '0, irq_cpl_reg.irq_id };
             wr_rsp.line_idx = 0;
             std_wr_rsp_deq = 1'b0;
         end
         else
         begin
+            wr_rsp.is_fence = std_wr_rsp_is_fence;
+            wr_rsp.is_interrupt = 1'b0;
             wr_rsp.tag = std_wr_rsp_tag;
             wr_rsp.line_idx = std_wr_rsp_line_idx;
             std_wr_rsp_deq = std_wr_rsp_valid && wr_rsp_notFull;

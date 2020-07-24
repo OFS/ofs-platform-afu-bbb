@@ -293,14 +293,18 @@ module ofs_plat_host_chan_@group@_map_as_ccip
     assign afu_wr_req.tvalid = afu_c1Tx_valid;
     assign afu_c1Tx_ready = afu_wr_req.tready;
 
-    assign afu_wr_req.t.data.sop = (afu_c1Tx.hdr.sop) ||
-                                   (afu_c1Tx.hdr.req_type == eREQ_WRFENCE) ||
-                                   (afu_c1Tx.hdr.req_type == eREQ_INTR);
+    logic afu_c1Tx_not_normal_write;
+    assign afu_c1Tx_not_normal_write = (afu_c1Tx.hdr.req_type == eREQ_WRFENCE) ||
+                                       (afu_c1Tx.hdr.req_type == eREQ_INTR);
+
+    assign afu_wr_req.t.data.sop = (afu_c1Tx.hdr.sop || afu_c1Tx_not_normal_write);
+
     // End of packet if:
     //  - Single line write
     //  - Two line write and not SOP (afu_c1Tx_pkt_len[1] == 0 means two line write)
     //  - Four line write and low address is also 2'b11. Addresses are naturally aligned.
     assign afu_wr_req.t.data.eop =
+        afu_c1Tx_not_normal_write ||
         (afu_c1Tx.hdr.sop ? (afu_c1Tx.hdr.cl_len == 0) :
                             ((afu_c1Tx_pkt_len[1] == 1'b0) ||
                              (afu_c1Tx.hdr.address[1:0] == 2'b11)));
