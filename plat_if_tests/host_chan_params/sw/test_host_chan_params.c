@@ -339,6 +339,59 @@ initEngine(
 }
 
 
+static void
+printExpectedRead(
+    const uint64_t *buf,
+    uint32_t num_bursts,
+    uint32_t burst_size)
+{
+    printf("\n  Expected READ:\n");
+    while (num_bursts--)
+    {
+        uint32_t num_lines = burst_size;
+        while (num_lines--)
+        {
+            printf("    512'h");
+            for (int i = 7; i >= 0; i -= 1)
+            {
+                if (i != 7) printf("_");
+                printf("%016lx", buf[i]);
+            }
+            buf += 8;
+            printf("\n");
+        }
+    }
+}
+
+
+static void
+printActualRead(
+    uint32_t e,
+    uint32_t num_bursts,
+    uint32_t burst_size)
+{
+    printf("\n  Actual READ:\n");
+    uint32_t line_idx = 0;
+    while (num_bursts--)
+    {
+        uint32_t num_lines = burst_size;
+        while (num_lines--)
+        {
+            printf("    512'h");
+            for (int i = 7; i >= 0; i -= 1)
+            {
+                csrEngWrite(s_csr_handle, e, 6, (i << 16) | line_idx);
+                uint64_t v = csrEngRead(s_csr_handle, e, 6);
+                if (i != 7) printf("_");
+                printf("%016lx", v);
+            }
+            printf("\n");
+            line_idx += 1;
+        }
+    }
+}
+
+
 // The same hash is implemented in the read path in the hardware.
 static uint32_t
 computeExpectedReadHash(
@@ -638,9 +691,11 @@ testSmallRegions(
                                 num_bursts, burst_size, &write_error_line);
                         }
 
+                        bool read_error = false;
                         if (expected_sum != actual_sum)
                         {
                             pass = false;
+                            read_error = true;
                             num_errors += 1;
                             printf("\n - FAIL %d: read ERROR expected sum 0x%08x found 0x%08x\n",
                                    e, expected_sum, actual_sum);
@@ -649,6 +704,7 @@ testSmallRegions(
                                  s_eng_bufs[e].ordered_read_responses)
                         {
                             pass = false;
+                            read_error = true;
                             num_errors += 1;
                             printf("\n - FAIL %d: read ERROR expected hash 0x%08x found 0x%08x\n",
                                    e, expected_hash, actual_hash);
@@ -658,6 +714,20 @@ testSmallRegions(
                             pass = false;
                             num_errors += 1;
                             printf("\n - FAIL %d: write ERROR line index 0x%x\n", e, write_error_line);
+                        }
+
+                        if (read_error && (mode & 1))
+                        {
+                            if (num_bursts * burst_size <= 512)
+                            {
+                                printExpectedRead((const uint64_t*)s_eng_bufs[e].rd_buf,
+                                                  num_bursts, burst_size);
+                                printActualRead(e, num_bursts, burst_size);
+                            }
+                            else
+                            {
+                                printf("\n  Burst too large to print.\n");
+                            }
                         }
                     }
                 }

@@ -132,6 +132,17 @@ module host_mem_rdwr_engine_avalon
     t_counter rd_bursts_req, rd_lines_req, rd_lines_resp;
     t_counter wr_bursts_req, wr_lines_req, wr_bursts_resp;
 
+    logic [8:0] rd_hist_rd_idx;
+    logic [2:0] rd_hist_word_idx;
+    logic [7:0][63:0] rd_hist_rd_data;
+    logic [63:0] rd_hist_rd_data64;
+
+    always_ff @(posedge clk)
+    begin
+        rd_hist_rd_data64 <= rd_hist_rd_data[rd_hist_word_idx];
+    end
+
+
     //
     // Write configuration registers
     //
@@ -164,6 +175,11 @@ module host_mem_rdwr_engine_avalon
                     end
                 4'h4: base_addr_offset_mask <= t_addr_offset'(csrs.wr_data);
                 4'h5: wr_data_mask <= csrs.wr_data;
+                4'h6:
+                    begin
+                        rd_hist_rd_idx <= csrs.wr_data[8:0];
+                        rd_hist_word_idx <= csrs.wr_data[18:16];
+                    end
             endcase // case (csrs.wr_idx)
         end
 
@@ -211,8 +227,9 @@ module host_mem_rdwr_engine_avalon
         csrs.rd_data[3] = 64'(wr_lines_req);
         csrs.rd_data[4] = 64'(wr_bursts_resp);
         csrs.rd_data[5] = { rd_data_sum, rd_data_hash };
+        csrs.rd_data[6] = rd_hist_rd_data64;
 
-        for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
+        for (int e = 7; e < csrs.NUM_CSRS; e = e + 1)
         begin
             csrs.rd_data[e] = 64'h0;
         end
@@ -316,6 +333,38 @@ module host_mem_rdwr_engine_avalon
         end
     end
 
+    logic [8:0] rd_hist_wr_idx;
+
+    always_ff @(posedge clk)
+    begin
+        if (host_mem_if.rd_readdatavalid)
+        begin
+            rd_hist_wr_idx <= rd_hist_wr_idx + 1;
+        end
+
+        if (state_reset)
+        begin
+            rd_hist_wr_idx <= '0;
+        end
+    end
+
+    ofs_plat_prim_ram_simple
+      #(
+        .N_ENTRIES(512),
+        .N_DATA_BITS(512),
+        .N_OUTPUT_REG_STAGES(2),
+        .REGISTER_WRITES(1),
+        .BYPASS_REGISTERED_WRITES(0)
+        )
+      rd_hist
+       (
+        .clk,
+        .wen(host_mem_if.rd_readdatavalid),
+        .waddr(rd_hist_wr_idx),
+        .wdata(host_mem_if.rd_readdata),
+        .raddr(rd_hist_rd_idx),
+        .rdata(rd_hist_rd_data)
+        );
 
     //
     // Generate write requests
