@@ -141,6 +141,10 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
         mmio_cpl_hdr.tag = mmio_rsp.tag;
     end
 
+    // Wide response?
+    logic dual_channel_rsp;
+    assign dual_channel_rsp = mmio_rsp_meta.byte_count > 32;
+
     always_ff @(posedge clk)
     begin
         if (tx_mmio.tready || !tx_mmio.tvalid)
@@ -151,7 +155,10 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
 
             tx_mmio.t.data[0].valid <= mmio_rsp_notEmpty;
             tx_mmio.t.data[0].sop <= mmio_rsp_notEmpty;
-            tx_mmio.t.data[0].eop <= mmio_rsp_notEmpty;
+            tx_mmio.t.data[0].eop <= mmio_rsp_notEmpty && !dual_channel_rsp;
+
+            tx_mmio.t.data[1].valid <= mmio_rsp_notEmpty && dual_channel_rsp;
+            tx_mmio.t.data[1].eop <= mmio_rsp_notEmpty && dual_channel_rsp;
 
             tx_mmio.t.data[0].hdr <= mmio_cpl_hdr;
 
