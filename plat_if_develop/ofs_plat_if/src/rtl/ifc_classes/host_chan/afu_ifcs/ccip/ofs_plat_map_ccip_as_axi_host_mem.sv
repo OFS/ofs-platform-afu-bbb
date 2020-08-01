@@ -190,7 +190,10 @@ module ofs_plat_map_ccip_as_axi_host_mem
 
         axi_fiu_clk_if.r <= '0;
         axi_fiu_clk_if.r.data <= sRx.c0.data;
-        // Index of the ROB entry
+        // Index of the ROB entry. Inside the PIM we violate the AXI-MM standard
+        // by adding the line index to the tag in order to form a unique ROB
+        // index. By the time a response gets to the AFU, the RID will be valid
+        // and conform to AXI-MM.
         axi_fiu_clk_if.r.id <= ROB_RID_WIDTH'(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
         // The request length was stored in mdata in order to tag the last read
         // response.

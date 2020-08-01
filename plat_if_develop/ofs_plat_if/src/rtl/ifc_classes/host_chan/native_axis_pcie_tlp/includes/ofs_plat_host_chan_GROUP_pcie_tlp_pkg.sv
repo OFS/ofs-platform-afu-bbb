@@ -50,6 +50,7 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     localparam MAX_OUTSTANDING_DMA_WR_FENCES = 4;
 
     localparam NUM_AFU_INTERRUPTS = ofs_fim_cfg_pkg::NUM_AFU_INTERRUPTS;
+    typedef logic [$clog2(NUM_AFU_INTERRUPTS)-1 : 0] t_interrupt_idx;
 
     // Tags, reduced from the TLP's 8 bits to the FIM-enforced maximum
     typedef logic [$clog2(MAX_OUTSTANDING_DMA_RD_REQS)-1 : 0] t_dma_rd_tag;

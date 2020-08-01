@@ -220,9 +220,9 @@ module csr_mgr_axi
         // states of mmio_wr_id and mmio_wr_user will be held until mmio_if.bready
         // is set and the slave can send the response.
         if (process_mmio_wr)
-              mmio_wr_bvalid <= 1'b1;
-        else
-              mmio_wr_bvalid <= !mmio_if.bready;
+            mmio_wr_bvalid <= 1'b1;
+        else if (mmio_if.bready)
+            mmio_wr_bvalid <= 1'b0;
 
         if (!reset_n)
         begin

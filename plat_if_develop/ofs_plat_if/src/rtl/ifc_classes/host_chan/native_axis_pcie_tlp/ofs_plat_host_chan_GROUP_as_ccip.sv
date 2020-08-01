@@ -105,118 +105,6 @@ module ofs_plat_host_chan_@group@_as_ccip
 
 
     // ====================================================================
-    //  Basic mapping of TLPs to CCI-P, all in the FIU clock domain
-    // ====================================================================
-
-    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) fiu_ccip_if();
-
-    ofs_plat_host_chan_@group@_map_as_ccip tlp_as_ccip
-       (
-        .to_fiu_tlp(to_fiu),
-        .to_afu_ccip(fiu_ccip_if)
-        );
-
-
-    // ====================================================================
-    //  Sort write responses in request order?
-    // ====================================================================
-
-    ofs_plat_host_ccip_if wr_ccip_if();
-
-    generate
-        if (SORT_WRITE_RESPONSES == 0)
-        begin : nws
-            ofs_plat_ccip_if_connect conn
-               (
-                .to_fiu(fiu_ccip_if),
-                .to_afu(wr_ccip_if)
-                );
-        end
-        else
-        begin : ws
-            // Sort write responses
-            ofs_plat_shim_ccip_rob_wr
-              #(
-                .MAX_ACTIVE_WR_REQS(ccip_@group@_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
-                )
-              rob_wr
-               (
-                .to_fiu(fiu_ccip_if),
-                .to_afu(wr_ccip_if)
-                );
-        end
-    endgenerate
-
-
-    // ====================================================================
-    //  Sort read responses in request order?
-    // ====================================================================
-
-    ofs_plat_host_ccip_if rd_ccip_if();
-
-    generate
-        if (SORT_READ_RESPONSES == 0)
-        begin : nrs
-            ofs_plat_ccip_if_connect conn
-               (
-                .to_fiu(wr_ccip_if),
-                .to_afu(rd_ccip_if)
-                );
-        end
-        else
-        begin : rs
-            ofs_plat_shim_ccip_rob_rd
-              #(
-                .MAX_ACTIVE_RD_REQS(ccip_@group@_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
-                )
-              rob_rd
-               (
-                .to_fiu(wr_ccip_if),
-                .to_afu(rd_ccip_if)
-                );
-        end
-    endgenerate
-
-
-    // ====================================================================
-    //  Convert CCI-P signals to the target clock domain.
-    // ====================================================================
-
-    // CCI-P signals in the AFU's requested clock domain
-    ofs_plat_host_ccip_if afu_clk_ccip_if();
-
-    generate
-        if (ADD_CLOCK_CROSSING == 0)
-        begin : nc
-            // No clock crossing
-            ofs_plat_ccip_if_connect conn
-               (
-                .to_fiu(rd_ccip_if),
-                .to_afu(afu_clk_ccip_if)
-                );
-        end
-        else
-        begin : ofs_plat_clock_crossing
-            // Cross to the target clock
-            ofs_plat_shim_ccip_async
-              #(
-                .EXTRA_ALMOST_FULL_STAGES(2 * NUM_TIMING_REG_STAGES)
-                )
-              ccip_async_shim
-               (
-                .to_fiu(rd_ccip_if),
-
-                .afu_clk,
-                .afu_reset_n,
-                .to_afu(afu_clk_ccip_if),
-
-                .async_shim_error()
-                );
-        end
-    endgenerate
-
-
-    // ====================================================================
     //
     //  Add CCI-P register stages for timing, as requested by setting
     //  NUM_TIMING_REG_STAGES.
@@ -232,14 +120,125 @@ module ofs_plat_host_chan_@group@_as_ccip
     //
     // ====================================================================
 
+    ofs_plat_host_ccip_if afu_clk_ccip_if();
+
     ofs_plat_shim_ccip_reg
       #(
         .N_REG_STAGES(NUM_TIMING_REG_STAGES)
         )
       ccip_reg
        (
-        .to_fiu(afu_clk_ccip_if),
-        .to_afu(to_afu)
+        .to_afu(to_afu),
+        .to_fiu(afu_clk_ccip_if)
+        );
+
+
+    // ====================================================================
+    //  Convert CCI-P signals from the AFU to the FIU clock domain.
+    // ====================================================================
+
+    ofs_plat_host_ccip_if rd_ccip_if();
+
+    generate
+        if (ADD_CLOCK_CROSSING == 0)
+        begin : nc
+            // No clock crossing
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_afu(afu_clk_ccip_if),
+                .to_fiu(rd_ccip_if)
+                );
+        end
+        else
+        begin : ofs_plat_clock_crossing
+            // Cross to the target clock
+            ofs_plat_shim_ccip_async
+              #(
+                .EXTRA_ALMOST_FULL_STAGES(2 * NUM_TIMING_REG_STAGES)
+                )
+              ccip_async_shim
+               (
+                .afu_clk,
+                .afu_reset_n,
+                .to_afu(afu_clk_ccip_if),
+
+                .to_fiu(rd_ccip_if),
+
+                .async_shim_error()
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //  Sort read responses in request order?
+    // ====================================================================
+
+    ofs_plat_host_ccip_if wr_ccip_if();
+
+    generate
+        if (SORT_READ_RESPONSES == 0)
+        begin : nrs
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_afu(rd_ccip_if),
+                .to_fiu(wr_ccip_if)
+                );
+        end
+        else
+        begin : rs
+            ofs_plat_shim_ccip_rob_rd
+              #(
+                .MAX_ACTIVE_RD_REQS(ccip_@group@_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0])
+                )
+              rob_rd
+               (
+                .to_afu(rd_ccip_if),
+                .to_fiu(wr_ccip_if)
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //  Sort write responses in request order?
+    // ====================================================================
+
+    ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) fiu_ccip_if();
+
+    generate
+        if (SORT_WRITE_RESPONSES == 0)
+        begin : nws
+            ofs_plat_ccip_if_connect conn
+               (
+                .to_afu(wr_ccip_if),
+                .to_fiu(fiu_ccip_if)
+                );
+        end
+        else
+        begin : ws
+            // Sort write responses
+            ofs_plat_shim_ccip_rob_wr
+              #(
+                .MAX_ACTIVE_WR_REQS(ccip_@group@_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0])
+                )
+              rob_wr
+               (
+                .to_afu(wr_ccip_if),
+                .to_fiu(fiu_ccip_if)
+                );
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //  Basic mapping of TLPs to CCI-P, all in the FIU clock domain
+    // ====================================================================
+
+    ofs_plat_host_chan_@group@_map_as_ccip tlp_as_ccip
+       (
+        .to_afu_ccip(fiu_ccip_if),
+        .to_fiu_tlp(to_fiu)
         );
 
 endmodule // ofs_plat_host_chan_as_ccip
