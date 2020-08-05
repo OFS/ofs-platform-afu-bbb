@@ -77,20 +77,27 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     logic rd_req_deq;
     logic rd_req_notEmpty;
 
+    // Pre-compute OR of high address bits, needed for choosing either
+    // MRd32 or MRd64. PCIe doesn't allow MRd64 when the address fits
+    // in 32 bits.
+    logic rd_req_is_addr64;
+    logic afu_rd_req_is_addr64;
+    assign afu_rd_req_is_addr64 = |(afu_rd_req.t.data.addr[63:32]);
+
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS($bits(t_gen_tx_afu_rd_req))
+        .N_DATA_BITS(1 + $bits(t_gen_tx_afu_rd_req))
         )
       afu_req_fifo
        (
         .clk,
         .reset_n,
 
-        .enq_data(afu_rd_req.t.data),
+        .enq_data({ afu_rd_req_is_addr64, afu_rd_req.t.data }),
         .enq_en(afu_rd_req.tvalid && afu_rd_req.tready),
         .notFull(afu_rd_req.tready),
 
-        .first(rd_req),
+        .first({ rd_req_is_addr64, rd_req }),
         .deq_en(rd_req_deq),
         .notEmpty(rd_req_notEmpty)
         );
@@ -189,13 +196,18 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     always_comb
     begin
         tlp_mem_hdr = '0;
-`ifdef USE_PCIE_ADDR32
-        tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ32;
-        tlp_mem_hdr.addr = rd_req.addr;
-`else
-        tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ64;
-        { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = rd_req.addr;
-`endif
+
+        if (rd_req_is_addr64)
+        begin
+            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ64;
+            { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = rd_req.addr;
+        end
+        else
+        begin
+            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ32;
+            tlp_mem_hdr.addr = rd_req.addr;
+        end
+
         tlp_mem_hdr.dw0.length = lineCountToDwordLen(rd_req.line_count);
         tlp_mem_hdr.tag = { '0, req_tlp_tag };
         tlp_mem_hdr.last_be = 4'b1111;

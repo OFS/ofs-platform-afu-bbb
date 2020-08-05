@@ -83,6 +83,13 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     logic wr_req_notEmpty;
     logic wr_req_ready;
 
+    // Pre-compute OR of high address bits, needed for choosing either
+    // MWr32 or MWr64. PCIe doesn't allow MWr64 when the address fits
+    // in 32 bits.
+    logic wr_req_is_addr64;
+    logic afu_wr_req_is_addr64;
+    assign afu_wr_req_is_addr64 = |(afu_wr_req.t.data.addr[63:32]);
+
     // Canonicalize afu_wr_req
     t_gen_tx_afu_wr_req afu_wr_req_c;
     always_comb
@@ -110,18 +117,18 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS($bits(t_byte_range_req) + $bits(t_gen_tx_afu_wr_req))
+        .N_DATA_BITS(1 + $bits(t_byte_range_req) + $bits(t_gen_tx_afu_wr_req))
         )
       afu_req_fifo
        (
         .clk,
         .reset_n,
 
-        .enq_data({ br_req_in, afu_wr_req_c }),
+        .enq_data({ afu_wr_req_is_addr64, br_req_in, afu_wr_req_c }),
         .enq_en(afu_wr_req.tvalid && afu_wr_req.tready),
         .notFull(afu_wr_req.tready),
 
-        .first({ br_req, wr_req }),
+        .first({ wr_req_is_addr64, br_req, wr_req }),
         .deq_en(wr_req_deq),
         .notEmpty(wr_req_notEmpty)
         );
@@ -146,6 +153,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     // Track write addresses so a fence can use the most recent address.
     //
     logic last_wr_addr_valid;
+    logic last_wr_is_addr64;
     logic [63:0] last_wr_addr;
 
     always_ff @(posedge clk)
@@ -154,6 +162,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         if (wr_req_deq && wr_req.sop && !wr_req.is_fence && !wr_req.is_interrupt)
         begin
             last_wr_addr <= wr_req.addr;
+            last_wr_is_addr64 <= wr_req_is_addr64;
             last_wr_addr_valid <= 1'b1;
         end
 
@@ -334,13 +343,17 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         if (wr_req.is_fence)
         begin
             // Fence
-`ifdef USE_PCIE_ADDR32
-            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ32;
-            tlp_mem_hdr.addr = last_wr_addr;
-`else
-            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ64;
-            { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = last_wr_addr;
-`endif
+            if (last_wr_is_addr64)
+            begin
+                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ64;
+                { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = last_wr_addr;
+            end
+            else
+            begin
+                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ32;
+                tlp_mem_hdr.addr = last_wr_addr;
+            end
+
             tlp_mem_hdr.dw0.length = 1;
             tlp_mem_hdr.tag = req_tlp_tag;
         end
@@ -356,13 +369,17 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         else
         begin
             // Normal write
-`ifdef USE_PCIE_ADDR32
-            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE32;
-            tlp_mem_hdr.addr = wr_req_addr;
-`else
-            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE64;
-            { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = wr_req_addr;
-`endif
+            if (wr_req_is_addr64)
+            begin
+                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE64;
+                { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = wr_req_addr;
+            end
+            else
+            begin
+                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE32;
+                tlp_mem_hdr.addr = wr_req_addr;
+            end
+
             tlp_mem_hdr.dw0.length =
                 (wr_req.enable_byte_range ? br_req.dword_len :
                                             lineCountToDwordLen(wr_req.line_count));
