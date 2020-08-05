@@ -68,7 +68,7 @@ module ase_top_ofs_plat
         .clocks(plat_ifc.clocks)
         );
 
-    assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
+    assign plat_ifc.softReset_n = plat_ifc.clocks.pClk.reset_n;
 
 
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP

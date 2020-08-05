@@ -106,7 +106,7 @@ module ofs_plat_afu
       (
        .host_mem_if(host_mem_to_afu),
        .mmio64_if(mmio64_to_afu),
-       .pClk(plat_ifc.clocks.pClk)
+       .pClk(plat_ifc.clocks.pClk.clk)
        );
 
 endmodule // ofs_plat_afu

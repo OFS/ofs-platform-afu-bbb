@@ -35,6 +35,13 @@
 `ifndef __OFS_PLAT_CLOCKS_VH__
 `define __OFS_PLAT_CLOCKS_VH__
 
+typedef struct packed
+{
+    logic clk;
+    logic reset_n;
+}
+t_ofs_plat_clock_reset_pair;
+
 //
 // Clocks provided to the AFU. All conforming platforms provide at least
 // 5 primary clocks: pClk, pClkDiv2, pClkDiv4, uClk_usr and uClk_usrDiv2.
@@ -48,20 +55,11 @@
 //
 typedef struct packed
 {
-    logic pClk;
-    logic pClk_reset_n;
-
-    logic pClkDiv2;
-    logic pClkDiv2_reset_n;
-
-    logic pClkDiv4;
-    logic pClkDiv4_reset_n;
-
-    logic uClk_usr;
-    logic uClk_usr_reset_n;
-
-    logic uClk_usrDiv2;
-    logic uClk_usrDiv2_reset_n;
+    t_ofs_plat_clock_reset_pair pClk;
+    t_ofs_plat_clock_reset_pair pClkDiv2;
+    t_ofs_plat_clock_reset_pair pClkDiv4;
+    t_ofs_plat_clock_reset_pair uClk_usr;
+    t_ofs_plat_clock_reset_pair uClk_usrDiv2;
 }
 t_ofs_plat_std_clocks;
 

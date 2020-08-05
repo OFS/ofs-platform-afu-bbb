@@ -48,7 +48,7 @@ module ase_emul_host_chan_native_axis_pcie_tlp
     generate
         for (p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS; p = p + 1)
         begin
-            assign host_chan_ports[p].clk = clocks.pClk;
+            assign host_chan_ports[p].clk = clocks.pClk.clk;
             assign host_chan_ports[p].reset_n = ~softReset;
             assign host_chan_ports[p].instance_number = p;
         end
@@ -64,7 +64,7 @@ module ase_emul_host_chan_native_axis_pcie_tlp
         )
       axi_pcie_tlp_emulator
        (
-        .pClk(clocks.pClk),
+        .pClk(clocks.pClk.clk),
         .pcie_tlp_if(host_chan_ports[0]),
         .pck_cp2af_softReset(softReset),
         .pck_cp2af_pwrState(pwrState),

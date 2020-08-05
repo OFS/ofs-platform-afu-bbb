@@ -147,23 +147,23 @@ module platform_shim_ccip_std_afu_hssi
 
     always_comb
     begin
-        pClk = plat_ifc.clocks.pClk;
-        pClkDiv2 = plat_ifc.clocks.pClkDiv2;
-        pClkDiv4 = plat_ifc.clocks.pClkDiv4;
-        uClk_usr = plat_ifc.clocks.uClk_usr;
-        uClk_usrDiv2 = plat_ifc.clocks.uClk_usrDiv2;
+        pClk = plat_ifc.clocks.pClk.clk;
+        pClkDiv2 = plat_ifc.clocks.pClkDiv2.clk;
+        pClkDiv4 = plat_ifc.clocks.pClkDiv4.clk;
+        uClk_usr = plat_ifc.clocks.uClk_usr.clk;
+        uClk_usrDiv2 = plat_ifc.clocks.uClk_usrDiv2.clk;
     end
 
     // Default reset associated with AFU clock
     logic afu_reset_n;
 `ifdef PLATFORM_PARAM_CCI_P_CLOCK_IS_DEFAULT
-    assign afu_reset_n = plat_ifc.clocks.pClk_reset_n;
+    assign afu_reset_n = plat_ifc.clocks.pClk.reset_n;
 `else
     ofs_plat_prim_clock_crossing_reset afu_reset_gen
        (
-        .clk_src(plat_ifc.clocks.pClk),
+        .clk_src(plat_ifc.clocks.pClk.clk),
         .clk_dst(`PLATFORM_PARAM_CCI_P_CLOCK),
-        .reset_in(plat_ifc.clocks.pClk_reset_n),
+        .reset_in(plat_ifc.clocks.pClk.reset_n),
         .reset_out(afu_reset_n)
         );
 `endif
@@ -207,7 +207,7 @@ module platform_shim_ccip_std_afu_hssi
         )
       map_pwrState
        (
-        .clk_src(plat_ifc.clocks.pClk),
+        .clk_src(plat_ifc.clocks.pClk.clk),
         .clk_dst(ccip_to_afu.clk),
         .r_in(plat_ifc.pwrState),
         .r_out(afu_pwrState)
@@ -381,11 +381,11 @@ module platform_shim_ccip_std_afu_hssi
         // running on something other than pClk.  Ideally, we would change the
         // name of pck_af2cp_sTx and pck_cp2af_sRx below to match the clock,
         // but that would get messy.
-        .pClk(plat_ifc.clocks.pClk),
-        .pClkDiv2(plat_ifc.clocks.pClkDiv2),
-        .pClkDiv4(plat_ifc.clocks.pClkDiv4),
-        .uClk_usr(plat_ifc.clocks.uClk_usr),
-        .uClk_usrDiv2(plat_ifc.clocks.uClk_usrDiv2),
+        .pClk(plat_ifc.clocks.pClk.clk),
+        .pClkDiv2(plat_ifc.clocks.pClkDiv2.clk),
+        .pClkDiv4(plat_ifc.clocks.pClkDiv4.clk),
+        .uClk_usr(plat_ifc.clocks.uClk_usr.clk),
+        .uClk_usrDiv2(plat_ifc.clocks.uClk_usrDiv2.clk),
         .pck_cp2af_softReset(afu_softReset_q),
 `ifdef AFU_TOP_REQUIRES_POWER_2BIT
         .pck_cp2af_pwrState(afu_pwrState),

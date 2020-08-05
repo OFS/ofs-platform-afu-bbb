@@ -36,8 +36,6 @@
 
 `include "ofs_plat_if.vh"
 
-`define RESET_FROM_CLK(clk) clk``_reset_n
-
 module ofs_plat_afu
    (
     // All platform wires, wrapped in one interface.
@@ -78,8 +76,8 @@ module ofs_plat_afu
         .to_afu(ccip_to_afu),
 
 `ifdef TEST_PARAM_AFU_CLK
-        .afu_clk(`TEST_PARAM_AFU_CLK),
-        .afu_reset_n(`RESET_FROM_CLK(`TEST_PARAM_AFU_CLK))
+        .afu_clk(`TEST_PARAM_AFU_CLK.clk),
+        .afu_reset_n(`TEST_PARAM_AFU_CLK.reset_n)
 `else
         .afu_clk(),
         .afu_reset_n()
@@ -245,7 +243,7 @@ module ofs_plat_afu
         )
       map_pwrState
        (
-        .clk_src(plat_ifc.clocks.pClk),
+        .clk_src(plat_ifc.clocks.pClk.clk),
         .clk_dst(ccip_to_afu.clk),
         .r_in(plat_ifc.pwrState),
         .r_out(afu_pwrState)
@@ -292,7 +290,7 @@ module ofs_plat_afu
        .host_mem_g1_if(host_mem_g1_to_afu),
        .host_mem_g2_if(host_mem_g2_to_afu),
        .mmio64_if(mmio64_to_afu),
-       .pClk(plat_ifc.clocks.pClk),
+       .pClk(plat_ifc.clocks.pClk.clk),
        .pwrState(afu_pwrState)
        );
 

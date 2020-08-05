@@ -94,7 +94,7 @@ module ofs_plat_afu
     afu afu
       (
        .host_mem_if(ccip_to_afu),
-       .pClk(plat_ifc.clocks.pClk)
+       .pClk(plat_ifc.clocks.pClk.clk)
        );
 
 endmodule // ofs_plat_afu

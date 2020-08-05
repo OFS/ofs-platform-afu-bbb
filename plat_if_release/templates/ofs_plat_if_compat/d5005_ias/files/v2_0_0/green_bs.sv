@@ -154,11 +154,11 @@ module green_bs
        );
 
    // Reset, etc.
-   assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
+   assign plat_ifc.softReset_n = plat_ifc.clocks.pClk.reset_n;
    assign plat_ifc.pwrState = pck_cp2af_pwrState;
 
    // Host CCI-P port
-   assign plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk;
+   assign plat_ifc.host_chan.ports[0].clk = plat_ifc.clocks.pClk.clk;
    assign plat_ifc.host_chan.ports[0].reset_n = plat_ifc.softReset_n;
    assign plat_ifc.host_chan.ports[0].instance_number = 0;
    assign plat_ifc.host_chan.ports[0].error = pck_cp2af_error;

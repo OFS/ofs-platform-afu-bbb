@@ -154,7 +154,7 @@ module green_bs
         );
 
     // Reset, etc.
-    assign plat_ifc.softReset_n = plat_ifc.clocks.pClk_reset_n;
+    assign plat_ifc.softReset_n = plat_ifc.clocks.pClk.reset_n;
     assign plat_ifc.pwrState = pck_cp2af_pwrState;
 
     //
@@ -165,7 +165,7 @@ module green_bs
     // Construct the primary ASE CCI-P interface
     ofs_plat_host_ccip_if ccip_fiu();
 
-    assign ccip_fiu.clk = plat_ifc.clocks.pClk;
+    assign ccip_fiu.clk = plat_ifc.clocks.pClk.clk;
     assign ccip_fiu.reset_n = plat_ifc.softReset_n;
     assign ccip_fiu.instance_number = 0;
 

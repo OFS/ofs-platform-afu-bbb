@@ -54,7 +54,7 @@ interface ofs_plat_if
     wire t_ofs_plat_std_clocks clocks;
 
     // Required: active low soft reset (clocked by pClk). This reset
-    // is identical to clocks.pClk_reset_n.
+    // is identical to clocks.pClk.reset_n.
     logic softReset_n;
     // Required: AFU power state (clocked by pClk)
     t_ofs_plat_power_state pwrState;

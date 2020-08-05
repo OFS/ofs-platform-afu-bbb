@@ -85,8 +85,8 @@ module ofs_plat_afu
         .mmio_wr_to_afu(mmio512_wr_to_afu),
 
         // Use user clock
-        .afu_clk(plat_ifc.clocks.uClk_usr),
-        .afu_reset_n(plat_ifc.clocks.uClk_usr_reset_n)
+        .afu_clk(plat_ifc.clocks.uClk_usr.clk),
+        .afu_reset_n(plat_ifc.clocks.uClk_usr.reset_n)
         );
 
 

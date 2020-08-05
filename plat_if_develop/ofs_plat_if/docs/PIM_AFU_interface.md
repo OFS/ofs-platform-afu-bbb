@@ -34,7 +34,7 @@ interface ofs_plat_if
     wire t_ofs_plat_std_clocks clocks;
 
     // Required: active low soft reset (clocked by pClk). This reset
-    // is identical to clocks.pClk_reset_n.
+    // is identical to clocks.pClk.reset_n.
     logic softReset_n;
     // Required: AFU power state (clocked by pClk)
     t_ofs_plat_power_state pwrState;
@@ -67,7 +67,7 @@ interface ofs_plat_if
 endinterface // ofs_plat_if
 ```
 
-A standard type, defined in [ofs\_plat\_clocks.vh](../src/rtl/base_ifcs/clocks/ofs_plat_clocks.vh), wraps the usual pClk, pClkDiv2, pClkDiv4, uClk\_user and uClk\_userDiv2 that are exported by the FIM. Corresponding active low resets are also provided, all derived from the base SoftReset and crossed into each clock domain. The user clock is thus accessible as *plat\_ifc.clocks.uClk\_usr* on any conforming platform and the corresponding active low reset as *plat\_ifc.clocks.uClk\_usr\_reset\_n*. Individual platform vendors may also add non-standard clocks to the structure, though these will not be portable.
+A standard type, defined in [ofs\_plat\_clocks.vh](../src/rtl/base_ifcs/clocks/ofs_plat_clocks.vh), wraps the usual pClk, pClkDiv2, pClkDiv4, uClk\_user and uClk\_userDiv2 that are exported by the FIM. Corresponding active low resets are also provided, all derived from the base SoftReset and crossed into each clock domain. The user clock is thus accessible as *plat\_ifc.clocks.uClk\_usr.clk* on any conforming platform and the corresponding active low reset as *plat\_ifc.clocks.uClk\_usr.reset\_n*. Individual platform vendors may also add non-standard clocks to the structure, though these will not be portable.
 
 One more interface layer wraps groups of ports that all share the same properties. Standard names are used for portability:
 
@@ -219,8 +219,8 @@ Now, *local\_mem\_to\_afu[0]* and *host\_mem\_to\_afu* are operating in the same
         .to_fiu(plat_ifc.host_chan.ports[0]),
         .to_afu(ccip_to_afu),
 
-        .afu_clk(plat_ifc.clocks.uClk_usr),
-        .afu_reset_n(plat_ifc.clocks.uClk_usr_reset_n)
+        .afu_clk(plat_ifc.clocks.uClk_usr.clk),
+        .afu_reset_n(plat_ifc.clocks.uClk_usr.reset_n)
         );
 ```
 

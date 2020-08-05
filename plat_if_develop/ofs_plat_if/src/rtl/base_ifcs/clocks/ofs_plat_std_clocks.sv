@@ -47,20 +47,20 @@ module ofs_plat_std_clocks_gen_resets
     output t_ofs_plat_std_clocks clocks
     );
 
-    assign clocks.pClk = pClk;
-    assign clocks.pClkDiv2 = pClkDiv2;
-    assign clocks.pClkDiv4 = pClkDiv4;
-    assign clocks.uClk_usr = uClk_usr;
-    assign clocks.uClk_usrDiv2 = uClk_usrDiv2;
+    assign clocks.pClk.clk = pClk;
+    assign clocks.pClkDiv2.clk = pClkDiv2;
+    assign clocks.pClkDiv4.clk = pClkDiv4;
+    assign clocks.uClk_usr.clk = uClk_usr;
+    assign clocks.uClk_usrDiv2.clk = uClk_usrDiv2;
 
-    assign clocks.pClk_reset_n = pClk_reset_n;
+    assign clocks.pClk.reset_n = pClk_reset_n;
 
     ofs_plat_prim_clock_crossing_reset pClkDiv2_reset
        (
         .clk_src(pClk),
         .clk_dst(pClkDiv2),
         .reset_in(pClk_reset_n),
-        .reset_out(clocks.pClkDiv2_reset_n)
+        .reset_out(clocks.pClkDiv2.reset_n)
         );
 
     ofs_plat_prim_clock_crossing_reset pClkDiv4_reset
@@ -68,7 +68,7 @@ module ofs_plat_std_clocks_gen_resets
         .clk_src(pClk),
         .clk_dst(pClkDiv4),
         .reset_in(pClk_reset_n),
-        .reset_out(clocks.pClkDiv4_reset_n)
+        .reset_out(clocks.pClkDiv4.reset_n)
         );
 
     ofs_plat_prim_clock_crossing_reset uClk_usr_reset
@@ -76,7 +76,7 @@ module ofs_plat_std_clocks_gen_resets
         .clk_src(pClk),
         .clk_dst(uClk_usr),
         .reset_in(pClk_reset_n),
-        .reset_out(clocks.uClk_usr_reset_n)
+        .reset_out(clocks.uClk_usr.reset_n)
         );
 
     ofs_plat_prim_clock_crossing_reset uClk_usrDiv2_reset
@@ -84,7 +84,7 @@ module ofs_plat_std_clocks_gen_resets
         .clk_src(pClk),
         .clk_dst(uClk_usrDiv2),
         .reset_in(pClk_reset_n),
-        .reset_out(clocks.uClk_usrDiv2_reset_n)
+        .reset_out(clocks.uClk_usrDiv2.reset_n)
         );
 
 endmodule // ofs_plat_std_clocks_gen_resets

@@ -70,17 +70,17 @@ module ase_emul_host_chan_native_ccip
     // Construct the primary ASE CCI-P interface
     ofs_plat_host_ccip_if ccip_fiu();
 
-    assign ccip_fiu.clk = clocks.pClk;
+    assign ccip_fiu.clk = clocks.pClk.clk;
     assign ccip_fiu.reset_n = !softReset;
     assign ccip_fiu.instance_number = 0;
 
     ccip_emulator ccip_emulator
        (
-        .pClk(clocks.pClk),
-        .pClkDiv2(clocks.pClkDiv2),
-        .pClkDiv4(clocks.pClkDiv4),
-        .uClk_usr(clocks.uClk_usr),
-        .uClk_usrDiv2(clocks.uClk_usrDiv2),
+        .pClk(clocks.pClk.clk),
+        .pClkDiv2(clocks.pClkDiv2.clk),
+        .pClkDiv4(clocks.pClkDiv4.clk),
+        .uClk_usr(clocks.uClk_usr.clk),
+        .uClk_usrDiv2(clocks.uClk_usrDiv2.clk),
         // Output signals, mapped to the platform interface
         .pck_cp2af_softReset(softReset),
         .pck_cp2af_pwrState(pwrState),
