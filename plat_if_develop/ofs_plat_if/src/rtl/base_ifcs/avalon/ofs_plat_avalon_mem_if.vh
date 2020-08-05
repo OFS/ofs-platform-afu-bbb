@@ -137,5 +137,31 @@
 `define OFS_PLAT_AVALON_MEM_IF_INIT_SLAVE_FF(MEM_SLAVE) \
     `OFS_PLAT_AVALON_MEM_IF_INIT_SLAVE(MEM_SLAVE, <=)
 
+//
+// Standard validation macro to confirm that parameters that affect size match.
+//
+
+`define OFS_PLAT_AVALON_MEM_IF_CHECK_PARAMS_MATCH(MEM_IFC0, MEM_IFC1) \
+    initial \
+    begin \
+        if (MEM_IFC0.ADDR_WIDTH != MEM_IFC1.ADDR_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface ADDR_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.ADDR_WIDTH, MEM_IFC1.ADDR_WIDTH); \
+        if (MEM_IFC0.DATA_WIDTH != MEM_IFC1.DATA_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface DATA_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.DATA_WIDTH, MEM_IFC1.DATA_WIDTH); \
+        if (MEM_IFC0.BURST_CNT_WIDTH != MEM_IFC1.BURST_CNT_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface BURST_CNT_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.BURST_CNT_WIDTH, MEM_IFC1.BURST_CNT_WIDTH); \
+        if (MEM_IFC0.MASKED_SYMBOL_WIDTH != MEM_IFC1.MASKED_SYMBOL_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface MASKED_SYMBOL_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.MASKED_SYMBOL_WIDTH, MEM_IFC1.MASKED_SYMBOL_WIDTH); \
+        if (MEM_IFC0.RESPONSE_WIDTH != MEM_IFC1.RESPONSE_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface RESPONSE_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.RESPONSE_WIDTH, MEM_IFC1.RESPONSE_WIDTH); \
+        if (MEM_IFC0.USER_WIDTH != MEM_IFC1.USER_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface USER_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.USER_WIDTH, MEM_IFC1.USER_WIDTH); \
+    end
 
 `endif // __OFS_PLAT_AVALON_MEM_IF_VH__

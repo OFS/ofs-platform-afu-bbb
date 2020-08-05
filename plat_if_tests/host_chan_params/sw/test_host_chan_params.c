@@ -463,7 +463,7 @@ testMaskedWrite(
 
     // Wait for it to start
     struct timespec wait_time;
-    wait_time.tv_sec = (s_is_ase ? 1 : 0);
+    wait_time.tv_sec = 0;
     wait_time.tv_nsec = 1000000;
     while ((csrGetEnginesEnabled(s_csr_handle) == 0) ||
            csrGetEnginesActive(s_csr_handle))
@@ -585,7 +585,7 @@ testSmallRegions(
                 // the engine is enabled and the active flag goes low.
                 struct timespec wait_time;
                 // Poll less often in simulation
-                wait_time.tv_sec = (s_is_ase ? 1 : 0);
+                wait_time.tv_sec = 0;
                 wait_time.tv_nsec = 1000000;
                 while ((csrGetEnginesEnabled(s_csr_handle) == 0) ||
                        csrGetEnginesActive(s_csr_handle))
@@ -736,7 +736,7 @@ runBandwidth(
 
     // Wait for them to start
     struct timespec wait_time;
-    wait_time.tv_sec = (s_is_ase ? 1 : 0);
+    wait_time.tv_sec = 0;
     wait_time.tv_nsec = 1000000;
     while (csrGetEnginesEnabled(s_csr_handle) == 0)
     {

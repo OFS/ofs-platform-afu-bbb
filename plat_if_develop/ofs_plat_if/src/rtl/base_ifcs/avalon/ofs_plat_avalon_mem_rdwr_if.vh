@@ -62,12 +62,14 @@
 // and registered contexts. Specify an operator: usually = or <=.
 //
 
-`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER) \
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_RD_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER) \
     MEM_SLAVE.rd_read OPER MEM_MASTER.rd_read; \
     MEM_SLAVE.rd_burstcount OPER MEM_MASTER.rd_burstcount; \
     MEM_SLAVE.rd_byteenable OPER MEM_MASTER.rd_byteenable; \
     MEM_SLAVE.rd_address OPER MEM_MASTER.rd_address; \
-    MEM_SLAVE.rd_user OPER MEM_MASTER.rd_user; \
+    MEM_SLAVE.rd_user OPER MEM_MASTER.rd_user
+
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_WR_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER) \
     MEM_SLAVE.wr_burstcount OPER MEM_MASTER.wr_burstcount; \
     MEM_SLAVE.wr_writedata OPER MEM_MASTER.wr_writedata; \
     MEM_SLAVE.wr_address OPER MEM_MASTER.wr_address; \
@@ -75,11 +77,24 @@
     MEM_SLAVE.wr_byteenable OPER MEM_MASTER.wr_byteenable; \
     MEM_SLAVE.wr_user OPER MEM_MASTER.wr_user
 
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER) \
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_RD_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER); \
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_WR_FROM_MASTER_TO_SLAVE(MEM_SLAVE, OPER, MEM_MASTER)
+
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(MEM_SLAVE, MEM_MASTER) \
     `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, =, MEM_MASTER)
-
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
     `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE(MEM_SLAVE, <=, MEM_MASTER)
+
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_RD_FROM_MASTER_TO_SLAVE_COMB(MEM_SLAVE, MEM_MASTER) \
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_RD_FROM_MASTER_TO_SLAVE(MEM_SLAVE, =, MEM_MASTER)
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_RD_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_RD_FROM_MASTER_TO_SLAVE(MEM_SLAVE, <=, MEM_MASTER)
+
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_WR_FROM_MASTER_TO_SLAVE_COMB(MEM_SLAVE, MEM_MASTER) \
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_WR_FROM_MASTER_TO_SLAVE(MEM_SLAVE, =, MEM_MASTER)
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_WR_FROM_MASTER_TO_SLAVE_FF(MEM_SLAVE, MEM_MASTER) \
+    `OFS_PLAT_AVALON_MEM_RDWR_IF_WR_FROM_MASTER_TO_SLAVE(MEM_SLAVE, <=, MEM_MASTER)
 
 
 // Note these do not set clk, reset or instance_number since those
@@ -146,5 +161,31 @@
 `define OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE_FF(MEM_SLAVE) \
     `OFS_PLAT_AVALON_MEM_RDWR_IF_INIT_SLAVE(MEM_SLAVE, <=)
 
+//
+// Standard validation macro to confirm that parameters that affect size match.
+//
+
+`define OFS_PLAT_AVALON_MEM_RDWR_IF_CHECK_PARAMS_MATCH(MEM_IFC0, MEM_IFC1) \
+    initial \
+    begin \
+        if (MEM_IFC0.ADDR_WIDTH != MEM_IFC1.ADDR_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface ADDR_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.ADDR_WIDTH, MEM_IFC1.ADDR_WIDTH); \
+        if (MEM_IFC0.DATA_WIDTH != MEM_IFC1.DATA_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface DATA_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.DATA_WIDTH, MEM_IFC1.DATA_WIDTH); \
+        if (MEM_IFC0.BURST_CNT_WIDTH != MEM_IFC1.BURST_CNT_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface BURST_CNT_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.BURST_CNT_WIDTH, MEM_IFC1.BURST_CNT_WIDTH); \
+        if (MEM_IFC0.MASKED_SYMBOL_WIDTH != MEM_IFC1.MASKED_SYMBOL_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface MASKED_SYMBOL_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.MASKED_SYMBOL_WIDTH, MEM_IFC1.MASKED_SYMBOL_WIDTH); \
+        if (MEM_IFC0.RESPONSE_WIDTH != MEM_IFC1.RESPONSE_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface RESPONSE_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.RESPONSE_WIDTH, MEM_IFC1.RESPONSE_WIDTH); \
+        if (MEM_IFC0.USER_WIDTH != MEM_IFC1.USER_WIDTH) \
+            $fatal(2, "** ERROR ** %m: Avalon-MM interface USER_WIDTH mismatch (%0d vs. %0d)!", \
+                   MEM_IFC0.USER_WIDTH, MEM_IFC1.USER_WIDTH); \
+    end
 
 `endif // __OFS_PLAT_AVALON_MEM_RDWR_IF_VH__

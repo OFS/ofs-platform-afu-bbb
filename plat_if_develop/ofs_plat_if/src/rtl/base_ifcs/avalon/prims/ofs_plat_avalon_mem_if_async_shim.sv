@@ -32,13 +32,16 @@
 // Clock crossing bridge for the Avalon memory interface.
 //
 
+`include "ofs_plat_if.vh"
+
 module ofs_plat_avalon_mem_if_async_shim
   #(
     parameter COMMAND_FIFO_DEPTH = 128,
     parameter RESPONSE_FIFO_DEPTH = 256,
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
     // requests can be received after mem_master.waitrequest is asserted.
-    parameter COMMAND_ALMFULL_THRESHOLD = 0
+    parameter COMMAND_ALMFULL_THRESHOLD = 0,
+    parameter PRESERVE_WR_RESP = 1
     )
    (
     ofs_plat_avalon_mem_if.to_slave mem_slave,
@@ -121,33 +124,43 @@ module ofs_plat_avalon_mem_if_async_shim
     // don't count available queue slots and assume that the FIFO will never
     // overflow.
     //
-    logic wr_response_valid;
+    generate
+        if (PRESERVE_WR_RESP)
+        begin : wr_rsp
+            logic wr_response_valid;
 
-    ofs_plat_prim_fifo_dc
-      #(
-        .N_DATA_BITS($bits(t_response)),
-        .N_ENTRIES(1024)
-        )
-      avmm_cross_wr_response
-       (
-        .enq_clk(mem_slave.clk),
-        .enq_reset_n(mem_slave.reset_n),
-        .enq_data(mem_slave.writeresponse),
-        .enq_en(mem_slave.writeresponsevalid),
-        .notFull(),
-        .almostFull(),
+            ofs_plat_prim_fifo_dc
+              #(
+                .N_DATA_BITS($bits(t_response)),
+                .N_ENTRIES(1024)
+                )
+              avmm_cross_wr_response
+               (
+                .enq_clk(mem_slave.clk),
+                .enq_reset_n(mem_slave.reset_n),
+                .enq_data(mem_slave.writeresponse),
+                .enq_en(mem_slave.writeresponsevalid),
+                .notFull(),
+                .almostFull(),
 
-        .deq_clk(mem_master.clk),
-        .deq_reset_n(mem_master.reset_n),
-        .first(mem_master.writeresponse),
-        .deq_en(wr_response_valid),
-        .notEmpty(wr_response_valid)
-        );
+                .deq_clk(mem_master.clk),
+                .deq_reset_n(mem_master.reset_n),
+                .first(mem_master.writeresponse),
+                .deq_en(wr_response_valid),
+                .notEmpty(wr_response_valid)
+                );
 
-    always_ff @(posedge mem_master.clk)
-    begin
-        mem_master.writeresponsevalid <= wr_response_valid && mem_master.reset_n;
-    end
+            always_ff @(posedge mem_master.clk)
+            begin
+                mem_master.writeresponsevalid <= wr_response_valid && mem_master.reset_n;
+            end
+        end
+        else
+        begin : n_wr_rsp
+            assign mem_master.writeresponsevalid = 1'b0;
+            assign mem_master.writeresponse = '0;
+        end
+    endgenerate
 
 
     // Compute mem_master.waitrequest
@@ -201,3 +214,53 @@ module ofs_plat_avalon_mem_if_async_shim
     endgenerate
 
 endmodule // ofs_plat_avalon_mem_if_async_shim
+
+
+// Same as standard crossing, but set the slave's clock
+module ofs_plat_avalon_mem_if_async_shim_set_slave
+  #(
+    parameter COMMAND_FIFO_DEPTH = 128,
+    parameter RESPONSE_FIFO_DEPTH = 256,
+    // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
+    // requests can be received after mem_master.waitrequest is asserted.
+    parameter COMMAND_ALMFULL_THRESHOLD = 0,
+    parameter PRESERVE_WR_RESP = 1
+    )
+   (
+    ofs_plat_avalon_mem_if.to_slave_clk mem_slave,
+    ofs_plat_avalon_mem_if.to_master mem_master,
+
+    input  logic slave_clk,
+    input  logic slave_reset_n
+    );
+
+    ofs_plat_avalon_mem_if
+      #(
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mem_slave)
+        )
+      mem_slave_with_clk();
+
+    assign mem_slave_with_clk.clk = slave_clk;
+    assign mem_slave_with_clk.reset_n = slave_reset_n;
+    assign mem_slave_with_clk.instance_number = mem_master.instance_number;
+
+    ofs_plat_avalon_mem_if_connect_master_clk con_slave
+       (
+        .mem_master(mem_slave_with_clk),
+        .mem_slave
+        );
+
+    ofs_plat_avalon_mem_if_async_shim
+      #(
+        .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
+        .RESPONSE_FIFO_DEPTH(RESPONSE_FIFO_DEPTH),
+        .COMMAND_ALMFULL_THRESHOLD(COMMAND_ALMFULL_THRESHOLD),
+        .PRESERVE_WR_RESP(PRESERVE_WR_RESP)
+        )
+      cc
+       (
+        .mem_slave(mem_slave_with_clk),
+        .mem_master
+        );
+
+endmodule // ofs_plat_avalon_mem_if_async_shim_set_slave
