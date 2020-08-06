@@ -1,6 +1,6 @@
-// $File: //acds/rel/19.2/ip/sopc/components/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v $
+// $File: //acds/rel/20.2/ip/sopc/components/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v $
 // $Revision: #1 $
-// $Date: 2019/03/07 $
+// $Date: 2020/04/03 $
 // $Author: psgswbuild $
 //-------------------------------------------------------------------------------
 // Description: Dual clocked single channel FIFO with fill levels and status
@@ -91,6 +91,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     // experimental, internal parameter
     parameter USE_SPACE_AVAIL_IF  = 0;
 
+    parameter SYNC_RESET = 1;
+
     localparam ADDR_WIDTH   = log2ceil(FIFO_DEPTH);
     localparam DEPTH        = 2 ** ADDR_WIDTH;
     localparam DATA_WIDTH   = SYMBOLS_PER_BEAT * BITS_PER_SYMBOL;
@@ -163,7 +165,7 @@ module ofs_plat_utils_avalon_dc_fifo(
     // Internal Signals
     // ---------------------------------------------------------------------
     wire [ADDR_WIDTH : 0] next_out_wr_ptr;
-    wire [ADDR_WIDTH : 0] next_in_wr_ptr;
+    wire [ADDR_WIDTH : 0] next_in_wr_ptr, next_in_wr_ptr_copyB;
     wire [ADDR_WIDTH : 0] next_out_rd_ptr;
     wire [ADDR_WIDTH : 0] next_in_rd_ptr;
 
@@ -176,7 +178,14 @@ module ofs_plat_utils_avalon_dc_fifo(
     reg  [ADDR_WIDTH : 0] out_wr_ptr_gray_reg;
     reg  [ADDR_WIDTH : 0] in_rd_ptr_gray_reg;
 
-    reg full;
+    (* preserve_syn_only *)      reg full;
+    (* preserve_syn_only *) 	 reg full_copyA;
+    (* preserve_syn_only *) 	 reg full_copyB;
+    (* preserve_syn_only *) 	 reg full_copyC;
+
+    wire in_ready_copyA;	 
+    wire in_ready_copyB;
+    wire in_ready_copyC;	 
     reg empty;
 
     wire [PAYLOAD_WIDTH - 1 : 0] in_payload;
@@ -197,7 +206,17 @@ module ofs_plat_utils_avalon_dc_fifo(
     reg [23 : 0] almost_empty_threshold;
     reg [23 : 0] almost_full_threshold;
 
-    reg          sink_in_reset;
+    reg internal_in_sclr;
+    reg internal_out_sclr;
+
+
+    always @ (posedge in_clk) begin
+         internal_in_sclr <= in_reset_n;
+    end
+
+    always @ (posedge out_clk) begin
+         internal_out_sclr <= out_reset_n;
+    end
     
     // --------------------------------------------------
     // Define Payload
@@ -270,7 +289,7 @@ module ofs_plat_utils_avalon_dc_fifo(
     // Infers a simple dual clock memory with unregistered outputs
     // ---------------------------------------------------------------------
     always @(posedge in_clk) begin
-        if (in_valid && in_ready)
+        if (in_valid && in_ready_copyA)
             mem[mem_wr_ptr] <= in_payload;
     end
 
@@ -288,38 +307,74 @@ module ofs_plat_utils_avalon_dc_fifo(
     // Increment our good old read and write pointers on their native
     // clock domains.
     // ---------------------------------------------------------------------
-    always @(posedge in_clk or negedge in_reset_n) begin
-        if (!in_reset_n) begin
-            in_wr_ptr           <= 0;
-            in_wr_ptr_lookahead <= 1;
-        end
-        else begin
-            in_wr_ptr           <= next_in_wr_ptr;
-            in_wr_ptr_lookahead <= (in_valid && in_ready) ? in_wr_ptr_lookahead + 1'b1 : in_wr_ptr_lookahead;
-        end
-    end
+   
+    generate 
+         if (SYNC_RESET == 0) begin
+            always @(posedge in_clk or negedge in_reset_n) begin
+                if (!in_reset_n) begin
+                    in_wr_ptr           <= 0;
+                    in_wr_ptr_lookahead <= 1;
+                end
+                else begin
+                    in_wr_ptr           <= next_in_wr_ptr_copyB;
+                    in_wr_ptr_lookahead <= (in_valid && in_ready_copyC) ? in_wr_ptr_lookahead + 1'b1 : in_wr_ptr_lookahead;
+                end
+            end
+         end
+         else begin
+            always @(posedge in_clk) begin
+                if (~internal_in_sclr) begin
+                    in_wr_ptr           <= 0;
+                    in_wr_ptr_lookahead <= 1;
+                end
+                else begin
+                    in_wr_ptr           <= next_in_wr_ptr_copyB;
+                    in_wr_ptr_lookahead <= (in_valid && in_ready_copyC) ? in_wr_ptr_lookahead + 1'b1 : in_wr_ptr_lookahead;
+                end
+            end
+         end
+    endgenerate
 
-    always @(posedge out_clk or negedge out_reset_n) begin
-        if (!out_reset_n) begin
-            out_rd_ptr           <= 0;
-            out_rd_ptr_lookahead <= 1;
-        end
-        else begin
-            out_rd_ptr           <= next_out_rd_ptr;
-            out_rd_ptr_lookahead <= (internal_out_valid && internal_out_ready) ? out_rd_ptr_lookahead + 1'b1 : out_rd_ptr_lookahead;
-        end
-    end
+
+    generate 
+         if(SYNC_RESET == 0) begin
+            always @(posedge out_clk or negedge out_reset_n) begin
+                if (!out_reset_n) begin
+                    out_rd_ptr           <= 0;
+                    out_rd_ptr_lookahead <= 1;
+                end
+                else begin
+                    out_rd_ptr           <= next_out_rd_ptr;
+                    out_rd_ptr_lookahead <= (internal_out_valid && internal_out_ready) ? out_rd_ptr_lookahead + 1'b1 : out_rd_ptr_lookahead;
+                end
+            end
+         end
+         else begin
+            always @(posedge out_clk) begin
+                if (~internal_out_sclr) begin
+                    out_rd_ptr           <= 0;
+                    out_rd_ptr_lookahead <= 1;
+                end
+                else begin
+                    out_rd_ptr           <= next_out_rd_ptr;
+                    out_rd_ptr_lookahead <= (internal_out_valid && internal_out_ready) ? out_rd_ptr_lookahead + 1'b1 : out_rd_ptr_lookahead;
+                end
+            end
+         end
+    endgenerate
 
     generate if (LOOKAHEAD_POINTERS) begin : lookahead_pointers
 
-        assign next_in_wr_ptr = (in_ready && in_valid) ? in_wr_ptr_lookahead : in_wr_ptr;
-        assign next_out_rd_ptr = (internal_out_ready && internal_out_valid) ? out_rd_ptr_lookahead : out_rd_ptr;
+        assign next_in_wr_ptr       = (in_ready_copyC && in_valid) ? in_wr_ptr_lookahead : in_wr_ptr;
+		assign next_in_wr_ptr_copyB = (in_ready_copyB && in_valid) ? in_wr_ptr_lookahead : in_wr_ptr;
+        assign next_out_rd_ptr      = (internal_out_ready && internal_out_valid) ? out_rd_ptr_lookahead : out_rd_ptr;
 
     end
     else begin : non_lookahead_pointers
 
-        assign next_in_wr_ptr = (in_ready && in_valid) ? in_wr_ptr + 1'b1 : in_wr_ptr;
-        assign next_out_rd_ptr = (internal_out_ready && internal_out_valid) ? out_rd_ptr + 1'b1 : out_rd_ptr;
+        assign next_in_wr_ptr       = (in_ready_copyC && in_valid) ? in_wr_ptr + 1'b1 : in_wr_ptr;
+		assign next_in_wr_ptr_copyB = (in_ready_copyB && in_valid) ? in_wr_ptr + 1'b1 : in_wr_ptr;
+        assign next_out_rd_ptr      = (internal_out_ready && internal_out_valid) ? out_rd_ptr + 1'b1 : out_rd_ptr;
 
     end
     endgenerate
@@ -331,24 +386,59 @@ module ofs_plat_utils_avalon_dc_fifo(
     // required, and use that additional bit to figure out if we're
     // full or empty.
     // ---------------------------------------------------------------------
-    always @(posedge out_clk or negedge out_reset_n) begin
-        if(!out_reset_n)
-            empty <= 1;
-        else
-            empty <= (next_out_rd_ptr == next_out_wr_ptr);
-    end
+    generate
+         if(SYNC_RESET == 0) begin
+            always @(posedge out_clk or negedge out_reset_n) begin
+                if(!out_reset_n)
+                    empty <= 1;
+                else
+                    empty <= (next_out_rd_ptr == next_out_wr_ptr);
+            end
+         end
+         else begin 
+            always @(posedge out_clk) begin
+                if(~internal_out_sclr)
+                    empty <= 1;
+                else
+                    empty <= (next_out_rd_ptr == next_out_wr_ptr);
+            end
+         end
+    endgenerate
 
-    always @(posedge in_clk or negedge in_reset_n) begin
-        if (!in_reset_n) begin
-            full <= 0;
-            sink_in_reset <= 1'b1;
-        end
-        else begin
-            full <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
-            sink_in_reset <= 1'b0;
-        end
-    end
-
+    generate
+         if(SYNC_RESET == 0) begin 
+            always @(posedge in_clk or negedge in_reset_n) begin
+                if (!in_reset_n) begin
+                    full       <= BACKPRESSURE_DURING_RESET ? 1 : 0;			
+				    full_copyA <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+				    full_copyB <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+				    full_copyC <= BACKPRESSURE_DURING_RESET ? 1 : 0;				
+                end
+                else begin
+                    full       <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                    full_copyA <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                    full_copyB <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                    full_copyC <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                end
+            end
+         end
+         else begin
+            always @(posedge in_clk) begin
+                if (~internal_in_sclr) begin
+                    full       <= BACKPRESSURE_DURING_RESET ? 1 : 0;			
+				    full_copyA <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+				    full_copyB <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+				    full_copyC <= BACKPRESSURE_DURING_RESET ? 1 : 0;				
+                end
+                else begin
+                    full       <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+				    full_copyA <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+				    full_copyB <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+				    full_copyC <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                end
+            end
+         end
+    endgenerate
 
     // ---------------------------------------------------------------------
     // Write Pointer Clock Crossing
@@ -357,20 +447,46 @@ module ofs_plat_utils_avalon_dc_fifo(
     // want to know more? We ensure a one bit change at sampling time,
     // and then metastable harden the sampled gray pointer.
     // ---------------------------------------------------------------------
-    always @(posedge in_clk or negedge in_reset_n) begin
-        if (!in_reset_n)
-            in_wr_ptr_gray <= 0;
-        else
-            in_wr_ptr_gray <= bin2gray(in_wr_ptr);
-    end
+    
+    generate 
+         if(SYNC_RESET == 0) begin
+            always @(posedge in_clk or negedge in_reset_n) begin
+                if (!in_reset_n)
+                    in_wr_ptr_gray <= 0;
+                else
+                    in_wr_ptr_gray <= bin2gray(in_wr_ptr);
+            end
+         end
+         else begin
+            always @(posedge in_clk) begin
+                if (~internal_in_sclr)
+                    in_wr_ptr_gray <= 0;
+                else
+                    in_wr_ptr_gray <= bin2gray(in_wr_ptr);
+            end
+         end
+    endgenerate
 
-    ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(WR_SYNC_DEPTH)) 
-      write_crosser (
-        .clk(out_clk),
-        .reset_n(out_reset_n),
-        .din(in_wr_ptr_gray),
-        .dout(out_wr_ptr_gray)
-    );
+    generate
+         if (SYNC_RESET == 0) begin
+            ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(WR_SYNC_DEPTH)) 
+              write_crosser (
+                .clk(out_clk),
+                .reset_n(out_reset_n),
+                .din(in_wr_ptr_gray),
+                .dout(out_wr_ptr_gray)
+            );
+         end
+         else begin
+            ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(WR_SYNC_DEPTH)) 
+              write_crosser (
+                .clk(out_clk),
+                .reset_n(1'b1),
+                .din(in_wr_ptr_gray),
+                .dout(out_wr_ptr_gray)
+            );
+         end
+    endgenerate
 
     // ---------------------------------------------------------------------
     // Optionally pipeline the gray to binary conversion for the write pointer. 
@@ -378,12 +494,22 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     generate if (PIPELINE_POINTERS) begin : wr_ptr_pipeline
 
-        always @(posedge out_clk or negedge out_reset_n) begin
-            if (!out_reset_n)
-                out_wr_ptr_gray_reg <= 0;
-            else
-                out_wr_ptr_gray_reg <= gray2bin(out_wr_ptr_gray);
-        end
+         if(SYNC_RESET == 0) begin
+            always @(posedge out_clk or negedge out_reset_n) begin
+                if (!out_reset_n)
+                    out_wr_ptr_gray_reg <= 0;
+                else
+                    out_wr_ptr_gray_reg <= gray2bin(out_wr_ptr_gray);
+            end
+         end
+         else begin
+            always @(posedge out_clk) begin
+                if (~internal_out_sclr)
+                    out_wr_ptr_gray_reg <= 0;
+                else
+                    out_wr_ptr_gray_reg <= gray2bin(out_wr_ptr_gray);
+            end
+         end
 
         assign next_out_wr_ptr = out_wr_ptr_gray_reg;
 
@@ -400,20 +526,46 @@ module ofs_plat_utils_avalon_dc_fifo(
     //
     // Go the other way, go the other way...
     // ---------------------------------------------------------------------
-    always @(posedge out_clk or negedge out_reset_n) begin
-        if (!out_reset_n)
-            out_rd_ptr_gray <= 0;
-        else
-            out_rd_ptr_gray <= bin2gray(out_rd_ptr);
-    end
 
-    ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(RD_SYNC_DEPTH)) 
-      read_crosser (
-        .clk(in_clk),
-        .reset_n(in_reset_n),
-        .din(out_rd_ptr_gray),
-        .dout(in_rd_ptr_gray)
-    );
+   generate
+      if(SYNC_RESET == 0) begin
+         always @(posedge out_clk or negedge out_reset_n) begin
+              if (!out_reset_n)
+                  out_rd_ptr_gray <= 0;
+              else
+                  out_rd_ptr_gray <= bin2gray(out_rd_ptr);
+         end
+      end
+      else begin
+         always @(posedge out_clk) begin
+              if (~internal_out_sclr)
+                  out_rd_ptr_gray <= 0;
+              else
+                  out_rd_ptr_gray <= bin2gray(out_rd_ptr);
+         end
+      end
+   endgenerate
+
+   generate
+      if(SYNC_RESET == 0) begin
+         ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(RD_SYNC_DEPTH)) 
+            read_crosser (
+              .clk(in_clk),
+              .reset_n(in_reset_n),
+              .din(out_rd_ptr_gray),
+              .dout(in_rd_ptr_gray)
+         );
+      end
+      else begin
+         ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(RD_SYNC_DEPTH)) 
+            read_crosser (
+              .clk(in_clk),
+              .reset_n(1'b1),
+              .din(out_rd_ptr_gray),
+              .dout(in_rd_ptr_gray)
+         );
+      end
+    endgenerate
 
     // ---------------------------------------------------------------------
     // Optionally pipeline the gray to binary conversion of the read pointer. 
@@ -421,11 +573,21 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     generate if (PIPELINE_POINTERS) begin : rd_ptr_pipeline
 
-        always @(posedge in_clk or negedge in_reset_n) begin
-            if (!in_reset_n)
-                in_rd_ptr_gray_reg <= 0;
-            else
-                in_rd_ptr_gray_reg <= gray2bin(in_rd_ptr_gray);
+        if(SYNC_RESET == 0) begin
+            always @(posedge in_clk or negedge in_reset_n) begin
+                if (!in_reset_n)
+                    in_rd_ptr_gray_reg <= 0;
+                else
+                    in_rd_ptr_gray_reg <= gray2bin(in_rd_ptr_gray);
+            end
+        end
+        else begin
+            always @(posedge in_clk) begin
+                if (~internal_in_sclr)
+                    in_rd_ptr_gray_reg <= 0;
+                else
+                    in_rd_ptr_gray_reg <= gray2bin(in_rd_ptr_gray);
+            end
         end
         
         assign next_in_rd_ptr = in_rd_ptr_gray_reg;
@@ -441,7 +603,11 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     // Avalon ST Signals
     // ---------------------------------------------------------------------
-    assign in_ready = BACKPRESSURE_DURING_RESET ? !(full || sink_in_reset) : !full;
+     assign in_ready       = !full;	//BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+	 assign in_ready_copyA = !full_copyA; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+	 assign in_ready_copyB = !full_copyB; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+	 assign in_ready_copyC = !full_copyC; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+	 
     assign internal_out_valid = !empty;
 
     // --------------------------------------------------
@@ -454,18 +620,36 @@ module ofs_plat_utils_avalon_dc_fifo(
     // --------------------------------------------------
     assign internal_out_ready = out_ready || !out_valid;
 
-    always @(posedge out_clk or negedge out_reset_n) begin
-        if (!out_reset_n) begin
-            out_valid <= 0;
-            out_payload <= 0;
-        end
-        else begin
-            if (internal_out_ready) begin
-                out_valid <= internal_out_valid;
-                out_payload <= internal_out_payload;
+    generate 
+         if(SYNC_RESET == 0) begin
+            always @(posedge out_clk or negedge out_reset_n) begin
+                if (!out_reset_n) begin
+                    out_valid <= 0;
+                    out_payload <= 0;
+                end
+                else begin
+                    if (internal_out_ready) begin
+                        out_valid <= internal_out_valid;
+                        out_payload <= internal_out_payload;
+                    end
+                end
             end
-        end
-    end
+         end
+         else begin
+            always @(posedge out_clk) begin
+                if (~internal_out_sclr) begin
+                    out_valid <= 0;
+                    out_payload <= 0;
+                end
+                else begin
+                    if (internal_out_ready) begin
+                        out_valid <= internal_out_valid;
+                        out_payload <= internal_out_payload;
+                    end
+                end
+            end
+         end
+    endgenerate
 
     // ---------------------------------------------------------------------
     // Out Fill Level 
@@ -483,13 +667,25 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate 
         if (USE_OUT_FILL_LEVEL || STREAM_ALMOST_EMPTY) begin
 
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if (!out_reset_n) begin
-                    out_fifo_fill_level <= 0;
-                end
-                else begin
-                    out_fifo_fill_level <= next_out_wr_ptr - next_out_rd_ptr;
-                end
+            if(SYNC_RESET == 0) begin
+               always @(posedge out_clk or negedge out_reset_n) begin
+                   if (!out_reset_n) begin
+                       out_fifo_fill_level <= 0;
+                   end
+                   else begin
+                       out_fifo_fill_level <= next_out_wr_ptr - next_out_rd_ptr;
+                   end
+               end
+            end
+            else begin
+               always @(posedge out_clk) begin
+                   if (~internal_out_sclr) begin
+                       out_fifo_fill_level <= 0;
+                   end
+                   else begin
+                       out_fifo_fill_level <= next_out_wr_ptr - next_out_rd_ptr;
+                   end
+               end
             end
 
             assign out_fill_level = out_fifo_fill_level + {{ADDR_WIDTH{1'b0}}, out_valid};
@@ -513,43 +709,80 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     generate 
     if (USE_OUT_FILL_LEVEL || STREAM_ALMOST_EMPTY) begin
-
-        always @(posedge out_clk or negedge out_reset_n) begin
-            if (!out_reset_n) begin
-                out_csr_readdata <= 0;
-                if (STREAM_ALMOST_EMPTY) 
-                    almost_empty_threshold <= 0;
-            end
-            else begin
-                if (out_csr_write) begin
-                    if (STREAM_ALMOST_EMPTY && (out_csr_address == 1))
-                        almost_empty_threshold <= out_csr_writedata[23 : 0];
-                end
-                else if (out_csr_read) begin
+         if(SYNC_RESET == 0) begin
+            always @(posedge out_clk or negedge out_reset_n) begin
+                if (!out_reset_n) begin
                     out_csr_readdata <= 0;
+                    if (STREAM_ALMOST_EMPTY) 
+                        almost_empty_threshold <= 0;
+                end
+                else begin
+                    if (out_csr_write) begin
+                        if (STREAM_ALMOST_EMPTY && (out_csr_address == 1))
+                            almost_empty_threshold <= out_csr_writedata[23 : 0];
+                    end
+                    else if (out_csr_read) begin
+                        out_csr_readdata <= 0;
 
-                    if (out_csr_address == 0)
-                        out_csr_readdata[23 : 0] <= out_fill_level;
-                    else if (STREAM_ALMOST_EMPTY && (out_csr_address == 1))
-                        out_csr_readdata[23 : 0] <= almost_empty_threshold;
+                        if (out_csr_address == 0)
+                            out_csr_readdata[23 : 0] <= out_fill_level;
+                        else if (STREAM_ALMOST_EMPTY && (out_csr_address == 1))
+                            out_csr_readdata[23 : 0] <= almost_empty_threshold;
+                    end
                 end
             end
-        end
+         end
+         else begin
+            always @(posedge out_clk) begin
+                if (~internal_out_sclr) begin
+                    out_csr_readdata <= 0;
+                    if (STREAM_ALMOST_EMPTY) 
+                        almost_empty_threshold <= 0;
+                end
+                else begin
+                    if (out_csr_write) begin
+                        if (STREAM_ALMOST_EMPTY && (out_csr_address == 1))
+                            almost_empty_threshold <= out_csr_writedata[23 : 0];
+                    end
+                    else if (out_csr_read) begin
+                        out_csr_readdata <= 0;
+
+                        if (out_csr_address == 0)
+                            out_csr_readdata[23 : 0] <= out_fill_level;
+                        else if (STREAM_ALMOST_EMPTY && (out_csr_address == 1))
+                            out_csr_readdata[23 : 0] <= almost_empty_threshold;
+                    end
+                end
+            end
+         end
 
     end
 
     if (STREAM_ALMOST_EMPTY) begin
-
-        always @(posedge out_clk or negedge out_reset_n) begin
-            if (!out_reset_n) begin
-                almost_empty_valid <= 0;
-                almost_empty_data <= 0;
+         if(SYNC_RESET == 0) begin
+            always @(posedge out_clk or negedge out_reset_n) begin
+                if (!out_reset_n) begin
+                    almost_empty_valid <= 0;
+                    almost_empty_data <= 0;
+                end
+                else begin
+                    almost_empty_valid <= 1'b1;
+                    almost_empty_data <= (out_fill_level <= almost_empty_threshold);
+                end
             end
-            else begin
-                almost_empty_valid <= 1'b1;
-                almost_empty_data <= (out_fill_level <= almost_empty_threshold);
+         end
+         else begin
+            always @(posedge out_clk) begin
+                if (~internal_out_sclr) begin
+                    almost_empty_valid <= 0;
+                    almost_empty_data <= 0;
+                end
+                else begin
+                    almost_empty_valid <= 1'b1;
+                    almost_empty_data <= (out_fill_level <= almost_empty_threshold);
+                end
             end
-        end
+         end
 
     end
     endgenerate
@@ -573,13 +806,25 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate 
         if (USE_IN_FILL_LEVEL || STREAM_ALMOST_FULL) begin
 
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n) begin
-                    in_fill_level <= 0;
-                end
-                else begin
-                    in_fill_level <= next_in_wr_ptr - next_in_rd_ptr;
-                end
+            if(SYNC_RESET == 0) begin
+               always @(posedge in_clk or negedge in_reset_n) begin
+                   if (!in_reset_n) begin
+                       in_fill_level <= 0;
+                   end
+                   else begin
+                       in_fill_level <= next_in_wr_ptr - next_in_rd_ptr;
+                   end
+               end
+            end
+            else begin
+               always @(posedge in_clk) begin
+                   if (~internal_in_sclr) begin
+                       in_fill_level <= 0;
+                   end
+                   else begin
+                       in_fill_level <= next_in_wr_ptr - next_in_rd_ptr;
+                   end
+               end
             end
 
         end
@@ -587,27 +832,42 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     generate
         if (USE_SPACE_AVAIL_IF) begin
-        
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n) begin
-                    in_space_avail <= FIFO_DEPTH;
-                end
-                else begin
-                    // -------------------------------------
-                    // space = DEPTH-fill = DEPTH-(wr-rd) = DEPTH+rd-wr
-                    // Conveniently, DEPTH requires the same number of bits
-                    // as the pointers, e.g. a dcfifo with depth = 8
-                    // requires 4-bit pointers.
-                    //
-                    // Adding 8 to a 4-bit pointer is simply negating the
-                    // first bit... as is done below.
-                    // -------------------------------------
+       
+            if(SYNC_RESET == 0) begin 
+               always @(posedge in_clk or negedge in_reset_n) begin
+                   if (!in_reset_n) begin
+                       in_space_avail <= FIFO_DEPTH;
+                   end
+                   else begin
+                       // -------------------------------------
+                       // space = DEPTH-fill = DEPTH-(wr-rd) = DEPTH+rd-wr
+                       // Conveniently, DEPTH requires the same number of bits
+                       // as the pointers, e.g. a dcfifo with depth = 8
+                       // requires 4-bit pointers.
+                       //
+                       // Adding 8 to a 4-bit pointer is simply negating the
+                       // first bit... as is done below.
+                       // -------------------------------------
 
-                    in_space_avail <= {~next_in_rd_ptr[ADDR_WIDTH], 
-                                        next_in_rd_ptr[ADDR_WIDTH-1:0]} -
-                                      next_in_wr_ptr;
-                end
+                       in_space_avail <= {~next_in_rd_ptr[ADDR_WIDTH], 
+                                           next_in_rd_ptr[ADDR_WIDTH-1:0]} -
+                                         next_in_wr_ptr;
+                   end
+               end   
             end
+            else begin
+               always @(posedge in_clk) begin
+                   if (~internal_in_sclr) begin
+                       in_space_avail <= FIFO_DEPTH;
+                   end
+                   else begin
+                       in_space_avail <= {~next_in_rd_ptr[ADDR_WIDTH], 
+                                           next_in_rd_ptr[ADDR_WIDTH-1:0]} -
+                                         next_in_wr_ptr;
+                   end
+               end   
+            end
+
             assign space_avail_data = in_space_avail;
         end
         else begin : gen_blk13_else
@@ -632,43 +892,80 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     generate 
     if (USE_IN_FILL_LEVEL || STREAM_ALMOST_FULL) begin
-
-        always @(posedge in_clk or negedge in_reset_n) begin
-            if (!in_reset_n) begin
-                in_csr_readdata <= 0;
-                if (STREAM_ALMOST_FULL)
-                    almost_full_threshold <= 0;
-            end
-            else begin
-                if (in_csr_write) begin
-                    if (STREAM_ALMOST_FULL && (in_csr_address == 1))
-                        almost_full_threshold <= in_csr_writedata[23 : 0];
-                end
-                else if (in_csr_read) begin
+         if(SYNC_RESET == 0) begin
+            always @(posedge in_clk or negedge in_reset_n) begin
+                if (!in_reset_n) begin
                     in_csr_readdata <= 0;
+                    if (STREAM_ALMOST_FULL)
+                        almost_full_threshold <= 0;
+                end
+                else begin
+                    if (in_csr_write) begin
+                        if (STREAM_ALMOST_FULL && (in_csr_address == 1))
+                            almost_full_threshold <= in_csr_writedata[23 : 0];
+                    end
+                    else if (in_csr_read) begin
+                        in_csr_readdata <= 0;
 
-                    if (in_csr_address == 0)
-                        in_csr_readdata[23 : 0] <= in_fill_level;
-                    else if (STREAM_ALMOST_FULL && (in_csr_address == 1))
-                        in_csr_readdata[23 : 0] <= almost_full_threshold;
+                        if (in_csr_address == 0)
+                            in_csr_readdata[23 : 0] <= in_fill_level;
+                        else if (STREAM_ALMOST_FULL && (in_csr_address == 1))
+                            in_csr_readdata[23 : 0] <= almost_full_threshold;
+                    end
                 end
             end
-        end
+         end
+         else begin
+            always @(posedge in_clk) begin
+                if (~internal_in_sclr) begin
+                    in_csr_readdata <= 0;
+                    if (STREAM_ALMOST_FULL)
+                        almost_full_threshold <= 0;
+                end
+                else begin
+                    if (in_csr_write) begin
+                        if (STREAM_ALMOST_FULL && (in_csr_address == 1))
+                            almost_full_threshold <= in_csr_writedata[23 : 0];
+                    end
+                    else if (in_csr_read) begin
+                        in_csr_readdata <= 0;
+
+                        if (in_csr_address == 0)
+                            in_csr_readdata[23 : 0] <= in_fill_level;
+                        else if (STREAM_ALMOST_FULL && (in_csr_address == 1))
+                            in_csr_readdata[23 : 0] <= almost_full_threshold;
+                    end
+                end
+            end
+         end
 
     end
 
     if (STREAM_ALMOST_FULL) begin
-
-        always @(posedge in_clk or negedge in_reset_n) begin
-            if (!in_reset_n) begin
-                almost_full_valid <= 0;
-                almost_full_data <= 0;
+         if(SYNC_RESET == 0) begin
+            always @(posedge in_clk or negedge in_reset_n) begin
+                if (!in_reset_n) begin
+                    almost_full_valid <= 0;
+                    almost_full_data <= 0;
+                end
+                else begin
+                    almost_full_valid <= 1'b1;
+                    almost_full_data <= (in_fill_level >= almost_full_threshold);
+                end
             end
-            else begin
-                almost_full_valid <= 1'b1;
-                almost_full_data <= (in_fill_level >= almost_full_threshold);
+         end
+         else begin
+            always @(posedge in_clk) begin
+                if (~internal_in_sclr) begin
+                    almost_full_valid <= 0;
+                    almost_full_data <= 0;
+                end
+                else begin
+                    almost_full_valid <= 1'b1;
+                    almost_full_data <= (in_fill_level >= almost_full_threshold);
+                end
             end
-        end
+         end
 
     end
 

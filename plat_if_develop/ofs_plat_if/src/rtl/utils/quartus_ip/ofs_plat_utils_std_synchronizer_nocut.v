@@ -85,11 +85,13 @@ module ofs_plat_utils_std_synchronizer_nocut (
    (* altera_attribute = {"-name ADV_NETLIST_OPT_ALLOWED NEVER_ALLOW; -name DONT_MERGE_REGISTER ON; -name PRESERVE_REGISTER ON"} *) reg [depth-2:0] dreg;    
    
    //synthesis translate_off
+   `ifndef QUARTUS_CDC
    initial begin
       if (depth <2) begin
          $display("%m: Error: synchronizer length: %0d less than 2.", depth);
       end
    end
+   `endif
 
    // the first synchronizer register is either a simple D flop for synthesis
    // and non-metastable simulation or a D flop with a method to inject random

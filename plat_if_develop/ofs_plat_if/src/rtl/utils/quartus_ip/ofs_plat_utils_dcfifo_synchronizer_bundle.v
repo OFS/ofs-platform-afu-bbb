@@ -1,6 +1,6 @@
-// $File: //acds/rel/19.2/ip/sopc/components/altera_avalon_dc_fifo/altera_dcfifo_synchronizer_bundle.v $
+// $File: //acds/rel/20.2/ip/sopc/components/altera_avalon_dc_fifo/altera_dcfifo_synchronizer_bundle.v $
 // $Revision: #1 $
-// $Date: 2019/03/07 $
+// $Date: 2020/04/03 $
 // $Author: psgswbuild $
 //-------------------------------------------------------------------------------
 
