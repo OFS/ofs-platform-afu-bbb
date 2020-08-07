@@ -42,7 +42,10 @@ module ofs_plat_axi_mem_if_map_bursts
 
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
-    parameter NATURAL_ALIGNMENT = 0
+    parameter NATURAL_ALIGNMENT = 0,
+
+    // Set to a page size if the slave must avoid bursts that cross pages.
+    parameter PAGE_SIZE = 0
     )
    (
     ofs_plat_axi_mem_if.to_master mem_master,
@@ -58,7 +61,7 @@ module ofs_plat_axi_mem_if_map_bursts
     localparam SLAVE_BURST_WIDTH = mem_slave.BURST_CNT_WIDTH_;
 
     generate
-        if ((! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
+        if ((!NATURAL_ALIGNMENT && !PAGE_SIZE && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
             (MASTER_BURST_WIDTH == 1))
         begin : nb
             // There is no alignment requirement and slave can handle all
@@ -85,7 +88,8 @@ module ofs_plat_axi_mem_if_map_bursts
             ofs_plat_axi_mem_if_map_bursts_impl
               #(
                 .UFLAG_NO_REPLY(UFLAG_NO_REPLY),
-                .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+                .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
+                .PAGE_SIZE(PAGE_SIZE)
                 )
               mapper
                (
@@ -121,7 +125,10 @@ module ofs_plat_axi_mem_if_map_bursts_impl
 
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
-    parameter NATURAL_ALIGNMENT = 0
+    parameter NATURAL_ALIGNMENT = 0,
+
+    // Set to a page size if the slave must avoid bursts that cross pages.
+    parameter PAGE_SIZE = 0
     )
    (
     ofs_plat_axi_mem_if.to_master mem_master,
@@ -172,7 +179,8 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         .ADDR_WIDTH(ADDR_WIDTH),
         .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
         .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH),
-        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
+        .PAGE_SIZE(PAGE_SIZE)
         )
        rd_gearbox
         (
@@ -266,7 +274,8 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         .ADDR_WIDTH(ADDR_WIDTH),
         .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
         .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH),
-        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
+        .PAGE_SIZE(PAGE_SIZE)
         )
        wr_gearbox
         (

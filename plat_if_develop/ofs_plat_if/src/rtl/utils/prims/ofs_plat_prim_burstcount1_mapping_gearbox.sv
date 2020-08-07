@@ -46,7 +46,13 @@ module ofs_plat_prim_burstcount1_mapping_gearbox
     parameter ADDR_WIDTH = 0,
     parameter MASTER_BURST_WIDTH = 0,
     parameter SLAVE_BURST_WIDTH = 0,
-    parameter NATURAL_ALIGNMENT = 0
+    // When non-zero emit only naturally aligned requests.
+    parameter NATURAL_ALIGNMENT = 0,
+    // When non-zero ensure that no bursts cross page boundaries. Used
+    // only when NATURAL_ALIGNMENT is 0.
+    // Like ADDR_WIDTH, the PAGE_SIZE is measured in bursts. If the bus
+    // is 64 bytes then PAGE_SIZE of 64 is a 4KB page.
+    parameter PAGE_SIZE = 0
     )
    (
     input  logic clk,
@@ -65,9 +71,9 @@ module ofs_plat_prim_burstcount1_mapping_gearbox
     // Pick an implementation. Natural alignment is more complex, so use
     // it only when necessary.
     generate
-        if (NATURAL_ALIGNMENT == 0)
-        begin : s
-            ofs_plat_prim_burstcount1_simple_mapping_gearbox
+        if (NATURAL_ALIGNMENT != 0)
+        begin : n
+            ofs_plat_prim_burstcount1_natural_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
@@ -86,9 +92,31 @@ module ofs_plat_prim_burstcount1_mapping_gearbox
                 .s_burstcount
                 );
         end
+        else if (PAGE_SIZE != 0)
+        begin : p
+            ofs_plat_prim_burstcount1_page_mapping_gearbox
+              #(
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
+                .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH),
+                .PAGE_SIZE(PAGE_SIZE)
+                )
+              map
+               (
+                .clk,
+                .reset_n,
+                .m_new_req,
+                .m_addr,
+                .m_burstcount,
+                .s_accept_req,
+                .s_req_complete,
+                .s_addr,
+                .s_burstcount
+                );
+        end
         else
-        begin : n
-            ofs_plat_prim_burstcount1_natural_mapping_gearbox
+        begin : s
+            ofs_plat_prim_burstcount1_simple_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
@@ -193,12 +221,145 @@ module ofs_plat_prim_burstcount1_simple_mapping_gearbox
 endmodule // ofs_plat_prim_burstcount1_simple_mapping_gearbox
 
 
-module ofs_plat_prim_burstcount1_natural_mapping_gearbox
+//
+// Mapping with page boundary enforcement. Bursts may not cross pages.
+//
+module ofs_plat_prim_burstcount1_page_mapping_gearbox
   #(
     parameter ADDR_WIDTH = 0,
     parameter MASTER_BURST_WIDTH = 0,
     parameter SLAVE_BURST_WIDTH = 0,
-    parameter NATURAL_ALIGNMENT = 1
+    // Like ADDR_WIDTH, the PAGE_SIZE is measured in bursts. If the bus
+    // is 64 bytes then PAGE_SIZE of 64 is a 4KB page.
+    parameter PAGE_SIZE
+    )
+   (
+    input  logic clk,
+    input  logic reset_n,
+
+    input  logic m_new_req,
+    input  logic [ADDR_WIDTH-1 : 0] m_addr,
+    input  logic [MASTER_BURST_WIDTH-1 : 0] m_burstcount,
+
+    input  logic s_accept_req,
+    output logic s_req_complete,
+    output logic [ADDR_WIDTH-1 : 0] s_addr,
+    output logic [SLAVE_BURST_WIDTH-1 : 0] s_burstcount
+    );
+
+    typedef logic [ADDR_WIDTH-1 : 0] t_addr;
+
+    localparam MASTER_MAX_BURST = (1 << (MASTER_BURST_WIDTH-1));
+    typedef logic [MASTER_BURST_WIDTH-1 : 0] t_master_burst_cnt;
+
+    localparam SLAVE_MAX_BURST = (1 << (SLAVE_BURST_WIDTH-1));
+    typedef logic [SLAVE_BURST_WIDTH-1 : 0] t_slave_burst_cnt;
+
+    typedef logic [$clog2(PAGE_SIZE) : 0] t_page_burst_cnt;
+
+    // synthesis translate_off
+    initial
+    begin : error_proc
+        if (PAGE_SIZE != (2 ** $clog2(PAGE_SIZE)))
+            $fatal(2, "** ERROR ** %m: PAGE_SIZE (%0d) must be a power of 2!", PAGE_SIZE);
+        if (PAGE_SIZE <= SLAVE_MAX_BURST)
+            $fatal(2, "** ERROR ** %m: PAGE_SIZE (%0d) must be larger than slave bursts (%0d)!", PAGE_SIZE, SLAVE_MAX_BURST);
+    end
+    // synthesis translate_on
+
+    //
+    // Burst count to end of page, starting at addr.
+    //
+    function automatic t_page_burst_cnt page_burst_to_end(t_addr addr);
+        // Offset in the page. The high bit is there to represent PAGE_SIZE,
+        // so set it to 0.
+        t_page_burst_cnt page_offset = { 1'b0, addr[$bits(t_page_burst_cnt)-2 : 0] };
+
+        return t_page_burst_cnt'(PAGE_SIZE) - page_offset;
+    endfunction // page_burst_to_end
+
+    //
+    // Can the master burst request be encoded as a slave burst?
+    //
+    function automatic logic next_burst_is_last(t_master_burst_cnt burst_req, t_addr addr);
+        // page_max: distance to the end of the page
+        t_page_burst_cnt page_max = page_burst_to_end(addr);
+
+        logic not_last =
+              // Burst extends beyond page
+              (t_page_burst_cnt'(burst_req) > page_max) ||
+              // Master burst is larger than fits in slave burst counter
+              ((SLAVE_BURST_WIDTH < MASTER_BURST_WIDTH) &&
+               (burst_req > t_master_burst_cnt'(SLAVE_MAX_BURST)));
+
+        return !not_last;
+    endfunction // next_burst_is_last
+
+    function automatic t_slave_burst_cnt max_burst_at_addr(t_addr addr);
+        t_page_burst_cnt page_max = page_burst_to_end(addr);
+        if (page_max < t_page_burst_cnt'(SLAVE_MAX_BURST))
+        begin
+            return t_slave_burst_cnt'(page_max);
+        end
+
+        return t_slave_burst_cnt'(SLAVE_MAX_BURST);
+    endfunction // max_burst_at_addr
+
+    t_master_burst_cnt burstcount;
+
+    t_master_burst_cnt next_burstcount;
+    t_addr next_addr;
+
+    always_comb
+    begin
+        if (m_new_req)
+        begin
+            // New request -- the last one is complete
+            next_burstcount = m_burstcount;
+            next_addr = m_addr;
+        end
+        else if (s_accept_req)
+        begin
+            // The existing request is only partially transmitted. Underflow
+            // in the next cycle's remaining burst is irrelevant since
+            // s_req_complete will stop the burst. Just subtract the max slave
+            // burst instead of the correct s_burstcount.
+            next_burstcount = burstcount - max_burst_at_addr(s_addr);
+            next_addr = s_addr + max_burst_at_addr(s_addr);
+        end
+        else
+        begin
+            next_burstcount = burstcount;
+            next_addr = s_addr;
+        end
+    end
+
+    always_ff @(posedge clk)
+    begin
+        burstcount <= next_burstcount;
+        s_addr <= next_addr;
+        s_req_complete <= next_burst_is_last(next_burstcount, next_addr);
+
+        if (!reset_n)
+        begin
+            burstcount <= t_master_burst_cnt'(0);
+            s_req_complete <= 1'b1;
+        end
+    end
+
+    // Pick a legal burst count in the slave (at most SLAVE_MAX_BURST).
+    assign s_burstcount = s_req_complete ?
+                              t_slave_burst_cnt'(burstcount) :
+                              max_burst_at_addr(s_addr);
+
+endmodule // ofs_plat_prim_burstcount1_page_mapping_gearbox
+
+
+module ofs_plat_prim_burstcount1_natural_mapping_gearbox
+  #(
+    parameter ADDR_WIDTH = 0,
+    parameter MASTER_BURST_WIDTH = 0,
+    parameter SLAVE_BURST_WIDTH = 0
     )
    (
     input  logic clk,

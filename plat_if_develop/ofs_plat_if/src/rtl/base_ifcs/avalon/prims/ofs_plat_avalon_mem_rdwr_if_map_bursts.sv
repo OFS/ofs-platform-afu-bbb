@@ -43,7 +43,10 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
     // Set to non-zero if addresses in the slave must be naturally aligned to
     // the burst size.
-    parameter NATURAL_ALIGNMENT = 0
+    parameter NATURAL_ALIGNMENT = 0,
+
+    // Set to a page size if the slave must avoid bursts that cross pages.
+    parameter PAGE_SIZE = 0
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
@@ -75,7 +78,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     typedef logic [USER_WIDTH-1 : 0] t_user;
 
     generate
-        if ((! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
+        if ((!NATURAL_ALIGNMENT && !PAGE_SIZE && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
             (MASTER_BURST_WIDTH == 1))
         begin : nb
             // There is no alignment requirement and slave can handle all
@@ -107,7 +110,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
                 .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH),
-                .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+                .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
+                .PAGE_SIZE(PAGE_SIZE)
                 )
                rd_gearbox
                 (
@@ -168,7 +172,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
                 .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH),
-                .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+                .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
+                .PAGE_SIZE(PAGE_SIZE)
                 )
                wr_gearbox
                 (

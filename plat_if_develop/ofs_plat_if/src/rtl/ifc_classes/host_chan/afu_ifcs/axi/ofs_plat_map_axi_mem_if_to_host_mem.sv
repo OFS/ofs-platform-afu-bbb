@@ -44,6 +44,9 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     // Does the host memory port require natural alignment?
     parameter NATURAL_ALIGNMENT = 0,
 
+    // Does the host memory port require avoiding page crossing?
+    parameter PAGE_SIZE = 0,
+
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
     parameter MAX_ACTIVE_WR_LINES = 256
@@ -79,7 +82,8 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     ofs_plat_axi_mem_if_map_bursts
       #(
         .UFLAG_NO_REPLY(ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_NO_REPLY),
-        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
+        .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
+        .PAGE_SIZE(PAGE_SIZE)
         )
       map_bursts
        (

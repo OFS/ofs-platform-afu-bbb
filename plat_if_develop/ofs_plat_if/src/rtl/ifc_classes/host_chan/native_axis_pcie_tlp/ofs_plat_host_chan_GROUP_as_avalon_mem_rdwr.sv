@@ -489,13 +489,13 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     // to guarantee this, we sort responses.
     ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
       #(
-        // Temporarily use natural alignment until we deal with 4KB
-        // page crossings.
-        .NATURAL_ALIGNMENT(1),
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
-        .USER_ROB_IDX_START(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1)
+        .USER_ROB_IDX_START(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1),
+        // Don't allow packets to cross 4KB pages due to PCIe requirement. PAGE_SIZE
+        // is translated here to the width of the Avalon data bus.
+        .PAGE_SIZE(4096 / (host_mem_to_afu.DATA_WIDTH_ / 8))
         )
       rob
        (

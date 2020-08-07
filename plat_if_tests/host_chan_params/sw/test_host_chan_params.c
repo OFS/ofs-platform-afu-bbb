@@ -529,7 +529,7 @@ testSmallRegions(
     while (burst_size <= max_burst_size)
     {
         uint64_t num_bursts = 1;
-        while (num_bursts < 20)
+        while (num_bursts < 100)
         {
             //
             // Test only reads (mode 1), only writes (mode 2) and
