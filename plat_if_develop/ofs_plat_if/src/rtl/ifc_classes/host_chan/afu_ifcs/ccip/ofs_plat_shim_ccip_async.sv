@@ -42,14 +42,14 @@
 
 module ofs_plat_shim_ccip_async
   #(
-    parameter DEBUG_ENABLE          = 0,
+    parameter DEBUG_ENABLE = 0,
 
     // There is no back pressure on C2TX, so it must be large enough to hold the
     // maximum outstanding MMIO read requests.
-    parameter C2TX_DEPTH_RADIX      = $clog2(ccip_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS),
+    parameter C2TX_DEPTH = ccip_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS,
 
-    parameter C0RX_DEPTH_RADIX      = $clog2(2 * ccip_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0]),
-    parameter C1RX_DEPTH_RADIX      = $clog2(2 * ccip_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0]),
+    parameter C0RX_DEPTH = 2 * ccip_cfg_pkg::C0_MAX_BW_ACTIVE_LINES[0],
+    parameter C1RX_DEPTH = 2 * ccip_cfg_pkg::C1_MAX_BW_ACTIVE_LINES[0],
 
     // Extra space to add to almust full buffering
     parameter EXTRA_ALMOST_FULL_STAGES = 0
@@ -79,10 +79,13 @@ module ofs_plat_shim_ccip_async
     localparam C0RX_TOTAL_WIDTH = 3 + $bits(t_ccip_c0_RspMemHdr) + CCIP_CLDATA_WIDTH;
     localparam C1RX_TOTAL_WIDTH = $bits(t_ccip_c1_RspMemHdr);
 
+    localparam C0RX_DEPTH_RADIX = $clog2(C0RX_DEPTH);
+    localparam C1RX_DEPTH_RADIX = $clog2(C1RX_DEPTH);
+
     // TX buffers just need to be large enough to avoid pipeline back pressure.
     // The TX rate limiter is the slower of the AFU and FIU clocks, not the TX buffer.
-    localparam C0TX_DEPTH_RADIX = $clog2(3 * CCIP_TX_ALMOST_FULL_THRESHOLD +
-                                         EXTRA_ALMOST_FULL_STAGES);
+    localparam C0TX_DEPTH = 3 * CCIP_TX_ALMOST_FULL_THRESHOLD +
+                            EXTRA_ALMOST_FULL_STAGES;
 
     // Leave a little extra room in Tx buffers to avoid overflow
     localparam C0TX_ALMOST_FULL_THRESHOLD = CCIP_TX_ALMOST_FULL_THRESHOLD +
@@ -91,8 +94,8 @@ module ofs_plat_shim_ccip_async
 
     // Write buffers are slightly larger because even 4-line write requests
     // send a line at a time.
-    localparam C1TX_DEPTH_RADIX = $clog2(4 * CCIP_TX_ALMOST_FULL_THRESHOLD +
-                                         EXTRA_ALMOST_FULL_STAGES);
+    localparam C1TX_DEPTH = 4 * CCIP_TX_ALMOST_FULL_THRESHOLD +
+                            EXTRA_ALMOST_FULL_STAGES;
     localparam C1TX_ALMOST_FULL_THRESHOLD = CCIP_TX_ALMOST_FULL_THRESHOLD +
                                             (CCIP_TX_ALMOST_FULL_THRESHOLD / 2) +
                                             EXTRA_ALMOST_FULL_STAGES;
@@ -110,16 +113,6 @@ module ofs_plat_shim_ccip_async
         end
     end
     // synthesis translate_on
-
-    logic reset_n_async;
-    ofs_plat_prim_clock_crossing_reset_async
-      reset_async_cc
-       (
-        .clk(to_fiu.clk),
-        .reset_in(to_fiu.reset_n),
-        .reset_out(reset_n_async)
-        );
-
 
     //
     // Error synchronizer
@@ -170,44 +163,38 @@ module ofs_plat_shim_ccip_async
      */
     logic               c0tx_almfull;
     t_ccip_c0_ReqMemHdr c0tx_dout;
-    logic               c0tx_rdreq, c0tx_rdreq_q;
-    logic               c0tx_rdempty;
-    logic               c0tx_fifo_wrfull;
+    logic               c0tx_rdreq;
+    logic               c0tx_notEmpty;
+    logic               c0tx_fifo_notFull;
 
-    ofs_plat_utils_dc_fifo
+    ofs_plat_prim_fifo_dc
       #(
-        .DATA_WIDTH(C0TX_TOTAL_WIDTH),
-        .DEPTH_RADIX(C0TX_DEPTH_RADIX),
-        .ALMOST_FULL_THRESHOLD(C0TX_ALMOST_FULL_THRESHOLD)
+        .N_DATA_BITS(C0TX_TOTAL_WIDTH),
+        .N_ENTRIES(C0TX_DEPTH),
+        .THRESHOLD(C0TX_ALMOST_FULL_THRESHOLD)
         )
-     c0tx_afifo
+      c0tx_afifo
        (
-        .data(afu_sTx_q.c0.hdr),
-        .wrreq(afu_sTx_q.c0.valid && ! c0tx_fifo_wrfull),
-        .rdreq(c0tx_rdreq),
-        .wrclk(afu_clk),
-        .rdclk(to_fiu.clk),
-        .aclr(!reset_n_async),
-        .q(c0tx_dout),
-        .rdusedw(),
-        .wrusedw(),
-        .rdfull(),
-        .rdempty(c0tx_rdempty),
-        .wrfull(c0tx_fifo_wrfull),
-        .wralmfull(c0tx_almfull),
-        .wrempty()
+        .enq_clk(afu_clk),
+        .enq_reset_n(to_afu.reset_n),
+        .enq_data(afu_sTx_q.c0.hdr),
+        .enq_en(afu_sTx_q.c0.valid),
+        .notFull(c0tx_fifo_notFull),
+        .almostFull(c0tx_almfull),
+
+        .deq_clk(to_fiu.clk),
+        .deq_reset_n(to_fiu.reset_n),
+        .first(c0tx_dout),
+        .deq_en(c0tx_rdreq),
+        .notEmpty(c0tx_notEmpty)
         );
 
     // Forward FIFO toward FIU when there is data and the output channel is available
-    assign c0tx_rdreq = ! c0tx_rdempty && ! fiu_sRx_q.c0TxAlmFull;
-    always_ff @(posedge to_fiu.clk)
-    begin
-        c0tx_rdreq_q <= c0tx_rdreq;
-    end
+    assign c0tx_rdreq = c0tx_notEmpty && ! fiu_sRx_q.c0TxAlmFull;
 
     always_comb
     begin
-        fiu_sTx_next.c0.valid = c0tx_rdreq_q;
+        fiu_sTx_next.c0.valid = c0tx_rdreq;
         fiu_sTx_next.c0.hdr = c0tx_dout;
     end
 
@@ -262,57 +249,43 @@ module ofs_plat_shim_ccip_async
     logic               c1tx_almfull;
     t_ccip_c1_ReqMemHdr c1tx_dout_hdr;
     t_ccip_clData       c1tx_dout_data;
-    logic               c1tx_rdreq, c1tx_rdreq_q;
-    logic               c1tx_rdempty;
-    logic               c1tx_fifo_wrfull;
+    logic               c1tx_rdreq;
+    logic               c1tx_fifo_notEmpty;
+    logic               c1tx_fifo_notFull;
 
-    ofs_plat_utils_dc_fifo
+    ofs_plat_prim_fifo_dc
       #(
-        .DATA_WIDTH(C1TX_TOTAL_WIDTH),
-        .DEPTH_RADIX(C1TX_DEPTH_RADIX),
-        .ALMOST_FULL_THRESHOLD(C1TX_ALMOST_FULL_THRESHOLD)
+        .N_DATA_BITS(C1TX_TOTAL_WIDTH),
+        .N_ENTRIES(C1TX_DEPTH),
+        .THRESHOLD(C1TX_ALMOST_FULL_THRESHOLD)
         )
-     c1tx_afifo
+      c1tx_afifo
        (
-        .data({afu_sTx_q.c1.hdr, afu_sTx_q.c1.data}),
-        .wrreq(afu_sTx_q.c1.valid && ! c1tx_fifo_wrfull),
-        .rdreq(c1tx_rdreq),
-        .wrclk(afu_clk),
-        .rdclk(to_fiu.clk),
-        .aclr(!reset_n_async),
-        .q({c1tx_dout_hdr, c1tx_dout_data}),
-        .rdusedw(),
-        .wrusedw(),
-        .rdfull(),
-        .rdempty(c1tx_rdempty),
-        .wrfull(c1tx_fifo_wrfull),
-        .wralmfull(c1tx_almfull),
-        .wrempty()
+        .enq_clk(afu_clk),
+        .enq_reset_n(to_afu.reset_n),
+        .enq_data({afu_sTx_q.c1.hdr, afu_sTx_q.c1.data}),
+        .enq_en(afu_sTx_q.c1.valid),
+        .notFull(c1tx_fifo_notFull),
+        .almostFull(c1tx_almfull),
+
+        .deq_clk(to_fiu.clk),
+        .deq_reset_n(to_fiu.reset_n),
+        .first({c1tx_dout_hdr, c1tx_dout_data}),
+        .deq_en(c1tx_rdreq),
+        .notEmpty(c1tx_fifo_notEmpty)
         );
 
     // Track partial packets to avoid stopping the flow in the middle of a packet,
     // even when c1TxAlmFull is asserted.
     logic c1tx_in_partial_packet;
-    logic c1tx_complete_partial_packet;
-    // Force completion of the packet when in the middle of a packet and no requests
-    // have fired since the partial packet was detected.  The packet will complete
-    // with some bubbles due to the pipeline, but this doesn't matter since almost
-    // full must have been asserted.
-    assign c1tx_complete_partial_packet = c1tx_in_partial_packet &&
-                                          ! c1tx_rdreq_q;
 
     // Forward FIFO toward FIU when there is data and the output channel is available
-    assign c1tx_rdreq = ! c1tx_rdempty &&
-                        (! fiu_sRx_q.c1TxAlmFull || c1tx_complete_partial_packet);
-
-    always_ff @(posedge to_fiu.clk)
-    begin
-        c1tx_rdreq_q <= c1tx_rdreq;
-    end
+    assign c1tx_rdreq = c1tx_fifo_notEmpty &&
+                        (! fiu_sRx_q.c1TxAlmFull || c1tx_in_partial_packet);
 
     always_comb
     begin
-        fiu_sTx_next.c1.valid = c1tx_rdreq_q;
+        fiu_sTx_next.c1.valid = c1tx_rdreq;
         fiu_sTx_next.c1.hdr = c1tx_dout_hdr;
         fiu_sTx_next.c1.data = c1tx_dout_data;
     end
@@ -324,7 +297,7 @@ module ofs_plat_shim_ccip_async
 
     always_ff @(posedge to_fiu.clk)
     begin
-        if (c1tx_rdreq_q)
+        if (c1tx_rdreq)
         begin
             if (c1tx_in_partial_packet)
             begin
@@ -397,42 +370,36 @@ module ofs_plat_shim_ccip_async
      * C2Tx Channel
      */
     logic [C2TX_TOTAL_WIDTH-1:0] c2tx_dout;
-    logic                        c2tx_rdreq, c2tx_rdreq_q;
-    logic                        c2tx_rdempty;
-    logic                        c2tx_fifo_wrfull;
+    logic                        c2tx_rdreq;
+    logic                        c2tx_fifo_notEmpty;
+    logic                        c2tx_fifo_notFull;
 
-    ofs_plat_utils_dc_fifo
+    ofs_plat_prim_fifo_dc
       #(
-        .DATA_WIDTH(C2TX_TOTAL_WIDTH),
-        .DEPTH_RADIX(C2TX_DEPTH_RADIX)
+        .N_DATA_BITS(C2TX_TOTAL_WIDTH),
+        .N_ENTRIES(C2TX_DEPTH)
         )
       c2tx_afifo
        (
-        .data({afu_sTx_q.c2.hdr, afu_sTx_q.c2.data}),
-        .wrreq(afu_sTx_q.c2.mmioRdValid & ! c2tx_fifo_wrfull),
-        .rdreq(c2tx_rdreq),
-        .wrclk(afu_clk),
-        .rdclk(to_fiu.clk),
-        .aclr(!reset_n_async),
-        .q(c2tx_dout),
-        .rdusedw(),
-        .wrusedw(),
-        .rdfull(),
-        .rdempty(c2tx_rdempty),
-        .wrfull(c2tx_fifo_wrfull),
-        .wralmfull(),
-        .wrempty()
+        .enq_clk(afu_clk),
+        .enq_reset_n(to_afu.reset_n),
+        .enq_data({afu_sTx_q.c2.hdr, afu_sTx_q.c2.data}),
+        .enq_en(afu_sTx_q.c2.mmioRdValid),
+        .notFull(c2tx_fifo_notFull),
+        .almostFull(),
+
+        .deq_clk(to_fiu.clk),
+        .deq_reset_n(to_fiu.reset_n),
+        .first(c2tx_dout),
+        .deq_en(c2tx_rdreq),
+        .notEmpty(c2tx_fifo_notEmpty)
         );
 
-    assign c2tx_rdreq = ! c2tx_rdempty;
-    always_ff @(posedge to_fiu.clk)
-    begin
-        c2tx_rdreq_q <= c2tx_rdreq;
-    end
+    assign c2tx_rdreq = c2tx_fifo_notEmpty;
 
     always_comb
     begin
-        fiu_sTx_next.c2.mmioRdValid = c2tx_rdreq_q;
+        fiu_sTx_next.c2.mmioRdValid = c2tx_rdreq;
         {fiu_sTx_next.c2.hdr, fiu_sTx_next.c2.data} = c2tx_dout;
     end
 
@@ -441,38 +408,32 @@ module ofs_plat_shim_ccip_async
      * C0Rx Channel
      */
     logic [C0RX_TOTAL_WIDTH-1:0] c0rx_dout;
-    logic                        c0rx_rdreq, c0rx_rdreq_q;
-    logic                        c0rx_rdempty;
-    logic                        c0rx_fifo_wrfull;
+    logic                        c0rx_rdreq;
+    logic                        c0rx_fifo_notEmpty;
+    logic                        c0rx_fifo_notFull;
 
-    ofs_plat_utils_dc_fifo
+    ofs_plat_prim_fifo_dc
       #(
-        .DATA_WIDTH(C0RX_TOTAL_WIDTH),
-        .DEPTH_RADIX(C0RX_DEPTH_RADIX)
+        .N_DATA_BITS(C0RX_TOTAL_WIDTH),
+        .N_ENTRIES(C0RX_DEPTH)
         )
       c0rx_afifo
        (
-        .data({fiu_sRx_q.c0.hdr, fiu_sRx_q.c0.data, fiu_sRx_q.c0.rspValid, fiu_sRx_q.c0.mmioRdValid, fiu_sRx_q.c0.mmioWrValid}),
-        .wrreq(fiu_sRx_q.c0.rspValid | fiu_sRx_q.c0.mmioRdValid |  fiu_sRx_q.c0.mmioWrValid),
-        .rdreq(c0rx_rdreq),
-        .wrclk(to_fiu.clk),
-        .rdclk(afu_clk),
-        .aclr(!reset_n_async),
-        .q(c0rx_dout),
-        .rdusedw(),
-        .wrusedw(),
-        .rdfull(),
-        .rdempty(c0rx_rdempty),
-        .wrfull(c0rx_fifo_wrfull),
-        .wralmfull(),
-        .wrempty()
+        .enq_clk(to_fiu.clk),
+        .enq_reset_n(to_fiu.reset_n),
+        .enq_data({fiu_sRx_q.c0.hdr, fiu_sRx_q.c0.data, fiu_sRx_q.c0.rspValid, fiu_sRx_q.c0.mmioRdValid, fiu_sRx_q.c0.mmioWrValid}),
+        .enq_en(fiu_sRx_q.c0.rspValid | fiu_sRx_q.c0.mmioRdValid |  fiu_sRx_q.c0.mmioWrValid),
+        .notFull(c0rx_fifo_notFull),
+        .almostFull(),
+
+        .deq_clk(afu_clk),
+        .deq_reset_n(to_afu.reset_n),
+        .first(c0rx_dout),
+        .deq_en(c0rx_rdreq),
+        .notEmpty(c0rx_fifo_notEmpty)
         );
 
-    assign c0rx_rdreq = ! c0rx_rdempty;
-    always_ff @(posedge afu_clk)
-    begin
-        c0rx_rdreq_q <= c0rx_rdreq;
-    end
+    assign c0rx_rdreq = c0rx_fifo_notEmpty;
 
     always_comb
     begin
@@ -480,7 +441,7 @@ module ofs_plat_shim_ccip_async
           afu_sRx_next.c0.rspValid, afu_sRx_next.c0.mmioRdValid,
           afu_sRx_next.c0.mmioWrValid } = c0rx_dout;
 
-        if (! c0rx_rdreq_q)
+        if (! c0rx_rdreq)
         begin
             afu_sRx_next.c0.rspValid = 1'b0;
             afu_sRx_next.c0.mmioRdValid = 1'b0;
@@ -493,42 +454,36 @@ module ofs_plat_shim_ccip_async
      * C1Rx Channel
      */
     t_ccip_c1_RspMemHdr c1rx_dout;
-    logic               c1rx_rdreq, c1rx_rdreq_q;
-    logic               c1rx_rdempty;
-    logic               c1rx_fifo_wrfull;
+    logic               c1rx_rdreq;
+    logic               c1rx_fifo_notEmpty;
+    logic               c1rx_fifo_notFull;
 
-    ofs_plat_utils_dc_fifo
+    ofs_plat_prim_fifo_dc
       #(
-        .DATA_WIDTH(C1RX_TOTAL_WIDTH),
-        .DEPTH_RADIX(C1RX_DEPTH_RADIX)
+        .N_DATA_BITS(C1RX_TOTAL_WIDTH),
+        .N_ENTRIES(C1RX_DEPTH)
         )
       c1rx_afifo
        (
-        .data(fiu_sRx_q.c1.hdr),
-        .wrreq(fiu_sRx_q.c1.rspValid),
-        .rdreq(c1rx_rdreq),
-        .wrclk(to_fiu.clk),
-        .rdclk(afu_clk),
-        .aclr(!reset_n_async),
-        .q(c1rx_dout),
-        .rdusedw(),
-        .wrusedw(),
-        .rdfull(),
-        .rdempty(c1rx_rdempty),
-        .wrfull(c1rx_fifo_wrfull),
-        .wralmfull(),
-        .wrempty()
+        .enq_clk(to_fiu.clk),
+        .enq_reset_n(to_fiu.reset_n),
+        .enq_data(fiu_sRx_q.c1.hdr),
+        .enq_en(fiu_sRx_q.c1.rspValid),
+        .notFull(c1rx_fifo_notFull),
+        .almostFull(),
+
+        .deq_clk(afu_clk),
+        .deq_reset_n(to_afu.reset_n),
+        .first(c1rx_dout),
+        .deq_en(c1rx_rdreq),
+        .notEmpty(c1rx_fifo_notEmpty)
         );
 
-    assign c1rx_rdreq = ! c1rx_rdempty;
-    always_ff @(posedge afu_clk)
-    begin
-        c1rx_rdreq_q <= c1rx_rdreq;
-    end
+    assign c1rx_rdreq = c1rx_fifo_notEmpty;
 
     always_comb
     begin
-        afu_sRx_next.c1.rspValid = c1rx_rdreq_q;
+        afu_sRx_next.c1.rspValid = c1rx_rdreq;
         afu_sRx_next.c1.hdr = c1rx_dout;
     end
 
@@ -552,11 +507,11 @@ module ofs_plat_shim_ccip_async
         begin
             // Hold the error state once set
             async_shim_error[0] <= async_shim_error[0] ||
-                                   (c0tx_fifo_wrfull && afu_sTx_q.c0.valid);
+                                   (!c0tx_fifo_notFull && afu_sTx_q.c0.valid);
             async_shim_error[1] <= async_shim_error[1] ||
-                                   (c1tx_fifo_wrfull && afu_sTx_q.c1.valid);
+                                   (!c1tx_fifo_notFull && afu_sTx_q.c1.valid);
             async_shim_error[2] <= async_shim_error[2] ||
-                                   (c2tx_fifo_wrfull && afu_sTx_q.c2.mmioRdValid);
+                                   (!c2tx_fifo_notFull && afu_sTx_q.c2.mmioRdValid);
         end
     end
 
@@ -574,11 +529,11 @@ module ofs_plat_shim_ccip_async
         begin
             // Hold the error state once set
             async_shim_error_fiu[0] <= async_shim_error_fiu[0] ||
-                                       (c0rx_fifo_wrfull && (fiu_sRx_q.c0.rspValid ||
-                                                             fiu_sRx_q.c0.mmioRdValid ||
-                                                             fiu_sRx_q.c0.mmioWrValid));
+                                       (!c0rx_fifo_notFull && (fiu_sRx_q.c0.rspValid ||
+                                                               fiu_sRx_q.c0.mmioRdValid ||
+                                                               fiu_sRx_q.c0.mmioWrValid));
             async_shim_error_fiu[1] <= async_shim_error_fiu[1] ||
-                                       (c1rx_fifo_wrfull && fiu_sRx_q.c1.rspValid);
+                                       (!c1rx_fifo_notFull && fiu_sRx_q.c1.rspValid);
         end
     end
 
