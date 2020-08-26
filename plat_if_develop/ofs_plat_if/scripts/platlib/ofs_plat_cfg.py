@@ -146,9 +146,9 @@ class ofs_plat_cfg(object):
 
     def section_instance_noun(self, section):
         """The "instance noun" for a section is the noun used to name
-        multiple instances of the class, such as "ports" or "banks". The
-        noun is inferred from parameters associated with the section,
-        such as "num_ports" and "num_banks"."""
+        multiple instances of the class, such as "ports", "banks" or
+        "channels". The noun is inferred from parameters associated
+        with the section, such as "num_ports" and "num_banks"."""
 
         return self.instance_noun[section]
 
@@ -244,8 +244,9 @@ class ofs_plat_cfg(object):
         # Record the least-significant level with a parameter indicating
         # the noun. The found name records will be strings with the name
         # of the level, which will be used for error messages if needed.
+        self.instance_noun[s] = None
         found = {}
-        for noun in ['ports', 'banks']:
+        for noun in ['ports', 'banks', 'channels']:
             flag = 'num_' + noun
             if (self.config.has_option(s, flag)):
                 found[noun] = self.ini_file + ':[' + s + ']'
@@ -254,18 +255,22 @@ class ofs_plat_cfg(object):
             if (self.defaults.has_option(default_class, flag)):
                 found[noun] = 'defaults.ini:[' + default_class + ']'
 
-        self.instance_noun[s] = ''
-        if ('ports' in found) and ('banks' not in found):
-            self.instance_noun[s] = 'ports'
-        elif ('ports' not in found) and ('banks' in found):
-            self.instance_noun[s] = 'banks'
-        elif ('ports' not in found) and ('banks' not in found):
-            self.__errorExit('Class ' + s + ' must define either ' +
-                             '"num_ports" or "num_banks"!')
-        else:
-            self.__errorExit('Class ' + s + ' illegaly defines both ' +
-                             '"num_ports" (' + found['ports'] + ') and ' +
-                             '"num_banks" (' + found['banks'] + ')!')
+            if (noun in found):
+                # Don't allow multiple nouns
+                if (self.instance_noun[s]):
+                    self.__errorExit('Class {0} illegaly defines both '
+                                     '"num_{1}" ({2}) and '
+                                     '"num_{3}" ({4})!'.format(
+                                         s,
+                                         self.instance_noun[s],
+                                         found[self.instance_noun[s]],
+                                         noun, found[noun]))
+
+                self.instance_noun[s] = noun
+
+        if (not self.instance_noun[s]):
+            self.__errorExit('Class ' + s + ' must define "num_ports", ' +
+                             '"num_banks" or "num_channels"!')
 
     def __errorExit(self, msg):
         sys.stderr.write("\nError in ofs_plat_cfg: " + msg + "\n")

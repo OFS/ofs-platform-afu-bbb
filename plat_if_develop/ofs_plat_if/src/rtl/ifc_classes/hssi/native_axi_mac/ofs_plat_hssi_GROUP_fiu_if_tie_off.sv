@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018, Intel Corporation
+// Copyright (c) 2019, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,49 +28,23 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
 //
-// Manage logging to shared files. A collection of global file handles is
-// maintained, allowing multiple modules to log to the same file.
+// Tie off a single hssi_if channel.
 //
 
-package ofs_plat_log_pkg;
+`include "ofs_plat_if.vh"
 
-    typedef enum
-    {
-        NONE = 0,        // Don't log
-        HOST_CHAN = 1,
-        LOCAL_MEM = 2,
-        HSSI = 3
-    }
-    t_log_class;
+module ofs_plat_hssi_@group@_fiu_if_tie_off
+   (
+    ofs_plat_hssi_@group@_channel_if channel
+    );
 
-    // What is the name for an instance of the class?
-    localparam string instance_name[4] = {
-        "",
-        "port",
-        "bank",
-        "chan"
-        };
+    always_comb
+    begin
+        channel.data_rx.tready = 1'b0;
+        channel.data_tx.tx = '0;
+        channel.sb_tx.sb = '0;
+    end
 
-    int log_fds[4] = '{4{-1}};
-    localparam string log_names[4] = {
-        "",
-        "log_ofs_plat_host_chan.tsv",
-        "log_ofs_plat_local_mem.tsv",
-        "log_ofs_plat_hssi.tsv"
-        };
-
-    // Get the file descriptor for a group
-    function automatic int get_fd(t_log_class g);
-        if (g == NONE) return -1;
-
-        // Open the file if necessary
-        if (log_fds[g] == -1)
-        begin
-            log_fds[g] = $fopen(log_names[g], "w");
-        end
-
-        return log_fds[g];
-    endfunction
-
-endpackage // ofs_plat_log_pkg
+endmodule // ofs_plat_hssi_@group@_fiu_if_tie_off

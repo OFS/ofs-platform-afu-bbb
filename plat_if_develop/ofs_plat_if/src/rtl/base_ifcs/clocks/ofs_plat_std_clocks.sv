@@ -53,13 +53,24 @@ module ofs_plat_std_clocks_gen_resets
     assign clocks.uClk_usr.clk = uClk_usr;
     assign clocks.uClk_usrDiv2.clk = uClk_usrDiv2;
 
-    assign clocks.pClk.reset_n = pClk_reset_n;
+    logic softreset_n = 1'b0;
+    assign clocks.pClk.reset_n = softreset_n;
+
+    // Guarantee reset is never 'x in simulation
+    always @(posedge pClk)
+    begin
+        softreset_n <= pClk_reset_n;
+
+        // synthesis translate_off
+        if (pClk_reset_n === 1'bx) softreset_n <= 1'b0;
+        // synthesis translate_on
+    end
 
     ofs_plat_prim_clock_crossing_reset pClkDiv2_reset
        (
         .clk_src(pClk),
         .clk_dst(pClkDiv2),
-        .reset_in(pClk_reset_n),
+        .reset_in(softreset_n),
         .reset_out(clocks.pClkDiv2.reset_n)
         );
 
@@ -67,7 +78,7 @@ module ofs_plat_std_clocks_gen_resets
        (
         .clk_src(pClk),
         .clk_dst(pClkDiv4),
-        .reset_in(pClk_reset_n),
+        .reset_in(softreset_n),
         .reset_out(clocks.pClkDiv4.reset_n)
         );
 
@@ -75,7 +86,7 @@ module ofs_plat_std_clocks_gen_resets
        (
         .clk_src(pClk),
         .clk_dst(uClk_usr),
-        .reset_in(pClk_reset_n),
+        .reset_in(softreset_n),
         .reset_out(clocks.uClk_usr.reset_n)
         );
 
@@ -83,7 +94,7 @@ module ofs_plat_std_clocks_gen_resets
        (
         .clk_src(pClk),
         .clk_dst(uClk_usrDiv2),
-        .reset_in(pClk_reset_n),
+        .reset_in(softreset_n),
         .reset_out(clocks.uClk_usrDiv2.reset_n)
         );
 

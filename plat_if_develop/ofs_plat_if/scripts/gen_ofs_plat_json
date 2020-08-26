@@ -297,14 +297,17 @@ def gen_json_local_mem(jf):
 def gen_json_hssi(jf):
     """Define HSSI ports if available."""
 
-    if (plat_cfg.config.has_section('hssi')):
+    # The legacy JSON only handles the raw_pr HSSI variant
+    if (plat_cfg.config.has_option('hssi', 'native_class')):
+        hssi_class = plat_cfg.config['hssi']['native_class']
         hssi_sect = 'hssi'
-    elif (plat_cfg.config.has_section('hssi.0')):
+    elif (plat_cfg.config.has_option('hssi.0', 'native_class')):
+        hssi_class = plat_cfg.config['hssi']['native_class']
         hssi_sect = 'hssi.0'
     else:
-        hssi_sect = None
+        hssi_class = None
 
-    if (not hssi_sect):
+    if (hssi_class != 'raw_pr'):
         return
 
     hssi_noun = plat_cfg.section_instance_noun(hssi_sect)

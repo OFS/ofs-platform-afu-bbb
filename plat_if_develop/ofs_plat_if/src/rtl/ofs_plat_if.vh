@@ -44,12 +44,16 @@
 `include "ofs_plat_axi_mem_if.vh"
 `include "ofs_plat_axi_stream_if.vh"
 
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_NATIVE_CLASS
   `include "ofs_plat_host_chan_wrapper.vh"
 `endif
 
-`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_NATIVE_CLASS
   `include "ofs_plat_local_mem_wrapper.vh"
+`endif
+
+`ifdef OFS_PLAT_PARAM_HSSI_NATIVE_CLASS
+  `include "ofs_plat_hssi_wrapper.vh"
 `endif
 
 // Compatibility mode for OPAE SDK's Platform Interface Manager

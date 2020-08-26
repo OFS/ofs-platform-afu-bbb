@@ -323,7 +323,9 @@ interface ofs_plat_avalon_mem_if
     end
 
     initial
-    begin : logger_proc
+    begin
+        static string ctx_name = $sformatf("%m");
+
         // Watch traffic
         if (LOG_CLASS != ofs_plat_log_pkg::NONE)
         begin
@@ -334,8 +336,8 @@ interface ofs_plat_avalon_mem_if
                 // Read request
                 if (reset_n && read && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read 0x%x burst 0x%x user 0x%x mask 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d read 0x%x burst 0x%x user 0x%x mask 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             address,
@@ -347,8 +349,8 @@ interface ofs_plat_avalon_mem_if
                 // Read response
                 if (reset_n && readdatavalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d read resp 0x%x user 0x%x (0x%x)\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d read resp 0x%x user 0x%x (0x%x)\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             readdata,
@@ -359,8 +361,8 @@ interface ofs_plat_avalon_mem_if
                 // Write request
                 if (reset_n && write && (!waitrequest || (WAIT_REQUEST_ALLOWANCE != 0)))
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write 0x%x %sburst 0x%x user 0x%x mask 0x%x data 0x%x\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d write 0x%x %sburst 0x%x user 0x%x mask 0x%x data 0x%x\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             address,
@@ -374,8 +376,8 @@ interface ofs_plat_avalon_mem_if
                 // Write response
                 if (reset_n && writeresponsevalid)
                 begin
-                    $fwrite(log_fd, "%m: %t %s %0d write resp user 0x%x (0x%x)\n",
-                            $time,
+                    $fwrite(log_fd, "%s: %t %s %0d write resp user 0x%x (0x%x)\n",
+                            ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
                             writeresponseuser,

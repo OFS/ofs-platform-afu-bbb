@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,49 +28,44 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+`include "ofs_plat_if.vh"
+
 //
-// Manage logging to shared files. A collection of global file handles is
-// maintained, allowing multiple modules to log to the same file.
+// Definition of the HSSI interface between the platform (blue bits)
+// and the AFU (green bits). This is the fixed interface that crosses the
+// PR boundary.
 //
+// The default parameter state must define a configuration that matches
+// the hardware.
+//=
+//= _@group@ is replaced with the group number by the gen_ofs_plat_if script
+//= as it generates a platform-specific build/platform/ofs_plat_if tree.
+//
+interface ofs_plat_hssi_@group@_fiu_if
+  #(
+    parameter ENABLE_LOG = 0,
+    parameter NUM_CHANNELS = `OFS_PLAT_PARAM_HSSI_@GROUP@_NUM_CHANNELS
+    );
 
-package ofs_plat_log_pkg;
+    // A hack to work around compilers complaining of circular dependence
+    // incorrectly when trying to make a new ofs_plat_hssi_if from an
+    // existing one's parameters.
+    localparam NUM_CHANNELS_ = $bits(logic [NUM_CHANNELS:0]) - 1;
 
-    typedef enum
-    {
-        NONE = 0,        // Don't log
-        HOST_CHAN = 1,
-        LOCAL_MEM = 2,
-        HSSI = 3
-    }
-    t_log_class;
+    // All channels and streams share a common clock.
+    wire clk;
+    logic reset_n;
 
-    // What is the name for an instance of the class?
-    localparam string instance_name[4] = {
-        "",
-        "port",
-        "bank",
-        "chan"
-        };
+    // An aligned div2 clock is also provided
+    wire clkDiv2;
+    logic resetDiv2_n;
 
-    int log_fds[4] = '{4{-1}};
-    localparam string log_names[4] = {
-        "",
-        "log_ofs_plat_host_chan.tsv",
-        "log_ofs_plat_local_mem.tsv",
-        "log_ofs_plat_hssi.tsv"
-        };
+    // Wrap Rx and Tx streams between an Ethernet MAC in the FIM
+    // and a traffic manager in the AFU.
+    ofs_plat_hssi_@group@_channel_if
+      #(
+        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HSSI : ofs_plat_log_pkg::NONE)
+        )
+        channels[NUM_CHANNELS]();
 
-    // Get the file descriptor for a group
-    function automatic int get_fd(t_log_class g);
-        if (g == NONE) return -1;
-
-        // Open the file if necessary
-        if (log_fds[g] == -1)
-        begin
-            log_fds[g] = $fopen(log_names[g], "w");
-        end
-
-        return log_fds[g];
-    endfunction
-
-endpackage // ofs_plat_log_pkg
+endinterface // ofs_plat_hssi_@group@_fiu_if
