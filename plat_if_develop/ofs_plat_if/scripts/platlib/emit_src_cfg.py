@@ -295,7 +295,7 @@ class emit_src_cfg(object):
         except IOError:
             self.__errorExit("Failed to open {0} for writing.".format(tgt))
 
-    def emit_qsf_sources(self, dir, fname):
+    def emit_qsf_sources(self, dir, fname, is_plat_if=True):
         """Generate the Quartus sources file (probably
         platform_if_addenda.qsf)."""
 
@@ -308,7 +308,10 @@ class emit_src_cfg(object):
 # Directory of script
 set THIS_DIR [file dirname [info script]]
 
-# Platform interface is available.
+"""
+
+        if (is_plat_if):
+            hdr += """# Platform interface is available.
 set_global_assignment -name VERILOG_MACRO "PLATFORM_IF_AVAIL=1"
 set IS_OFS_AFU [info exists platform_cfg::PLATFORM_PROVIDES_OFS_PLAT_IF]
 

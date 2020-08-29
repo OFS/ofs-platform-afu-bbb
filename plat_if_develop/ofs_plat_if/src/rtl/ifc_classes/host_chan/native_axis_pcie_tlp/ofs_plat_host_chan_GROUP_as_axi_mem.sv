@@ -424,19 +424,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         )
       axi_afu_clk_if();
 
-    // Merge the FIU and AFU resets
-    logic merged_reset_n;
-    ofs_plat_join_resets join_resets
-       (
-        .a_clk(afu_clk),
-        .a_reset_n(afu_reset_n),
-        .b_clk(to_fiu.clk),
-        .b_reset_n(to_fiu.reset_n),
-        .a_joined_reset_n(merged_reset_n)
-        );
-
     assign axi_afu_clk_if.clk = (ADD_CLOCK_CROSSING == 0) ? to_fiu.clk : afu_clk;
-    assign axi_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : merged_reset_n;
+    assign axi_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n;
     assign axi_afu_clk_if.instance_number = to_fiu.instance_number;
 
     // synthesis translate_off

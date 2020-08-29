@@ -62,6 +62,18 @@ ofs_plat_if tree.
         '-t', '--target', required=1,
         help="""Target directory.""")
 
+    parser.add_argument(
+        '--skip-sim', action='store_true',
+        help="""Skip generation of simulation configuration.""")
+
+    parser.add_argument(
+        '--rtl-root',
+        help="""RTL source root directory.""")
+
+    parser.add_argument(
+        '--par-tcl',
+        help="""Name of generated par Tcl file.""")
+
     # Verbose/quiet
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -83,20 +95,30 @@ def gen_platform_addenda():
         print("\nGenerating files to import ofs_plat_if:")
 
     # Simulator sources
-    sim_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
-                                     os.path.join(args.target, 'sim')],
-                               verbose=args.verbose)
-    sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
-                                  'platform_if_includes.txt')
-    sim_src_cfg.emit_sim_sources(os.path.join(args.target, 'sim'),
-                                 'platform_if_addenda.txt')
+    if not args.skip_sim:
+        sim_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
+                                         os.path.join(args.target, 'sim')],
+                                   verbose=args.verbose)
+        sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
+                                      'platform_if_includes.txt')
+        sim_src_cfg.emit_sim_sources(os.path.join(args.target, 'sim'),
+                                     'platform_if_addenda.txt')
 
     # Quartus sources
-    qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
-                                     os.path.join(args.target, 'par')],
-                               verbose=args.verbose)
-    qsf_src_cfg.emit_qsf_sources(os.path.join(args.target, 'par'),
-                                 'platform_if_addenda.qsf')
+    if (args.rtl_root):
+        qsf_src_cfg = emit_src_cfg(dirs=[args.rtl_root],
+                                   verbose=args.verbose)
+    else:
+        qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
+                                         os.path.join(args.target, 'par')],
+                                   verbose=args.verbose)
+    if (args.par_tcl):
+        qsf_src_cfg.emit_qsf_sources(os.path.dirname(args.par_tcl),
+                                     os.path.basename(args.par_tcl),
+                                     is_plat_if=False)
+    else:
+        qsf_src_cfg.emit_qsf_sources(os.path.join(args.target, 'par'),
+                                     'platform_if_addenda.qsf')
 
 
 def main():

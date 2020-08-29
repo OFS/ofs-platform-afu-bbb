@@ -56,9 +56,8 @@ interface ofs_plat_hssi_@group@_fiu_if
     wire clk;
     logic reset_n;
 
-    // An aligned div2 clock is also provided
-    wire clkDiv2;
-    logic resetDiv2_n;
+    // There may be other clocks defined, too.
+    ofs_fim_eth_if_pkg::t_axis_eth_clocks eth_clocks;
 
     // Wrap Rx and Tx streams between an Ethernet MAC in the FIM
     // and a traffic manager in the AFU.

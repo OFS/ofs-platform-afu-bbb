@@ -151,17 +151,6 @@ module ofs_plat_host_chan_@group@_as_ccip
         end
         else
         begin : ofs_plat_clock_crossing
-            // Merge the FIU and AFU resets
-            logic merged_reset_n;
-            ofs_plat_join_resets join_resets
-               (
-                .a_clk(afu_clk),
-                .a_reset_n(afu_reset_n),
-                .b_clk(to_fiu.clk),
-                .b_reset_n(to_fiu.reset_n),
-                .a_joined_reset_n(merged_reset_n)
-                );
-
             // Cross to the target clock
             ofs_plat_shim_ccip_async
               #(
@@ -170,7 +159,7 @@ module ofs_plat_host_chan_@group@_as_ccip
               ccip_async_shim
                (
                 .afu_clk,
-                .afu_reset_n(merged_reset_n),
+                .afu_reset_n,
                 .to_afu(afu_clk_ccip_if),
 
                 .to_fiu(rd_ccip_if),
