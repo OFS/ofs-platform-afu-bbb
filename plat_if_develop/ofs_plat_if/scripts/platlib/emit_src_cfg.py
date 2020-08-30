@@ -213,7 +213,7 @@ class emit_src_cfg(object):
             return True
         return False
 
-    def emit_sim_includes(self, dir, fname):
+    def emit_sim_includes(self, dir, fname, is_plat_if=True):
         """Generate the simulator include file (probably
         platform_if_includes.txt)."""
 
@@ -232,10 +232,12 @@ class emit_src_cfg(object):
 ## to this directory.  The latter uses only absolute paths.
 ##
 
-+define+PLATFORM_IF_AVAIL
 +define+RTL_SIMULATION
-
 """
+
+        if (is_plat_if):
+            hdr += "+define+PLATFORM_IF_AVAIL\n"
+        hdr += "\n"
 
         tgt = os.path.join(dir, fname)
         if (self.verbose):
@@ -250,7 +252,8 @@ class emit_src_cfg(object):
         except IOError:
             self.__errorExit("Failed to open {0} for writing.".format(tgt))
 
-    def emit_sim_sources(self, dir, fname):
+    def emit_sim_sources(self, dir, fname, is_plat_if=True,
+                         prefix='platform_if'):
         """Generate the simulator sources file (probably
         platform_if_addenda.txt)."""
 
@@ -269,9 +272,9 @@ class emit_src_cfg(object):
 ## to this directory.  The latter uses only absolute paths.
 ##
 
--F platform_if_includes.txt
-
 """
+
+        hdr += "-F " + prefix + "_includes.txt\n\n"
 
         tgt = os.path.join(dir, fname)
         if (self.verbose):
