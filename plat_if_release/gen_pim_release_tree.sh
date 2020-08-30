@@ -152,6 +152,7 @@ echo "${PLAT_CLASS}" > "${TGT_DIR}/hw/lib/fme-platform-class.txt"
 
 # Generate the legacy PIM database
 "${OFS_SCRIPTS_DIR}"/gen_ofs_plat_json ${VERBOSITY} -c "${INI_FILE}" "${TGT_DIR}/hw/lib/platform/platform_db/${PLAT_CLASS}.json"
+cp "${INI_FILE}" "${TGT_DIR}/hw/lib/platform/platform_db/"
 
 # Generate the OFS PIM
 "${OFS_SCRIPTS_DIR}"/gen_ofs_plat_if ${VERBOSITY} -c "${INI_FILE}" -t "${TGT_DIR}/hw/lib/build/platform/ofs_plat_if"
