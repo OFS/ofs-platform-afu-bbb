@@ -63,7 +63,7 @@ module ofs_plat_shim_ccip_rob_rd
     // out that maximum throughput is typically reached with the same
     // number of lines outstanding, independent of request size.  Of
     // course the bandwidth may vary as a function of request size.
-    localparam MAX_ACTIVE_LINES = MAX_ACTIVE_RD_REQS;
+    localparam MAX_ACTIVE_LINES = 1 << $clog2(MAX_ACTIVE_RD_REQS);
 
     // Maximum number of beats in a multi-line request
     parameter CCIP_MAX_MULTI_LINE_BEATS = 1 << $bits(t_ccip_clNum);
@@ -83,7 +83,7 @@ module ofs_plat_shim_ccip_rob_rd
     end
 
     // Index of a request
-    localparam N_REQ_IDX_BITS = $clog2(MAX_ACTIVE_RD_REQS);
+    localparam N_REQ_IDX_BITS = $clog2(MAX_ACTIVE_LINES);
     typedef logic [N_REQ_IDX_BITS-1 : 0] t_req_idx;
 
     // Full signals that will come from the ROB and heap used to
@@ -146,8 +146,7 @@ module ofs_plat_shim_ccip_rob_rd
     ofs_plat_prim_rob
       #(
         // MAX_ACTIVE_LINES is used here for clarity, since the ROB
-        // is line-based.  However, MAX_ACTIVE_LINES is equal to
-        // to MAX_ACTIVE_RD_REQS.
+        // is line-based.
         .N_ENTRIES(MAX_ACTIVE_LINES),
         .N_DATA_BITS(1 + $bits(t_ccip_vc) + 1 + $bits(t_ccip_clNum) + CCIP_CLDATA_WIDTH),
         .N_META_BITS($bits(t_ccip_clNum) + CCIP_MDATA_WIDTH),

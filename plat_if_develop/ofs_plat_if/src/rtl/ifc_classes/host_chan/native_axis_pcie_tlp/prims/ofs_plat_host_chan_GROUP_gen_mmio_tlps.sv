@@ -145,6 +145,10 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     logic dual_channel_rsp;
     assign dual_channel_rsp = mmio_rsp_meta.byte_count > 32;
 
+    logic [1:0] tx_mmio_is_eop;
+    assign tx_mmio_is_eop[0] = mmio_rsp_notEmpty && !dual_channel_rsp;
+    assign tx_mmio_is_eop[1] = mmio_rsp_notEmpty && dual_channel_rsp;
+
     always_ff @(posedge clk)
     begin
         if (tx_mmio.tready || !tx_mmio.tvalid)
@@ -152,13 +156,14 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
             tx_mmio.tvalid <= mmio_rsp_notEmpty;
 
             tx_mmio.t.data <= '0;
+            tx_mmio.t.last <= |(tx_mmio_is_eop);
 
             tx_mmio.t.data[0].valid <= mmio_rsp_notEmpty;
             tx_mmio.t.data[0].sop <= mmio_rsp_notEmpty;
-            tx_mmio.t.data[0].eop <= mmio_rsp_notEmpty && !dual_channel_rsp;
+            tx_mmio.t.data[0].eop <= tx_mmio_is_eop[0];
 
             tx_mmio.t.data[1].valid <= mmio_rsp_notEmpty && dual_channel_rsp;
-            tx_mmio.t.data[1].eop <= mmio_rsp_notEmpty && dual_channel_rsp;
+            tx_mmio.t.data[1].eop <= tx_mmio_is_eop[1];
 
             tx_mmio.t.data[0].hdr <= mmio_cpl_hdr;
 

@@ -415,6 +415,12 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .d_out(wr_req_shifted_payload)
         );
 
+    logic [1:0] tx_wr_is_eop;
+    assign tx_wr_is_eop[0] = wr_req_notEmpty &&
+                             (wr_req.is_fence || wr_req.is_interrupt || wr_req_short_eop);
+    assign tx_wr_is_eop[1] = wr_req_notEmpty &&
+                             wr_req.eop && !wr_req.is_fence && !wr_req.is_interrupt;
+
     always_ff @(posedge clk)
     begin
         if (tx_wr_tlps.tready || !tx_wr_tlps.tvalid)
@@ -422,20 +428,18 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             tx_wr_tlps.tvalid <= wr_req_ready && std_wr_rsp_notFull;
 
             tx_wr_tlps.t.data <= '0;
+            tx_wr_tlps.t.last <= |(tx_wr_is_eop);
 
             tx_wr_tlps.t.data[0].valid <= wr_req_notEmpty && !wr_req_is_invalid_fence;
             tx_wr_tlps.t.data[0].sop <= wr_req_notEmpty && wr_req.sop;
             // The request is one empty read if it's a fence or a short byte
             // range, otherwise write data spans multiple channels.
-            tx_wr_tlps.t.data[0].eop <=
-                wr_req_notEmpty &&
-                (wr_req.is_fence || wr_req.is_interrupt || wr_req_short_eop);
+            tx_wr_tlps.t.data[0].eop <= tx_wr_is_eop[0];
 
             tx_wr_tlps.t.data[1].valid <=
                 wr_req_notEmpty && !wr_req.is_fence && !wr_req.is_interrupt &&
                 !wr_req_short_eop;
-            tx_wr_tlps.t.data[1].eop <=
-                wr_req_notEmpty && wr_req.eop && !wr_req.is_fence && !wr_req.is_interrupt;
+            tx_wr_tlps.t.data[1].eop <= tx_wr_is_eop[1];
 
             tx_wr_tlps.t.data[0].hdr <= (wr_req.sop ? tlp_mem_hdr : '0);
 

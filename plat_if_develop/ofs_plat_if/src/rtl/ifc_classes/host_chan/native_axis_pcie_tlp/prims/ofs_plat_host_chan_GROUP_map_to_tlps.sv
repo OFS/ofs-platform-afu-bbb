@@ -390,7 +390,15 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     assign arb_req[1] = tx_rd_tlps.tvalid &&
                         (arb_state == ARB_NONE);
     assign arb_req[2] = tx_wr_tlps.tvalid &&
-                        ((arb_state == ARB_NONE) || (arb_state == ARB_LOCK_WR));
+                        // Block write traffic when reads are blocked due to TLP
+                        // tag exhaustion. Writes lack back-pressure since they
+                        // don't require tags. Allowing writes to proceed when
+                        // reads are blocked causes a significant imbalance when
+                        // read and write streams are both active. Without back-
+                        // pressure on writes, the FIM pipeline fills with only
+                        // write requests.
+                        (((arb_state == ARB_NONE) && afu_rd_req.tready) ||
+                         (arb_state == ARB_LOCK_WR));
 
     always_comb
     begin

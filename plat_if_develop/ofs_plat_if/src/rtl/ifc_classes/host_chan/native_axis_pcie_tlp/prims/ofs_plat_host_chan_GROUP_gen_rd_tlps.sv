@@ -221,6 +221,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             tx_rd_tlps.tvalid <= rd_req_notEmpty && req_tlp_tag_ready;
 
             tx_rd_tlps.t.data <= '0;
+            tx_rd_tlps.t.last <= 1'b1;
 
             tx_rd_tlps.t.data[0].valid <= rd_req_notEmpty;
             tx_rd_tlps.t.data[0].sop <= rd_req_notEmpty;
