@@ -44,7 +44,7 @@ interface ofs_plat_avalon_mem_rdwr_if
 
     parameter ADDR_WIDTH = 0,
     parameter DATA_WIDTH = 0,
-    parameter BURST_CNT_WIDTH = 0,
+    parameter BURST_CNT_WIDTH = 7,
 
     // How many data bits does a bytemask bit cover?
     parameter MASKED_SYMBOL_WIDTH = 8,

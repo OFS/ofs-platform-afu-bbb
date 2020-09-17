@@ -80,3 +80,10 @@ else
     exit 1
 
 fi
+
+#
+# "${tgt_dir}"/bin/run.sh is now "${tgt_dir}"/bin/afu_synth
+#
+if [ ! -e "${tgt_dir}"/bin/afu_synth ]; then
+    (cd "${tgt_dir}"/bin; ln -s run.sh afu_synth)
+fi
