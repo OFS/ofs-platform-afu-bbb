@@ -201,6 +201,12 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
     generate
         if (ADD_CLOCK_CROSSING)
         begin : cc
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mmio_to_afu)
+                )
+              avmm_mmio_afu_clk();
+
             ofs_plat_avalon_mem_if_async_shim_set_slave
               #(
                 .COMMAND_FIFO_DEPTH(4),
@@ -210,9 +216,19 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
               cc_mmio
                (
                 .mem_master(avmm_mmio),
-                .mem_slave(mmio_to_afu),
+                .mem_slave(avmm_mmio_afu_clk),
                 .slave_clk(host_mem_to_afu.clk),
                 .slave_reset_n(host_mem_to_afu.reset_n)
+                );
+
+            ofs_plat_avalon_mem_if_reg_master_clk
+              #(
+                .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
+                )
+              reg_mmio
+               (
+                .mem_master(avmm_mmio_afu_clk),
+                .mem_slave(mmio_to_afu)
                 );
         end
         else
@@ -314,6 +330,18 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
     generate
         if (ADD_CLOCK_CROSSING)
         begin : cc
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mmio_to_afu)
+                )
+              avmm_mmio_afu_clk();
+
+            ofs_plat_avalon_mem_if
+              #(
+                `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mmio_wr_to_afu)
+                )
+              avmm_wo_mmio_afu_clk();
+
             ofs_plat_avalon_mem_if_async_shim_set_slave
               #(
                 .COMMAND_FIFO_DEPTH(4),
@@ -323,7 +351,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
               cc_mmio
                (
                 .mem_master(avmm_mmio),
-                .mem_slave(mmio_to_afu),
+                .mem_slave(avmm_mmio_afu_clk),
                 .slave_clk(host_mem_to_afu.clk),
                 .slave_reset_n(host_mem_to_afu.reset_n)
                 );
@@ -337,9 +365,29 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
               cc_mmio_wo
                (
                 .mem_master(avmm_wo_mmio),
-                .mem_slave(mmio_wr_to_afu),
+                .mem_slave(avmm_wo_mmio_afu_clk),
                 .slave_clk(host_mem_to_afu.clk),
                 .slave_reset_n(host_mem_to_afu.reset_n)
+                );
+
+            ofs_plat_avalon_mem_if_reg_master_clk
+              #(
+                .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
+                )
+              reg_mmio
+               (
+                .mem_master(avmm_mmio_afu_clk),
+                .mem_slave(mmio_to_afu)
+                );
+
+            ofs_plat_avalon_mem_if_reg_master_clk
+              #(
+                .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
+                )
+              reg_mmio_wo
+               (
+                .mem_master(avmm_wo_mmio_afu_clk),
+                .mem_slave(mmio_wr_to_afu)
                 );
         end
         else
@@ -428,8 +476,14 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         )
       avmm_afu_clk_if();
 
+    logic afu_reset_n_q = 1'b0;
+    always @(posedge afu_clk)
+    begin
+        afu_reset_n_q <= afu_reset_n;
+    end
+
     assign avmm_afu_clk_if.clk = (ADD_CLOCK_CROSSING == 0) ? to_fiu.clk : afu_clk;
-    assign avmm_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n;
+    assign avmm_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n_q;
     assign avmm_afu_clk_if.instance_number = to_fiu.instance_number;
 
     // synthesis translate_off
