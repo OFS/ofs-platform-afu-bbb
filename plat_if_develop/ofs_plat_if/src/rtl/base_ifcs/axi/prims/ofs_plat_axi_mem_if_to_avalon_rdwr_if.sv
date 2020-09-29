@@ -377,7 +377,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
 
     ofs_plat_prim_burstcount0_sop_tracker
       #(
-        .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
+        .BURST_CNT_WIDTH(axi_master.BURST_CNT_WIDTH)
         )
       sop_tracker
        (

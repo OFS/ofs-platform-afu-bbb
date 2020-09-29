@@ -65,7 +65,13 @@ if [ ! -f hw/lib/platform/platform_db/a10_gx_pac_hssi.json ]; then
     not_release "hw/lib/platform/platform_db/a10_gx_pac_hssi.json"
 fi
 
-if [ ! -f hw/lib/build/afu_fit.qsf ]; then
+if [ -f hw/lib/build/afu_default.qsf ]; then
+    echo "Release has TCM MMIO ports..."
+    IS_TCM_REL="1"
+elif [ -f hw/lib/build/afu_fit.qsf ]; then
+    echo "Release does not have TCM MMIO ports..."
+    IS_TCM_REL="0"
+else
     not_release "hw/lib/build/afu_fit.qsf"
 fi
 
@@ -74,7 +80,11 @@ echo "Updating hw/lib/build/platform/green_bs.sv..."
 if [ ! -f hw/lib/build/platform/green_bs.sv.orig ]; then
     mv -f hw/lib/build/platform/green_bs.sv hw/lib/build/platform/green_bs.sv.orig
 fi
-cp "${SCRIPT_DIR}/files/green_bs.sv" hw/lib/build/platform/
+if [ "$IS_TCM_REL" == "1" ]; then
+    cp "${SCRIPT_DIR}/files/green_bs.sv.tcm" hw/lib/build/platform/green_bs.sv
+else
+    cp "${SCRIPT_DIR}/files/green_bs.sv" hw/lib/build/platform/
+fi
 
 # Copy platform DB
 echo "Updating hw/lib/platform/platform_db..."
