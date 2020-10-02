@@ -170,8 +170,9 @@ flushRange(void* start, size_t len)
         supports_clflushopt = false;
 
         unsigned int eax, ebx, ecx, edx;
-        if (__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx))
+        if (__get_cpuid_max(0, 0) >= 7)
         {
+            __cpuid_count(7, 0, eax, ebx, ecx, edx);
             // bit_CLFLUSHOPT is (1 << 23)
             supports_clflushopt = (((1 << 23) & ebx) != 0);
             printf("  Process supports clflushopt: %d\n", supports_clflushopt);
