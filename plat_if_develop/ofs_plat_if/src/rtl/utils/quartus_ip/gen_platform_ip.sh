@@ -61,6 +61,10 @@ done
 sed -e '4,$s/altera_/ofs_plat_utils_/g' \
     "${QUARTUS_REL}/ip/altera/sopc_builder_ip/altera_avalon_dc_fifo/altera_avalon_dc_fifo.sdc" > ofs_plat_utils_avalon_dc_fifo.sdc
 
+# DC FIFO megafunction timing constraint
+sed -e 's/^REPLACE/\n## Apply the constraints\napply_sdc_pre_dcfifo "ofs_plat_utils_mf_dcfifo"/' \
+    "${QUARTUS_REL}/ip/altera/megafunctions/fifo/dcfifo.sdc" > ofs_plat_utils_mf_dcfifo.sdc
+
 
 # *** No longer needed as of 18.0 ***
 ##

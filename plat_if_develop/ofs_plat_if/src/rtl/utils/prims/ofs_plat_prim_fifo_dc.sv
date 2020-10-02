@@ -40,6 +40,198 @@ module ofs_plat_prim_fifo_dc
   #(
     parameter N_DATA_BITS = 32,
     parameter N_ENTRIES = 2,
+    parameter THRESHOLD = 1,
+
+    // There are two implementations of dual clock FIFO available. One uses
+    // the DCFIFO megafunction and the other uses an Avalon primitive.
+    // The megafunction forces buffering in block RAM and may use more memory,
+    // especially for small FIFOs. However, the megafunction's buffer memory
+    // is registered and the Avalon version is not. The megafunction meets
+    // timing at higher deq_clk frequencies.
+    //
+    // The code here should be revisited. The Avalon implementation is heading
+    // toward forcing block RAM also, though still without the buffer. It is
+    // likely that the megafunction will always be a better choice.
+    parameter USE_REG_MEM = (`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ > 250) ? 1 : 0
+    )
+   (
+    input  logic enq_clk,
+    input  logic enq_reset_n,
+    input  logic [N_DATA_BITS-1 : 0] enq_data,
+    input  logic enq_en,
+    output logic notFull,
+    output logic almostFull,
+
+    input  logic deq_clk,
+    input  logic deq_reset_n,
+    output logic [N_DATA_BITS-1 : 0] first,
+    input  logic deq_en,
+    output logic notEmpty
+    );
+
+    generate
+        if (USE_REG_MEM != 0)
+        begin : mf
+            ofs_plat_prim_fifo_dc_mf
+              #(
+                .N_DATA_BITS(N_DATA_BITS),
+                .N_ENTRIES(N_ENTRIES),
+                .THRESHOLD(THRESHOLD)
+                )
+              f
+               (
+                .enq_clk,
+                .enq_reset_n,
+                .enq_data,
+                .enq_en,
+                .notFull,
+                .almostFull,
+
+                .deq_clk,
+                .deq_reset_n,
+                .first,
+                .deq_en,
+                .notEmpty
+                );
+        end
+        else
+        begin : af
+            ofs_plat_prim_fifo_dc_af
+              #(
+                .N_DATA_BITS(N_DATA_BITS),
+                .N_ENTRIES(N_ENTRIES),
+                .THRESHOLD(THRESHOLD)
+                )
+              f
+               (
+                .enq_clk,
+                .enq_reset_n,
+                .enq_data,
+                .enq_en,
+                .notFull,
+                .almostFull,
+
+                .deq_clk,
+                .deq_reset_n,
+                .first,
+                .deq_en,
+                .notEmpty
+                );
+        end
+    endgenerate
+
+endmodule // ofs_plat_prim_fifo_dc
+
+
+//
+// Wrapper around the megafunction dual clock FIFO.
+//
+module ofs_plat_prim_fifo_dc_mf
+  #(
+    parameter N_DATA_BITS = 32,
+    parameter N_ENTRIES = 2,
+    parameter THRESHOLD = 1
+    )
+   (
+    input  logic enq_clk,
+    input  logic enq_reset_n,
+    input  logic [N_DATA_BITS-1 : 0] enq_data,
+    input  logic enq_en,
+    output logic notFull,
+    output logic almostFull,
+
+    input  logic deq_clk,
+    input  logic deq_reset_n,
+    output logic [N_DATA_BITS-1 : 0] first,
+    input  logic deq_en,
+    output logic notEmpty
+    );
+
+    logic reset_n_async;
+    ofs_plat_prim_clock_crossing_reset_async reset_async_cc
+       (
+        .clk(enq_clk),
+        .reset_in(enq_reset_n),
+        .reset_out(reset_n_async)
+        );
+
+    logic dcfifo_full;
+    assign notFull = !dcfifo_full;
+
+    logic dcfifo_rdreq, dcfifo_rdreq_q;
+    logic dcfifo_empty;
+    logic [N_DATA_BITS-1 : 0] dcfifo_q;
+
+    ofs_plat_utils_mf_dcfifo
+      #(
+        .DATA_WIDTH(N_DATA_BITS),
+        .DEPTH_RADIX($clog2(N_ENTRIES)),
+        .ALMOST_FULL_THRESHOLD(THRESHOLD)
+        )
+      dcfifo
+       (
+        .data(enq_data),
+        .wrreq(enq_en),
+        .rdreq(dcfifo_rdreq),
+        .wrclk(enq_clk),
+        .rdclk(deq_clk),
+        .aclr(!reset_n_async),
+        .q(dcfifo_q),
+        .rdusedw(),
+        .wrusedw(),
+        .rdfull(),
+        .rdempty(dcfifo_empty),
+        .wrfull(dcfifo_full),
+        .wralmfull(almostFull),
+        .wrempty()
+        );
+
+    //
+    // The megafunction delivers the read data a cycle after "rdreq" is asserted.
+    // The PIM FIFO primivites have "first" valid when "notEmpty". Add a FIFO
+    // to map the megafunction to PIM semantics.
+    //
+    logic out_fifo_almFull;
+
+    ofs_plat_prim_fifo_lutram
+      #(
+        .N_DATA_BITS(N_DATA_BITS),
+        .N_ENTRIES(4),
+        .THRESHOLD(2),
+        .REGISTER_OUTPUT(1)
+        )
+      out_fifo
+       (
+        .clk(deq_clk),
+        .reset_n(deq_reset_n),
+
+        .enq_data(dcfifo_q),
+        .enq_en(dcfifo_rdreq_q),
+        .notFull(),
+        .almostFull(out_fifo_almFull),
+
+        .first,
+        .deq_en,
+        .notEmpty
+        );
+
+    assign dcfifo_rdreq = !dcfifo_empty && !out_fifo_almFull;
+
+    always_ff @(posedge deq_clk)
+    begin
+        dcfifo_rdreq_q <= dcfifo_rdreq;
+    end
+
+endmodule // ofs_plat_prim_fifo_dc_mf
+
+
+//
+// Wrapper around the Avalon dual clock FIFO.
+//
+module ofs_plat_prim_fifo_dc_af
+  #(
+    parameter N_DATA_BITS = 32,
+    parameter N_ENTRIES = 2,
     parameter THRESHOLD = 1
     )
    (
@@ -70,7 +262,7 @@ module ofs_plat_prim_fifo_dc
         // Added for OPAE to drive s0_space_avail_data
         .USE_SPACE_AVAIL_IF (1)
         )
-      dc_fifo
+      dcfifo
        (
         .in_clk(enq_clk),
         .in_reset_n(enq_reset_n),
@@ -146,4 +338,4 @@ module ofs_plat_prim_fifo_dc
     end
     // synthesis translate_on
 
-endmodule // ofs_plat_prim_fifo_dc
+endmodule // ofs_plat_prim_fifo_dc_af

@@ -48,6 +48,7 @@
 #include <uuid/uuid.h>
 #include <time.h>
 #include <immintrin.h>
+#include <cpuid.h>
 #include <numa.h>
 
 #include <opae/fpga.h>
@@ -73,7 +74,7 @@
 #define MAP_HUGE_SHIFT 26
 #endif
 
-#define MAP_1G_HUGEPAGE	(0x1e << MAP_HUGE_SHIFT) /* 2 ^ 0x1e = 1G */
+#define MAP_1G_HUGEPAGE (0x1e << MAP_HUGE_SHIFT) /* 2 ^ 0x1e = 1G */
 
 #define FLAGS_4K (MAP_PRIVATE | MAP_ANONYMOUS)
 #define FLAGS_2M (FLAGS_4K | MAP_HUGETLB)
@@ -145,8 +146,8 @@ static char *engine_type[] =
 static inline void
 asm_clflushopt(const void *addr)
 {
-	asm volatile(".byte 0x66; clflush %0" : "+m" \
-		(*(volatile char *)(addr)));
+    asm volatile(".byte 0x66; clflush %0" : "+m" \
+        (*(volatile char *)(addr)));
 }
 
 //
@@ -158,6 +159,25 @@ flushRange(void* start, size_t len)
 {
     uint8_t* cl = start;
     uint8_t* end = start + len;
+
+    // Does the CPU support clflushopt?
+    static bool checked_clflushopt;
+    static bool supports_clflushopt;
+
+    if (! checked_clflushopt)
+    {
+        checked_clflushopt = true;
+        supports_clflushopt = false;
+
+        unsigned int eax, ebx, ecx, edx;
+        if (__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx))
+        {
+            // bit_CLFLUSHOPT is (1 << 23)
+            supports_clflushopt = (((1 << 23) & ebx) != 0);
+            printf("  Process supports clflushopt: %d\n", supports_clflushopt);
+        }
+    }
+    if (! supports_clflushopt) return;
 
     while (cl < end)
     {
