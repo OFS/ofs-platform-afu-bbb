@@ -277,6 +277,35 @@ initReadBuf(
 
 
 static void
+engineErrorAndExit(
+    uint32_t num_engines,
+    uint64_t emask
+)
+{
+    printf("\nEngine mask 0x%lx failure:\n", emask);
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        if (emask & ((uint64_t)1 << e))
+        {
+            printf("  Engine %d state:\n", e);
+
+            printf("    Read burst requests: %ld\n", csrEngRead(s_csr_handle, e, 1));
+            if (s_eng_bufs[e].eng_type == 2)
+            {
+                printf("    Read burst responses: %ld\n", csrEngRead(s_csr_handle, e, 6));
+            }
+            printf("    Read lines responses: %ld\n", csrEngRead(s_csr_handle, e, 2));
+
+            printf("    Write burst requests: %ld\n", csrEngRead(s_csr_handle, e, 3));
+            printf("    Write burst responses: %ld\n", csrEngRead(s_csr_handle, e, 4));
+        }
+    }
+
+    exit(1);
+}
+
+
+static void
 initEngine(
     uint32_t e,
     fpga_handle accel_handle,
@@ -608,10 +637,17 @@ testSmallRegions(
                 // Poll less often in simulation
                 wait_time.tv_sec = 0;
                 wait_time.tv_nsec = 1000000;
+                uint64_t wait_nsec = 0;
                 while ((csrGetEnginesEnabled(s_csr_handle) == 0) ||
                        csrGetEnginesActive(s_csr_handle))
                 {
                     nanosleep(&wait_time, NULL);
+
+                    wait_nsec += wait_time.tv_nsec + wait_time.tv_sec * (uint64_t)1000000000L;
+                    if ((wait_nsec / (uint64_t)1000000000L) > (s_is_ase ? 20 : 5))
+                    {
+                        engineErrorAndExit(num_engines, emask);
+                    }
                 }
 
                 // Stop the engine
@@ -665,6 +701,7 @@ testSmallRegions(
                             num_errors += 1;
                             printf("\n - FAIL %d: read ERROR expected sum 0x%08x found 0x%08x\n",
                                    e, expected_sum, actual_sum);
+                            engineErrorAndExit(num_engines, emask);
                         }
                         else if ((expected_hash != actual_hash) &&
                                  s_eng_bufs[e].ordered_read_responses)
@@ -673,6 +710,7 @@ testSmallRegions(
                             num_errors += 1;
                             printf("\n - FAIL %d: read ERROR expected hash 0x%08x found 0x%08x\n",
                                    e, expected_hash, actual_hash);
+                            engineErrorAndExit(num_engines, emask);
                         }
                         else if (! writes_ok)
                         {

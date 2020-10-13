@@ -61,7 +61,7 @@ module ofs_plat_prim_ram_simple_dc
 
     logic [N_DATA_BITS-1 : 0] c_rdata;
 
-    osf_plat_prim_ram_simple_dc_base
+    ofs_plat_prim_ram_simple_dc_base
       #(
         .N_ENTRIES(N_ENTRIES),
         .N_DATA_BITS(N_DATA_BITS),
@@ -115,7 +115,7 @@ endmodule // ofs_plat_prim_ram_simple_dc
 //
 // Simple dual port, dual clock RAM initialized with a constant on reset.
 //
-module osf_plat_prim_ram_simple_dc_init
+module ofs_plat_prim_ram_simple_dc_init
   #(
     parameter N_ENTRIES = 32,
     parameter N_DATA_BITS = 64,
@@ -152,7 +152,7 @@ module osf_plat_prim_ram_simple_dc_init
     logic wen_local;
     logic [N_DATA_BITS-1 : 0] wdata_local;
 
-    osf_plat_prim_ram_simple_dc
+    ofs_plat_prim_ram_simple_dc
       #(
         .N_ENTRIES(N_ENTRIES),
         .N_DATA_BITS(N_DATA_BITS),
@@ -209,13 +209,13 @@ module osf_plat_prim_ram_simple_dc_init
         .r_out(rrdy)
         );
 
-endmodule // osf_plat_prim_ram_simple_dc_init
+endmodule // ofs_plat_prim_ram_simple_dc_init
 
 
 //
 // Base implementation configured by the primary modules above.
 //
-module osf_plat_prim_ram_simple_dc_base
+module ofs_plat_prim_ram_simple_dc_base
   #(
     parameter N_ENTRIES = 32,
     parameter N_DATA_BITS = 64,
@@ -319,4 +319,4 @@ module osf_plat_prim_ram_simple_dc_base
         end
     endgenerate
 
-endmodule // osf_plat_prim_ram_simple_dc_base
+endmodule // ofs_plat_prim_ram_simple_dc_base

@@ -156,31 +156,29 @@ module ofs_plat_map_ccip_as_axi_host_mem
     //
 
     // AXI uses byte-level addressing, CCI-P uses line-level addressing.
-    localparam AXI_LINE_START_BIT = host_mem_to_afu.ADDR_WIDTH_ - CCIP_CLADDR_WIDTH;
+    localparam AXI_LINE_START_BIT = host_mem_to_afu.ADDR_BYTE_IDX_WIDTH;
 
     //
     // Host memory reads
     //
+    always_comb
+    begin
+        to_fiu.sTx.c0.valid = axi_fiu_clk_if.arvalid && axi_fiu_clk_if.arready;
+
+        to_fiu.sTx.c0.hdr = t_ccip_c0_ReqMemHdr'(0);
+        // Store length in mdata along with the ROB index in order to detect the
+        // last read response.
+        to_fiu.sTx.c0.hdr.mdata = t_ccip_mdata'({ axi_fiu_clk_if.ar.len,
+                                                  ROB_RID_WIDTH'(axi_fiu_clk_if.ar.id) });
+        to_fiu.sTx.c0.hdr.address = axi_fiu_clk_if.ar.addr[AXI_LINE_START_BIT +: CCIP_CLADDR_WIDTH];
+        to_fiu.sTx.c0.hdr.req_type = eREQ_RDLINE_I;
+        to_fiu.sTx.c0.hdr.cl_len = t_ccip_clLen'(axi_fiu_clk_if.ar.len);
+    end
+
     always_ff @(posedge clk)
     begin
         // Map almost full to AXI ready
         axi_fiu_clk_if.arready <= !sRx.c0TxAlmFull;
-
-        to_fiu.sTx.c0.valid <= axi_fiu_clk_if.arvalid && axi_fiu_clk_if.arready;
-
-        to_fiu.sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
-        // Store length in mdata along with the ROB index in order to detect the
-        // last read response.
-        to_fiu.sTx.c0.hdr.mdata <= t_ccip_mdata'({ axi_fiu_clk_if.ar.len,
-                                                   axi_fiu_clk_if.ar.id });
-        to_fiu.sTx.c0.hdr.address <= axi_fiu_clk_if.ar.addr[AXI_LINE_START_BIT +: CCIP_CLADDR_WIDTH];
-        to_fiu.sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
-        to_fiu.sTx.c0.hdr.cl_len <= t_ccip_clLen'(axi_fiu_clk_if.ar.len);
-
-        if (!reset_n)
-        begin
-            to_fiu.sTx.c0.valid <= 1'b0;
-        end
     end
 
     // CCI-P read responses
@@ -259,7 +257,13 @@ module ofs_plat_map_ccip_as_axi_host_mem
         .notEmpty(axi_reg.wvalid)
         );
 
-    assign fwd_wr_req = !sRx.c1TxAlmFull &&
+    logic c1TxAlmFull;
+    always_ff @(posedge clk)
+    begin
+        c1TxAlmFull <= sRx.c1TxAlmFull;
+    end
+
+    assign fwd_wr_req = !c1TxAlmFull &&
                         (axi_reg.awvalid || !wr_sop) &&
                         axi_reg.wvalid;
 
