@@ -120,6 +120,8 @@ typedef struct
     bool natural_bursts;
     bool ordered_read_responses;
     bool masked_writes;
+
+    double fim_ifc_mhz;
 }
 t_engine_buf;
 
@@ -175,7 +177,7 @@ flushRange(void* start, size_t len)
             __cpuid_count(7, 0, eax, ebx, ecx, edx);
             // bit_CLFLUSHOPT is (1 << 23)
             supports_clflushopt = (((1 << 23) & ebx) != 0);
-            printf("  Process supports clflushopt: %d\n", supports_clflushopt);
+            printf("#  Processor supports clflushopt: %d\n", supports_clflushopt);
         }
     }
     if (! supports_clflushopt) return;
@@ -321,17 +323,17 @@ initEngine(
     s_eng_bufs[e].group = (r >> 47) & 7;
     s_eng_bufs[e].eng_type = (r >> 35) & 7;
     uint32_t eng_num = (r >> 42) & 31;
-    printf("  Engine %d type: %s\n", e, engine_type[s_eng_bufs[e].eng_type]);
-    printf("  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
-    printf("  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
-    printf("  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
-    printf("  Engine %d masked writes allowed: %d\n", e, s_eng_bufs[e].masked_writes);
-    printf("  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
-    printf("  Engine %d group: %d\n", e, s_eng_bufs[e].group);
+    printf("#  Engine %d type: %s\n", e, engine_type[s_eng_bufs[e].eng_type]);
+    printf("#  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
+    printf("#  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
+    printf("#  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
+    printf("#  Engine %d masked writes allowed: %d\n", e, s_eng_bufs[e].masked_writes);
+    printf("#  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
+    printf("#  Engine %d group: %d\n", e, s_eng_bufs[e].group);
 
     if (eng_num != e)
     {
-        printf("  Engine %d internal numbering mismatch (%d)\n", e, eng_num);
+        fprintf(stderr, "  Engine %d internal numbering mismatch (%d)\n", e, eng_num);
         exit(1);
     }
 
@@ -368,7 +370,7 @@ initEngine(
                                              &s_eng_bufs[e].rd_wsid,
                                              &s_eng_bufs[e].rd_buf_ioaddr);
     assert(NULL != s_eng_bufs[e].rd_buf);
-    printf("  Engine %d read buffer: VA %p, DMA address %p\n", e,
+    printf("#  Engine %d read buffer: VA %p, DMA address %p\n", e,
            s_eng_bufs[e].rd_buf, (void*)s_eng_bufs[e].rd_buf_ioaddr);
     initReadBuf(s_eng_bufs[e].rd_buf, MB(2));
     flushRange((void*)s_eng_bufs[e].rd_buf, MB(2));
@@ -379,8 +381,11 @@ initEngine(
                                              &s_eng_bufs[e].wr_wsid,
                                              &s_eng_bufs[e].wr_buf_ioaddr);
     assert(NULL != s_eng_bufs[e].wr_buf);
-    printf("  Engine %d write buffer: VA %p, DMA address %p\n", e,
+    printf("#  Engine %d write buffer: VA %p, DMA address %p\n", e,
            s_eng_bufs[e].wr_buf, (void*)s_eng_bufs[e].wr_buf_ioaddr);
+
+    // Will be determined later
+    s_eng_bufs[e].fim_ifc_mhz = 0;
 
     // Set the buffer size mask. The buffer is 2MB but the mask covers
     // only 1MB. This allows bursts to flow a bit beyond the mask
@@ -756,7 +761,8 @@ static int
 configBandwidth(
     uint32_t e,
     uint32_t burst_size,
-    uint32_t mode            // 1 - read, 2 - write, 3 - read+write
+    uint32_t mode,         // 1 - read, 2 - write, 3 - read+write
+    uint32_t max_active    // Maximum outstanding requests at once (0 is unlimited)
 )
 {
     // Read buffer base address (0 disables reads)
@@ -772,8 +778,8 @@ configBandwidth(
         csrEngWrite(s_csr_handle, e, 1, 0);
 
     // Configure engine burst details
-    csrEngWrite(s_csr_handle, e, 2, burst_size);
-    csrEngWrite(s_csr_handle, e, 3, burst_size);
+    csrEngWrite(s_csr_handle, e, 2, ((uint64_t)max_active << 48) | burst_size);
+    csrEngWrite(s_csr_handle, e, 3, ((uint64_t)max_active << 48) | burst_size);
 
     return 0;
 }
@@ -803,7 +809,7 @@ runBandwidth(
     }
 
     // Let them run for a while
-    sleep(s_is_ase ? 10 : 1);
+    usleep(s_is_ase ? 10000000 : 100000);
     
     csrDisableEngines(s_csr_handle, emask);
 
@@ -816,8 +822,20 @@ runBandwidth(
     if (s_afu_mhz == 0)
     {
         s_afu_mhz = csrGetClockMHz(s_csr_handle);
-        printf("  AFU clock is %.1f MHz\n", s_afu_mhz);
     }
+}
+
+
+//
+// Print bandwidth results after runBandwidth().
+//
+static int
+printBandwidth(
+    uint32_t num_engines,
+    uint64_t emask
+)
+{
+    assert(emask != 0);
 
     uint64_t cycles = csrGetClockCycles(s_csr_handle);
     uint64_t read_lines = 0;
@@ -842,17 +860,137 @@ runBandwidth(
 
     if (! write_lines)
     {
-        printf("  Read GB/s:  %f\n", read_bw);
+        printf("  Read GB/s:  %0.2f\n", read_bw);
     }
     else if (! read_lines)
     {
-        printf("  Write GB/s: %f\n", write_bw);
+        printf("  Write GB/s: %0.2f\n", write_bw);
     }
     else
     {
-        printf("  R+W GB/s:   %f (read %f, write %f)\n",
+        printf("  R+W GB/s:   %0.2f (read %0.2f, write %0.2f)\n",
                read_bw + write_bw, read_bw, write_bw);
     }
+
+    return 0;
+}
+
+
+//
+// Print bandwidth results after runBandwidth().
+//
+static int
+printLatencyAndBandwidth(
+    uint32_t num_engines,
+    uint64_t emask,
+    uint32_t max_active_reqs,
+    bool print_header
+)
+{
+    assert(emask != 0);
+
+    uint64_t cycles = csrGetClockCycles(s_csr_handle);
+    double afu_ns_per_cycle = 1000.0 / s_afu_mhz;
+
+    uint64_t total_read_lines = 0;
+    uint64_t total_write_lines = 0;
+    double read_avg_lat = 0;
+    double fim_read_avg_lat = 0;
+    double write_avg_lat = 0;
+    uint64_t max_reads_in_flight = 0;
+    uint64_t fim_max_reads_in_flight = 0;
+
+    // How many engines are being sampled in this test?
+    uint32_t n_sampled_engines = 0;
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        if (emask & ((uint64_t)1 << e))
+        {
+            n_sampled_engines += 1;
+        }
+    }
+
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        if (emask & ((uint64_t)1 << e))
+        {
+            // Is the engine's FIM frequency known yet?
+            if (0 == s_eng_bufs[e].fim_ifc_mhz)
+            {
+                uint64_t fim_clk_cycles = csrEngRead(s_csr_handle, e, 14);
+                uint64_t eng_clk_cycles = csrEngRead(s_csr_handle, e, 15);
+                s_eng_bufs[e].fim_ifc_mhz = s_afu_mhz * fim_clk_cycles / eng_clk_cycles;
+                printf("# FIM %d interface MHz: %0.1f\n", e, s_eng_bufs[e].fim_ifc_mhz);
+            }
+            double fim_ns_per_cycle = 1000.0 / s_eng_bufs[e].fim_ifc_mhz;
+
+            // Count of lines read and written by the engine
+            uint64_t read_lines = csrEngRead(s_csr_handle, e, 2);
+            total_read_lines += read_lines;
+            uint64_t write_lines = csrEngRead(s_csr_handle, e, 3);
+            total_write_lines += write_lines;
+
+            // Total active lines across all cycles, from the AFU
+            uint64_t read_active_lines = csrEngRead(s_csr_handle, e, 8);
+            uint64_t write_active_lines = csrEngRead(s_csr_handle, e, 9);
+
+            // Compute average latency using Little's Law. Each sampled engine
+            // is given equal weight.
+            if (read_lines)
+            {
+                read_avg_lat += afu_ns_per_cycle * (read_active_lines / read_lines) / n_sampled_engines;
+            }
+            if (write_lines)
+            {
+                write_avg_lat += afu_ns_per_cycle * (write_active_lines / write_lines) / n_sampled_engines;
+            }
+
+            // Sample latency calculation for reads at the boundary to the FIM.
+            // The separates the FIM latency from the PIM latency.
+            uint64_t fim_reads = csrEngRead(s_csr_handle, e, 10);
+            if (fim_reads >> 63)
+            {
+                fprintf(stderr, "ERROR: FIM read tracking request/response mismatch!\n");
+                exit(1);
+            }
+            uint64_t fim_read_active = csrEngRead(s_csr_handle, e, 11);
+            if (fim_reads)
+            {
+                fim_read_avg_lat += fim_ns_per_cycle * (fim_read_active / fim_reads) / n_sampled_engines;
+            }
+
+            max_reads_in_flight += csrEngRead(s_csr_handle, e, 12);
+            uint64_t fim_max_reads = csrEngRead(s_csr_handle, e, 13);
+            if (fim_max_reads >> 63)
+            {
+                // Unit is DWORDs, not lines. Reduce to lines.
+                fim_max_reads &= 0x7fffffffffffffffL;
+                fim_max_reads /= 16;
+            }
+            fim_max_reads_in_flight += fim_max_reads;
+        }
+    }
+
+    if (!total_read_lines && !total_write_lines)
+    {
+        fprintf(stderr, "  FAIL: no memory traffic detected!\n");
+        return 1;
+    }
+
+    double read_bw = 64 * total_read_lines * s_afu_mhz / (1000.0 * cycles);
+    double write_bw = 64 * total_write_lines * s_afu_mhz / (1000.0 * cycles);
+
+    if (print_header)
+    {
+        printf("Read GB/s, Write GB/s, Read Inflight Lines Limit, Read Max Measured Inflight Lines, "
+               "FIM Read Max Measured Inflight Lines, Write Inflight Lines Limit, "
+               "Read Avg Latency ns, FIM Read Avg Latency ns, Write Avg Latency ns\n");
+    }
+
+    printf("%0.2f %0.2f %d %ld %ld %d %0.0f %0.0f %0.0f\n",
+           read_bw, write_bw,
+           max_active_reqs, max_reads_in_flight, fim_max_reads_in_flight, max_active_reqs,
+           read_avg_lat, fim_read_avg_lat, write_avg_lat);
 
     return 0;
 }
@@ -871,12 +1009,12 @@ testHostChanParams(
     s_csr_handle = csr_handle;
     s_is_ase = is_ase;
 
-    printf("Test ID: %016" PRIx64 " %016" PRIx64 "\n",
+    printf("# Test ID: %016" PRIx64 " %016" PRIx64 "\n",
            csrEngGlobRead(csr_handle, 1),
            csrEngGlobRead(csr_handle, 0));
 
     uint32_t num_engines = csrGetNumEngines(csr_handle);
-    printf("Engines: %d\n", num_engines);
+    printf("# Engines: %d\n", num_engines);
 
     // Allocate memory buffers for each engine
     s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
@@ -886,7 +1024,7 @@ testHostChanParams(
         initEngine(e, accel_handle, csr_handle);
     }
     printf("\n");
-    
+
     // Test each engine separately
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
@@ -922,6 +1060,7 @@ testHostChanParams(
     }
 
     // Bandwidth test each engine individually
+    bool printed_afu_mhz = false;
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
         uint64_t burst_size = 1;
@@ -931,8 +1070,16 @@ testHostChanParams(
 
             for (int mode = 1; mode <= 3; mode += 1)
             {
-                configBandwidth(e, burst_size, mode);
+                configBandwidth(e, burst_size, mode, 0);
                 runBandwidth(num_engines, (uint64_t)1 << e);
+
+                if (! printed_afu_mhz)
+                {
+                    printf("  AFU clock is %.1f MHz\n", s_afu_mhz);
+                    printed_afu_mhz = true;
+                }
+
+                printBandwidth(num_engines, (uint64_t)1 << e);
             }
 
             if (s_eng_bufs[e].natural_bursts)
@@ -960,10 +1107,109 @@ testHostChanParams(
         {
             for (uint32_t e = 0; e < num_engines; e += 1)
             {
-                configBandwidth(e, s_eng_bufs[e].max_burst_size, mode);
+                configBandwidth(e, s_eng_bufs[e].max_burst_size, mode, 0);
             }
             runBandwidth(num_engines, ((uint64_t)1 << num_engines) - 1);
+            printBandwidth(num_engines, ((uint64_t)1 << num_engines) - 1);
         }
+    }
+
+    // Release buffers
+  done:
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        fpgaReleaseBuffer(accel_handle, s_eng_bufs[e].rd_wsid);
+        fpgaReleaseBuffer(accel_handle, s_eng_bufs[e].wr_wsid);
+    }
+
+    return result;
+}
+
+
+int
+testHostChanLatency(
+    int argc,
+    char *argv[],
+    fpga_handle accel_handle,
+    t_csr_handle_p csr_handle,
+    bool is_ase,
+    uint32_t engine_mask
+)
+{
+    int result = 0;
+    s_accel_handle = accel_handle;
+    s_csr_handle = csr_handle;
+    s_is_ase = is_ase;
+
+    printf("# Test ID: %016" PRIx64 " %016" PRIx64 "\n",
+           csrEngGlobRead(csr_handle, 1),
+           csrEngGlobRead(csr_handle, 0));
+
+    uint32_t num_engines = csrGetNumEngines(csr_handle);
+    printf("# Engines: %d\n", num_engines);
+
+    // Limit incoming engine mask to available engines
+    engine_mask &= (1 << num_engines) - 1;
+    if (0 == engine_mask)
+    {
+        fprintf(stderr, "No engines selected!\n");
+        return 1;
+    }
+
+    // Allocate memory buffers for each engine
+    s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
+    assert(NULL != s_eng_bufs);
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        initEngine(e, accel_handle, csr_handle);
+    }
+
+    // Bandwidth test each engine individually
+    bool printed_afu_mhz = false;
+    uint64_t burst_size = 1;
+    while (burst_size <= 4)
+    {
+        for (int mode = 1; mode <= 3; mode += 1)
+        {
+            bool printed_header = false;
+            for (uint32_t max_reqs = burst_size; max_reqs <= 512; max_reqs = (max_reqs + 4) & 0xfffffffc)
+            {
+                for (uint32_t e = 0; e < num_engines; e += 1)
+                {
+                    if (engine_mask & (1 << e))
+                    {
+                        configBandwidth(e, burst_size, mode, max_reqs);
+                    }
+                }
+
+                runBandwidth(num_engines, engine_mask);
+
+                if (! printed_afu_mhz)
+                {
+                    printf("# AFU MHz: %.1f\n", s_afu_mhz);
+                    printed_afu_mhz = true;
+                }
+
+                if (! printed_header)
+                {
+                    printf("\n\n# Engine mask: %d\n", engine_mask);
+                    printf("# Burst size: %ld\n", burst_size);
+                    printf("# Mode: %s\n",
+                           ((mode == 1) ? "read" : ((mode == 2) ? "write" : "read+write")));
+                }
+
+                printLatencyAndBandwidth(num_engines, engine_mask, max_reqs,
+                                         ! printed_header);
+
+                printed_header = true;
+            }
+        }
+
+        // CCI-P requires naturally aligned sizes. Other protocols do not.
+        if (s_eng_bufs[0].eng_type)
+            burst_size += 1;
+        else
+            burst_size <<= 1;
     }
 
     // Release buffers

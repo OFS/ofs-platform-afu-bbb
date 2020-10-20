@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,27 +28,19 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __TEST_HOST_CHAN_PARAMS_H__
-#define __TEST_HOST_CHAN_PARAMS_H__
+//
+// Host channel event tracker tie-off.
+//
 
-#include <opae/fpga.h>
-#include "tests_common.h"
+module host_chan_events_none
+   (
+    host_chan_events_if.monitor events
+    );
 
-int
-testHostChanParams(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase);
+    assign events.notEmpty = 1'b0;
+    assign events.eng_clk_cycle_count = '0;
+    assign events.fim_clk_cycle_count = '0;
+    assign events.num_rd_reqs = '0;
+    assign events.active_rd_req_sum = '0;
 
-int
-testHostChanLatency(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase,
-    uint32_t engine_mask);
-
-#endif // __TEST_HOST_CHAN_PARAMS_H__
+endmodule // host_chan_events_none

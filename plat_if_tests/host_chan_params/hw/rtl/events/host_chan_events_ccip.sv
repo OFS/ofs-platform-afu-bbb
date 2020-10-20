@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,27 +28,64 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __TEST_HOST_CHAN_PARAMS_H__
-#define __TEST_HOST_CHAN_PARAMS_H__
+//
+// Host channel event tracker for native CCI-P
+//
 
-#include <opae/fpga.h>
-#include "tests_common.h"
+`include "ofs_plat_if.vh"
 
-int
-testHostChanParams(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase);
+module host_chan_events_ccip
+   (
+    input  logic clk,
+    input  logic reset_n,
 
-int
-testHostChanLatency(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase,
-    uint32_t engine_mask);
+    // Track traffic on sRx and sTx (in domain clk)
+    input  t_if_ccip_Rx sRx,
+    input  t_if_ccip_Tx sTx,
 
-#endif // __TEST_HOST_CHAN_PARAMS_H__
+    // Send counted events to a specific traffic generator engine
+    host_chan_events_if.monitor events
+    );
+
+    import ofs_plat_ccip_if_funcs_pkg::*;
+
+    //
+    // Track new requests and responses
+    //
+    typedef logic [2:0] t_line_count;
+    t_line_count rd_n_lines_req;
+    logic rd_is_line_rsp;
+
+    always_ff @(posedge clk)
+    begin
+        // Request (potentially multiple lines)
+        rd_n_lines_req <= '0;
+        if (ccip_c0Tx_isReadReq(sTx.c0))
+        begin
+            rd_n_lines_req <= t_line_count'(sTx.c0.hdr.cl_len) + 1;
+        end
+
+        // Response (exactly one line)
+        rd_is_line_rsp <= ccip_c0Rx_isReadRsp(sRx.c0);
+    end
+
+
+    //
+    // Manage events
+    //
+    host_chan_events_common
+      #(
+        .READ_CNT_WIDTH(3)
+        )
+      hc_evt
+       (
+        .clk,
+        .reset_n,
+
+        .rdReqCnt(rd_n_lines_req),
+        .rdRespCnt(3'(rd_is_line_rsp)),
+
+        .events
+        );
+
+endmodule // host_chan_events_ccip

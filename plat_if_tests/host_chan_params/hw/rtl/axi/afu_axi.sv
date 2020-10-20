@@ -43,6 +43,11 @@ module afu
     ofs_plat_axi_mem_if.to_slave host_mem_g1_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
     ofs_plat_axi_mem_if.to_slave host_mem_g2_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
 
+    // Events, used for tracking latency through the FIM
+    host_chan_events_if.engine host_chan_events_if[NUM_PORTS_G0],
+    host_chan_events_if.engine host_chan_g1_events_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
+    host_chan_events_if.engine host_chan_g2_events_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
+
     // FPGA MMIO master (AXI)
     ofs_plat_axi_mem_lite_if.to_master mmio64_if,
 
@@ -111,6 +116,7 @@ module afu
               eng
                (
                 .host_mem_if(host_mem_if[p]),
+                .host_chan_events_if(host_chan_events_if[p]),
                 .csrs(eng_csr[p])
                 );
         end
@@ -133,6 +139,7 @@ module afu
               eng
                (
                 .host_mem_if(host_mem_g1_if[p]),
+                .host_chan_events_if(host_chan_g1_events_if[p]),
                 .csrs(eng_csr[NUM_PORTS_G0 + p])
                 );
         end
@@ -155,6 +162,7 @@ module afu
               eng
                (
                 .host_mem_if(host_mem_g2_if[p]),
+                .host_chan_events_if(host_chan_g2_events_if[p]),
                 .csrs(eng_csr[NUM_PORTS_G0 + NUM_PORTS_G1 + p])
                 );
         end

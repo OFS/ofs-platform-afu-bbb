@@ -45,6 +45,8 @@
 #include "test_host_chan_params.h"
 
 static t_target_bdf target;
+static bool latency_mode;
+static uint32_t latency_engine_mask;
 
 //
 // Print help
@@ -54,7 +56,8 @@ help(void)
 {
     printf("\n"
            "Usage:\n"
-           "    test_chan_params [-h] [-B <bus>] [-D <device>] [-F <function>] [-S <socket-id>]\n"
+           "    host_chan_params [-h] [-B <bus>] [-D <device>] [-F <function>] [-S <socket-id>]\n"
+           "                     [--latency=<engine mask>]\n"
            "\n"
            "        -h,--help           Print this help\n"
            "        -B,--bus            Set target bus number\n"
@@ -62,6 +65,11 @@ help(void)
            "        -F,--function       Set target function number\n"
            "        -S,--socket-id      Set target socket number\n"
            "        --segment           Set target segment number\n"
+           "\n"
+           "        --latency           Run latency/bandwidth tests.\n"
+           "                            With no arguments, run on all available engines.\n"
+           "                            An optional numeric bitmask selects engines.\n"
+           "                            E.g., 6 skips engine 0 and runs engines 2 and 3.\n"
            "\n");
 }
 
@@ -80,6 +88,7 @@ parse_args(int argc, char *argv[])
         {"function",  required_argument, NULL, 'F'},
         {"socket-id", required_argument, NULL, 'S'},
         {"segment",   required_argument, NULL, 0xe},
+        {"latency",   optional_argument, NULL, 0xf},
         {0, 0, 0, 0}
     };
 
@@ -100,6 +109,26 @@ parse_args(int argc, char *argv[])
         case 'h': /* help */
             help();
             return -1;
+
+        case 0xf: /* latency mode */
+            latency_mode = true;
+
+            if (NULL == tmp_optarg)
+            {
+                latency_engine_mask = ~0;
+            }
+            else
+            {
+                endptr = NULL;
+                latency_engine_mask =
+                    (uint32_t)strtoul(tmp_optarg, &endptr, 0);
+                if (endptr != tmp_optarg + strlen(tmp_optarg)) {
+                    fprintf(stderr, "invalid latency engine mask: %s\n",
+                            tmp_optarg);
+                    return -1;
+                }
+            }
+            break;
 
         case 0xe: /* segment */
             if (NULL == tmp_optarg)
@@ -201,18 +230,27 @@ int main(int argc, char *argv[])
     bool is_ase = probeForASE(&target);
     if (is_ase)
     {
-        printf("Running in ASE mode\n");
+        printf("# Running in ASE mode\n");
     }
 
     t_csr_handle_p csr_handle = csrAllocHandle(accel_handle, 0);
     assert(csr_handle != NULL);
 
-    printf("AFU ID:  %016" PRIx64 " %016" PRIx64 "\n",
+    printf("# AFU ID:  %016" PRIx64 " %016" PRIx64 "\n",
            csrRead(csr_handle, CSR_AFU_ID_H),
            csrRead(csr_handle, CSR_AFU_ID_L));
 
     // Run tests
-    int status = testHostChanParams(argc, argv, accel_handle, csr_handle, is_ase);
+    int status;
+    if (! latency_mode)
+    {
+        status = testHostChanParams(argc, argv, accel_handle, csr_handle, is_ase);
+    }
+    else
+    {
+        status = testHostChanLatency(argc, argv, accel_handle, csr_handle, is_ase,
+                                     latency_engine_mask);
+    }
 
     // Done
     csrReleaseHandle(csr_handle);

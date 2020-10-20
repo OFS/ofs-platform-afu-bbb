@@ -1,0 +1,22 @@
+Bandwidth/latency tests. To run, compile an instance of the host_chan_params hardware.
+The AXI-MM default test is a good choice (../../hw/rtl/test_axi0_default.txt).
+
+Run:
+  ../host_chan_params --lat | tee <data file>
+
+  plot_perf.sh <data file> <output pdf> "Description"
+
+"Description" is the prefix on graph pages in the generated PDF. Use something like
+"D5005 OFS AXI-MM".
+
+The graphs show bandwidth (left Y axis) and latency (right Y axis) as a function
+of offered load (X axis). Offered load is the maximum number of outstanding lines
+allowed to be in flight at the same time. An offered load of 1 emits a single request
+and waits for the response before emitting another. At some point, the offered load
+exceeds the bandwidth of the bus. At that point, bandwidth no longer increases but
+latency spikes because requests back up in the request pipeline. Once the request
+pipeline fills, latency stops increasing because the AFU can no longer inject new
+requests.
+
+The data files hold more than is plotted. For example, a FIM-only average latency
+is calculated. This separates the latency through the PIM and the FIM.

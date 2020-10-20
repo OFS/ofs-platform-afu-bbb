@@ -224,6 +224,105 @@ module ofs_plat_afu
 
     // ====================================================================
     //
+    //  Host channel event trackers, used for computing latency through
+    //  the FIM.
+    //
+    // ====================================================================
+
+    host_chan_events_if host_chan_events[NUM_PORTS_G0]();
+    host_chan_events_if host_chan_g1_events[NUM_PORTS_G1 == 0 ? 1 : NUM_PORTS_G1]();
+    host_chan_events_if host_chan_g2_events[NUM_PORTS_G2 == 0 ? 1 : NUM_PORTS_G2]();
+
+    generate
+        for (p = 0; p < NUM_PORTS_G0; p = p + 1)
+        begin : ev_g0
+          `ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP
+            host_chan_events_axi ev
+               (
+                .clk(plat_ifc.host_chan.ports[p].clk),
+                .reset_n(plat_ifc.host_chan.ports[p].reset_n),
+
+                .en_tx(plat_ifc.host_chan.ports[p].afu_tx_st.tready && plat_ifc.host_chan.ports[p].afu_tx_st.tvalid),
+                .tx_data(plat_ifc.host_chan.ports[p].afu_tx_st.t.data),
+                .tx_user(plat_ifc.host_chan.ports[p].afu_tx_st.t.user),
+
+                .en_rx(plat_ifc.host_chan.ports[p].afu_rx_st.tready && plat_ifc.host_chan.ports[p].afu_rx_st.tvalid),
+                .rx_data(plat_ifc.host_chan.ports[p].afu_rx_st.t.data),
+                .rx_user(plat_ifc.host_chan.ports[p].afu_rx_st.t.user),
+
+                .events(host_chan_events[p])
+                );
+          `elsif OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_CCIP
+            host_chan_events_ccip ev
+               (
+                .clk(plat_ifc.host_chan.ports[p].clk),
+                .reset_n(plat_ifc.host_chan.ports[p].reset_n),
+
+                .sRx(plat_ifc.host_chan.ports[p].sRx),
+                .sTx(plat_ifc.host_chan.ports[p].sTx),
+
+                .events(host_chan_events[p])
+                );
+          `else
+            host_chan_events_none n(.events(host_chan_events[p]));
+          `endif
+        end
+
+        // For now, groups 1 and 2 don't track events
+        for (p = 0; p < NUM_PORTS_G1; p = p + 1)
+        begin : ev_g1
+          `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AXIS_PCIE_TLP
+            host_chan_events_axi ev
+               (
+                .clk(plat_ifc.host_chan_g1.ports[p].clk),
+                .reset_n(plat_ifc.host_chan_g1.ports[p].reset_n),
+
+                .en_tx(plat_ifc.host_chan_g1.ports[p].afu_tx_st.tready && plat_ifc.host_chan_g1.ports[p].afu_tx_st.tvalid),
+                .tx_data(plat_ifc.host_chan_g1.ports[p].afu_tx_st.t.data),
+                .tx_user(plat_ifc.host_chan_g1.ports[p].afu_tx_st.t.user),
+
+                .en_rx(plat_ifc.host_chan_g1.ports[p].afu_rx_st.tready && plat_ifc.host_chan_g1.ports[p].afu_rx_st.tvalid),
+                .rx_data(plat_ifc.host_chan_g1.ports[p].afu_rx_st.t.data),
+                .rx_user(plat_ifc.host_chan_g1.ports[p].afu_rx_st.t.user),
+
+                .events(host_chan_g1_events[p])
+                );
+          `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_CCIP
+            host_chan_events_ccip ev
+               (
+                .clk(plat_ifc.host_chan_g1.ports[p].clk),
+                .reset_n(plat_ifc.host_chan_g1.ports[p].reset_n),
+
+                .sRx(plat_ifc.host_chan_g1.ports[p].sRx),
+                .sTx(plat_ifc.host_chan_g1.ports[p].sTx),
+
+                .events(host_chan_g1_events[p])
+                );
+          `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON
+            host_chan_events_avalon#(.BURST_CNT_WIDTH(plat_ifc.host_chan_g1.ports[p].BURST_CNT_WIDTH)) ev
+               (
+                .clk(plat_ifc.host_chan_g1.ports[p].clk),
+                .reset_n(plat_ifc.host_chan_g1.ports[p].reset_n),
+
+                .en_tx_rd(plat_ifc.host_chan_g1.ports[p].read && !plat_ifc.host_chan_g1.ports[p].waitrequest),
+                .tx_rd_cnt(plat_ifc.host_chan_g1.ports[p].burstcount),
+                .en_rx_rd(plat_ifc.host_chan_g1.ports[p].readdatavalid),
+
+                .events(host_chan_g1_events[p])
+                );
+          `else
+            host_chan_events_none n(.events(host_chan_g1_events[p]));
+          `endif
+        end
+        for (p = 0; p < NUM_PORTS_G2; p = p + 1)
+        begin : ev_g2
+            host_chan_events_none n(.events(host_chan_g2_events[p]));
+        end
+    endgenerate
+
+
+    // ====================================================================
+    //
     //  Map pwrState to the AFU clock domain
     //
     // ====================================================================
@@ -282,6 +381,11 @@ module ofs_plat_afu
        .host_mem_if(host_mem_to_afu),
        .host_mem_g1_if(host_mem_g1_to_afu),
        .host_mem_g2_if(host_mem_g2_to_afu),
+
+       .host_chan_events_if(host_chan_events),
+       .host_chan_g1_events_if(host_chan_g1_events),
+       .host_chan_g2_events_if(host_chan_g2_events),
+
        .mmio64_if(mmio64_to_afu),
        .pClk(plat_ifc.clocks.pClk.clk),
        .pwrState(afu_pwrState)

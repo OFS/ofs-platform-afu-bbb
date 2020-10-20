@@ -43,7 +43,7 @@
 //   1: Base address of write buffer. Same alignment requirement as register 0.
 //
 //   2: Read control:
-//       [63:48] - Reserved
+//       [63:48] - Maximum active lines in flight (unlimited if 0)
 //       [47:32] - Number of bursts (unlimited if 0)
 //       [31:16] - Start address offset (relative to base address)
 //       [15: 0] - Burst size
@@ -88,6 +88,34 @@
 //       [63:32] - Simple checksum portions of lines read (for OOO memory)
 //       [31: 0] - Hash of portions of lines read (for ordered memory interfaces)
 //
+//   8: Total active read lines in flight summed over each active cycle. This is
+//      used to compute latency using Little's Law.
+//
+//   9: Total write lines in flight, similar to 8.
+//
+//  10: Number of read requests at the edge of the PR boundary to the FIM,
+//      used for separating the read latency of the PIM vs. the FIM.
+//      The units are FIM-dependent (e.g. lines for CCI-P and DWORDS for
+//      PCIe TLP), but all that matters is the ratio of registers 11 and 10.
+//       [63]    - Error flag. When set, indicates a mismatch between read
+//                 requests and read responses.
+//       [62: 0] - Counter value
+//
+//  11: Total active read requests at the FIM boundary, similar the AFU count
+//      in register 8. Latency is register 11 / register 10 (in FIM clock cycles).
+//
+//  12: Measured maximum number of outstanding read lines.
+//
+//  13: Measured maximum number of outstanding requests (lines for CCI-P and
+//      DWORDS for PCIe TLP).
+//       [63]    - Unit is DWORDS if 1, lines of 0
+//       [62: 0] - Counter value
+//
+//  14: FIM clock cycle counter, used along with register 15 to compute the FIM
+//      clock's frequency.
+//
+//  15: AFU clock cycle counter, running along with the FIM counter in 14.
+//
 
 `default_nettype none
 
@@ -102,6 +130,9 @@ module host_mem_rdwr_engine_ccip
     // Host memory (CCI-P)
     ofs_plat_host_ccip_if.to_fiu host_mem_if,
 
+    // Events, used for tracking latency through the FIM
+    host_chan_events_if.engine host_chan_events_if,
+
     // Control
     engine_csr_if.engine csrs
     );
@@ -110,8 +141,11 @@ module host_mem_rdwr_engine_ccip
 
     logic clk;
     assign clk = host_mem_if.clk;
-    logic reset_n;
-    assign reset_n = host_mem_if.reset_n;
+    logic reset_n = 1'b0;
+    always @(posedge clk)
+    begin
+        reset_n <= host_mem_if.reset_n;
+    end
 
     // C2 unused (MMIO is handled in a different interface)
     assign host_mem_if.sTx.c2 = t_if_ccip_c2_Tx'(0);
@@ -130,12 +164,17 @@ module host_mem_rdwr_engine_ccip
     localparam COUNTER_WIDTH = 48;
     typedef logic [COUNTER_WIDTH-1 : 0] t_counter;
 
+    localparam LINE_COUNTER_WIDTH = 12;
+    typedef logic [LINE_COUNTER_WIDTH-1 : 0] t_line_counter;
+
     // Number of bursts to request in a run (limiting run length)
     typedef logic [15:0] t_num_burst_reqs;
 
     logic [31:0] rd_data_sum, rd_data_hash;
     t_counter rd_bursts_req, rd_lines_req, rd_lines_resp;
     t_counter wr_bursts_req, wr_lines_req, wr_lines_resp;
+    t_counter rd_total_active_lines, wr_total_active_lines;
+    t_counter rd_measured_max_active_lines;
 
     //
     // Write configuration registers
@@ -144,6 +183,7 @@ module host_mem_rdwr_engine_ccip
     t_addr rd_base_addr, wr_base_addr;
     t_addr_offset rd_start_addr_offset, wr_start_addr_offset;
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
+    t_line_counter rd_max_active_lines, wr_max_active_lines;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     t_addr_offset base_addr_offset_mask;
     logic [63:0] wr_data_mask;
@@ -157,12 +197,14 @@ module host_mem_rdwr_engine_ccip
                 4'h1: wr_base_addr <= t_addr'(csrs.wr_data);
                 4'h2:
                     begin
+                        rd_max_active_lines <= csrs.wr_data[48 +: LINE_COUNTER_WIDTH] - 1;
                         rd_num_burst_reqs <= csrs.wr_data[47:32];
                         rd_start_addr_offset <= csrs.wr_data[31:16];
                         rd_req_burst_len <= t_burst_cnt'(csrs.wr_data[15:0]);
                     end
                 4'h3:
                     begin
+                        wr_max_active_lines <= csrs.wr_data[48 +: LINE_COUNTER_WIDTH] - 1;
                         wr_num_burst_reqs <= csrs.wr_data[47:32];
                         wr_start_addr_offset <= csrs.wr_data[31:16];
                         wr_req_burst_len <= t_burst_cnt'(csrs.wr_data[15:0]);
@@ -197,6 +239,11 @@ module host_mem_rdwr_engine_ccip
 
     always_comb
     begin
+        for (int e = 0; e < csrs.NUM_CSRS; e = e + 1)
+        begin
+            csrs.rd_data[e] = 64'h0;
+        end
+
         csrs.rd_data[0] = { 13'h0,
                             1'(ccip_cfg_pkg::BYTE_EN_SUPPORTED),
                             3'(ENGINE_GROUP),
@@ -221,10 +268,15 @@ module host_mem_rdwr_engine_ccip
         csrs.rd_data[4] = 64'(wr_lines_resp);
         csrs.rd_data[5] = { rd_data_sum, rd_data_hash };
 
-        for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
-        begin
-            csrs.rd_data[e] = 64'h0;
-        end
+        csrs.rd_data[8] = 64'(rd_total_active_lines);
+        csrs.rd_data[9] = 64'(wr_total_active_lines);
+        csrs.rd_data[10] = { host_chan_events_if.notEmpty, 63'(host_chan_events_if.num_rd_reqs) };
+        csrs.rd_data[11] = 64'(host_chan_events_if.active_rd_req_sum);
+        csrs.rd_data[12] = 64'(rd_measured_max_active_lines);
+        csrs.rd_data[13] = { host_chan_events_if.unit_is_dwords, 63'(host_chan_events_if.max_active_rd_reqs) };
+
+        csrs.rd_data[14] = 64'(host_chan_events_if.fim_clk_cycle_count);
+        csrs.rd_data[15] = 64'(host_chan_events_if.eng_clk_cycle_count);
     end
 
 
@@ -240,6 +292,10 @@ module host_mem_rdwr_engine_ccip
     t_num_burst_reqs rd_num_burst_reqs_left, wr_num_burst_reqs_left;
     logic rd_unlimited, wr_unlimited;
     logic rd_done, wr_done;
+
+    // Track the number of lines in flight
+    t_line_counter rd_cur_active_lines, wr_cur_active_lines;
+    logic rd_line_quota_exceeded, wr_line_quota_exceeded;
 
     always_ff @(posedge clk)
     begin
@@ -258,7 +314,8 @@ module host_mem_rdwr_engine_ccip
     // Generate read requests
     //
     logic rd_valid;
-    assign rd_valid = state_run && ! rd_done && ! host_mem_if.sRx.c0TxAlmFull;
+    assign rd_valid = state_run && !rd_done && !rd_line_quota_exceeded &&
+                      !host_mem_if.sRx.c0TxAlmFull;
     logic [7:0] rd_mdata;
 
     always_ff @(posedge clk)
@@ -352,7 +409,7 @@ module host_mem_rdwr_engine_ccip
     t_ccip_clByteIdx wr_byte_start, wr_byte_end, wr_byte_len;
 
     logic wr_valid;
-    assign wr_valid = ((state_run && (! wr_done || ! wr_fence_done)) || ! wr_sop) &&
+    assign wr_valid = ((state_run && (!wr_done || !wr_fence_done) && !wr_line_quota_exceeded) || !wr_sop) &&
                       ! host_mem_if.sRx.c1TxAlmFull;
 
     always_ff @(posedge clk)
@@ -367,7 +424,7 @@ module host_mem_rdwr_engine_ccip
         host_mem_if.sTx.c1.hdr.mdata <= t_ccip_mdata'(wr_mdata);
 
         // Emit a write fence at the end
-        if (wr_done && ! wr_fence_done)
+        if (wr_done && !wr_fence_done && !wr_line_quota_exceeded)
         begin
             host_mem_if.sTx.c1.hdr.req_type <= eREQ_WRFENCE;
             host_mem_if.sTx.c1.hdr.address <= t_addr'(0);
@@ -389,7 +446,7 @@ module host_mem_rdwr_engine_ccip
     always_ff @(posedge clk)
     begin
         // Was the write request accepted?
-        if (wr_valid && ! wr_done)
+        if (wr_valid && !wr_done)
         begin
             // Advance one line, reduce the flit count by one
             wr_cur_addr_offset <= (wr_cur_addr_offset + t_addr_offset'(1)) & base_addr_offset_mask;
@@ -407,7 +464,7 @@ module host_mem_rdwr_engine_ccip
             end
         end
 
-        if (wr_done && ! wr_fence_done)
+        if (wr_done && !wr_fence_done && !wr_line_quota_exceeded)
         begin
             wr_fence_done <= ! host_mem_if.sRx.c1TxAlmFull;
         end
@@ -459,6 +516,7 @@ module host_mem_rdwr_engine_ccip
         wr_byte_len <= wr_byte_end - wr_byte_start + 1;
     end
 
+
     // ====================================================================
     //
     // Engine state
@@ -471,6 +529,20 @@ module host_mem_rdwr_engine_ccip
                               ! wr_sop ||
                               (rd_lines_req != rd_lines_resp) ||
                               (wr_lines_req != wr_lines_resp);
+    end
+
+
+    // ====================================================================
+    //
+    // Events from FIM latency tracking
+    //
+    // ====================================================================
+
+    assign host_chan_events_if.eng_clk = clk;
+    always_ff @(posedge clk)
+    begin
+        host_chan_events_if.eng_reset_n <= reset_n && !state_reset;
+        host_chan_events_if.enable_cycle_counter <= csrs.status_active;
     end
 
 
@@ -489,11 +561,16 @@ module host_mem_rdwr_engine_ccip
     logic incr_wr_req_lines;
     t_burst_cnt incr_wr_resp_lines;
 
+    // New lines requested this cycle
+    t_burst_cnt rd_new_req_lines;
+    assign rd_new_req_lines = rd_valid ? rd_req_burst_len : t_burst_cnt'(0);
+    t_burst_cnt wr_new_req_lines;
+    assign wr_new_req_lines = t_burst_cnt'(host_mem_if.sTx.c1.valid);
+
     always_ff @(posedge clk)
     begin
-        incr_rd_req <= host_mem_if.sTx.c0.valid;
-        incr_rd_req_lines <= host_mem_if.sTx.c0.valid ?
-                             (rd_req_burst_len) : t_burst_cnt'(0);
+        incr_rd_req <= rd_valid;
+        incr_rd_req_lines <= rd_new_req_lines;
         incr_rd_resp <= host_mem_if.sRx.c0.rspValid;
 
         incr_wr_req <= host_mem_if.sTx.c1.valid &&
@@ -510,6 +587,32 @@ module host_mem_rdwr_engine_ccip
         else
         begin
             incr_wr_resp_lines <= t_burst_cnt'(0);
+        end
+    end
+
+    // Track the number of lines in flight
+    always_ff @(posedge clk)
+    begin
+        rd_cur_active_lines <= rd_cur_active_lines + rd_new_req_lines - host_mem_if.sRx.c0.rspValid;
+        rd_line_quota_exceeded <= ((rd_cur_active_lines + rd_new_req_lines) > rd_max_active_lines);
+
+        wr_cur_active_lines <= wr_cur_active_lines + wr_new_req_lines - incr_wr_resp_lines;
+        wr_line_quota_exceeded <= ((wr_cur_active_lines + wr_new_req_lines) > wr_max_active_lines);
+
+        if (rd_cur_active_lines > rd_measured_max_active_lines)
+        begin
+            rd_measured_max_active_lines <= rd_cur_active_lines;
+        end
+
+        if (!reset_n || state_reset)
+        begin
+            rd_cur_active_lines <= '0;
+            rd_line_quota_exceeded <= 1'b0;
+
+            rd_measured_max_active_lines <= '0;
+
+            wr_cur_active_lines <= '0;
+            wr_line_quota_exceeded <= 1'b0;
         end
     end
 
@@ -559,6 +662,22 @@ module host_mem_rdwr_engine_ccip
         .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_resp_lines)),
         .value(wr_lines_resp)
+        );
+
+    counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_active_lines
+       (
+        .clk,
+        .reset_n(reset_n && !state_reset),
+        .incr_by(COUNTER_WIDTH'(rd_cur_active_lines)),
+        .value(rd_total_active_lines)
+        );
+
+    counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_active_lines
+       (
+        .clk,
+        .reset_n(reset_n && !state_reset),
+        .incr_by(COUNTER_WIDTH'(wr_cur_active_lines)),
+        .value(wr_total_active_lines)
         );
 
 endmodule // host_mem_rdwr_engine_ccip

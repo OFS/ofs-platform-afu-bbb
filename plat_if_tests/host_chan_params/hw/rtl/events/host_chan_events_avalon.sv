@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2020, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,27 +28,59 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __TEST_HOST_CHAN_PARAMS_H__
-#define __TEST_HOST_CHAN_PARAMS_H__
+//
+// Host channel event tracker for native Avalon
+//
 
-#include <opae/fpga.h>
-#include "tests_common.h"
+`include "ofs_plat_if.vh"
 
-int
-testHostChanParams(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase);
+module host_chan_events_avalon
+  #(
+    parameter BURST_CNT_WIDTH = 7
+    )
+   (
+    input  logic clk,
+    input  logic reset_n,
 
-int
-testHostChanLatency(
-    int argc,
-    char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
-    bool is_ase,
-    uint32_t engine_mask);
+    // Track traffic on FIM Avalon interface
+    input  logic en_tx_rd,
+    input  logic [BURST_CNT_WIDTH-1 : 0] tx_rd_cnt,
+    input  logic en_rx_rd,
 
-#endif // __TEST_HOST_CHAN_PARAMS_H__
+    // Send counted events to a specific traffic generator engine
+    host_chan_events_if.monitor events
+    );
+
+    //
+    // Track new requests and responses
+    //
+    typedef logic [BURST_CNT_WIDTH-1 : 0] t_line_count;
+    t_line_count rd_n_lines_req;
+    logic rd_is_line_rsp;
+
+    always_ff @(posedge clk)
+    begin
+        rd_n_lines_req <= (en_tx_rd ? tx_rd_cnt : '0);
+        rd_is_line_rsp <= en_rx_rd;
+    end
+
+
+    //
+    // Manage events
+    //
+    host_chan_events_common
+      #(
+        .READ_CNT_WIDTH(BURST_CNT_WIDTH)
+        )
+      hc_evt
+       (
+        .clk,
+        .reset_n,
+
+        .rdReqCnt(rd_n_lines_req),
+        .rdRespCnt(BURST_CNT_WIDTH'(rd_is_line_rsp)),
+
+        .events
+        );
+
+endmodule // host_chan_events_avalon
