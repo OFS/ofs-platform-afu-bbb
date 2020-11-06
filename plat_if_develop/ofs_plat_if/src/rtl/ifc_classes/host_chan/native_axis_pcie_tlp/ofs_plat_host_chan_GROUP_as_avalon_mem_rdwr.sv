@@ -34,6 +34,12 @@
 // slave) and write-only MMIO slave. The write-only variant can be useful
 // for 512 bit MMIO. CCI-P supports wide MMIO write but not read.
 //
+// The extension rd_user field is returned as rd_readresponsuser, but only
+// on the first read flit. The wr_user value is returned in
+// wr_writeresponseuser. The low bits of wr_user that correspond to flags
+// for fences and interrupts are not guaranteed to be returned as set
+// in the request.
+//
 
 `include "ofs_plat_if.vh"
 

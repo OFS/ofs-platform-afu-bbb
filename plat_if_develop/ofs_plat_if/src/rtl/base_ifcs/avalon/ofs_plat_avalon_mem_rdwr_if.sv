@@ -382,6 +382,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             rd_burstcount,
                             rd_user,
                             rd_byteenable);
+                    $fflush(log_fd);
                 end
 
                 // Read response
@@ -394,6 +395,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             rd_readdata,
                             rd_readresponseuser,
                             rd_response);
+                    $fflush(log_fd);
                 end
 
                 // Write request
@@ -409,6 +411,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             wr_user,
                             wr_byteenable,
                             wr_writedata);
+                    $fflush(log_fd);
                 end
 
                 if (reset_n && wr_writeresponsevalid)
@@ -419,6 +422,7 @@ interface ofs_plat_avalon_mem_rdwr_if
                             instance_number,
                             wr_writeresponseuser,
                             wr_response);
+                    $fflush(log_fd);
                 end
             end
         end

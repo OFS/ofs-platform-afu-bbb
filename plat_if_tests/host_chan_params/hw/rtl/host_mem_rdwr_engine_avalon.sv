@@ -137,6 +137,8 @@ module host_mem_rdwr_engine_avalon
     engine_csr_if.engine csrs
     );
 
+    import ofs_plat_host_chan_avalon_mem_pkg::*;
+
     logic clk;
     assign clk = host_mem_if.clk;
     logic reset_n = 1'b0;
@@ -152,6 +154,11 @@ module host_mem_rdwr_engine_avalon
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
     localparam DATA_WIDTH = host_mem_if.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
+
+    localparam USER_WIDTH = host_mem_if.USER_WIDTH;
+    typedef logic [USER_WIDTH-1 : 0] t_user;
+    // Portion of user field that doesn't include command flags (like FENCE)
+    typedef logic [USER_WIDTH-HC_AVALON_UFLAG_MAX-2 : 0] t_user_afu;
 
     localparam ADDR_OFFSET_WIDTH = 32;
     typedef logic [ADDR_OFFSET_WIDTH-1 : 0] t_addr_offset;
@@ -282,6 +289,7 @@ module host_mem_rdwr_engine_avalon
     t_addr_offset rd_cur_addr_offset, wr_cur_addr_offset;
     t_num_burst_reqs rd_num_burst_reqs_left, wr_num_burst_reqs_left;
     logic rd_unlimited, wr_unlimited;
+    t_user_afu rd_req_user, wr_req_user;
     logic rd_done, wr_done;
 
     // Track the number of lines in flight
@@ -310,7 +318,7 @@ module host_mem_rdwr_engine_avalon
         host_mem_if.rd_read = (state_run && !rd_done && !rd_line_quota_exceeded);
         host_mem_if.rd_burstcount = rd_req_burst_len;
         host_mem_if.rd_byteenable = ~64'b0;
-        host_mem_if.rd_user = '0;
+        host_mem_if.rd_user = { rd_req_user, t_hc_avalon_user_flags'(0) };
     end
 
     always_ff @(posedge clk)
@@ -320,6 +328,7 @@ module host_mem_rdwr_engine_avalon
         begin
             rd_cur_addr_offset <= (rd_cur_addr_offset + rd_req_burst_len) & base_addr_offset_mask;
             rd_num_burst_reqs_left <= rd_num_burst_reqs_left - 1;
+            rd_req_user <= rd_req_user + 1;
             rd_done <= ! rd_unlimited && (rd_num_burst_reqs_left == t_num_burst_reqs'(1));
         end
 
@@ -329,6 +338,11 @@ module host_mem_rdwr_engine_avalon
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
+
+            // Pick some non-zero start value for the incrementing user tag so
+            // it doesn't sync with the address or request ID. The test will
+            // confirm that the user-tag extension is returned with the request.
+            rd_req_user <= t_user_afu'(29);
         end
 
         if (!reset_n || state_reset)
@@ -372,6 +386,75 @@ module host_mem_rdwr_engine_avalon
         end
     end
 
+    //
+    // Check that rd_readresponseuser matches rd_user on the request. The
+    // request logic above incremenets the user field by one for each
+    // request.
+    //
+    t_burst_cnt rd_rsp_burst_rem;
+    t_user_afu rd_rsp_user;
+    logic rd_rsp_sop;
+
+    always_ff @(posedge clk)
+    begin
+        if (host_mem_if.rd_readdatavalid)
+        begin
+            // Increment the expected value at the end of each burst.
+            rd_rsp_burst_rem <= rd_rsp_burst_rem - 1;
+            rd_rsp_sop <= 1'b0;
+
+            if (rd_rsp_burst_rem == t_burst_cnt'(1))
+            begin
+                rd_rsp_user <= rd_rsp_user + 1;
+                rd_rsp_burst_rem <= rd_req_burst_len;
+                rd_rsp_sop <= 1'b1;
+            end
+        end
+
+        if (state_reset)
+        begin
+            // Initial value of requests
+            rd_rsp_user <= t_user_afu'(29);
+            rd_rsp_burst_rem <= rd_req_burst_len;
+            rd_rsp_sop <= 1'b1;
+        end
+    end
+
+    // synthesis translate_off
+
+    //
+    // For now, we only check the user response field in simulation.
+    //
+    logic rd_user_error;
+
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && !state_reset)
+        begin
+            if (rd_user_error) $fatal(2, "Aborting due to error");
+
+            // The rd_readresponseuser field is valid only on the first beat of a response
+            if (host_mem_if.rd_readdatavalid && rd_rsp_sop)
+            begin
+                // Only check the part of rd_readresponseuser above the flag bits.
+                // Flags are used (mostly by write requests) to trigger fences,
+                // interrupts, etc. and are not guaranteed to be returned.
+                if (host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] != rd_rsp_user)
+                begin
+                    $display("** ERROR ** %m: rd_readresponseuser is 0x%x, expected 0x%x",
+                             { host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1], t_hc_avalon_user_flags'(0) },
+                             { rd_rsp_user, t_hc_avalon_user_flags'(0) });
+                    rd_user_error <= 1'b1;
+                end
+            end
+        end
+        else
+        begin
+            rd_user_error <= 1'b0;
+        end
+    end
+    // synthesis translate_on
+
 
     //
     // Generate write requests
@@ -386,7 +469,7 @@ module host_mem_rdwr_engine_avalon
         host_mem_if.wr_write = (state_run && (!wr_done || !wr_fence_done) && !wr_line_quota_exceeded) || !wr_sop;
         host_mem_if.wr_burstcount = wr_flits_left;
         host_mem_if.wr_byteenable = wr_data_mask;
-        host_mem_if.wr_user = '0;
+        host_mem_if.wr_user = { wr_req_user, t_hc_avalon_user_flags'(0) };
 
         // Emit a write fence at the end
         if (wr_done && !wr_fence_done && !wr_line_quota_exceeded)
@@ -409,6 +492,12 @@ module host_mem_rdwr_engine_avalon
             // Advance one line, reduce the flit count by one
             wr_cur_addr_offset <= (wr_cur_addr_offset + t_addr_offset'(1)) & base_addr_offset_mask;
             wr_flits_left <= wr_flits_left - t_burst_cnt'(1);
+
+            if (wr_sop)
+            begin
+                wr_req_user <= wr_req_user + 1;
+            end
+
             wr_sop <= 1'b0;
 
             // Done with all flits in the burst?
@@ -432,6 +521,11 @@ module host_mem_rdwr_engine_avalon
             wr_flits_left <= wr_req_burst_len;
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
+
+            // Pick some non-zero start value for the incrementing user tag so
+            // it doesn't sync with the address or request ID. The test will
+            // confirm that the user-tag extension is returned with the request.
+            wr_req_user <= t_user_afu'(13);
         end
 
         if (!reset_n || state_reset)
@@ -441,6 +535,59 @@ module host_mem_rdwr_engine_avalon
             wr_sop <= 1'b1;
         end
     end
+
+    //
+    // Check that wr_writeresponseuser matches wr_user on the request.
+    //
+    t_user_afu wr_rsp_user;
+
+    always_ff @(posedge clk)
+    begin
+        if (host_mem_if.wr_writeresponsevalid)
+        begin
+            wr_rsp_user <= wr_rsp_user + 1;
+        end
+
+        if (state_reset)
+        begin
+            // Initial value of requests
+            wr_rsp_user <= t_user_afu'(13);
+        end
+    end
+
+    // synthesis translate_off
+
+    //
+    // For now, we only check the user response field in simulation.
+    //
+    logic wr_user_error;
+
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && !state_reset)
+        begin
+            if (wr_user_error) $fatal(2, "Aborting due to error");
+
+            if (host_mem_if.wr_writeresponsevalid)
+            begin
+                // Only check the part of wr_writeresponseuser above the flag bits.
+                // Flags are used to trigger fences, interrupts, etc. and are not
+                // guaranteed to be returned.
+                if (host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] != wr_rsp_user)
+                begin
+                    $display("** ERROR ** %m: wr_writeresponseuser is 0x%x, expected 0x%x",
+                             { host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1], t_hc_avalon_user_flags'(0) },
+                             { wr_rsp_user, t_hc_avalon_user_flags'(0) });
+                    wr_user_error <= 1'b1;
+                end
+            end
+        end
+        else
+        begin
+            wr_user_error <= 1'b0;
+        end
+    end
+    // synthesis translate_on
 
 
     // ====================================================================

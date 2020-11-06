@@ -344,6 +344,7 @@ interface ofs_plat_avalon_mem_if
                             burstcount,
                             user,
                             byteenable);
+                    $fflush(log_fd);
                 end
 
                 // Read response
@@ -356,6 +357,7 @@ interface ofs_plat_avalon_mem_if
                             readdata,
                             readresponseuser,
                             response);
+                    $fflush(log_fd);
                 end
 
                 // Write request
@@ -371,6 +373,7 @@ interface ofs_plat_avalon_mem_if
                             user,
                             byteenable,
                             writedata);
+                    $fflush(log_fd);
                 end
 
                 // Write response
@@ -382,6 +385,7 @@ interface ofs_plat_avalon_mem_if
                             instance_number,
                             writeresponseuser,
                             writeresponse);
+                    $fflush(log_fd);
                 end
             end
         end

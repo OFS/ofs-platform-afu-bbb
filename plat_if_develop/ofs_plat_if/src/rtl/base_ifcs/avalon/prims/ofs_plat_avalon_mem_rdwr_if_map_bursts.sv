@@ -206,7 +206,10 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_slave.wr_write <= mem_master.wr_write;
                     mem_slave.wr_writedata <= mem_master.wr_writedata;
                     mem_slave.wr_byteenable <= mem_master.wr_byteenable;
-                    s_wr_user <= mem_master.wr_user;
+                    if (m_wr_sop)
+                    begin
+                        s_wr_user <= mem_master.wr_user;
+                    end
                 end
 
                 if (!reset_n)

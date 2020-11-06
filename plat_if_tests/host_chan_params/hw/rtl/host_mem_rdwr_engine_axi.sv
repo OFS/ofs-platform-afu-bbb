@@ -143,6 +143,8 @@ module host_mem_rdwr_engine_axi
     engine_csr_if.engine csrs
     );
 
+    import ofs_plat_host_chan_axi_mem_pkg::*;
+
     logic clk;
     assign clk = host_mem_if.clk;
     logic reset_n = 1'b0;
@@ -169,6 +171,9 @@ module host_mem_rdwr_engine_axi
 
     localparam USER_WIDTH = host_mem_if.USER_WIDTH;
     typedef logic [USER_WIDTH-1 : 0] t_user;
+    // Portion of user field that doesn't include command flags (like FENCE)
+    typedef logic [USER_WIDTH-HC_AXI_UFLAG_MAX-2 : 0] t_user_afu;
+
     localparam RID_WIDTH = host_mem_if.RID_WIDTH;
     typedef logic [RID_WIDTH-1 : 0] t_rid;
     localparam WID_WIDTH = host_mem_if.WID_WIDTH;
@@ -304,8 +309,9 @@ module host_mem_rdwr_engine_axi
     t_addr_offset rd_cur_addr_offset, wr_cur_addr_offset;
     t_num_burst_reqs rd_num_burst_reqs_left, wr_num_burst_reqs_left;
     logic rd_unlimited, wr_unlimited;
+    t_user_afu rd_req_user, wr_req_user;
     logic rd_done, wr_done;
-    t_rid rd_id;
+    t_rid rd_req_id, wr_req_id;
     logic [31:0] r_ready_mask;
 
     // Track the number of lines in flight
@@ -340,9 +346,8 @@ module host_mem_rdwr_engine_axi
                                 t_byte_idx'(0) };
         host_mem_if.ar.size = host_mem_if.ADDR_BYTE_IDX_WIDTH;
         host_mem_if.ar.len = rd_req_burst_len - 1;
-        host_mem_if.ar.id = rd_id;
-        host_mem_if.ar.user[USER_WIDTH-1 : ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1] =
-            ~AFU_PVT_USER_WIDTH'(rd_id);
+        host_mem_if.ar.id = rd_req_id;
+        host_mem_if.ar.user = { rd_req_user, t_hc_axi_user_flags'(0) };
     end
 
     always_ff @(posedge clk)
@@ -352,17 +357,23 @@ module host_mem_rdwr_engine_axi
         begin
             rd_cur_addr_offset <= (rd_cur_addr_offset + rd_req_burst_len) & base_addr_offset_mask;
             rd_num_burst_reqs_left <= rd_num_burst_reqs_left - 1;
-            rd_id <= rd_id + 1;
+            rd_req_id <= rd_req_id + 1;
+            rd_req_user <= rd_req_user + 1;
             rd_done <= ! rd_unlimited && (rd_num_burst_reqs_left == t_num_burst_reqs'(1));
         end
 
         if (state_reset)
         begin
             rd_cur_addr_offset <= rd_start_addr_offset;
-            rd_id <= 0;
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
+
+            // Pick some non-zero start value for the incrementing user tag and id
+            // so they don't sync with the address. The test will confirm that
+            // the user-tag extension is returned with the request.
+            rd_req_id <= t_rid'(37);
+            rd_req_user <= t_user_afu'(29);
         end
 
         if (!reset_n || state_reset)
@@ -421,12 +432,79 @@ module host_mem_rdwr_engine_axi
 
 
     //
+    // Check that the user and id fields in read responses match the
+    // values that were passe with requests. This code assumes responses
+    // are ordered.
+    //
+    t_rid rd_rsp_id;
+    t_user_afu rd_rsp_user;
+
+    always_ff @(posedge clk)
+    begin
+        if (host_mem_if.rvalid && host_mem_if.r.last && host_mem_if.rready)
+        begin
+            rd_rsp_id <= rd_rsp_id + 1;
+            rd_rsp_user <= rd_rsp_user + 1;
+        end
+
+        if (state_reset)
+        begin
+            // Initial value of requests
+            rd_rsp_id <= t_rid'(37);
+            rd_rsp_user <= t_user_afu'(29);
+        end
+    end
+
+    // synthesis translate_off
+
+    //
+    // For now, we only check the user and id response fields in simulation.
+    //
+    logic rd_id_error;
+    logic rd_user_error;
+
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && !state_reset)
+        begin
+            if (rd_id_error) $fatal(2, "Aborting due to READ response id field error");
+            if (rd_user_error) $fatal(2, "Aborting due to READ response user field error");
+
+            if (host_mem_if.rvalid && host_mem_if.rready)
+            begin
+                if (host_mem_if.r.id != rd_rsp_id)
+                begin
+                    $display("** ERROR ** %m: r.id is 0x%x, expected 0x%x", host_mem_if.r.id, rd_rsp_id);
+                    rd_id_error <= 1'b1;
+                end
+
+                // Only check the part of user field above the flag bits.
+                // Flags are used (mostly by write requests) to trigger fences,
+                // interrupts, etc. and are not guaranteed to be returned.
+                if (host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1] != rd_rsp_user)
+                begin
+                    $display("** ERROR ** %m: r.user is 0x%x, expected 0x%x",
+                             { host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1], t_hc_axi_user_flags'(0) },
+                             { rd_rsp_user, t_hc_axi_user_flags'(0) });
+                    rd_user_error <= 1'b1;
+                end
+            end
+        end
+        else
+        begin
+            rd_id_error <= 1'b0;
+            rd_user_error <= 1'b0;
+        end
+    end
+    // synthesis translate_on
+
+
+    //
     // Generate write requests
     //
     t_burst_cnt wr_flits_left;
     logic wr_sop, wr_eop;
     logic wr_fence_done;
-    t_wid wr_id;
     logic [31:0] b_ready_mask;
     logic do_write_line;
 
@@ -440,11 +518,8 @@ module host_mem_rdwr_engine_axi
                                 t_byte_idx'(0) };
         host_mem_if.aw.size = host_mem_if.ADDR_BYTE_IDX_WIDTH;
         host_mem_if.aw.len = wr_flits_left - 1;
-        host_mem_if.aw.id = wr_id;
-        // Just pass something in the user fields as a test. The low command
-        // flag bits must be 0 since they are interpreted by the device.
-        host_mem_if.aw.user[USER_WIDTH-1 : ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1] =
-            ~AFU_PVT_USER_WIDTH'(wr_id);
+        host_mem_if.aw.id = wr_req_id;
+        host_mem_if.aw.user = { wr_req_user, t_hc_axi_user_flags'(0) };
 
         // Emit a write fence at the end
         if (wr_done && !wr_fence_done && !wr_line_quota_exceeded)
@@ -476,7 +551,8 @@ module host_mem_rdwr_engine_axi
             wr_flits_left <= wr_flits_left - t_burst_cnt'(1);
             wr_eop <= (wr_flits_left == t_burst_cnt'(2));
             wr_sop <= 1'b0;
-            wr_id <= wr_id + wr_sop;
+            wr_req_id <= wr_req_id + wr_sop;
+            wr_req_user <= wr_req_user + wr_sop;
 
             // Done with all flits in the burst?
             if (wr_eop)
@@ -502,7 +578,12 @@ module host_mem_rdwr_engine_axi
             wr_eop <= (wr_req_burst_len == t_burst_cnt'(1));
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
-            wr_id <= 0;
+
+            // Pick some non-zero start value for the incrementing user tag and id
+            // so they don't sync with the address. The test will confirm that
+            // the user-tag extension is returned with the request.
+            wr_req_id <= t_rid'(7);
+            wr_req_user <= t_user_afu'(13);
         end
 
         if (!reset_n || state_reset)
@@ -525,6 +606,70 @@ module host_mem_rdwr_engine_axi
             b_ready_mask <= ready_mask[63:32];
         end
     end
+
+    //
+    // Check that user and id fields in write responses match the requests.
+    //
+    t_rid wr_rsp_id;
+    t_user_afu wr_rsp_user;
+
+    always_ff @(posedge clk)
+    begin
+        if (host_mem_if.bvalid && host_mem_if.bready)
+        begin
+            wr_rsp_id <= wr_rsp_id + 1;
+            wr_rsp_user <= wr_rsp_user + 1;
+        end
+
+        if (state_reset)
+        begin
+            // Initial value of requests
+            wr_rsp_id <= t_rid'(7);
+            wr_rsp_user <= t_user_afu'(13);
+        end
+    end
+
+    // synthesis translate_off
+
+    //
+    // For now, we only check the user response field in simulation.
+    //
+    logic wr_id_error;
+    logic wr_user_error;
+
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && !state_reset)
+        begin
+            if (wr_id_error) $fatal(2, "Aborting due to WRITE response id field error");
+            if (wr_user_error) $fatal(2, "Aborting due to WRITE response user field error");
+
+            if (host_mem_if.bvalid && host_mem_if.bready)
+            begin
+                if (host_mem_if.b.id != wr_rsp_id)
+                begin
+                    $display("** ERROR ** %m: b.id is 0x%x, expected 0x%x", host_mem_if.b.id, wr_rsp_id);
+                    wr_id_error <= 1'b1;
+                end
+
+                // Only check the part of b.user above the flag bits.
+                // Flags are used to trigger fences, interrupts, etc. and are not
+                // guaranteed to be returned.
+                if (host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1] != wr_rsp_user)
+                begin
+                    $display("** ERROR ** %m: b.user is 0x%x, expected 0x%x",
+                             { host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1], t_hc_axi_user_flags'(0) },
+                             { wr_rsp_user, t_hc_axi_user_flags'(0) });
+                    wr_user_error <= 1'b1;
+                end
+            end
+        end
+        else
+        begin
+            wr_user_error <= 1'b0;
+        end
+    end
+    // synthesis translate_on
 
 
     // ====================================================================
