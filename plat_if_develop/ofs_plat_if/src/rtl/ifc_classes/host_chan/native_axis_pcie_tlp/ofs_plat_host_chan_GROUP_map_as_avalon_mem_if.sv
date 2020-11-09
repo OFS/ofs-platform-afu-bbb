@@ -367,6 +367,9 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
         // Index of the ROB entry.
         mem_if.rd_readresponseuser = { '0, robIdxToUser(afu_rd_rsp.t.data.tag +
                                                         afu_rd_rsp.t.data.line_idx) };
+        // Use the no reply flag to indicate the beat isn't SOP.
+        mem_if.rd_readresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY] <=
+            |(afu_rd_rsp.t.data.line_idx);
     end
 
 

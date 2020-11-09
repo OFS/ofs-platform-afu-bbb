@@ -89,12 +89,14 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     typedef logic [$clog2(RD_ROB_N_ENTRIES)-1 : 0] t_rd_rob_idx;
     t_rd_rob_idx rd_next_allocIdx;
     assign rd_allocIdx = t_slave_user'(rd_next_allocIdx);
+    logic rd_rsp_is_sop;
+    t_master_user rd_readresponseuser, rd_readresponseuser_sop;
 
     ofs_plat_prim_rob_maybe_dc
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(RD_ROB_N_ENTRIES),
-        .N_DATA_BITS(mem_slave.RESPONSE_WIDTH + DATA_WIDTH),
+        .N_DATA_BITS(1 + mem_slave.RESPONSE_WIDTH + DATA_WIDTH),
         .N_META_BITS(MASTER_USER_WIDTH),
         .MAX_ALLOC_PER_CYCLE(1 << (mem_slave.BURST_CNT_WIDTH - 1))
         )
@@ -114,12 +116,16 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         .enq_reset_n(mem_slave.reset_n),
         .enqData_en(mem_slave.rd_readdatavalid),
         .enqDataIdx(mem_slave.rd_readresponseuser[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
-        .enqData({ mem_slave.rd_response, mem_slave.rd_readdata }),
+        // High bit of data is set only on SOP of the response group.
+        // The slave is expected to set the NO_REPLY flag on non-SOP.
+        .enqData({ ~mem_slave.rd_readresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY],
+                   mem_slave.rd_response,
+                   mem_slave.rd_readdata }),
 
         .deq_en(rd_readdatavalid),
         .notEmpty(rd_readdatavalid),
-        .T2_first({ mem_master.rd_response, mem_master.rd_readdata }),
-        .T2_firstMeta(mem_master.rd_readresponseuser)
+        .T2_first({ rd_rsp_is_sop, mem_master.rd_response, mem_master.rd_readdata }),
+        .T2_firstMeta(rd_readresponseuser)
         );
 
     // Responses: align mem_master.rd_readdatavalid with ROB's 2 cycle latency
@@ -127,6 +133,17 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     begin
         rd_readdatavalid_q <= rd_readdatavalid;
         mem_master.rd_readdatavalid <= rd_readdatavalid_q;
+    end
+
+    // Hold rd_readresponseuser from the SOP beat
+    assign mem_master.rd_readresponseuser = rd_rsp_is_sop ? rd_readresponseuser :
+                                                            rd_readresponseuser_sop;
+    always_ff @(posedge mem_master.clk)
+    begin
+        if (mem_master.rd_readdatavalid && rd_rsp_is_sop)
+        begin
+            rd_readresponseuser_sop <= rd_readresponseuser;
+        end
     end
 
     //

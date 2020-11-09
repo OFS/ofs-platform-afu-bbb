@@ -209,6 +209,10 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         avmm_fiu_clk_if.rd_readdata <= sRx.c0.data;
         // Index of the ROB entry
         avmm_fiu_clk_if.rd_readresponseuser <= robIdxToUser(sRx.c0.hdr.mdata + sRx.c0.hdr.cl_num);
+        // Use the no reply flag to indicate the beat isn't SOP. If cl_num isn't 0
+        // then the beat is not SOP.
+        avmm_fiu_clk_if.rd_readresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY] <=
+            |(sRx.c0.hdr.cl_num);
 
         if (!reset_n)
         begin

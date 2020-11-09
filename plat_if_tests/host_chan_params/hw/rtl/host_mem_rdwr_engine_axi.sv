@@ -433,7 +433,7 @@ module host_mem_rdwr_engine_axi
 
     //
     // Check that the user and id fields in read responses match the
-    // values that were passe with requests. This code assumes responses
+    // values that were passed with requests. This code assumes responses
     // are ordered.
     //
     t_rid rd_rsp_id;

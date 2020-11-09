@@ -433,8 +433,7 @@ module host_mem_rdwr_engine_avalon
         begin
             if (rd_user_error) $fatal(2, "Aborting due to error");
 
-            // The rd_readresponseuser field is valid only on the first beat of a response
-            if (host_mem_if.rd_readdatavalid && rd_rsp_sop)
+            if (host_mem_if.rd_readdatavalid)
             begin
                 // Only check the part of rd_readresponseuser above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,

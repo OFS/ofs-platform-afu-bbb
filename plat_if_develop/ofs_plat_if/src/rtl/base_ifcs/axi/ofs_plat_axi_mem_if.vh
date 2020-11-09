@@ -47,6 +47,12 @@
     .ADDR_WIDTH(AXI_IF.ADDR_WIDTH_), \
     .DATA_WIDTH(AXI_IF.DATA_WIDTH_)
 
+// Replicate all parameters except tags (RID, WID, USER)
+`define OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS_EXCEPT_TAGS(AXI_IF) \
+    .ADDR_WIDTH(AXI_IF.ADDR_WIDTH_), \
+    .DATA_WIDTH(AXI_IF.DATA_WIDTH_), \
+    .BURST_CNT_WIDTH(AXI_IF.BURST_CNT_WIDTH_)
+
 
 //
 // Macro for replicating properties of an ofs_plat_axi_mem_lite_if when
