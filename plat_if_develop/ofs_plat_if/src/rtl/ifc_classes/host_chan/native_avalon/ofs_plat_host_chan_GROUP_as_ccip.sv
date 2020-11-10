@@ -64,7 +64,7 @@ module ofs_plat_host_chan_@group@_as_ccip
     parameter SORT_WRITE_RESPONSES = 0
     )
    (
-    ofs_plat_avalon_mem_if.to_slave to_fiu,
+    ofs_plat_avalon_mem_if.to_sink to_fiu,
     ofs_plat_host_ccip_if.to_afu to_afu,
 
     // AFU CCI-P clock, used only when the ADD_CLOCK_CROSSING parameter
@@ -75,7 +75,7 @@ module ofs_plat_host_chan_@group@_as_ccip
 
     import ofs_plat_ccip_if_funcs_pkg::*;
 
-    // Apply clock crossing and burst mapping to the Avalon slave.
+    // Apply clock crossing and burst mapping to the Avalon sink.
     ofs_plat_avalon_mem_if
       #(
         `OFS_PLAT_AVALON_MEM_IF_REPLICATE_MEM_PARAMS(to_fiu),
@@ -106,8 +106,8 @@ module ofs_plat_host_chan_@group@_as_ccip
 
     ofs_plat_avalon_mem_rdwr_if_to_mem_if gen_rdwr
        (
-        .mem_slave(afu_avmm_if),
-        .mem_master(afu_avmm_rdwr_if)
+        .mem_sink(afu_avmm_if),
+        .mem_source(afu_avmm_rdwr_if)
         );
 
     assign afu_avmm_rdwr_if.clk = afu_avmm_if.clk;

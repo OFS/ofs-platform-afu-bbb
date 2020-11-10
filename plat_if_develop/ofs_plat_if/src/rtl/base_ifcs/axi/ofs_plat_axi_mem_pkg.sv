@@ -89,8 +89,8 @@ package ofs_plat_axi_mem_pkg;
     // Read or write response
     //   0b00: OKAY
     //   0b01: EXOKAY -- Exclusive access successful
-    //   0b10: SLVERR -- Slave returns error
-    //   0b11: DECERR -- Decode error (no slave?)
+    //   0b10: SLVERR -- Sink returns error
+    //   0b11: DECERR -- Decode error (no sink?)
     typedef logic [1:0] t_axi_resp;
 
     // Atomic requests (AXI5 only)

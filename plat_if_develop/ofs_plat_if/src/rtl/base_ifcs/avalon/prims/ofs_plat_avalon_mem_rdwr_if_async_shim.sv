@@ -35,7 +35,7 @@
 module ofs_plat_avalon_mem_rdwr_if_async_shim
   #(
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
-    // requests can be received after mem_master.waitrequest is asserted.
+    // requests can be received after mem_source.waitrequest is asserted.
     parameter COMMAND_ALMFULL_THRESHOLD = 0,
 
     parameter RD_COMMAND_FIFO_DEPTH = 8 + COMMAND_ALMFULL_THRESHOLD,
@@ -45,8 +45,8 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     parameter WR_RESPONSE_FIFO_DEPTH = 8
     )
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source mem_source
     );
 
     localparam RD_SPACE_AVAIL_WIDTH = $clog2(RD_COMMAND_FIFO_DEPTH) + 1;
@@ -64,7 +64,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     // of the request pipeline inside the clock crossing FIFO. When the
     // maximum burst count is large this can affect throughput. Pad the
     // response FIFO with extra slots.
-    localparam RD_MAX_BURST = (1 << (mem_slave.BURST_CNT_WIDTH_ - 1));
+    localparam RD_MAX_BURST = (1 << (mem_sink.BURST_CNT_WIDTH_ - 1));
     localparam RD_RESPONSE_PADDED_FIFO_DEPTH = RD_RESPONSE_FIFO_DEPTH +
                                                2 * RD_MAX_BURST;
 
@@ -74,41 +74,41 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
         // Leave room for passing "response" along with readdata
-        .DATA_WIDTH($bits(t_response) + mem_slave.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(mem_slave.USER_WIDTH + mem_slave.ADDR_WIDTH),
-        .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
+        .DATA_WIDTH($bits(t_response) + mem_sink.DATA_WIDTH),
+        .HDL_ADDR_WIDTH(mem_sink.USER_WIDTH + mem_sink.ADDR_WIDTH),
+        .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(RD_COMMAND_FIFO_DEPTH),
         .RESPONSE_FIFO_DEPTH(RD_RESPONSE_PADDED_FIFO_DEPTH)
         )
       avmm_cross_rd
        (
-        .s0_clk(mem_master.clk),
-        .s0_reset(!mem_master.reset_n),
+        .s0_clk(mem_source.clk),
+        .s0_reset(!mem_source.reset_n),
 
-        .m0_clk(mem_slave.clk),
-        .m0_reset(!mem_slave.reset_n),
+        .m0_clk(mem_sink.clk),
+        .m0_reset(!mem_sink.reset_n),
 
         .s0_waitrequest(cmd_rd_waitrequest),
-        .s0_readdata({mem_master.rd_response, mem_master.rd_readdata}),
-        .s0_readdatavalid(mem_master.rd_readdatavalid),
-        .s0_burstcount(mem_master.rd_burstcount),
+        .s0_readdata({mem_source.rd_response, mem_source.rd_readdata}),
+        .s0_readdatavalid(mem_source.rd_readdatavalid),
+        .s0_burstcount(mem_source.rd_burstcount),
         .s0_writedata('0),
-        .s0_address({mem_master.rd_user, mem_master.rd_address}),
+        .s0_address({mem_source.rd_user, mem_source.rd_address}),
         .s0_write(1'b0),
-        .s0_read(mem_master.rd_read),
-        .s0_byteenable(mem_master.rd_byteenable),
+        .s0_read(mem_source.rd_read),
+        .s0_byteenable(mem_source.rd_byteenable),
         .s0_debugaccess(1'b0),
         .s0_space_avail_data(cmd_rd_space_avail),
 
-        .m0_waitrequest(mem_slave.rd_waitrequest),
-        .m0_readdata({mem_slave.rd_response, mem_slave.rd_readdata}),
-        .m0_readdatavalid(mem_slave.rd_readdatavalid),
-        .m0_burstcount(mem_slave.rd_burstcount),
+        .m0_waitrequest(mem_sink.rd_waitrequest),
+        .m0_readdata({mem_sink.rd_response, mem_sink.rd_readdata}),
+        .m0_readdatavalid(mem_sink.rd_readdatavalid),
+        .m0_burstcount(mem_sink.rd_burstcount),
         .m0_writedata(),
-        .m0_address({mem_slave.rd_user, mem_slave.rd_address}),
+        .m0_address({mem_sink.rd_user, mem_sink.rd_address}),
         .m0_write(),
-        .m0_read(mem_slave.rd_read),
-        .m0_byteenable(mem_slave.rd_byteenable),
+        .m0_read(mem_sink.rd_read),
+        .m0_byteenable(mem_sink.rd_byteenable),
         .m0_debugaccess()
         );
 
@@ -117,41 +117,41 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     //
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
-        .DATA_WIDTH(mem_slave.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(mem_slave.USER_WIDTH + mem_slave.ADDR_WIDTH),
-        .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH),
+        .HDL_ADDR_WIDTH(mem_sink.USER_WIDTH + mem_sink.ADDR_WIDTH),
+        .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(WR_COMMAND_FIFO_DEPTH),
         .RESPONSE_FIFO_DEPTH(WR_RESPONSE_FIFO_DEPTH)
         )
       avmm_cross_wr
        (
-        .s0_clk(mem_master.clk),
-        .s0_reset(!mem_master.reset_n),
+        .s0_clk(mem_source.clk),
+        .s0_reset(!mem_source.reset_n),
 
-        .m0_clk(mem_slave.clk),
-        .m0_reset(!mem_slave.reset_n),
+        .m0_clk(mem_sink.clk),
+        .m0_reset(!mem_sink.reset_n),
 
         .s0_waitrequest(cmd_wr_waitrequest),
         .s0_readdata(),
         .s0_readdatavalid(),
-        .s0_burstcount(mem_master.wr_burstcount),
-        .s0_writedata(mem_master.wr_writedata),
-        .s0_address({mem_master.wr_user, mem_master.wr_address}),
-        .s0_write(mem_master.wr_write),
+        .s0_burstcount(mem_source.wr_burstcount),
+        .s0_writedata(mem_source.wr_writedata),
+        .s0_address({mem_source.wr_user, mem_source.wr_address}),
+        .s0_write(mem_source.wr_write),
         .s0_read(1'b0),
-        .s0_byteenable(mem_master.wr_byteenable),
+        .s0_byteenable(mem_source.wr_byteenable),
         .s0_debugaccess(1'b0),
         .s0_space_avail_data(cmd_wr_space_avail),
 
-        .m0_waitrequest(mem_slave.wr_waitrequest),
+        .m0_waitrequest(mem_sink.wr_waitrequest),
         .m0_readdata('0),
         .m0_readdatavalid(1'b0),
-        .m0_burstcount(mem_slave.wr_burstcount),
-        .m0_writedata(mem_slave.wr_writedata),
-        .m0_address({mem_slave.wr_user, mem_slave.wr_address}),
-        .m0_write(mem_slave.wr_write),
+        .m0_burstcount(mem_sink.wr_burstcount),
+        .m0_writedata(mem_sink.wr_writedata),
+        .m0_address({mem_sink.wr_user, mem_sink.wr_address}),
+        .m0_write(mem_sink.wr_write),
         .m0_read(),
-        .m0_byteenable(mem_slave.wr_byteenable),
+        .m0_byteenable(mem_sink.wr_byteenable),
         .m0_debugaccess()
         );
 
@@ -171,57 +171,57 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
         )
       avmm_cross_wr_response
        (
-        .enq_clk(mem_slave.clk),
-        .enq_reset_n(mem_slave.reset_n),
-        .enq_data(mem_slave.wr_response),
-        .enq_en(mem_slave.wr_writeresponsevalid),
+        .enq_clk(mem_sink.clk),
+        .enq_reset_n(mem_sink.reset_n),
+        .enq_data(mem_sink.wr_response),
+        .enq_en(mem_sink.wr_writeresponsevalid),
         .notFull(),
         .almostFull(),
 
-        .deq_clk(mem_master.clk),
-        .deq_reset_n(mem_master.reset_n),
-        .first(mem_master.wr_response),
+        .deq_clk(mem_source.clk),
+        .deq_reset_n(mem_source.reset_n),
+        .first(mem_source.wr_response),
         .deq_en(wr_response_valid),
         .notEmpty(wr_response_valid)
         );
 
-    always_ff @(posedge mem_master.clk)
+    always_ff @(posedge mem_source.clk)
     begin
-        mem_master.wr_writeresponsevalid <= wr_response_valid && mem_master.reset_n;
+        mem_source.wr_writeresponsevalid <= wr_response_valid && mem_source.reset_n;
     end
 
 
-    // Compute mem_master.waitrequest
+    // Compute mem_source.waitrequest
     generate
         if (COMMAND_ALMFULL_THRESHOLD == 0)
         begin : no_almfull
             // Use the usual Avalon MM protocol
-            assign mem_master.rd_waitrequest = cmd_rd_waitrequest;
-            assign mem_master.wr_waitrequest = cmd_wr_waitrequest;
+            assign mem_source.rd_waitrequest = cmd_rd_waitrequest;
+            assign mem_source.wr_waitrequest = cmd_wr_waitrequest;
         end
         else
         begin : almfull
             // Treat waitrequest as an almost full signal, allowing
             // COMMAND_ALMFULL_THRESHOLD requests after waitrequest is
             // asserted.
-            always_ff @(posedge mem_master.clk)
+            always_ff @(posedge mem_source.clk)
             begin
-                if (!mem_master.reset_n)
+                if (!mem_source.reset_n)
                 begin
-                    mem_master.rd_waitrequest <= 1'b1;
-                    mem_master.wr_waitrequest <= 1'b1;
+                    mem_source.rd_waitrequest <= 1'b1;
+                    mem_source.wr_waitrequest <= 1'b1;
                 end
                 else
                 begin
-                    mem_master.rd_waitrequest <= cmd_rd_waitrequest ||
+                    mem_source.rd_waitrequest <= cmd_rd_waitrequest ||
                         (cmd_rd_space_avail <= (RD_SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
-                    mem_master.wr_waitrequest <= cmd_wr_waitrequest ||
+                    mem_source.wr_waitrequest <= cmd_wr_waitrequest ||
                         (cmd_wr_space_avail <= (WR_SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
                 end
             end
 
             // synthesis translate_off
-            always @(negedge mem_master.clk)
+            always @(negedge mem_source.clk)
             begin
                 // In almost full mode it is illegal for a request to arrive
                 // when s0_waitrequest is asserted. If this ever happens it
@@ -229,16 +229,16 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
                 // cmd_space_avail forced back-pressure too late or it was
                 // ignored.
 
-                if (mem_master.reset_n && cmd_wr_waitrequest && mem_master.wr_write)
+                if (mem_source.reset_n && cmd_wr_waitrequest && mem_source.wr_write)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped write transaction",
-                           mem_master.instance_number);
+                           mem_source.instance_number);
                 end
 
-                if (mem_master.reset_n && cmd_rd_waitrequest && mem_master.rd_read)
+                if (mem_source.reset_n && cmd_rd_waitrequest && mem_source.rd_read)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped read transaction",
-                           mem_master.instance_number);
+                           mem_source.instance_number);
                 end
             end
             // synthesis translate_on

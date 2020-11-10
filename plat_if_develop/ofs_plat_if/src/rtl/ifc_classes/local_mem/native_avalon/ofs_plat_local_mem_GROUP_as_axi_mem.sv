@@ -66,11 +66,11 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     input  logic afu_reset_n,
 
     // The ports are named "to_fiu" and "to_afu" despite the Avalon
-    // to_slave/to_master naming because the PIM port naming is a
+    // to_sink/to_source naming because the PIM port naming is a
     // bus-independent abstraction. At top-level, PIM ports are
     // always to_fiu and to_afu.
-    ofs_plat_avalon_mem_if.to_slave to_fiu,
-    ofs_plat_axi_mem_if.to_master_clk to_afu
+    ofs_plat_avalon_mem_if.to_sink to_fiu,
+    ofs_plat_axi_mem_if.to_source_clk to_afu
     );
 
     // ====================================================================
@@ -129,10 +129,10 @@ module ofs_plat_local_mem_@group@_as_axi_mem
 
     assign axi_afu_if.reset_n = reset_n;
 
-    ofs_plat_axi_mem_if_connect_slave_clk conn_to_afu
+    ofs_plat_axi_mem_if_connect_sink_clk conn_to_afu
        (
-        .mem_master(to_afu),
-        .mem_slave(axi_afu_if)
+        .mem_source(to_afu),
+        .mem_sink(axi_afu_if)
         );
 
 
@@ -143,7 +143,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_axi_mem_if
       #(
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(to_afu),
-        // Avalon burst count of the slave, mapped to AXI size
+        // Avalon burst count of the sink, mapped to AXI size
         .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_ - 1),
         .RID_WIDTH(to_afu.RID_WIDTH_),
         .WID_WIDTH(to_afu.WID_WIDTH_),
@@ -161,8 +161,8 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       map_bursts
        (
-        .mem_master(axi_afu_if),
-        .mem_slave(axi_fiu_burst_if)
+        .mem_source(axi_afu_if),
+        .mem_sink(axi_fiu_burst_if)
         );
 
 
@@ -187,13 +187,13 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       rsp_credits
        (
-        .mem_master(axi_fiu_burst_if),
-        .mem_slave(axi_fiu_credit_if)
+        .mem_source(axi_fiu_burst_if),
+        .mem_sink(axi_fiu_credit_if)
         );
 
 
     //
-    // Clock crossing to slave clock. We insert this unconditionally because
+    // Clock crossing to sink clock. We insert this unconditionally because
     // response buffers are needed anyway and the clock-crossing FIFOs are
     // efficient. The FIFOs are also used for adding Hyperflex pipeline stages
     // in each direction.
@@ -211,19 +211,19 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_axi_mem_if_async_shim
       #(
         .ADD_TIMING_REG_STAGES(NUM_TIMING_REG_STAGES),
-        .SLAVE_RESPONSES_ALWAYS_READY(1),
+        .SINK_RESPONSES_ALWAYS_READY(1),
         .NUM_READ_CREDITS(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_RD),
         .NUM_WRITE_CREDITS(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_WR)
         )
       async_shim
        (
-        .mem_master(axi_fiu_credit_if),
-        .mem_slave(axi_fiu_clk_if)
+        .mem_source(axi_fiu_credit_if),
+        .mem_sink(axi_fiu_clk_if)
         );
 
 
     //
-    // Map AXI master to Avalon split-bus read/write slave.
+    // Map AXI source to Avalon split-bus read/write sink.
     //
 
     // Larger of RID/WID
@@ -263,13 +263,13 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       axi_to_avmm_rdwr
        (
-        .axi_master(axi_fiu_clk_if),
-        .avmm_slave(avmm_rdwr_if)
+        .axi_source(axi_fiu_clk_if),
+        .avmm_sink(avmm_rdwr_if)
         );
 
 
     //
-    // Map Avalon split-bus read/write to straight Avalon slave.
+    // Map Avalon split-bus read/write to straight Avalon sink.
     //
     ofs_plat_avalon_mem_if
       #(
@@ -283,22 +283,22 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         )
       avmm_rdwr_to_avmm
        (
-        .mem_master(avmm_rdwr_if),
-        .mem_slave(avmm_if)
+        .mem_source(avmm_rdwr_if),
+        .mem_sink(avmm_if)
         );
 
 
     //
     // Connect to the FIU
     //
-    ofs_plat_avalon_mem_if_reg_slave_clk
+    ofs_plat_avalon_mem_if_reg_sink_clk
       #(
         .N_REG_STAGES(1)
         )
       mem_pipe
        (
-        .mem_master(avmm_if),
-        .mem_slave(to_fiu)
+        .mem_source(avmm_if),
+        .mem_sink(to_fiu)
         );
 
 endmodule // ofs_plat_local_mem_@group@_as_avalon_mem

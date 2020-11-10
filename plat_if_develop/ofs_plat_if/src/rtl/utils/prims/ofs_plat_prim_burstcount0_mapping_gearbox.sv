@@ -34,9 +34,9 @@
 //
 
 //
-// When a master and slave have different maximum burst counts this gearbox
-// turns each master command into one or more slave commands. The gearbox
-// can also enforce natural alignment in the slave, ensuring that the low
+// When a source and sink have different maximum burst counts this gearbox
+// turns each source command into one or more sink commands. The gearbox
+// can also enforce natural alignment in the sink, ensuring that the low
 // address bits reflect the flit count within a bust. This is required
 // by some protocols, e.g. CCI-P.
 //
@@ -44,8 +44,8 @@
 module ofs_plat_prim_burstcount0_mapping_gearbox
   #(
     parameter ADDR_WIDTH = 0,
-    parameter MASTER_BURST_WIDTH = 0,
-    parameter SLAVE_BURST_WIDTH = 0,
+    parameter SOURCE_BURST_WIDTH = 0,
+    parameter SINK_BURST_WIDTH = 0,
     // When non-zero emit only naturally aligned requests.
     parameter NATURAL_ALIGNMENT = 0,
     // When non-zero ensure that no bursts cross page boundaries. Used
@@ -60,17 +60,17 @@ module ofs_plat_prim_burstcount0_mapping_gearbox
 
     input  logic m_new_req,
     input  logic [ADDR_WIDTH-1 : 0] m_addr,
-    input  logic [MASTER_BURST_WIDTH-1 : 0] m_burstcount,
+    input  logic [SOURCE_BURST_WIDTH-1 : 0] m_burstcount,
 
     input  logic s_accept_req,
     output logic s_req_complete,
     output logic [ADDR_WIDTH-1 : 0] s_addr,
-    output logic [SLAVE_BURST_WIDTH-1 : 0] s_burstcount
+    output logic [SINK_BURST_WIDTH-1 : 0] s_burstcount
     );
 
-    typedef logic [MASTER_BURST_WIDTH:0] t_m_burstcount1;
+    typedef logic [SOURCE_BURST_WIDTH:0] t_m_burstcount1;
 
-    typedef logic [SLAVE_BURST_WIDTH:0] t_s_burstcount1;
+    typedef logic [SINK_BURST_WIDTH:0] t_s_burstcount1;
     t_s_burstcount1 s_b1;
     assign s_burstcount = (s_b1 - 1);
 
@@ -82,8 +82,8 @@ module ofs_plat_prim_burstcount0_mapping_gearbox
             ofs_plat_prim_burstcount1_natural_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
-                .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH+1),
-                .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH+1)
+                .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH+1),
+                .SINK_BURST_WIDTH(SINK_BURST_WIDTH+1)
                 )
               map
                (
@@ -103,8 +103,8 @@ module ofs_plat_prim_burstcount0_mapping_gearbox
             ofs_plat_prim_burstcount1_page_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
-                .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH+1),
-                .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH+1),
+                .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH+1),
+                .SINK_BURST_WIDTH(SINK_BURST_WIDTH+1),
                 .PAGE_SIZE(PAGE_SIZE)
                 )
               map
@@ -125,8 +125,8 @@ module ofs_plat_prim_burstcount0_mapping_gearbox
             ofs_plat_prim_burstcount1_simple_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
-                .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH+1),
-                .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH+1)
+                .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH+1),
+                .SINK_BURST_WIDTH(SINK_BURST_WIDTH+1)
                 )
               map
                (

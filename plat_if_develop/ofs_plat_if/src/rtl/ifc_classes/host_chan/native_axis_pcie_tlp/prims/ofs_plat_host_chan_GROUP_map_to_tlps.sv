@@ -72,19 +72,19 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
 
     // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
-    ofs_plat_axi_stream_if.to_slave host_mmio_req,
+    ofs_plat_axi_stream_if.to_sink host_mmio_req,
     // AFU MMIO responses to host (t_gen_tx_mmio_afu_rsp)
-    ofs_plat_axi_stream_if.to_master host_mmio_rsp,
+    ofs_plat_axi_stream_if.to_source host_mmio_rsp,
 
     // Read requests from AFU (t_gen_tx_afu_rd_req)
-    ofs_plat_axi_stream_if.to_master afu_rd_req,
+    ofs_plat_axi_stream_if.to_source afu_rd_req,
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
-    ofs_plat_axi_stream_if.to_slave afu_rd_rsp,
+    ofs_plat_axi_stream_if.to_sink afu_rd_rsp,
 
     // Write requests from AFU (t_gen_tx_afu_wr_req)
-    ofs_plat_axi_stream_if.to_master afu_wr_req,
+    ofs_plat_axi_stream_if.to_source afu_wr_req,
     // Write responses to AFU once the packet is completely sent (t_gen_tx_afu_wr_rsp)
-    ofs_plat_axi_stream_if.to_slave afu_wr_rsp
+    ofs_plat_axi_stream_if.to_sink afu_wr_rsp
     );
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
@@ -129,15 +129,15 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     ofs_plat_host_chan_align_axis_rx_tlps
       #(
-        .NUM_MASTER_TLP_CH(NUM_FIU_PCIE_TLP_CH),
-        .NUM_SLAVE_TLP_CH(NUM_PIM_PCIE_TLP_CH),
+        .NUM_SOURCE_TLP_CH(NUM_FIU_PCIE_TLP_CH),
+        .NUM_SINK_TLP_CH(NUM_PIM_PCIE_TLP_CH),
         .TDATA_TYPE(t_ofs_plat_axis_pcie_tdata),
         .TUSER_TYPE(t_ofs_plat_axis_pcie_rx_tuser)
         )
       align_rx
        (
-        .stream_master(to_fiu_tlp.afu_rx_st),
-        .stream_slave(aligned_rx_st)
+        .stream_source(to_fiu_tlp.afu_rx_st),
+        .stream_sink(aligned_rx_st)
         );
 
     logic rx_cpl_handler_ready;
@@ -174,15 +174,15 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     ofs_plat_host_chan_align_axis_tx_tlps
       #(
-        .NUM_MASTER_TLP_CH(NUM_PIM_PCIE_TLP_CH),
-        .NUM_SLAVE_TLP_CH(NUM_FIU_PCIE_TLP_CH),
+        .NUM_SOURCE_TLP_CH(NUM_PIM_PCIE_TLP_CH),
+        .NUM_SINK_TLP_CH(NUM_FIU_PCIE_TLP_CH),
         .TDATA_TYPE(t_ofs_plat_axis_pcie_tdata),
         .TUSER_TYPE(t_ofs_plat_axis_pcie_tx_tuser)
         )
       align_tx
        (
-        .stream_master(aligned_tx_st),
-        .stream_slave(to_fiu_tlp.afu_tx_st)
+        .stream_source(aligned_tx_st),
+        .stream_sink(to_fiu_tlp.afu_tx_st)
         );
 
 

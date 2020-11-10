@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Service multiple Avalon master interfaces with a single slave interface.
+// Service multiple Avalon source interfaces with a single sink interface.
 // The most common use of this module in the PIM is for testing: simulating
 // platforms with multiple Avalon host channels on platforms with only a
 // single host interface. Developers are free to use it for other purposes.
@@ -39,43 +39,43 @@
 
 module ofs_plat_avalon_mem_rdwr_if_mux
   #(
-    parameter NUM_MASTER_PORTS = 2,
+    parameter NUM_SOURCE_PORTS = 2,
 
     // Tracker depths govern the maximum number of bursts that may be in flight.
     parameter RD_TRACKER_DEPTH = 256,
     parameter WR_TRACKER_DEPTH = 128,
 
-    // Shift in this many zero bits at the low end of slave user fields.
+    // Shift in this many zero bits at the low end of sink user fields.
     // This simplifies protocol transformations after the MUX.
-    parameter SLAVE_USER_SHIFT = 0
+    parameter SINK_USER_SHIFT = 0
     )
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk mem_master[NUM_MASTER_PORTS]
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk mem_source[NUM_SOURCE_PORTS]
     );
 
     wire clk;
-    assign clk = mem_slave.clk;
+    assign clk = mem_sink.clk;
 
     logic reset_n = 1'b0;
     always @(posedge clk)
     begin
-        reset_n <= mem_slave.reset_n;
+        reset_n <= mem_sink.reset_n;
     end
 
     // Avalon returns responses in order. The MUX will use FIFOs to route
-    // responses to the proper master.
-    typedef logic [$clog2(NUM_MASTER_PORTS)-1 : 0] t_port_idx;
+    // responses to the proper source.
+    typedef logic [$clog2(NUM_SOURCE_PORTS)-1 : 0] t_port_idx;
 
-    // All slave and master address, data and burst count sizes must match.
-    localparam ADDR_WIDTH = mem_slave.ADDR_WIDTH_;
-    localparam DATA_WIDTH = mem_slave.DATA_WIDTH_;
-    localparam DATA_N_BYTES = mem_slave.DATA_N_BYTES;
-    localparam BURST_CNT_WIDTH = mem_slave.BURST_CNT_WIDTH_;
+    // All sink and source address, data and burst count sizes must match.
+    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH_;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
+    localparam DATA_N_BYTES = mem_sink.DATA_N_BYTES;
+    localparam BURST_CNT_WIDTH = mem_sink.BURST_CNT_WIDTH_;
 
-    // Preserve master's user, rd_user and wr_user fields. We assume that
-    // all master ports have the same width.
-    localparam USER_WIDTH = mem_master[0].USER_WIDTH_;
+    // Preserve source's user, rd_user and wr_user fields. We assume that
+    // all source ports have the same width.
+    localparam USER_WIDTH = mem_source[0].USER_WIDTH_;
 
     typedef logic [ADDR_WIDTH-1:0] t_addr;
     typedef logic [DATA_WIDTH-1:0] t_data;
@@ -88,26 +88,26 @@ module ofs_plat_avalon_mem_rdwr_if_mux
         // Multiplex incoming requests into shared_if
         ofs_plat_avalon_mem_rdwr_if
           #(
-            `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(mem_slave)
+            `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(mem_sink)
             )
             shared_if();
 
         ofs_plat_avalon_mem_rdwr_if_reg conn
            (
-            .mem_slave,
-            .mem_master(shared_if)
+            .mem_sink,
+            .mem_source(shared_if)
             );
 
-        assign shared_if.clk = mem_slave.clk;
-        assign shared_if.reset_n = mem_slave.reset_n;
-        assign shared_if.instance_number = mem_slave.instance_number;
+        assign shared_if.clk = mem_sink.clk;
+        assign shared_if.reset_n = mem_sink.reset_n;
+        assign shared_if.instance_number = mem_sink.instance_number;
 
-        // Fan out clock and reset_n to the master ports
-        for (p = 0; p < NUM_MASTER_PORTS; p = p + 1)
+        // Fan out clock and reset_n to the source ports
+        for (p = 0; p < NUM_SOURCE_PORTS; p = p + 1)
         begin : ctrl
-            assign mem_master[p].clk = mem_slave.clk;
-            assign mem_master[p].reset_n = mem_slave.reset_n;
-            assign mem_master[p].instance_number = mem_slave.instance_number + p;
+            assign mem_source[p].clk = mem_sink.clk;
+            assign mem_source[p].reset_n = mem_sink.reset_n;
+            assign mem_source[p].instance_number = mem_sink.instance_number + p;
         end
 
         // Wrap Avalon control signals in a struct for use in FIFOs
@@ -125,23 +125,23 @@ module ofs_plat_avalon_mem_rdwr_if_mux
         // ============================================================
 
         //
-        // Push master read requests into a FIFO per port
+        // Push source read requests into a FIFO per port
         //
 
-        t_req rd_req[NUM_MASTER_PORTS];
-        logic [NUM_MASTER_PORTS-1 : 0] rd_req_deq_en;
-        logic [NUM_MASTER_PORTS-1 : 0] rd_req_notEmpty;
+        t_req rd_req[NUM_SOURCE_PORTS];
+        logic [NUM_SOURCE_PORTS-1 : 0] rd_req_deq_en;
+        logic [NUM_SOURCE_PORTS-1 : 0] rd_req_notEmpty;
 
-        for (p = 0; p < NUM_MASTER_PORTS; p = p + 1)
+        for (p = 0; p < NUM_SOURCE_PORTS; p = p + 1)
         begin : rd_buf_req
-            t_req rd_master_req;
-            assign rd_master_req.address = mem_master[p].rd_address;
-            assign rd_master_req.burstcount = mem_master[p].rd_burstcount;
-            assign rd_master_req.byteenable = mem_master[p].rd_byteenable;
-            assign rd_master_req.user = mem_master[p].rd_user;
+            t_req rd_source_req;
+            assign rd_source_req.address = mem_source[p].rd_address;
+            assign rd_source_req.burstcount = mem_source[p].rd_burstcount;
+            assign rd_source_req.byteenable = mem_source[p].rd_byteenable;
+            assign rd_source_req.user = mem_source[p].rd_user;
 
             logic rd_req_in_notFull;
-            assign mem_master[p].rd_waitrequest = ! rd_req_in_notFull;
+            assign mem_source[p].rd_waitrequest = ! rd_req_in_notFull;
 
             ofs_plat_prim_fifo2
               #(
@@ -151,8 +151,8 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                (
                 .clk,
                 .reset_n,
-                .enq_data(rd_master_req),
-                .enq_en(mem_master[p].rd_read && rd_req_in_notFull),
+                .enq_data(rd_source_req),
+                .enq_en(mem_source[p].rd_read && rd_req_in_notFull),
                 .notFull(rd_req_in_notFull),
                 .first(rd_req[p]),
                 .deq_en(rd_req_deq_en[p]),
@@ -162,14 +162,14 @@ module ofs_plat_avalon_mem_rdwr_if_mux
 
         //
         // Round-robin arbitration to pick a request from among the
-        // active masters.
+        // active sources.
         //
         t_port_idx rd_grantIdx;
         logic rd_tracker_notFull;
 
         ofs_plat_prim_arb_rr
           #(
-            .NUM_CLIENTS(NUM_MASTER_PORTS)
+            .NUM_CLIENTS(NUM_SOURCE_PORTS)
             )
           rd_arb
            (
@@ -189,7 +189,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             shared_if.rd_burstcount = rd_req[rd_grantIdx].burstcount;
             shared_if.rd_byteenable = rd_req[rd_grantIdx].byteenable;
             shared_if.rd_user = '0;
-            shared_if.rd_user[SLAVE_USER_SHIFT +: USER_WIDTH] = rd_req[rd_grantIdx].user;
+            shared_if.rd_user[SINK_USER_SHIFT +: USER_WIDTH] = rd_req[rd_grantIdx].user;
         end
 
         // Track the port and burst length of winners in order to send
@@ -222,17 +222,17 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             );
 
         //
-        // Forward slave responses back to the proper master.
+        // Forward sink responses back to the proper source.
         //
-        for (p = 0; p < NUM_MASTER_PORTS; p = p + 1)
+        for (p = 0; p < NUM_SOURCE_PORTS; p = p + 1)
         begin : rd_rsp
             always_ff @(posedge clk)
             begin
-                mem_master[p].rd_readdatavalid <= shared_if.rd_readdatavalid &&
+                mem_source[p].rd_readdatavalid <= shared_if.rd_readdatavalid &&
                                                   (rd_rsp_port_idx == t_port_idx'(p));
-                mem_master[p].rd_readdata <= shared_if.rd_readdata;
-                mem_master[p].rd_response <= shared_if.rd_response;
-                mem_master[p].rd_readresponseuser <= rd_rsp_user;
+                mem_source[p].rd_readdata <= shared_if.rd_readdata;
+                mem_source[p].rd_response <= shared_if.rd_response;
+                mem_source[p].rd_readresponseuser <= rd_rsp_user;
             end
         end
 
@@ -260,21 +260,21 @@ module ofs_plat_avalon_mem_rdwr_if_mux
         //
         // ============================================================
 
-        t_req wr_req[NUM_MASTER_PORTS];
-        logic [NUM_MASTER_PORTS-1 : 0] wr_req_deq_en;
-        logic [NUM_MASTER_PORTS-1 : 0] wr_req_notEmpty;
-        t_data wr_writedata[NUM_MASTER_PORTS];
+        t_req wr_req[NUM_SOURCE_PORTS];
+        logic [NUM_SOURCE_PORTS-1 : 0] wr_req_deq_en;
+        logic [NUM_SOURCE_PORTS-1 : 0] wr_req_notEmpty;
+        t_data wr_writedata[NUM_SOURCE_PORTS];
 
-        for (p = 0; p < NUM_MASTER_PORTS; p = p + 1)
+        for (p = 0; p < NUM_SOURCE_PORTS; p = p + 1)
         begin : wr_buf_req
-            t_req wr_master_req;
-            assign wr_master_req.address = mem_master[p].wr_address;
-            assign wr_master_req.burstcount = mem_master[p].wr_burstcount;
-            assign wr_master_req.byteenable = mem_master[p].wr_byteenable;
-            assign wr_master_req.user = mem_master[p].wr_user;
+            t_req wr_source_req;
+            assign wr_source_req.address = mem_source[p].wr_address;
+            assign wr_source_req.burstcount = mem_source[p].wr_burstcount;
+            assign wr_source_req.byteenable = mem_source[p].wr_byteenable;
+            assign wr_source_req.user = mem_source[p].wr_user;
 
             logic wr_req_in_notFull;
-            assign mem_master[p].wr_waitrequest = ! wr_req_in_notFull;
+            assign mem_source[p].wr_waitrequest = ! wr_req_in_notFull;
 
             ofs_plat_prim_fifo2
               #(
@@ -284,8 +284,8 @@ module ofs_plat_avalon_mem_rdwr_if_mux
                (
                 .clk,
                 .reset_n,
-                .enq_data({ mem_master[p].wr_writedata, wr_master_req }),
-                .enq_en(mem_master[p].wr_write && wr_req_in_notFull),
+                .enq_data({ mem_source[p].wr_writedata, wr_source_req }),
+                .enq_en(mem_source[p].wr_write && wr_req_in_notFull),
                 .notFull(wr_req_in_notFull),
                 .first({ wr_writedata[p], wr_req[p] }),
                 .deq_en(wr_req_deq_en[p]),
@@ -295,17 +295,17 @@ module ofs_plat_avalon_mem_rdwr_if_mux
 
         //
         // Round-robin arbitration to pick a request from among the
-        // active masters. Once a write burst starts, arbitration
+        // active sources. Once a write burst starts, arbitration
         // stays with the port until the burst is complete.
         //
-        logic [NUM_MASTER_PORTS-1 : 0] wr_grant_onehot;
+        logic [NUM_SOURCE_PORTS-1 : 0] wr_grant_onehot;
         t_port_idx wr_grantIdx;
         logic wr_tracker_notFull;
         logic wr_sop;
 
         ofs_plat_prim_arb_rr
           #(
-            .NUM_CLIENTS(NUM_MASTER_PORTS)
+            .NUM_CLIENTS(NUM_SOURCE_PORTS)
             )
           wr_arb
            (
@@ -333,7 +333,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             );
 
         // Lock the winner at SOP
-        logic [NUM_MASTER_PORTS-1 : 0] wr_grant_onehot_hold;
+        logic [NUM_SOURCE_PORTS-1 : 0] wr_grant_onehot_hold;
         t_port_idx wr_grantIdx_hold;
 
         always_ff @(posedge clk)
@@ -357,7 +357,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
         assign wr_req_deq_en =
             wr_sop ? wr_grant_onehot :
                      (wr_grant_onehot_hold & wr_req_notEmpty &
-                      ~{NUM_MASTER_PORTS{shared_if.wr_waitrequest}});
+                      ~{NUM_SOURCE_PORTS{shared_if.wr_waitrequest}});
 
         // Forward the winner
         always_comb
@@ -367,7 +367,7 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             shared_if.wr_burstcount = wr_req[wr_winnerIdx].burstcount;
             shared_if.wr_byteenable = wr_req[wr_winnerIdx].byteenable;
             shared_if.wr_user = '0;
-            shared_if.wr_user[SLAVE_USER_SHIFT +: USER_WIDTH] = wr_req[wr_winnerIdx].user;
+            shared_if.wr_user[SINK_USER_SHIFT +: USER_WIDTH] = wr_req[wr_winnerIdx].user;
             shared_if.wr_writedata = wr_writedata[wr_winnerIdx];
         end
 
@@ -394,16 +394,16 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             );
 
         //
-        // Forward slave responses back to the proper master.
+        // Forward sink responses back to the proper source.
         //
-        for (p = 0; p < NUM_MASTER_PORTS; p = p + 1)
+        for (p = 0; p < NUM_SOURCE_PORTS; p = p + 1)
         begin : wr_rsp
             always_ff @(posedge clk)
             begin
-                mem_master[p].wr_writeresponsevalid <=
+                mem_source[p].wr_writeresponsevalid <=
                     shared_if.wr_writeresponsevalid && (wr_rsp_port_idx == t_port_idx'(p));
-                mem_master[p].wr_response <= shared_if.wr_response;
-                mem_master[p].wr_writeresponseuser <= wr_rsp_user;
+                mem_source[p].wr_response <= shared_if.wr_response;
+                mem_source[p].wr_writeresponseuser <= wr_rsp_user;
             end
         end
     endgenerate

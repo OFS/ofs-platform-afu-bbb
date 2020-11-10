@@ -59,9 +59,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
     parameter ADD_TIMING_REG_STAGES = 0
     )
    (
-    ofs_plat_avalon_mem_if.to_slave to_fiu,
+    ofs_plat_avalon_mem_if.to_sink to_fiu,
 
-    ofs_plat_avalon_mem_if.to_master_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_if.to_source_clk host_mem_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -120,14 +120,14 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
         )
         fiu_reg_if();
 
-    ofs_plat_avalon_mem_if_reg_slave_clk
+    ofs_plat_avalon_mem_if_reg_sink_clk
       #(
         .N_REG_STAGES(numTimingRegStages(1))
         )
       mem_pipe
        (
-        .mem_slave(to_fiu),
-        .mem_master(fiu_reg_if)
+        .mem_sink(to_fiu),
+        .mem_source(fiu_reg_if)
         );
 
     ofs_plat_avalon_mem_if
@@ -149,10 +149,10 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
             //
             // Port is ordered and no clock crossing is requested.
             //
-            ofs_plat_avalon_mem_if_connect_slave_clk fiu_conn
+            ofs_plat_avalon_mem_if_connect_sink_clk fiu_conn
                (
-                .mem_slave(fiu_reg_if),
-                .mem_master(afu_clk_if)
+                .mem_sink(fiu_reg_if),
+                .mem_source(afu_clk_if)
                 );
         end
         else
@@ -207,7 +207,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
             if (OUT_OF_ORDER)
             begin
                 // At least a ROB and maybe a clock crossing. The user field
-                // in the slave interface is used for the reordering tag.
+                // in the sink interface is used for the reordering tag.
                 ofs_plat_avalon_mem_if_async_rob
                   #(
                     .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
@@ -216,8 +216,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
                     )
                   rob
                    (
-                    .mem_slave(fiu_reg_if),
-                    .mem_master(mem_cross)
+                    .mem_sink(fiu_reg_if),
+                    .mem_source(mem_cross)
                     );
             end
             else
@@ -230,8 +230,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
                     )
                   cross_clk
                    (
-                    .mem_slave(fiu_reg_if),
-                    .mem_master(mem_cross)
+                    .mem_sink(fiu_reg_if),
+                    .mem_source(mem_cross)
                     );
             end
 
@@ -241,8 +241,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
                 )
               mem_pipe
                (
-                .mem_slave(mem_cross),
-                .mem_master(afu_clk_if)
+                .mem_sink(mem_cross),
+                .mem_source(afu_clk_if)
                 );
 
             assign afu_clk_if.clk = mem_cross.clk;
@@ -266,10 +266,10 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
         begin : nb
             // AFU's burst count is no larger than the FIU's. Just wire
             // the connection to the next stage.
-            ofs_plat_avalon_mem_if_connect_slave_clk conn
+            ofs_plat_avalon_mem_if_connect_sink_clk conn
                (
-                .mem_slave(afu_clk_if),
-                .mem_master(host_mem_to_afu)
+                .mem_sink(afu_clk_if),
+                .mem_source(host_mem_to_afu)
                 );
         end
         else
@@ -332,9 +332,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
 
             always_comb
             begin
-                `OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(afu_clk_if,
+                `OFS_PLAT_AVALON_MEM_IF_FROM_SOURCE_TO_SINK_COMB(afu_clk_if,
                                                                   fiu_burst_if);
-                `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(fiu_burst_if,
+                `OFS_PLAT_AVALON_MEM_IF_FROM_SINK_TO_SOURCE_COMB(fiu_burst_if,
                                                                   afu_clk_if);
 
                 afu_clk_if.read = fiu_burst_if.read && wr_resp_fifo_notFull;
@@ -346,7 +346,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
             end
 
             //
-            // Map from master bursts to slave bursts
+            // Map from source bursts to sink bursts
             //
             ofs_plat_avalon_mem_if
               #(
@@ -360,14 +360,14 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
 
             ofs_plat_avalon_mem_if_map_bursts burst
                (
-                .mem_slave(fiu_burst_if),
-                .mem_master(afu_burst_if)
+                .mem_sink(fiu_burst_if),
+                .mem_source(afu_burst_if)
                 );
 
-            ofs_plat_avalon_mem_if_reg_slave_clk afu_conn
+            ofs_plat_avalon_mem_if_reg_sink_clk afu_conn
                (
-                .mem_slave(afu_burst_if),
-                .mem_master(host_mem_to_afu)
+                .mem_sink(afu_burst_if),
+                .mem_source(host_mem_to_afu)
                 );
         end
     endgenerate

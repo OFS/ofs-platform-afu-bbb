@@ -32,14 +32,14 @@
 
 //
 // A simple version of AXI MM interface register stage insertion.
-// The slave-generated ready signals are treated as an almost full
-// protocol, with the assumption that the slave end of the connection
+// The sink-generated ready signals are treated as an almost full
+// protocol, with the assumption that the sink end of the connection
 // can handle at least as many requests as the depth of the pipeline
-// plus the latency of forwarding ready from the slave side to the
-// master side.
+// plus the latency of forwarding ready from the sink side to the
+// source side.
 //
-// The master to slave response ready signals are treated normally,
-// under the assumption that in a simple protocol masters will
+// The source to sink response ready signals are treated normally,
+// under the assumption that in a simple protocol sources will
 // always be ready.
 //
 
@@ -50,60 +50,60 @@ module ofs_plat_axi_mem_if_reg_simple
     parameter N_READY_STAGES = N_REG_STAGES
     )
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_if.to_sink mem_sink,
+    ofs_plat_axi_mem_if.to_source mem_source
     );
 
     // synthesis translate_off
-    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_sink, mem_source)
     // synthesis translate_on
 
     genvar s;
     generate
         if (N_REG_STAGES == 0)
         begin : wires
-            ofs_plat_axi_mem_if_connect conn(.mem_slave, .mem_master);
+            ofs_plat_axi_mem_if_connect conn(.mem_sink, .mem_source);
         end
         else
         begin : regs
             // Pipeline stages.
             ofs_plat_axi_mem_if
               #(
-                `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_slave)
+                `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_sink)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
-            // Map mem_slave to stage 0 (wired) to make the for loop below simpler.
-            ofs_plat_axi_mem_if_connect_slave_clk
+            // Map mem_sink to stage 0 (wired) to make the for loop below simpler.
+            ofs_plat_axi_mem_if_connect_sink_clk
               conn0
                (
-                .mem_slave(mem_slave),
-                .mem_master(mem_pipe[0])
+                .mem_sink(mem_sink),
+                .mem_source(mem_pipe[0])
                 );
 
 
             // ============================================================
             //
-            //  Master to slave buses (almost full protocol)
+            //  Source to sink buses (almost full protocol)
             //
             // ============================================================
 
             // Inject the requested number of stages
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
             begin : pms
-                assign mem_pipe[s].clk = mem_slave.clk;
-                assign mem_pipe[s].reset_n = mem_slave.reset_n;
+                assign mem_pipe[s].clk = mem_sink.clk;
+                assign mem_pipe[s].reset_n = mem_sink.reset_n;
 
-                always_ff @(posedge mem_slave.clk)
+                always_ff @(posedge mem_sink.clk)
                 begin
-                    // Slave ready signals are a different pipeline, implemented below.
+                    // Sink ready signals are a different pipeline, implemented below.
                     mem_pipe[s].awready <= 1'b1;
                     mem_pipe[s].wready <= 1'b1;
                     mem_pipe[s].arready <= 1'b1;
 
-                    `OFS_PLAT_AXI_MEM_IF_FROM_MASTER_TO_SLAVE_FF(mem_pipe[s-1], mem_pipe[s]);
+                    `OFS_PLAT_AXI_MEM_IF_FROM_SOURCE_TO_SINK_FF(mem_pipe[s-1], mem_pipe[s]);
 
-                    if (!mem_slave.reset_n)
+                    if (!mem_sink.reset_n)
                     begin
                         mem_pipe[s-1].awvalid <= 1'b0;
                         mem_pipe[s-1].wvalid <= 1'b0;
@@ -116,38 +116,38 @@ module ofs_plat_axi_mem_if_reg_simple
             end
 
 
-            // Ready signals are shift registers, with mem_slave signals entering
+            // Ready signals are shift registers, with mem_sink signals entering
             // at bit 0.
             logic [N_READY_STAGES:0] awready_pipe, wready_pipe;
             logic [N_READY_STAGES:0] arready_pipe;
-            assign awready_pipe[0] = mem_slave.awready;
-            assign wready_pipe[0] = mem_slave.wready;
-            assign arready_pipe[0] = mem_slave.arready;
+            assign awready_pipe[0] = mem_sink.awready;
+            assign wready_pipe[0] = mem_sink.wready;
+            assign arready_pipe[0] = mem_sink.arready;
 
-            always_ff @(posedge mem_slave.clk)
+            always_ff @(posedge mem_sink.clk)
             begin
                 // Shift the ready pipelines
                 awready_pipe[N_READY_STAGES:1] <=
-                    mem_slave.reset_n ? awready_pipe[N_READY_STAGES-1:0] :
+                    mem_sink.reset_n ? awready_pipe[N_READY_STAGES-1:0] :
                                         {N_READY_STAGES{1'b0}};
 
                 wready_pipe[N_READY_STAGES:1] <=
-                    mem_slave.reset_n ? wready_pipe[N_READY_STAGES-1:0] :
+                    mem_sink.reset_n ? wready_pipe[N_READY_STAGES-1:0] :
                                         {N_READY_STAGES{1'b0}};
 
                 arready_pipe[N_READY_STAGES:1] <=
-                    mem_slave.reset_n ? arready_pipe[N_READY_STAGES-1:0] :
+                    mem_sink.reset_n ? arready_pipe[N_READY_STAGES-1:0] :
                                         {N_READY_STAGES{1'b0}};
             end
 
 
             // ============================================================
             //
-            //  Slave to master buses (normal ready/enable)
+            //  Sink to source buses (normal ready/enable)
             //
             // ============================================================
 
-            // Build systolic pipelines for slave to master responses
+            // Build systolic pipelines for sink to source responses
             // under the assumption that modules using the reg_simple primitive
             // are always ready to receive responses.
             for (s = 1; s <= N_REG_STAGES; s = s + 1)
@@ -158,8 +158,8 @@ module ofs_plat_axi_mem_if_reg_simple
                     )
                   r
                    (
-                    .clk(mem_slave.clk),
-                    .reset_n(mem_slave.reset_n),
+                    .clk(mem_sink.clk),
+                    .reset_n(mem_sink.reset_n),
 
                     .enable_from_src(mem_pipe[s-1].bvalid),
                     .data_from_src(mem_pipe[s-1].b),
@@ -174,28 +174,28 @@ module ofs_plat_axi_mem_if_reg_simple
 
             // ============================================================
             //
-            //  Connect pipeline to the master
+            //  Connect pipeline to the source
             //
             // ============================================================
 
-            // Map mem_master to the last stage (wired)
+            // Map mem_source to the last stage (wired)
             always_comb
             begin
-                `OFS_PLAT_AXI_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_pipe[N_REG_STAGES], mem_master);
-                `OFS_PLAT_AXI_MEM_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_pipe[N_REG_STAGES]);
+                `OFS_PLAT_AXI_MEM_IF_FROM_SOURCE_TO_SINK_COMB(mem_pipe[N_REG_STAGES], mem_source);
+                `OFS_PLAT_AXI_MEM_IF_FROM_SINK_TO_SOURCE_COMB(mem_source, mem_pipe[N_REG_STAGES]);
 
                 //
                 // Pipelines using almost full use non-standard ready signals.
                 //
 
-                mem_master.awready = awready_pipe[N_READY_STAGES];
-                mem_pipe[N_REG_STAGES].awvalid = mem_master.awvalid && mem_master.awready;
+                mem_source.awready = awready_pipe[N_READY_STAGES];
+                mem_pipe[N_REG_STAGES].awvalid = mem_source.awvalid && mem_source.awready;
 
-                mem_master.wready = wready_pipe[N_READY_STAGES];
-                mem_pipe[N_REG_STAGES].wvalid = mem_master.wvalid && mem_master.wready;
+                mem_source.wready = wready_pipe[N_READY_STAGES];
+                mem_pipe[N_REG_STAGES].wvalid = mem_source.wvalid && mem_source.wready;
 
-                mem_master.arready = arready_pipe[N_READY_STAGES];
-                mem_pipe[N_REG_STAGES].arvalid = mem_master.arvalid && mem_master.arready;
+                mem_source.arready = arready_pipe[N_READY_STAGES];
+                mem_pipe[N_REG_STAGES].arvalid = mem_source.arvalid && mem_source.arready;
             end
 
         end

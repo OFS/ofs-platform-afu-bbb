@@ -53,16 +53,16 @@ interface ofs_plat_avalon_mem_if
     //
     // The Avalon version of user fields has similar semantics to the AXI
     // user fields. It is returned with responses and some fields have
-    // slave-specific meanings. E.g., write fence can be encoded as a user
+    // sink-specific meanings. E.g., write fence can be encoded as a user
     // bit on write requests.
     //
-    // Unlike AXI, most OFS Avalon slaves do not return user request fields
+    // Unlike AXI, most OFS Avalon sinks do not return user request fields
     // along with responses.
     parameter USER_WIDTH = 8,
 
     // This parameter does not affect the interface. Instead, it is a guide to
-    // the master indicating the waitrequestAllowance behavior offered by
-    // the slave. Be careful to consider the registered delay of the waitrequest
+    // the source indicating the waitrequestAllowance behavior offered by
+    // the sink. Be careful to consider the registered delay of the waitrequest
     // signal when counting cycles.
     parameter WAIT_REQUEST_ALLOWANCE = 0
     );
@@ -92,13 +92,13 @@ interface ofs_plat_avalon_mem_if
     // Extension - see USER_WIDTH parameter
     logic [USER_WIDTH-1:0] readresponseuser;
 
-    // Many slaves will not implement write responses. Responses are typically
+    // Many sinks will not implement write responses. Responses are typically
     // needed only when the commit points of writes relative to other events may
     // vary. Local memory, for example, typically does not implement them.
     // In this interface, read and write responses are completely separate
     // and both may be valid in the same cycle. The writeresponse field
     // holds the write response payload. This separation is necessary since
-    // write responses from slaves are optional, making it impossible to
+    // write responses from sinks are optional, making it impossible to
     // calculate reserved space required in clock crossing FIFOs, etc.
     logic writeresponsevalid;
     logic [RESPONSE_WIDTH-1:0] writeresponse;
@@ -119,8 +119,62 @@ interface ofs_plat_avalon_mem_if
     int unsigned instance_number;
 
     //
-    // Connection from master toward slave
+    // Connection from source toward sink
     //
+    modport to_sink
+       (
+        input  clk,
+        input  reset_n,
+
+        input  waitrequest,
+        input  readdatavalid,
+        input  readdata,
+        input  response,
+        input  readresponseuser,
+        input  writeresponsevalid,
+        input  writeresponse,
+        input  writeresponseuser,
+
+        output address,
+        output write,
+        output read,
+        output burstcount,
+        output writedata,
+        output byteenable,
+        output user,
+
+        // Debugging
+        input  instance_number
+        );
+
+    // Same as normal to_sink, but sets clk and reset_n
+    modport to_sink_clk
+       (
+        output clk,
+        output reset_n,
+
+        input  waitrequest,
+        input  readdatavalid,
+        input  readdata,
+        input  response,
+        input  readresponseuser,
+        input  writeresponsevalid,
+        input  writeresponse,
+        input  writeresponseuser,
+
+        output address,
+        output write,
+        output read,
+        output burstcount,
+        output writedata,
+        output byteenable,
+        output user,
+
+        // Debugging
+        output instance_number
+        );
+
+    // Old naming, maintained for compatibility
     modport to_slave
        (
         input  clk,
@@ -147,38 +201,11 @@ interface ofs_plat_avalon_mem_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset_n
-    modport to_slave_clk
-       (
-        output clk,
-        output reset_n,
-
-        input  waitrequest,
-        input  readdatavalid,
-        input  readdata,
-        input  response,
-        input  readresponseuser,
-        input  writeresponsevalid,
-        input  writeresponse,
-        input  writeresponseuser,
-
-        output address,
-        output write,
-        output read,
-        output burstcount,
-        output writedata,
-        output byteenable,
-        output user,
-
-        // Debugging
-        output instance_number
-        );
-
 
     //
-    // Connection from slave toward master
+    // Connection from sink toward source
     //
-    modport to_master
+    modport to_source
        (
         input  clk,
         input  reset_n,
@@ -204,8 +231,8 @@ interface ofs_plat_avalon_mem_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset_n
-    modport to_master_clk
+    // Same as normal to_source, but sets clk and reset_n
+    modport to_source_clk
        (
         output clk,
         output reset_n,
@@ -229,6 +256,33 @@ interface ofs_plat_avalon_mem_if
 
         // Debugging
         output instance_number
+        );
+
+    // Old naming, maintained for compatibility
+    modport to_master
+       (
+        input  clk,
+        input  reset_n,
+
+        output waitrequest,
+        output readdatavalid,
+        output readdata,
+        output response,
+        output readresponseuser,
+        output writeresponsevalid,
+        output writeresponse,
+        output writeresponseuser,
+
+        input  address,
+        input  write,
+        input  read,
+        input  burstcount,
+        input  writedata,
+        input  byteenable,
+        input  user,
+
+        // Debugging
+        input  instance_number
         );
 
 

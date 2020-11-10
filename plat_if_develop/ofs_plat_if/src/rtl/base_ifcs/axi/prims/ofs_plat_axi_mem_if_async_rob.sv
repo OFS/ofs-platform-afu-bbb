@@ -32,7 +32,7 @@
 // Reorder buffer combined with clock crossing for all five AXI memory channels.
 // This shim does no credit management. If response buffer space must be reserved
 // for in-flight reads and writes, manage credits upstream of this shim (toward
-// the master). The shim ofs_plat_axi_mem_if_rsp_credits() can be used for that
+// the source). The shim ofs_plat_axi_mem_if_rsp_credits() can be used for that
 // purpose.
 //
 
@@ -48,48 +48,48 @@ module ofs_plat_axi_mem_if_async_rob
     // arrive after almost full is asserted. This is all managed internally.
     parameter ADD_TIMING_REG_STAGES = 2,
 
-    // If the master guarantees to reserve space for all responses then the
-    // ready signals on slave responses pipelines can be ignored, perhaps
+    // If the source guarantees to reserve space for all responses then the
+    // ready signals on sink responses pipelines can be ignored, perhaps
     // improving timing.
-    parameter SLAVE_RESPONSES_ALWAYS_READY = 0,
+    parameter SINK_RESPONSES_ALWAYS_READY = 0,
 
     parameter NUM_READ_CREDITS = 256,
     parameter NUM_WRITE_CREDITS = 128
     )
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_if.to_sink mem_sink,
+    ofs_plat_axi_mem_if.to_source mem_source
     );
 
     //
-    // Copies of the slave and master interfaces that can be used for
+    // Copies of the sink and source interfaces that can be used for
     // internal, intermediate states using the sized data structures.
     //
 
     ofs_plat_axi_mem_if
       #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_slave),
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_sink),
         .DISABLE_CHECKER(1)
         )
-      mem_slave_local();
+      mem_sink_local();
 
     ofs_plat_axi_mem_if
       #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_master),
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_source),
         .DISABLE_CHECKER(1)
         )
-      mem_master_local();
+      mem_source_local();
 
     // synthesis translate_off
     initial
     begin
-        assert (mem_slave.RID_WIDTH >= $clog2(NUM_READ_CREDITS)) else
-            $fatal(2, "** ERROR ** %m: mem_slave.RID_WIDTH (%d) is too small for ROB index (%d)!",
-                   mem_slave.RID_WIDTH, NUM_READ_CREDITS);
+        assert (mem_sink.RID_WIDTH >= $clog2(NUM_READ_CREDITS)) else
+            $fatal(2, "** ERROR ** %m: mem_sink.RID_WIDTH (%d) is too small for ROB index (%d)!",
+                   mem_sink.RID_WIDTH, NUM_READ_CREDITS);
 
-        assert (mem_slave.WID_WIDTH >= $clog2(NUM_WRITE_CREDITS)) else
-            $fatal(2, "** ERROR ** %m: mem_slave.WID_WIDTH (%d) is too small for ROB index (%d)!",
-                   mem_slave.WID_WIDTH, NUM_WRITE_CREDITS);
+        assert (mem_sink.WID_WIDTH >= $clog2(NUM_WRITE_CREDITS)) else
+            $fatal(2, "** ERROR ** %m: mem_sink.WID_WIDTH (%d) is too small for ROB index (%d)!",
+                   mem_sink.WID_WIDTH, NUM_WRITE_CREDITS);
     end
     // synthesis translate_on
 
@@ -110,9 +110,9 @@ module ofs_plat_axi_mem_if_async_rob
     logic wr_rsp_valid, wr_rsp_valid_q;
 
     // Both the ROB and the clock crossing FIFO must have space
-    assign mem_master.awready = wr_rob_notFull & wr_fifo_notFull;
+    assign mem_source.awready = wr_rob_notFull & wr_fifo_notFull;
     // ROB reserves enough space for all outstanding responses
-    assign mem_slave.bready = 1'b1;
+    assign mem_sink.bready = 1'b1;
 
     // Guarantee N_ENTRIES is a power of 2
     localparam WR_ROB_N_ENTRIES = 1 << $clog2(NUM_WRITE_CREDITS);
@@ -124,123 +124,123 @@ module ofs_plat_axi_mem_if_async_rob
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(WR_ROB_N_ENTRIES),
         .N_DATA_BITS($bits(ofs_plat_axi_mem_pkg::t_axi_resp)),
-        .N_META_BITS(mem_master.WID_WIDTH + mem_master.USER_WIDTH),
+        .N_META_BITS(mem_source.WID_WIDTH + mem_source.USER_WIDTH),
         .MAX_ALLOC_PER_CYCLE(1)
         )
       wr_rob
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
-        .alloc_en(mem_master.awvalid && mem_master.awready),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
+        .alloc_en(mem_source.awvalid && mem_source.awready),
         .allocCnt(1'b1),
-        .allocMeta({ mem_master.aw.id, mem_master.aw.user }),
+        .allocMeta({ mem_source.aw.id, mem_source.aw.user }),
         .notFull(wr_rob_notFull),
         .allocIdx(wr_next_allocIdx),
         .inSpaceAvail(),
 
         // Responses
-        .enq_clk(mem_slave.clk),
-        .enq_reset_n(mem_slave.reset_n),
-        .enqData_en(mem_slave.bvalid),
-        .enqDataIdx(mem_slave.b.id[0 +: $clog2(WR_ROB_N_ENTRIES)]),
-        .enqData(mem_slave.b.resp),
+        .enq_clk(mem_sink.clk),
+        .enq_reset_n(mem_sink.reset_n),
+        .enqData_en(mem_sink.bvalid),
+        .enqDataIdx(mem_sink.b.id[0 +: $clog2(WR_ROB_N_ENTRIES)]),
+        .enqData(mem_sink.b.resp),
 
         .deq_en(wr_rsp_valid && !wr_rsp_almostFull),
         .notEmpty(wr_rsp_valid),
-        .T2_first(mem_master_local.b.resp),
-        .T2_firstMeta({ mem_master_local.b.id, mem_master_local.b.user })
+        .T2_first(mem_source_local.b.resp),
+        .T2_firstMeta({ mem_source_local.b.id, mem_source_local.b.user })
         );
 
-    // Construct the AW slave payload, saving the ROB index as the ID field
+    // Construct the AW sink payload, saving the ROB index as the ID field
     always_comb
     begin
-        `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_slave_local.aw, =, mem_master.aw);
+        `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_sink_local.aw, =, mem_source.aw);
 
-        mem_slave_local.aw.id = wr_next_allocIdx;
+        mem_sink_local.aw.id = wr_next_allocIdx;
     end
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
-        .DATA_WIDTH(mem_slave.T_AW_WIDTH)
+        .DATA_WIDTH(mem_sink.T_AW_WIDTH)
         )
       aw
        (
-        .clk_in(mem_master.clk),
-        .reset_n_in(mem_master.reset_n),
+        .clk_in(mem_source.clk),
+        .reset_n_in(mem_source.reset_n),
 
         .ready_in(wr_fifo_notFull),
-        .valid_in(mem_master.awvalid && mem_master.awready),
-        .data_in(mem_slave_local.aw),
+        .valid_in(mem_source.awvalid && mem_source.awready),
+        .data_in(mem_sink_local.aw),
 
-        .clk_out(mem_slave.clk),
-        .reset_n_out(mem_slave.reset_n),
+        .clk_out(mem_sink.clk),
+        .reset_n_out(mem_sink.reset_n),
 
-        .ready_out(mem_slave.awready),
-        .valid_out(mem_slave.awvalid),
-        .data_out(mem_slave.aw)
+        .ready_out(mem_sink.awready),
+        .valid_out(mem_sink.awvalid),
+        .data_out(mem_sink.aw)
         );
 
     // Write data is just a clock crossing, independent of the AW control. Fields
     // still have to mapped, though, due to size changes.
     always_comb
     begin
-        `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_slave_local.w, =, mem_master.w);
+        `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink_local.w, =, mem_source.w);
     end
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
-        .DATA_WIDTH(mem_slave.T_W_WIDTH)
+        .DATA_WIDTH(mem_sink.T_W_WIDTH)
         )
       w
        (
-        .clk_in(mem_master.clk),
-        .reset_n_in(mem_master.reset_n),
+        .clk_in(mem_source.clk),
+        .reset_n_in(mem_source.reset_n),
 
-        .ready_in(mem_master.wready),
-        .valid_in(mem_master.wvalid),
-        .data_in(mem_slave_local.w),
+        .ready_in(mem_source.wready),
+        .valid_in(mem_source.wvalid),
+        .data_in(mem_sink_local.w),
 
-        .clk_out(mem_slave.clk),
-        .reset_n_out(mem_slave.reset_n),
+        .clk_out(mem_sink.clk),
+        .reset_n_out(mem_sink.reset_n),
 
-        .ready_out(mem_slave.wready),
-        .valid_out(mem_slave.wvalid),
-        .data_out(mem_slave.w)
+        .ready_out(mem_sink.wready),
+        .valid_out(mem_sink.wvalid),
+        .data_out(mem_sink.w)
         );
 
 
     // Sorted responses. The ROB's ready latency is 2 cycles. Feed responses
-    // into a FIFO that will handle flow control from the master.
-    always_ff @(posedge mem_master.clk)
+    // into a FIFO that will handle flow control from the source.
+    always_ff @(posedge mem_source.clk)
     begin
         wr_rsp_valid_q <= wr_rsp_valid && !wr_rsp_almostFull;
-        mem_master_local.bvalid <= wr_rsp_valid_q;
+        mem_source_local.bvalid <= wr_rsp_valid_q;
     end
 
     ofs_plat_prim_fifo_lutram
       #(
-        .N_DATA_BITS(mem_master.T_B_WIDTH),
+        .N_DATA_BITS(mem_source.T_B_WIDTH),
         .N_ENTRIES(4),
         .THRESHOLD(2),
         .REGISTER_OUTPUT(1)
         )
       b
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
 
-        .enq_data(mem_master_local.b),
-        .enq_en(mem_master_local.bvalid),
+        .enq_data(mem_source_local.b),
+        .enq_en(mem_source_local.bvalid),
         .notFull(),
         .almostFull(wr_rsp_almostFull),
 
-        .first(mem_master.b),
-        .deq_en(mem_master.bready && mem_master.bvalid),
-        .notEmpty(mem_master.bvalid)
+        .first(mem_source.b),
+        .deq_en(mem_source.bready && mem_source.bvalid),
+        .notEmpty(mem_source.bvalid)
         );
 
 
@@ -256,101 +256,101 @@ module ofs_plat_axi_mem_if_async_rob
     logic rd_rsp_valid, rd_rsp_valid_q;
 
     // Both the ROB and the clock crossing FIFO must have space
-    assign mem_master.arready = rd_rob_notFull & rd_fifo_notFull;
+    assign mem_source.arready = rd_rob_notFull & rd_fifo_notFull;
     // ROB reserves enough space for all outstanding responses
-    assign mem_slave.rready = 1'b1;
+    assign mem_sink.rready = 1'b1;
 
     localparam RD_ROB_N_ENTRIES = 1 << $clog2(NUM_READ_CREDITS);
     typedef logic [$clog2(RD_ROB_N_ENTRIES)-1 : 0] t_rd_rob_idx;
     t_rd_rob_idx rd_next_allocIdx;
 
-    typedef logic [mem_slave.BURST_CNT_WIDTH : 0] t_rd_alloc_cnt;
+    typedef logic [mem_sink.BURST_CNT_WIDTH : 0] t_rd_alloc_cnt;
 
-    typedef logic [mem_master.RID_WIDTH-1 : 0] t_master_rid;
-    typedef logic [mem_master.USER_WIDTH-1 : 0] t_master_user;
-    t_master_rid rd_id, rd_reg_id;
-    t_master_user rd_user, rd_reg_user;
+    typedef logic [mem_source.RID_WIDTH-1 : 0] t_source_rid;
+    typedef logic [mem_source.USER_WIDTH-1 : 0] t_source_user;
+    t_source_rid rd_id, rd_reg_id;
+    t_source_user rd_user, rd_reg_user;
 
     ofs_plat_prim_rob_maybe_dc
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(RD_ROB_N_ENTRIES),
-        .N_DATA_BITS(mem_slave.T_R_WIDTH),
-        .N_META_BITS(mem_master.RID_WIDTH + mem_master.USER_WIDTH),
-        .MAX_ALLOC_PER_CYCLE(1 << mem_slave.BURST_CNT_WIDTH)
+        .N_DATA_BITS(mem_sink.T_R_WIDTH),
+        .N_META_BITS(mem_source.RID_WIDTH + mem_source.USER_WIDTH),
+        .MAX_ALLOC_PER_CYCLE(1 << mem_sink.BURST_CNT_WIDTH)
         )
       rd_rob
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
-        .alloc_en(mem_master.arvalid && mem_master.arready),
-        .allocCnt(t_rd_alloc_cnt'(mem_master.ar.len) + t_rd_alloc_cnt'(1)),
-        .allocMeta({ mem_master.ar.id, mem_master.ar.user }),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
+        .alloc_en(mem_source.arvalid && mem_source.arready),
+        .allocCnt(t_rd_alloc_cnt'(mem_source.ar.len) + t_rd_alloc_cnt'(1)),
+        .allocMeta({ mem_source.ar.id, mem_source.ar.user }),
         .notFull(rd_rob_notFull),
         .allocIdx(rd_next_allocIdx),
         .inSpaceAvail(),
 
         // Responses
-        .enq_clk(mem_slave.clk),
-        .enq_reset_n(mem_slave.reset_n),
-        .enqData_en(mem_slave.rvalid),
-        .enqDataIdx(mem_slave.r.id[0 +: $clog2(RD_ROB_N_ENTRIES)]),
-        .enqData(mem_slave.r),
+        .enq_clk(mem_sink.clk),
+        .enq_reset_n(mem_sink.reset_n),
+        .enqData_en(mem_sink.rvalid),
+        .enqDataIdx(mem_sink.r.id[0 +: $clog2(RD_ROB_N_ENTRIES)]),
+        .enqData(mem_sink.r),
 
         .deq_en(rd_rsp_valid && !rd_rsp_almostFull),
         .notEmpty(rd_rsp_valid),
-        .T2_first(mem_slave_local.r),
+        .T2_first(mem_sink_local.r),
         .T2_firstMeta({ rd_id, rd_user })
         );
 
-    // Construct the AR slave payload, saving the ROB index as the ID field
+    // Construct the AR sink payload, saving the ROB index as the ID field
     always_comb
     begin
-        `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_slave_local.ar, =, mem_master.ar);
+        `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_sink_local.ar, =, mem_source.ar);
 
-        mem_slave_local.ar.id = rd_next_allocIdx;
+        mem_sink_local.ar.id = rd_next_allocIdx;
     end
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
-        .DATA_WIDTH(mem_slave.T_AR_WIDTH)
+        .DATA_WIDTH(mem_sink.T_AR_WIDTH)
         )
       ar
        (
-        .clk_in(mem_master.clk),
-        .reset_n_in(mem_master.reset_n),
+        .clk_in(mem_source.clk),
+        .reset_n_in(mem_source.reset_n),
 
         .ready_in(rd_fifo_notFull),
-        .valid_in(mem_master.arvalid && mem_master.arready),
-        .data_in(mem_slave_local.ar),
+        .valid_in(mem_source.arvalid && mem_source.arready),
+        .data_in(mem_sink_local.ar),
 
-        .clk_out(mem_slave.clk),
-        .reset_n_out(mem_slave.reset_n),
+        .clk_out(mem_sink.clk),
+        .reset_n_out(mem_sink.reset_n),
 
-        .ready_out(mem_slave.arready),
-        .valid_out(mem_slave.arvalid),
-        .data_out(mem_slave.ar)
+        .ready_out(mem_sink.arready),
+        .valid_out(mem_sink.arvalid),
+        .data_out(mem_sink.ar)
         );
 
 
     // Sorted responses. The ROB's ready latency is 2 cycles. Feed responses
-    // into a FIFO that will handle flow control from the master.
-    always_ff @(posedge mem_master.clk)
+    // into a FIFO that will handle flow control from the source.
+    always_ff @(posedge mem_source.clk)
     begin
         rd_rsp_valid_q <= rd_rsp_valid && !rd_rsp_almostFull;
-        mem_master_local.rvalid <= rd_rsp_valid_q;
+        mem_source_local.rvalid <= rd_rsp_valid_q;
     end
 
     // Save the r.id and r.user on SOP and return them with every beat in the
     // response.
     logic rd_sop;
-    always_ff @(posedge mem_master.clk)
+    always_ff @(posedge mem_source.clk)
     begin
-        if (mem_master_local.rvalid)
+        if (mem_source_local.rvalid)
         begin
-            rd_sop <= mem_slave_local.r.last;
+            rd_sop <= mem_sink_local.r.last;
             if (rd_sop)
             begin
                 rd_reg_id <= rd_id;
@@ -358,50 +358,50 @@ module ofs_plat_axi_mem_if_async_rob
             end
         end
 
-        if (!mem_master.reset_n)
+        if (!mem_source.reset_n)
         begin
             rd_sop <= 1'b1;
         end
     end
 
-    // Construct a master version of read response using field widths from
-    // the master instead of the slave.
+    // Construct a source version of read response using field widths from
+    // the source instead of the sink.
     always_comb
     begin
-        `OFS_PLAT_AXI_MEM_IF_COPY_R(mem_master_local.r, =, mem_slave_local.r);
+        `OFS_PLAT_AXI_MEM_IF_COPY_R(mem_source_local.r, =, mem_sink_local.r);
         if (rd_sop)
         begin
-            mem_master_local.r.id = rd_id;
-            mem_master_local.r.user = rd_user;
+            mem_source_local.r.id = rd_id;
+            mem_source_local.r.user = rd_user;
         end
         else
         begin
-            mem_master_local.r.id = rd_reg_id;
-            mem_master_local.r.user = rd_reg_user;
+            mem_source_local.r.id = rd_reg_id;
+            mem_source_local.r.user = rd_reg_user;
         end
     end
 
     // Manage flow control in a read response FIFO.
     ofs_plat_prim_fifo_lutram
       #(
-        .N_DATA_BITS(mem_master.T_R_WIDTH),
+        .N_DATA_BITS(mem_source.T_R_WIDTH),
         .N_ENTRIES(4),
         .THRESHOLD(2),
         .REGISTER_OUTPUT(1)
         )
       r
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
 
-        .enq_data(mem_master_local.r),
-        .enq_en(mem_master_local.rvalid),
+        .enq_data(mem_source_local.r),
+        .enq_en(mem_source_local.rvalid),
         .notFull(),
         .almostFull(rd_rsp_almostFull),
 
-        .first(mem_master.r),
-        .deq_en(mem_master.rready && mem_master.rvalid),
-        .notEmpty(mem_master.rvalid)
+        .first(mem_source.r),
+        .deq_en(mem_source.rready && mem_source.rvalid),
+        .notEmpty(mem_source.rvalid)
         );
 
 endmodule // ofs_plat_axi_mem_if_async_rob

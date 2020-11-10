@@ -55,7 +55,7 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
     // Generated Avalon host memory interface
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk host_mem_to_afu,
 
     // Used for AFU clock/reset_n when ADD_CLOCK_CROSSING is nonzero
     input  logic afu_clk,
@@ -113,14 +113,14 @@ module ofs_plat_map_ccip_as_avalon_host_mem
     // Connect the AFU clock and add a register stage for timing next
     // to the burst mapper.
     //
-    ofs_plat_avalon_mem_rdwr_if_reg_slave_clk
+    ofs_plat_avalon_mem_rdwr_if_reg_sink_clk
       #(
         .N_REG_STAGES(ADD_TIMING_REG_STAGES + 1)
         )
       conn_afu_clk
        (
-        .mem_master(host_mem_to_afu),
-        .mem_slave(avmm_afu_clk_if)
+        .mem_source(host_mem_to_afu),
+        .mem_sink(avmm_afu_clk_if)
         );
 
     //
@@ -171,8 +171,8 @@ module ofs_plat_map_ccip_as_avalon_host_mem
         )
       rob
        (
-        .mem_master(avmm_afu_clk_if),
-        .mem_slave(avmm_fiu_clk_if)
+        .mem_source(avmm_afu_clk_if),
+        .mem_sink(avmm_fiu_clk_if)
         );
 
 

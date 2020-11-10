@@ -41,20 +41,20 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     input  logic reset_n,
 
     // Write requests from AFU (t_gen_tx_afu_wr_req)
-    ofs_plat_axi_stream_if.to_master afu_wr_req,
+    ofs_plat_axi_stream_if.to_source afu_wr_req,
 
     // Output write request TLP stream
-    ofs_plat_axi_stream_if.to_slave tx_wr_tlps,
+    ofs_plat_axi_stream_if.to_sink tx_wr_tlps,
 
     // Write responses to AFU once the packet is completely sent (t_gen_tx_afu_wr_rsp)
-    ofs_plat_axi_stream_if.to_slave afu_wr_rsp,
+    ofs_plat_axi_stream_if.to_sink afu_wr_rsp,
 
     // Fence completions, processed first by the read response pipeline.
     // (t_dma_rd_tag)
-    ofs_plat_axi_stream_if.to_master wr_fence_cpl,
+    ofs_plat_axi_stream_if.to_source wr_fence_cpl,
 
     // Interrupt completions from the FIU (t_ofs_plat_axis_pcie_irq_data)
-    ofs_plat_axi_stream_if.to_master irq_cpl,
+    ofs_plat_axi_stream_if.to_source irq_cpl,
 
     output logic error
     );

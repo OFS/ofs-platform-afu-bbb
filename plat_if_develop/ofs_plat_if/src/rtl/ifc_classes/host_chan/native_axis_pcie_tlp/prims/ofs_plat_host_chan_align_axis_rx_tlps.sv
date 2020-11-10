@@ -30,10 +30,10 @@
 
 
 //
-// Transform the master TLP vector to a slave vector. The number of elements
-// in the two vectors may differ, most often because the master is narrower.
+// Transform the source TLP vector to a sink vector. The number of elements
+// in the two vectors may differ, most often because the source is narrower.
 //
-// The slave vector guarantees:
+// The sink vector guarantees:
 //  1. At most one SOP is set. That SOP will always be in slot 0.
 //  2. Entries beyond an EOP are empty. (A consequence of #1.)
 //  3. All entries up to an EOP or the end of the vector are valid.
@@ -44,27 +44,27 @@
 
 module ofs_plat_host_chan_align_axis_rx_tlps
   #(
-    parameter NUM_MASTER_TLP_CH = 2,
-    parameter NUM_SLAVE_TLP_CH = 2,
+    parameter NUM_SOURCE_TLP_CH = 2,
+    parameter NUM_SINK_TLP_CH = 2,
 
     parameter type TDATA_TYPE,
     parameter type TUSER_TYPE
     )
    (
-    ofs_plat_axi_stream_if.to_master stream_master,
-    ofs_plat_axi_stream_if.to_slave stream_slave
+    ofs_plat_axi_stream_if.to_source stream_source,
+    ofs_plat_axi_stream_if.to_sink stream_sink
     );
 
     logic clk;
-    assign clk = stream_master.clk;
+    assign clk = stream_source.clk;
     logic reset_n;
-    assign reset_n = stream_master.reset_n;
+    assign reset_n = stream_source.reset_n;
 
-    typedef TDATA_TYPE [NUM_MASTER_TLP_CH-1 : 0] t_master_tdata_vec;
-    typedef TUSER_TYPE [NUM_MASTER_TLP_CH-1 : 0] t_master_tuser_vec;
+    typedef TDATA_TYPE [NUM_SOURCE_TLP_CH-1 : 0] t_source_tdata_vec;
+    typedef TUSER_TYPE [NUM_SOURCE_TLP_CH-1 : 0] t_source_tuser_vec;
 
-    typedef TDATA_TYPE [NUM_SLAVE_TLP_CH-1 : 0] t_slave_tdata_vec;
-    typedef TUSER_TYPE [NUM_SLAVE_TLP_CH-1 : 0] t_slave_tuser_vec;
+    typedef TDATA_TYPE [NUM_SINK_TLP_CH-1 : 0] t_sink_tdata_vec;
+    typedef TUSER_TYPE [NUM_SINK_TLP_CH-1 : 0] t_sink_tuser_vec;
 
 
     // ====================================================================
@@ -75,15 +75,15 @@ module ofs_plat_host_chan_align_axis_rx_tlps
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_master_tdata_vec),
-        .TUSER_TYPE(t_master_tuser_vec)
+        .TDATA_TYPE(t_source_tdata_vec),
+        .TUSER_TYPE(t_source_tuser_vec)
         )
-      master_skid();
+      source_skid();
 
-    ofs_plat_axi_stream_if_skid_master_clk entry_skid
+    ofs_plat_axi_stream_if_skid_source_clk entry_skid
        (
-        .stream_master(stream_master),
-        .stream_slave(master_skid)
+        .stream_source(stream_source),
+        .stream_sink(source_skid)
         );
 
 
@@ -97,55 +97,55 @@ module ofs_plat_host_chan_align_axis_rx_tlps
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_master_tdata_vec),
-        .TUSER_TYPE(t_master_tuser_vec)
+        .TDATA_TYPE(t_source_tdata_vec),
+        .TUSER_TYPE(t_source_tuser_vec)
         )
-      master_dense();
+      source_dense();
 
-    assign master_dense.clk = master_skid.clk;
-    assign master_dense.reset_n = master_skid.reset_n;
+    assign source_dense.clk = source_skid.clk;
+    assign source_dense.reset_n = source_skid.reset_n;
     // Debugging signal
-    assign master_dense.instance_number = master_skid.instance_number;
+    assign source_dense.instance_number = source_skid.instance_number;
 
     // Another instance of the interface just to define a t_payload instance
     // for mapping vector entries.
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_master_tdata_vec),
-        .TUSER_TYPE(t_master_tuser_vec),
+        .TDATA_TYPE(t_source_tdata_vec),
+        .TUSER_TYPE(t_source_tuser_vec),
         .DISABLE_CHECKER(1)
         )
       dense_wires();
 
-    logic some_master_slot_valid;
-    typedef logic [$clog2(NUM_MASTER_TLP_CH)-1 : 0] t_master_slot_idx;
-    t_master_slot_idx dense_mapper[NUM_MASTER_TLP_CH];
-    t_master_slot_idx num_master_valid;
+    logic some_source_slot_valid;
+    typedef logic [$clog2(NUM_SOURCE_TLP_CH)-1 : 0] t_source_slot_idx;
+    t_source_slot_idx dense_mapper[NUM_SOURCE_TLP_CH];
+    t_source_slot_idx num_source_valid;
 
     // Generate a mapping from the input to the dense mapping by counting
     // the number of valid entries below each position.
     always_comb
     begin
-        some_master_slot_valid = 1'b0;
-        num_master_valid = '0;
+        some_source_slot_valid = 1'b0;
+        num_source_valid = '0;
 
-        for (int i = 0; i < NUM_MASTER_TLP_CH; i = i + 1)
+        for (int i = 0; i < NUM_SOURCE_TLP_CH; i = i + 1)
         begin
             // Where should input slot "i" go in the dense mapping?
-            dense_mapper[i] = num_master_valid;
+            dense_mapper[i] = num_source_valid;
 
-            some_master_slot_valid = some_master_slot_valid || master_skid.t.data[i].valid;
-            num_master_valid = num_master_valid + t_master_slot_idx'(master_skid.t.data[i].valid);
+            some_source_slot_valid = some_source_slot_valid || source_skid.t.data[i].valid;
+            num_source_valid = num_source_valid + t_source_slot_idx'(source_skid.t.data[i].valid);
         end
     end
 
     // Use the mapping to assign the positions in the dense mapping data vector
-    t_master_slot_idx tgt_slot;
+    t_source_slot_idx tgt_slot;
     always_comb
     begin
-        dense_wires.t = master_skid.t;
+        dense_wires.t = source_skid.t;
 
-        for (int i = 0; i < NUM_MASTER_TLP_CH; i = i + 1)
+        for (int i = 0; i < NUM_SOURCE_TLP_CH; i = i + 1)
         begin
             dense_wires.t.data[i].valid = 1'b0;
             dense_wires.t.data[i].sop = 1'b0;
@@ -153,51 +153,51 @@ module ofs_plat_host_chan_align_axis_rx_tlps
         end
 
         // Push TLPs to the low vector slots
-        for (int i = 0; i < NUM_MASTER_TLP_CH; i = i + 1)
+        for (int i = 0; i < NUM_SOURCE_TLP_CH; i = i + 1)
         begin
             tgt_slot = dense_mapper[i];
 
-            dense_wires.t.data[tgt_slot] = master_skid.t.data[i];
-            dense_wires.t.user[tgt_slot] = master_skid.t.user[i];
+            dense_wires.t.data[tgt_slot] = source_skid.t.data[i];
+            dense_wires.t.user[tgt_slot] = source_skid.t.user[i];
 
             // Guarantee that EOP/SOP are never set for invalid entries
-            dense_wires.t.data[tgt_slot].sop = master_skid.t.data[i].sop &&
-                                               master_skid.t.data[i].valid;
-            dense_wires.t.data[tgt_slot].eop = master_skid.t.data[i].eop &&
-                                               master_skid.t.data[i].valid;
+            dense_wires.t.data[tgt_slot].sop = source_skid.t.data[i].sop &&
+                                               source_skid.t.data[i].valid;
+            dense_wires.t.data[tgt_slot].eop = source_skid.t.data[i].eop &&
+                                               source_skid.t.data[i].valid;
         end
     end
 
     // Write the dense mapping to a register
     ofs_plat_prim_ready_enable_reg
       #(
-        .N_DATA_BITS(stream_master.T_PAYLOAD_WIDTH)
+        .N_DATA_BITS(stream_source.T_PAYLOAD_WIDTH)
         )
       dense
        (
         .clk,
         .reset_n,
 
-        .enable_from_src(master_skid.tvalid && some_master_slot_valid),
+        .enable_from_src(source_skid.tvalid && some_source_slot_valid),
         .data_from_src(dense_wires.t),
-        .ready_to_src(master_skid.tready),
+        .ready_to_src(source_skid.tready),
 
-        .enable_to_dst(master_dense.tvalid),
-        .data_to_dst(master_dense.t),
-        .ready_from_dst(master_dense.tready)
+        .enable_to_dst(source_dense.tvalid),
+        .data_to_dst(source_dense.t),
+        .ready_from_dst(source_dense.tready)
         );
 
 
     // ====================================================================
     //
-    //  Transform the master width stream to the slave stream, enforcing the
+    //  Transform the source width stream to the sink stream, enforcing the
     //  guarantees listed at the top of the module.
     //
     // ====================================================================
 
     // Shift register to merge flits channels across multiple AXI stream
     // flits.
-    localparam NUM_WORK_TLP_CH = NUM_MASTER_TLP_CH + NUM_SLAVE_TLP_CH - 1;
+    localparam NUM_WORK_TLP_CH = NUM_SOURCE_TLP_CH + NUM_SINK_TLP_CH - 1;
     // Leave an extra index bit in order to represent one beyond the last slot.
     typedef logic [$clog2(NUM_WORK_TLP_CH) : 0] t_work_ch_idx;
 
@@ -220,26 +220,26 @@ module ofs_plat_host_chan_align_axis_rx_tlps
     end
 
     logic work_full, work_empty;
-    // Can't add new flits if the slave portion of the work register is full.
+    // Can't add new flits if the sink portion of the work register is full.
     // Valid channels are packed densely, so only the last entry has to be
     // checked.
-    assign work_full = work_valid[NUM_SLAVE_TLP_CH-1];
+    assign work_full = work_valid[NUM_SINK_TLP_CH-1];
     assign work_empty = !work_valid[0];
 
     // The outbound work is "valid" only if the vector is full or a packet
     // is terminated.
     logic work_out_valid, work_out_ready;
-    assign work_out_valid = &(work_valid[NUM_SLAVE_TLP_CH-1 : 0]) ||
-                            |(work_eop[NUM_SLAVE_TLP_CH-1 : 0]);
+    assign work_out_valid = &(work_valid[NUM_SINK_TLP_CH-1 : 0]) ||
+                            |(work_eop[NUM_SINK_TLP_CH-1 : 0]);
 
     // Mask of outbound entries to forward as a group, terminated by EOP.
-    logic [NUM_SLAVE_TLP_CH-1 : 0] work_out_valid_mask;
+    logic [NUM_SINK_TLP_CH-1 : 0] work_out_valid_mask;
     t_work_ch_idx work_out_num_valid;
 
     always_comb
     begin
-        work_out_num_valid = t_work_ch_idx'(NUM_SLAVE_TLP_CH);
-        for (int i = 0; i < NUM_SLAVE_TLP_CH; i = i + 1)
+        work_out_num_valid = t_work_ch_idx'(NUM_SINK_TLP_CH);
+        for (int i = 0; i < NUM_SINK_TLP_CH; i = i + 1)
         begin
             if (!work_valid[i])
             begin
@@ -254,7 +254,7 @@ module ofs_plat_host_chan_align_axis_rx_tlps
         end
 
         work_out_valid_mask[0] = work_valid[0];
-        for (int i = 1; i < NUM_SLAVE_TLP_CH; i = i + 1)
+        for (int i = 1; i < NUM_SINK_TLP_CH; i = i + 1)
         begin
             work_out_valid_mask[i] = work_valid[i] && work_out_valid_mask[i-1] &&
                                      !work_eop[i-1];
@@ -269,7 +269,7 @@ module ofs_plat_host_chan_align_axis_rx_tlps
     always_comb
     begin
         work_has_blocking_sop = 1'b0;
-        for (int i = 1; i < NUM_SLAVE_TLP_CH; i = i + 1)
+        for (int i = 1; i < NUM_SINK_TLP_CH; i = i + 1)
         begin
             work_has_blocking_sop = work_has_blocking_sop ||
                                     (work_valid[i] && work_sop[i]);
@@ -301,7 +301,7 @@ module ofs_plat_host_chan_align_axis_rx_tlps
     //
     // Finally, we are ready to update the work vectors.
     //
-    assign master_dense.tready = (!work_full ||
+    assign source_dense.tready = (!work_full ||
                                   (work_out_ready && !work_has_blocking_sop));
 
     always_ff @(posedge clk)
@@ -325,12 +325,12 @@ module ofs_plat_host_chan_align_axis_rx_tlps
         end
 
         // Add new entries
-        if (master_dense.tvalid && master_dense.tready)
+        if (source_dense.tvalid && source_dense.tready)
         begin
-            for (int i = 0; i < NUM_MASTER_TLP_CH; i = i + 1)
+            for (int i = 0; i < NUM_SOURCE_TLP_CH; i = i + 1)
             begin
-                work_data[i + next_insertion_idx] <= master_dense.t.data[i];
-                work_user[i + next_insertion_idx] <= master_dense.t.user[i];
+                work_data[i + next_insertion_idx] <= source_dense.t.data[i];
+                work_user[i + next_insertion_idx] <= source_dense.t.user[i];
             end
         end
 
@@ -349,8 +349,8 @@ module ofs_plat_host_chan_align_axis_rx_tlps
     // for mapping vector entries.
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_slave_tdata_vec),
-        .TUSER_TYPE(t_slave_tuser_vec),
+        .TDATA_TYPE(t_sink_tdata_vec),
+        .TUSER_TYPE(t_sink_tuser_vec),
         .DISABLE_CHECKER(1)
         )
       work_out_wires();
@@ -358,7 +358,7 @@ module ofs_plat_host_chan_align_axis_rx_tlps
     // Final mapping of this cycle's work_data/work_user to a stream interface
     always_comb
     begin
-        for (int i = 0; i < NUM_SLAVE_TLP_CH; i = i + 1)
+        for (int i = 0; i < NUM_SINK_TLP_CH; i = i + 1)
         begin
             work_out_wires.t.data[i] = work_data[i];
             work_out_wires.t.data[i].valid = work_data[i].valid && work_out_valid_mask[i];
@@ -373,9 +373,9 @@ module ofs_plat_host_chan_align_axis_rx_tlps
 
     ofs_plat_prim_ready_enable_reg
       #(
-        .N_DATA_BITS(stream_slave.T_PAYLOAD_WIDTH)
+        .N_DATA_BITS(stream_sink.T_PAYLOAD_WIDTH)
         )
-      to_slave
+      to_sink
        (
         .clk,
         .reset_n,
@@ -384,9 +384,9 @@ module ofs_plat_host_chan_align_axis_rx_tlps
         .data_from_src(work_out_wires.t),
         .ready_to_src(work_out_ready),
 
-        .enable_to_dst(stream_slave.tvalid),
-        .data_to_dst(stream_slave.t),
-        .ready_from_dst(stream_slave.tready)
+        .enable_to_dst(stream_sink.tvalid),
+        .data_to_dst(stream_sink.t),
+        .ready_from_dst(stream_sink.tready)
         );
 
 endmodule // ofs_plat_host_chan_align_axis_rx_tlps

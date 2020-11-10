@@ -20,7 +20,7 @@ increasing from zero. Host channel group zero is named *host\_chan*, group one
 is *host\_chan\_g1*, group two is *host\_chan\_g2*, etc.
 
 Host channel group 0 port 0 (plat\_ifc.host\_chan[0]) must connect to both a
-host memory slave in the FIU and an MMIO master in the FIU. The MMIO space
+host memory sink in the FIU and an MMIO source in the FIU. The MMIO space
 must be the primary AFU MMIO space expected by OPAE software.
 
 ## Fixed FIU Interfaces ##
@@ -41,16 +41,16 @@ protocol shipped as the primary host memory and MMIO protocol on Intel® FPGA
 Programmable Acceleration Cards (PAC) and on some earlier integrated FPGA/CPU
 prototypes.
 
-### Avalon Memory Slave ###
+### Avalon Memory Sink ###
 
 The PIM supports a host memory
 [Avalon](https://www.intel.com/content/dam/www/programmable/us/en/pdfs/literature/manual/mnl_avalon_spec.pdf)
-slave as an FIU protocol. The PIM does not support Avalon MMIO connections
+sink as an FIU protocol. The PIM does not support Avalon MMIO connections
 across the PR boundary to the FIU. (Note that the PIM *does* offer
 PIM-generated transformations from PR protocols such as CCI-P to Avalon MMIO
-masters in the AFU. See the [AFU Interfaces](#afu-interfaces) section below.)
+sources in the AFU. See the [AFU Interfaces](#afu-interfaces) section below.)
 Due to the lack of MMIO support and the requirement that the OPAE MMIO is on
-group 0 port 0, Avalon memory slave may not be used as the FIU native protocol
+group 0 port 0, Avalon memory sink may not be used as the FIU native protocol
 for group 0.
 
 The host channel Avalon protocol has some significant semantic differences
@@ -140,15 +140,15 @@ TBD
 
 ### Avalon Memory ###
 
-There are two categories of Avalon memory AFU interfaces: a slave for host
-memory implemented in the FIU and a master for MMIO space provided by the
-AFU. An MMIO master must be provided by the AFU for group 0 port 0 (the OPAE
+There are two categories of Avalon memory AFU interfaces: a sink for host
+memory implemented in the FIU and a source for MMIO space provided by the
+AFU. An MMIO source must be provided by the AFU for group 0 port 0 (the OPAE
 MMIO space in which AFUs identify themselves). MMIO is optional on other
 ports.
 
-#### Host Memory Slave ####
+#### Host Memory Sink ####
 
-The host memory slave interface is defined in
+The host memory sink interface is defined in
 [ofs_plat_avalon_mem_rdwr_if.sv](../base_ifcs/avalon/ofs_plat_avalon_mem_rdwr_if.sv).
 This interface has some unusual syntax and semantics in order to achieve
 acceptable host memory performance:
@@ -199,9 +199,9 @@ acceptable host memory performance:
   contiguous regions may be specified. Not all platforms support byte
   enable. When available, the TBD PIM flag is set.
 
-#### MMIO Memory Master ####
+#### MMIO Memory Source ####
 
-The AFU Avalon MMIO master interface is a standard Avalon bus with an address
+The AFU Avalon MMIO source interface is a standard Avalon bus with an address
 shared by reads and writes. It is defined in
 [ofs_plat_avalon_mem_if.sv](../base_ifcs/avalon/ofs_plat_avalon_mem_if.sv).
 OPAE assumes that MMIO requests are committed in request order.

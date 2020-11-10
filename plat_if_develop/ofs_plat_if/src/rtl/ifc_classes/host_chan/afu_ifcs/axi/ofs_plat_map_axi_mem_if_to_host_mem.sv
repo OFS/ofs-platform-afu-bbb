@@ -33,12 +33,12 @@
 //
 // Map an AXI port to the properties required a host memory port. Maximum
 // burst size, alignment and response ordering are all handled here.
-// The slave remains in AXI format. The final, protocol-specific, host
+// The sink remains in AXI format. The final, protocol-specific, host
 // port conversion is handled outside this module.
 //
 module ofs_plat_map_axi_mem_if_to_host_mem
   #(
-    // When non-zero the master and slave use different clocks.
+    // When non-zero the source and sink use different clocks.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Does the host memory port require natural alignment?
@@ -52,13 +52,13 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     parameter MAX_ACTIVE_WR_LINES = 256
     )
    (
-    // mem_master parameters should match the master's field widths.
-    ofs_plat_axi_mem_if.to_master mem_master,
+    // mem_source parameters should match the source's field widths.
+    ofs_plat_axi_mem_if.to_source mem_source,
 
-    // mem_slave parameters should match the requirements of the host
+    // mem_sink parameters should match the requirements of the host
     // memory port. The RID and WID fields should be sized to hold reorder
     // buffer indices for read and write responses.
-    ofs_plat_axi_mem_if.to_slave mem_slave
+    ofs_plat_axi_mem_if.to_sink mem_sink
     );
 
     //
@@ -67,17 +67,17 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     //
     ofs_plat_axi_mem_if
       #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(mem_master),
-        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
-        .RID_WIDTH(mem_master.RID_WIDTH_),
-        .WID_WIDTH(mem_master.WID_WIDTH_),
-        .USER_WIDTH(mem_master.USER_WIDTH_)
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(mem_source),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
+        .RID_WIDTH(mem_source.RID_WIDTH_),
+        .WID_WIDTH(mem_source.WID_WIDTH_),
+        .USER_WIDTH(mem_source.USER_WIDTH_)
         )
       axi_fiu_burst_if();
 
-    assign axi_fiu_burst_if.clk = mem_master.clk;
-    assign axi_fiu_burst_if.reset_n = mem_master.reset_n;
-    assign axi_fiu_burst_if.instance_number = mem_slave.instance_number;
+    assign axi_fiu_burst_if.clk = mem_source.clk;
+    assign axi_fiu_burst_if.reset_n = mem_source.reset_n;
+    assign axi_fiu_burst_if.instance_number = mem_sink.instance_number;
 
     ofs_plat_axi_mem_if_map_bursts
       #(
@@ -87,8 +87,8 @@ module ofs_plat_map_axi_mem_if_to_host_mem
         )
       map_bursts
        (
-        .mem_master,
-        .mem_slave(axi_fiu_burst_if)
+        .mem_source,
+        .mem_sink(axi_fiu_burst_if)
         );
 
 
@@ -102,9 +102,9 @@ module ofs_plat_map_axi_mem_if_to_host_mem
         )
       axi_fiu_credit_if();
 
-    assign axi_fiu_credit_if.clk = mem_master.clk;
-    assign axi_fiu_credit_if.reset_n = mem_master.reset_n;
-    assign axi_fiu_credit_if.instance_number = mem_slave.instance_number;
+    assign axi_fiu_credit_if.clk = mem_source.clk;
+    assign axi_fiu_credit_if.reset_n = mem_source.reset_n;
+    assign axi_fiu_credit_if.instance_number = mem_sink.instance_number;
 
     ofs_plat_axi_mem_if_rsp_credits
       #(
@@ -113,8 +113,8 @@ module ofs_plat_map_axi_mem_if_to_host_mem
         )
       rsp_credits
        (
-        .mem_master(axi_fiu_burst_if),
-        .mem_slave(axi_fiu_credit_if)
+        .mem_source(axi_fiu_burst_if),
+        .mem_sink(axi_fiu_credit_if)
         );
 
 
@@ -130,23 +130,23 @@ module ofs_plat_map_axi_mem_if_to_host_mem
         )
       rob
        (
-        .mem_master(axi_fiu_credit_if),
-        .mem_slave
+        .mem_source(axi_fiu_credit_if),
+        .mem_sink
         );
 
 
     // synthesis translate_off
-    always_ff @(negedge mem_master.clk)
+    always_ff @(negedge mem_source.clk)
     begin
-        if (mem_master.reset_n)
+        if (mem_source.reset_n)
         begin
-            if (mem_master.awvalid && mem_master.awready)
+            if (mem_source.awvalid && mem_source.awready)
             begin
                 // Memory fence?
-                if ((mem_master.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE) &&
-                    mem_master.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+                if ((mem_source.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE) &&
+                    mem_source.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
                 begin
-                    if (mem_master.aw.len)
+                    if (mem_source.aw.len)
                     begin
                         $fatal(2, "** ERROR ** %m: Memory fence AWLEN must be 0!");
                     end

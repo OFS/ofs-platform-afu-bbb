@@ -71,8 +71,8 @@ interface ofs_plat_axi_mem_if
     parameter DISABLE_CHECKER = 0,
 
     // This parameter does not affect the interface. Instead, it is a guide to
-    // the master indicating the waitrequestAllowance behavior offered by
-    // the slave. Be careful to consider the registered delay of the waitrequest
+    // the source indicating the waitrequestAllowance behavior offered by
+    // the sink. Be careful to consider the registered delay of the waitrequest
     // signal when counting cycles.
     parameter WAIT_REQUEST_ALLOWANCE = 0
     );
@@ -122,9 +122,9 @@ interface ofs_plat_axi_mem_if
     typedef logic [WID_WIDTH-1 : 0] t_wid;
 
     // User data width. We use the same size for user data everywhere
-    // because the slave, by OFS convention, returns the user data passed
+    // because the sink, by OFS convention, returns the user data passed
     // to the address channel with a response. User data passed with write
-    // data is not returned to the master.
+    // data is not returned to the source.
     typedef logic [USER_WIDTH-1 : 0] t_user;
 
     // Shared
@@ -143,11 +143,11 @@ interface ofs_plat_axi_mem_if
         t_axi_prot prot;
         t_user user;
         t_axi_qos qos;
-        t_axi_region region;            // Region is usually ignored in slaves,
+        t_axi_region region;            // Region is usually ignored in sinks,
                                         // though the field may be useful in AFUs
                                         // with routing networks connecting to
-                                        // multiple slaves.
-        t_axi_atomic atop;              // AXI5 atomic. Not all slaves implement
+                                        // multiple sinks.
+        t_axi_atomic atop;              // AXI5 atomic. Not all sinks implement
                                         // atomic operations.
     } t_axi_mem_aw;
     localparam T_AW_WIDTH = $bits(t_axi_mem_aw);
@@ -173,8 +173,8 @@ interface ofs_plat_axi_mem_if
     typedef struct packed {
         t_wid id;
         t_axi_resp resp;
-        t_user user;                    // By convention slaves return aw.user
-                                        // in b.user, though slaves may document
+        t_user user;                    // By convention sinks return aw.user
+                                        // in b.user, though sinks may document
                                         // some other behavior.
     } t_axi_mem_b;
     localparam T_B_WIDTH = $bits(t_axi_mem_b);
@@ -208,8 +208,8 @@ interface ofs_plat_axi_mem_if
         t_rid id;
         t_data data;
         t_axi_resp resp;
-        t_user user;                    // By convention slaves return ar.user
-                                        // in r.user, though slaves may document
+        t_user user;                    // By convention sinks return ar.user
+                                        // in r.user, though sinks may document
                                         // some other behavior.
         logic last;
     } t_axi_mem_r;
@@ -224,8 +224,68 @@ interface ofs_plat_axi_mem_if
     int unsigned instance_number;
 
     //
-    // Connection from master toward slave
+    // Connection from source toward sink
     //
+    modport to_sink
+       (
+        input  clk,
+        input  reset_n,
+
+        // Write address channel
+        output aw, awvalid,
+        input  awready,
+
+        // Write data channel
+        output w, wvalid,
+        input  wready,
+
+        // Write response channel
+        input  b, bvalid,
+        output bready,
+
+        // Read address channel
+        output ar, arvalid,
+        input  arready,
+
+        // Read response data channel
+        input  r, rvalid,
+        output rready,
+
+        // Debugging
+        input  instance_number
+        );
+
+    // Same as normal to_sink, but sets clk and reset_n
+    modport to_sink_clk
+       (
+        output clk,
+        output reset_n,
+
+        // Write address channel
+        output aw, awvalid,
+        input  awready,
+
+        // Write data channel
+        output w, wvalid,
+        input  wready,
+
+        // Write response channel
+        input  b, bvalid,
+        output bready,
+
+        // Read address channel
+        output ar, arvalid,
+        input  arready,
+
+        // Read response data channel
+        input  r, rvalid,
+        output rready,
+
+        // Debugging
+        output instance_number
+        );
+
+    // Old naming, maintained for compatibility
     modport to_slave
        (
         input  clk,
@@ -255,41 +315,10 @@ interface ofs_plat_axi_mem_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset_n
-    modport to_slave_clk
-       (
-        output clk,
-        output reset_n,
-
-        // Write address channel
-        output aw, awvalid,
-        input  awready,
-
-        // Write data channel
-        output w, wvalid,
-        input  wready,
-
-        // Write response channel
-        input  b, bvalid,
-        output bready,
-
-        // Read address channel
-        output ar, arvalid,
-        input  arready,
-
-        // Read response data channel
-        input  r, rvalid,
-        output rready,
-
-        // Debugging
-        output instance_number
-        );
-
-
     //
-    // Connection from slave toward master
+    // Connection from sink toward source
     //
-    modport to_master
+    modport to_source
        (
         input  clk,
         input  reset_n,
@@ -318,8 +347,8 @@ interface ofs_plat_axi_mem_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset_n
-    modport to_master_clk
+    // Same as normal to_source, but sets clk and reset_n
+    modport to_source_clk
        (
         output clk,
         output reset_n,
@@ -346,6 +375,36 @@ interface ofs_plat_axi_mem_if
 
         // Debugging
         output instance_number
+        );
+
+    // Old naming, maintained for compatibility
+    modport to_master
+       (
+        input  clk,
+        input  reset_n,
+
+        // Write address channel
+        input  aw, awvalid,
+        output awready,
+
+        // Write data channel
+        input  w, wvalid,
+        output wready,
+
+        // Write response channel
+        output b, bvalid,
+        input  bready,
+
+        // Read address channel
+        input  ar, arvalid,
+        output arready,
+
+        // Read response data channel
+        output r, rvalid,
+        input  rready,
+
+        // Debugging
+        input  instance_number
         );
 
 

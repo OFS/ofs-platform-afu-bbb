@@ -37,12 +37,12 @@
 
 module ofs_plat_local_mem_@group@_fiu_if_tie_off
    (
-    ofs_plat_avalon_mem_if.to_slave bank
+    ofs_plat_avalon_mem_if.to_sink bank
     );
 
     always_comb
     begin
-        `OFS_PLAT_AVALON_MEM_IF_INIT_MASTER_COMB(bank);
+        `OFS_PLAT_AVALON_MEM_IF_INIT_SOURCE_COMB(bank);
     end
 
 endmodule // ofs_plat_local_mem_@group@_fiu_if_tie_off

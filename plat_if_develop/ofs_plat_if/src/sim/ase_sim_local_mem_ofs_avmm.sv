@@ -43,9 +43,9 @@ module ase_sim_local_mem_ofs_avmm
    parameter MASKED_SYMBOL_WIDTH = 8
    )
   (
-   // Local memory as Avalon master
+   // Local memory as Avalon source
 `ifdef OFS_PLAT_PROVIDES_ASE_TOP
-   ofs_plat_avalon_mem_if.to_master local_mem[NUM_BANKS],
+   ofs_plat_avalon_mem_if.to_source local_mem[NUM_BANKS],
 `else
    avalon_mem_if.to_afu local_mem[NUM_BANKS],
 `endif

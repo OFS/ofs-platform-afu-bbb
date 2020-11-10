@@ -55,9 +55,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
     parameter ADD_TIMING_REG_STAGES = 0
     )
    (
-    ofs_plat_avalon_mem_if.to_slave to_fiu,
+    ofs_plat_avalon_mem_if.to_sink to_fiu,
 
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk host_mem_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -65,7 +65,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
     input  logic afu_reset_n
     );
 
-    // Apply clock crossing and burst mapping to the Avalon slave.
+    // Apply clock crossing and burst mapping to the Avalon sink.
     ofs_plat_avalon_mem_if
       #(
         `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(host_mem_to_afu)
@@ -95,8 +95,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
 
     ofs_plat_avalon_mem_rdwr_if_to_mem_if gen_rdwr
        (
-        .mem_slave(afu_avmm_if),
-        .mem_master(afu_mem_rdwr_if)
+        .mem_sink(afu_avmm_if),
+        .mem_source(afu_mem_rdwr_if)
         );
 
     assign afu_mem_rdwr_if.clk = afu_avmm_if.clk;
@@ -105,10 +105,10 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
 
     // Make the final connection to the host_mem_to_afu instance, including
     // passing the clock.
-    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk conn_to_afu
+    ofs_plat_avalon_mem_rdwr_if_connect_sink_clk conn_to_afu
        (
-        .mem_slave(afu_mem_rdwr_if),
-        .mem_master(host_mem_to_afu)
+        .mem_sink(afu_mem_rdwr_if),
+        .mem_source(host_mem_to_afu)
         );
 
 endmodule // ofs_plat_host_chan_@group@_as_avalon_mem_rdwr

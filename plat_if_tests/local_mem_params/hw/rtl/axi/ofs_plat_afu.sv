@@ -46,7 +46,7 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    // Host memory AFU master
+    // Host memory AFU source
     ofs_plat_axi_mem_if
       #(
         `HOST_CHAN_AXI_MEM_PARAMS,
@@ -55,7 +55,7 @@ module ofs_plat_afu
         )
         host_mem_to_afu();
 
-    // 64 bit read/write MMIO AFU slave
+    // 64 bit read/write MMIO AFU sink
     ofs_plat_axi_mem_lite_if
       #(
         `HOST_CHAN_AXI_MMIO_PARAMS(64),
@@ -226,19 +226,19 @@ module ofs_plat_afu
                 ofs_plat_axi_mem_if_async_shim
                   mem_async_shim
                    (
-                    .mem_slave(local_mem_if),
-                    .mem_master(local_mem_cross_if)
+                    .mem_sink(local_mem_if),
+                    .mem_source(local_mem_cross_if)
                     );
 
                 // Add register stages for timing
-                ofs_plat_axi_mem_if_reg_slave_clk
+                ofs_plat_axi_mem_if_reg_sink_clk
                   #(
                     .N_REG_STAGES(2)
                     )
                   mem_pipe
                    (
-                    .mem_slave(local_mem_cross_if),
-                    .mem_master(local_mem_to_afu[b])
+                    .mem_sink(local_mem_cross_if),
+                    .mem_source(local_mem_to_afu[b])
                     );
             end
         end

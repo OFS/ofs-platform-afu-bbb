@@ -59,11 +59,11 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     input  logic afu_reset_n,
 
     // The ports are named "to_fiu" and "to_afu" despite the Avalon
-    // to_slave/to_master naming because the PIM port naming is a
+    // to_sink/to_source naming because the PIM port naming is a
     // bus-independent abstraction. At top-level, PIM ports are
     // always to_fiu and to_afu.
-    ofs_plat_avalon_mem_if.to_slave to_fiu,
-    ofs_plat_avalon_mem_if.to_master_clk to_afu
+    ofs_plat_avalon_mem_if.to_sink to_fiu,
+    ofs_plat_avalon_mem_if.to_source_clk to_afu
     );
 
     // ====================================================================
@@ -134,10 +134,10 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     // synthesis translate_on
 
     // Connect to the to_afu instance, including passing the clock.
-    ofs_plat_avalon_mem_if_connect_slave_clk conn_to_afu
+    ofs_plat_avalon_mem_if_connect_sink_clk conn_to_afu
        (
-        .mem_master(to_afu),
-        .mem_slave(afu_burst_if)
+        .mem_source(to_afu),
+        .mem_sink(afu_burst_if)
         );
 
     ofs_plat_avalon_mem_if
@@ -151,10 +151,10 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
         begin : nb
             // AFU's burst count is no larger than the FIU's. Just wire
             // the connection to the next stage.
-            ofs_plat_avalon_mem_if_connect_slave_clk conn
+            ofs_plat_avalon_mem_if_connect_sink_clk conn
                (
-                .mem_master(afu_burst_if),
-                .mem_slave(afu_mem_if)
+                .mem_source(afu_burst_if),
+                .mem_sink(afu_mem_if)
                 );
         end
         else
@@ -170,8 +170,8 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
                 )
               map_bursts
                (
-                .mem_master(afu_burst_if),
-                .mem_slave(afu_mem_if)
+                .mem_source(afu_burst_if),
+                .mem_sink(afu_mem_if)
                 );
         end
     endgenerate
@@ -186,14 +186,14 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
             //
             // No clock crossing, maybe register stages.
             //
-            ofs_plat_avalon_mem_if_reg_slave_clk
+            ofs_plat_avalon_mem_if_reg_sink_clk
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
               mem_pipe
                (
-                .mem_slave(to_fiu),
-                .mem_master(afu_mem_if)
+                .mem_sink(to_fiu),
+                .mem_source(afu_mem_if)
                 );
         end
         else
@@ -248,8 +248,8 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
                 )
               mem_pipe
                (
-                .mem_master(afu_mem_if),
-                .mem_slave(mem_cross_if)
+                .mem_source(afu_mem_if),
+                .mem_sink(mem_cross_if)
                 );
 
             // Generate a local reset for timing. This isn't actually a clock
@@ -286,21 +286,21 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
                 )
               mem_async_shim
                (
-                .mem_master(mem_cross_if),
-                .mem_slave(fiu_reg_if)
+                .mem_source(mem_cross_if),
+                .mem_sink(fiu_reg_if)
                 );
 
             //
             // Register stages for timing at the FIU edge.
             //
-            ofs_plat_avalon_mem_if_reg_slave_clk
+            ofs_plat_avalon_mem_if_reg_sink_clk
               #(
                 .N_REG_STAGES(NUM_TIMING_REG_STAGES)
                 )
               fiu_reg
                (
-                .mem_master(fiu_reg_if),
-                .mem_slave(to_fiu)
+                .mem_source(fiu_reg_if),
+                .mem_sink(to_fiu)
                 );
         end
     endgenerate

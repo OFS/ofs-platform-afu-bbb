@@ -31,7 +31,7 @@
 //
 // Clock crossing for all five AXI memory channels. This shim does no credit
 // management. If response buffer space must be reserved for in-flight reads
-// and writes, manage credits upstream of this shim (toward the master).
+// and writes, manage credits upstream of this shim (toward the source).
 // The shim ofs_plat_axi_mem_if_rsp_credits() can be used for that purpose.
 //
 
@@ -44,112 +44,112 @@ module ofs_plat_axi_mem_if_async_shim
     // arrive after almost full is asserted. This is all managed internally.
     parameter ADD_TIMING_REG_STAGES = 2,
 
-    // If the master guarantees to reserve space for all responses then the
-    // ready signals on slave responses pipelines can be ignored, perhaps
+    // If the source guarantees to reserve space for all responses then the
+    // ready signals on sink responses pipelines can be ignored, perhaps
     // improving timing.
-    parameter SLAVE_RESPONSES_ALWAYS_READY = 0,
+    parameter SINK_RESPONSES_ALWAYS_READY = 0,
 
     parameter NUM_READ_CREDITS = 256,
     parameter NUM_WRITE_CREDITS = 128
     )
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_if.to_sink mem_sink,
+    ofs_plat_axi_mem_if.to_source mem_source
     );
 
     // synthesis translate_off
-    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_sink, mem_source)
     // synthesis translate_on
 
-    logic master_reset_n;
+    logic source_reset_n;
     ofs_plat_prim_clock_crossing_reset_async m_reset_n
        (
-        .clk(mem_master.clk),
-        .reset_in(mem_master.reset_n),
-        .reset_out(master_reset_n)
+        .clk(mem_source.clk),
+        .reset_in(mem_source.reset_n),
+        .reset_out(source_reset_n)
         );
 
-    logic slave_reset_n;
+    logic sink_reset_n;
     ofs_plat_prim_clock_crossing_reset_async s_reset_n
        (
-        .clk(mem_slave.clk),
-        .reset_in(mem_slave.reset_n),
-        .reset_out(slave_reset_n)
+        .clk(mem_sink.clk),
+        .reset_in(mem_sink.reset_n),
+        .reset_out(sink_reset_n)
         );
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
-        .DATA_WIDTH(mem_slave.T_AW_WIDTH)
+        .DATA_WIDTH(mem_sink.T_AW_WIDTH)
         )
       aw
        (
-        .clk_in(mem_master.clk),
-        .reset_n_in(master_reset_n),
+        .clk_in(mem_source.clk),
+        .reset_n_in(source_reset_n),
 
-        .ready_in(mem_master.awready),
-        .valid_in(mem_master.awvalid),
-        .data_in(mem_master.aw),
+        .ready_in(mem_source.awready),
+        .valid_in(mem_source.awvalid),
+        .data_in(mem_source.aw),
 
-        .clk_out(mem_slave.clk),
-        .reset_n_out(slave_reset_n),
+        .clk_out(mem_sink.clk),
+        .reset_n_out(sink_reset_n),
 
-        .ready_out(mem_slave.awready),
-        .valid_out(mem_slave.awvalid),
-        .data_out(mem_slave.aw)
+        .ready_out(mem_sink.awready),
+        .valid_out(mem_sink.awvalid),
+        .data_out(mem_sink.aw)
         );
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
-        .DATA_WIDTH(mem_slave.T_W_WIDTH)
+        .DATA_WIDTH(mem_sink.T_W_WIDTH)
         )
       w
        (
-        .clk_in(mem_master.clk),
-        .reset_n_in(master_reset_n),
+        .clk_in(mem_source.clk),
+        .reset_n_in(source_reset_n),
 
-        .ready_in(mem_master.wready),
-        .valid_in(mem_master.wvalid),
-        .data_in(mem_master.w),
+        .ready_in(mem_source.wready),
+        .valid_in(mem_source.wvalid),
+        .data_in(mem_source.w),
 
-        .clk_out(mem_slave.clk),
-        .reset_n_out(slave_reset_n),
+        .clk_out(mem_sink.clk),
+        .reset_n_out(sink_reset_n),
 
-        .ready_out(mem_slave.wready),
-        .valid_out(mem_slave.wvalid),
-        .data_out(mem_slave.w)
+        .ready_out(mem_sink.wready),
+        .valid_out(mem_sink.wvalid),
+        .data_out(mem_sink.w)
         );
 
 
-    logic slave_bready;
-    assign mem_slave.bready = (SLAVE_RESPONSES_ALWAYS_READY ? 1'b1 : slave_bready);
+    logic sink_bready;
+    assign mem_sink.bready = (SINK_RESPONSES_ALWAYS_READY ? 1'b1 : sink_bready);
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
-        .ADD_TIMING_REG_STAGES(SLAVE_RESPONSES_ALWAYS_READY ? ADD_TIMING_REG_STAGES : 0),
+        .ADD_TIMING_REG_STAGES(SINK_RESPONSES_ALWAYS_READY ? ADD_TIMING_REG_STAGES : 0),
         .ADD_TIMING_READY_STAGES(0),
         .READY_FROM_ALMOST_FULL(0),
         .N_ENTRIES(NUM_WRITE_CREDITS),
-        .DATA_WIDTH(mem_slave.T_B_WIDTH)
+        .DATA_WIDTH(mem_sink.T_B_WIDTH)
         )
       b
        (
-        .clk_in(mem_slave.clk),
-        .reset_n_in(slave_reset_n),
+        .clk_in(mem_sink.clk),
+        .reset_n_in(sink_reset_n),
 
-        .ready_in(slave_bready),
-        .valid_in(mem_slave.bvalid),
-        .data_in(mem_slave.b),
+        .ready_in(sink_bready),
+        .valid_in(mem_sink.bvalid),
+        .data_in(mem_sink.b),
 
-        .clk_out(mem_master.clk),
-        .reset_n_out(master_reset_n),
+        .clk_out(mem_source.clk),
+        .reset_n_out(source_reset_n),
 
-        .ready_out(mem_master.bready),
-        .valid_out(mem_master.bvalid),
-        .data_out(mem_master.b)
+        .ready_out(mem_source.bready),
+        .valid_out(mem_source.bvalid),
+        .data_out(mem_source.b)
         );
 
 
@@ -157,51 +157,51 @@ module ofs_plat_axi_mem_if_async_shim
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
-        .DATA_WIDTH(mem_slave.T_AR_WIDTH)
+        .DATA_WIDTH(mem_sink.T_AR_WIDTH)
         )
       ar
        (
-        .clk_in(mem_master.clk),
-        .reset_n_in(master_reset_n),
+        .clk_in(mem_source.clk),
+        .reset_n_in(source_reset_n),
 
-        .ready_in(mem_master.arready),
-        .valid_in(mem_master.arvalid),
-        .data_in(mem_master.ar),
+        .ready_in(mem_source.arready),
+        .valid_in(mem_source.arvalid),
+        .data_in(mem_source.ar),
 
-        .clk_out(mem_slave.clk),
-        .reset_n_out(slave_reset_n),
+        .clk_out(mem_sink.clk),
+        .reset_n_out(sink_reset_n),
 
-        .ready_out(mem_slave.arready),
-        .valid_out(mem_slave.arvalid),
-        .data_out(mem_slave.ar)
+        .ready_out(mem_sink.arready),
+        .valid_out(mem_sink.arvalid),
+        .data_out(mem_sink.ar)
         );
 
-    logic slave_rready;
-    assign mem_slave.rready = (SLAVE_RESPONSES_ALWAYS_READY ? 1'b1 : slave_rready);
+    logic sink_rready;
+    assign mem_sink.rready = (SINK_RESPONSES_ALWAYS_READY ? 1'b1 : sink_rready);
 
     ofs_plat_axi_mem_if_async_shim_channel
       #(
-        .ADD_TIMING_REG_STAGES(SLAVE_RESPONSES_ALWAYS_READY ? ADD_TIMING_REG_STAGES : 0),
+        .ADD_TIMING_REG_STAGES(SINK_RESPONSES_ALWAYS_READY ? ADD_TIMING_REG_STAGES : 0),
         .ADD_TIMING_READY_STAGES(0),
         .READY_FROM_ALMOST_FULL(0),
         .N_ENTRIES(NUM_READ_CREDITS),
-        .DATA_WIDTH(mem_slave.T_R_WIDTH)
+        .DATA_WIDTH(mem_sink.T_R_WIDTH)
         )
       r
        (
-        .clk_in(mem_slave.clk),
-        .reset_n_in(slave_reset_n),
+        .clk_in(mem_sink.clk),
+        .reset_n_in(sink_reset_n),
 
-        .ready_in(slave_rready),
-        .valid_in(mem_slave.rvalid),
-        .data_in(mem_slave.r),
+        .ready_in(sink_rready),
+        .valid_in(mem_sink.rvalid),
+        .data_in(mem_sink.r),
 
-        .clk_out(mem_master.clk),
-        .reset_n_out(master_reset_n),
+        .clk_out(mem_source.clk),
+        .reset_n_out(source_reset_n),
 
-        .ready_out(mem_master.rready),
-        .valid_out(mem_master.rvalid),
-        .data_out(mem_master.r)
+        .ready_out(mem_source.rready),
+        .valid_out(mem_source.rvalid),
+        .data_out(mem_source.r)
         );
 
 endmodule // ofs_plat_axi_mem_if_async_shim

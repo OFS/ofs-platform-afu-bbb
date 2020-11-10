@@ -43,7 +43,7 @@ module ase_emul_host_chan_native_ccip
   `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_CCIP
     ofs_plat_host_ccip_if.to_afu host_chan_g1_ports[`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS],
   `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON
-    ofs_plat_avalon_mem_if.to_master host_chan_g1_ports[`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS],
+    ofs_plat_avalon_mem_if.to_source host_chan_g1_ports[`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS],
   `else
         *** ERROR *** Unsupported native interface!
   `endif
@@ -53,7 +53,7 @@ module ase_emul_host_chan_native_ccip
   `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_CCIP
     ofs_plat_host_ccip_if.to_afu host_chan_g2_ports[`OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS],
   `elsif OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_AVALON
-    ofs_plat_avalon_mem_if.to_master host_chan_g2_ports[`OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS],
+    ofs_plat_avalon_mem_if.to_source host_chan_g2_ports[`OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS],
   `else
         *** ERROR *** Unsupported native interface!
   `endif

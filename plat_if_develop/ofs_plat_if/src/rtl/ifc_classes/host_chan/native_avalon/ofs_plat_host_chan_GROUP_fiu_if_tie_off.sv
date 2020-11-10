@@ -38,7 +38,7 @@
 
 module ofs_plat_host_chan_@group@_fiu_if_tie_off
    (
-    ofs_plat_avalon_mem_if.to_slave port
+    ofs_plat_avalon_mem_if.to_sink port
     );
 
     always_comb

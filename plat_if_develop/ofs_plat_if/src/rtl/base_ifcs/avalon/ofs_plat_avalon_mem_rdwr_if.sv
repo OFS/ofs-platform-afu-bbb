@@ -56,16 +56,16 @@ interface ofs_plat_avalon_mem_rdwr_if
     //
     // The Avalon version of user fields has similar semantics to the AXI
     // user fields. It is returned with responses and some fields have
-    // slave-specific meanings. E.g., write fence can be encoded as a user
+    // sink-specific meanings. E.g., write fence can be encoded as a user
     // bit on write requests.
     //
-    // Unlike AXI, most OFS Avalon slaves do not return user request fields
+    // Unlike AXI, most OFS Avalon sinks do not return user request fields
     // along with responses.
     parameter USER_WIDTH = 8,
 
     // This parameter does not affect the interface. Instead, it is a guide to
-    // the master indicating the waitrequestAllowance behavior offered by
-    // the slave. Be careful to consider the registered delay of the waitrequest
+    // the source indicating the waitrequestAllowance behavior offered by
+    // the sink. Be careful to consider the registered delay of the waitrequest
     // signal when counting cycles.
     parameter WAIT_REQUEST_ALLOWANCE = 0
     );
@@ -126,8 +126,80 @@ interface ofs_plat_avalon_mem_rdwr_if
     int unsigned instance_number;
 
     //
-    // Connection from master toward slave
+    // Connection from source toward sink
     //
+    modport to_sink
+       (
+        input  clk,
+        input  reset_n,
+
+        // Read bus
+        input  rd_waitrequest,
+        input  rd_readdata,
+        input  rd_readdatavalid,
+        input  rd_response,
+        input  rd_readresponseuser,
+
+        output rd_address,
+        output rd_read,
+        output rd_burstcount,
+        output rd_byteenable,
+        output rd_user,
+
+        // Write bus
+        input  wr_waitrequest,
+        input  wr_writeresponsevalid,
+        input  wr_response,
+        input  wr_writeresponseuser,
+
+        output wr_address,
+        output wr_write,
+        output wr_burstcount,
+        output wr_writedata,
+        output wr_byteenable,
+        output wr_user,
+
+        // Debugging
+        input  instance_number
+        );
+
+    // Same as normal to_sink, but sets clk and reset_n
+    modport to_sink_clk
+       (
+        output clk,
+        output reset_n,
+
+        // Read bus
+        input  rd_waitrequest,
+        input  rd_readdata,
+        input  rd_readdatavalid,
+        input  rd_response,
+        input  rd_readresponseuser,
+
+        output rd_address,
+        output rd_read,
+        output rd_burstcount,
+        output rd_byteenable,
+        output rd_user,
+
+        // Write bus
+        input  wr_waitrequest,
+        input  wr_writeresponsevalid,
+        input  wr_response,
+        input  wr_writeresponseuser,
+
+        output wr_address,
+        output wr_write,
+        output wr_burstcount,
+        output wr_writedata,
+        output wr_byteenable,
+        output wr_user,
+
+        // Debugging
+        output instance_number
+        );
+
+    // Old naming, maintained for compatibility
     modport to_slave
        (
         input  clk,
@@ -163,47 +235,11 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset_n
-    modport to_slave_clk
-       (
-        output clk,
-        output reset_n,
-
-        // Read bus
-        input  rd_waitrequest,
-        input  rd_readdata,
-        input  rd_readdatavalid,
-        input  rd_response,
-        input  rd_readresponseuser,
-
-        output rd_address,
-        output rd_read,
-        output rd_burstcount,
-        output rd_byteenable,
-        output rd_user,
-
-        // Write bus
-        input  wr_waitrequest,
-        input  wr_writeresponsevalid,
-        input  wr_response,
-        input  wr_writeresponseuser,
-
-        output wr_address,
-        output wr_write,
-        output wr_burstcount,
-        output wr_writedata,
-        output wr_byteenable,
-        output wr_user,
-
-        // Debugging
-        output instance_number
-        );
-
 
     //
-    // Connection from slave toward master
+    // Connection from sink toward source
     //
-    modport to_master
+    modport to_source
        (
         input  clk,
         input  reset_n,
@@ -238,8 +274,8 @@ interface ofs_plat_avalon_mem_rdwr_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset_n
-    modport to_master_clk
+    // Same as normal to_source, but sets clk and reset_n
+    modport to_source_clk
        (
         output clk,
         output reset_n,
@@ -272,6 +308,42 @@ interface ofs_plat_avalon_mem_rdwr_if
 
         // Debugging
         output instance_number
+        );
+
+    // Old naming, maintained for compatibility
+    modport to_master
+       (
+        input  clk,
+        input  reset_n,
+
+        // Read bus
+        output rd_waitrequest,
+        output rd_readdata,
+        output rd_readdatavalid,
+        output rd_response,
+        output rd_readresponseuser,
+
+        input  rd_address,
+        input  rd_read,
+        input  rd_burstcount,
+        input  rd_byteenable,
+        input  rd_user,
+
+        // Write bus
+        output wr_waitrequest,
+        output wr_writeresponsevalid,
+        output wr_response,
+        output wr_writeresponseuser,
+
+        input  wr_address,
+        input  wr_write,
+        input  wr_burstcount,
+        input  wr_writedata,
+        input  wr_byteenable,
+        input  wr_user,
+
+        // Debugging
+        input  instance_number
         );
 
 

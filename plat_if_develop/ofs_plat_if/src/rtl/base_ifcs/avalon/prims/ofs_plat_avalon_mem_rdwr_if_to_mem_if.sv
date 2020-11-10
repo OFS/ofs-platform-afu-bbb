@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Map a normal Avalon memory master to a split-bus Avalon slave.
+// Map a normal Avalon memory source to a split-bus Avalon sink.
 //
 
 `include "ofs_plat_if.vh"
@@ -37,23 +37,23 @@
 module ofs_plat_avalon_mem_rdwr_if_to_mem_if
   #(
     // Generate a write response inside this module as write requests
-    // commit? Some Avalon slaves may not generate write responses.
+    // commit? Some Avalon sinks may not generate write responses.
     // With LOCAL_WR_RESPONSE set, write responses are generated as
     // soon as write requests win arbitration.
     parameter LOCAL_WR_RESPONSE = 0
     )
    (
-    ofs_plat_avalon_mem_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
+    ofs_plat_avalon_mem_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source mem_source
     );
 
-    localparam ADDR_WIDTH = mem_slave.ADDR_WIDTH_;
-    localparam DATA_WIDTH = mem_slave.DATA_WIDTH_;
-    localparam BURST_CNT_WIDTH = mem_slave.BURST_CNT_WIDTH_;
-    localparam MASKED_SYMBOL_WIDTH = mem_slave.MASKED_SYMBOL_WIDTH_;
-    localparam USER_WIDTH = mem_master.USER_WIDTH_;
+    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH_;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
+    localparam BURST_CNT_WIDTH = mem_sink.BURST_CNT_WIDTH_;
+    localparam MASKED_SYMBOL_WIDTH = mem_sink.MASKED_SYMBOL_WIDTH_;
+    localparam USER_WIDTH = mem_source.USER_WIDTH_;
 
-    localparam DATA_N_BYTES = mem_slave.DATA_N_BYTES;
+    localparam DATA_N_BYTES = mem_sink.DATA_N_BYTES;
 
     typedef struct packed {
         logic [ADDR_WIDTH-1:0] address;
@@ -77,32 +77,32 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
                                 DATA_WIDTH + DATA_N_BYTES + USER_WIDTH + 1;
 
     wire clk;
-    assign clk = mem_slave.clk;
+    assign clk = mem_sink.clk;
     logic reset_n;
-    assign reset_n = mem_slave.reset_n;
+    assign reset_n = mem_sink.reset_n;
 
     //
-    // Inbound requests from master
+    // Inbound requests from source
     //
 
-    t_rd_req master_in_rd_req;
-    t_wr_req master_in_wr_req;
+    t_rd_req source_in_rd_req;
+    t_wr_req source_in_wr_req;
 
     always_comb
     begin
-        master_in_rd_req.address = mem_master.rd_address;
-        master_in_rd_req.burstcount = mem_master.rd_burstcount;
-        master_in_rd_req.byteenable = mem_master.rd_byteenable;
-        master_in_rd_req.user = mem_master.rd_user;
+        source_in_rd_req.address = mem_source.rd_address;
+        source_in_rd_req.burstcount = mem_source.rd_burstcount;
+        source_in_rd_req.byteenable = mem_source.rd_byteenable;
+        source_in_rd_req.user = mem_source.rd_user;
 
-        master_in_wr_req.address = mem_master.wr_address;
-        master_in_wr_req.burstcount = mem_master.wr_burstcount;
-        master_in_wr_req.data = mem_master.wr_writedata;
-        master_in_wr_req.byteenable = mem_master.wr_byteenable;
-        master_in_wr_req.user = mem_master.wr_user;
+        source_in_wr_req.address = mem_source.wr_address;
+        source_in_wr_req.burstcount = mem_source.wr_burstcount;
+        source_in_wr_req.data = mem_source.wr_writedata;
+        source_in_wr_req.byteenable = mem_source.wr_byteenable;
+        source_in_wr_req.user = mem_source.wr_user;
     end
 
-    // Track master write bursts so they stay contiguous
+    // Track source write bursts so they stay contiguous
     ofs_plat_prim_burstcount1_sop_tracker
       #(
         .BURST_CNT_WIDTH(BURST_CNT_WIDTH)
@@ -111,10 +111,10 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
        (
         .clk,
         .reset_n,
-        .flit_valid(mem_master.wr_write && !mem_master.wr_waitrequest),
-        .burstcount(mem_master.wr_burstcount),
+        .flit_valid(mem_source.wr_write && !mem_source.wr_waitrequest),
+        .burstcount(mem_source.wr_burstcount),
         .sop(),
-        .eop(master_in_wr_req.eop)
+        .eop(source_in_wr_req.eop)
         );
 
     //
@@ -122,7 +122,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     //
 
     logic rd_req_notFull, rd_req_notEmpty;
-    assign mem_master.rd_waitrequest = !rd_req_notFull;
+    assign mem_source.rd_waitrequest = !rd_req_notFull;
 
     t_rd_req rd_req;
     logic rd_req_deq_en;
@@ -135,8 +135,8 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
        (
         .clk,
         .reset_n,
-        .enq_data(master_in_rd_req),
-        .enq_en(mem_master.rd_read && !mem_master.rd_waitrequest),
+        .enq_data(source_in_rd_req),
+        .enq_en(mem_source.rd_read && !mem_source.rd_waitrequest),
         .notFull(rd_req_notFull),
         .first(rd_req),
         .deq_en(rd_req_deq_en),
@@ -144,7 +144,7 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         );
 
     logic wr_req_notFull, wr_req_notEmpty;
-    assign mem_master.wr_waitrequest = !wr_req_notFull;
+    assign mem_source.wr_waitrequest = !wr_req_notFull;
 
     t_wr_req wr_req;
     logic wr_req_deq_en;
@@ -157,8 +157,8 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
        (
         .clk,
         .reset_n,
-        .enq_data(master_in_wr_req),
-        .enq_en(mem_master.wr_write && !mem_master.wr_waitrequest),
+        .enq_data(source_in_wr_req),
+        .enq_en(mem_source.wr_write && !mem_source.wr_waitrequest),
         .notFull(wr_req_notFull),
         .first(wr_req),
         .deq_en(wr_req_deq_en),
@@ -180,16 +180,16 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
        (
         .clk,
         .reset_n,
-        .ena(!mem_slave.waitrequest && !wr_burst_active),
+        .ena(!mem_sink.waitrequest && !wr_burst_active),
         .request({ wr_req_notEmpty, rd_req_notEmpty }),
-        .grant({ arb_grant_write, mem_slave.read }),
+        .grant({ arb_grant_write, mem_sink.read }),
         .grantIdx()
         );
 
     // Keep write bursts together
     always_ff @(posedge clk)
     begin
-        if (mem_slave.write)
+        if (mem_sink.write)
         begin
             wr_burst_active <= !wr_req.eop;
         end
@@ -200,57 +200,57 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         end
     end
 
-    // Send a write to the slave if a new write wins arbitration or if an existing
+    // Send a write to the sink if a new write wins arbitration or if an existing
     // burst has a new beat. Read requests will never win arbitration in the middle
     // of a write burst.
-    assign mem_slave.write = arb_grant_write ||
-                             (!mem_slave.waitrequest && wr_burst_active && wr_req_notEmpty);
+    assign mem_sink.write = arb_grant_write ||
+                             (!mem_sink.waitrequest && wr_burst_active && wr_req_notEmpty);
 
-    assign rd_req_deq_en = mem_slave.read;
-    assign wr_req_deq_en = mem_slave.write;
+    assign rd_req_deq_en = mem_sink.read;
+    assign wr_req_deq_en = mem_sink.write;
 
     logic pick_read;
-    assign pick_read = mem_slave.read;
+    assign pick_read = mem_sink.read;
 
     always_comb
     begin
-        mem_slave.address = pick_read ? rd_req.address : wr_req.address;
-        mem_slave.burstcount = pick_read ? rd_req.burstcount : wr_req.burstcount;
-        mem_slave.writedata = wr_req.data;
-        mem_slave.byteenable = pick_read ? rd_req.byteenable : wr_req.byteenable;
-        mem_slave.user = pick_read ? rd_req.user : wr_req.user;
+        mem_sink.address = pick_read ? rd_req.address : wr_req.address;
+        mem_sink.burstcount = pick_read ? rd_req.burstcount : wr_req.burstcount;
+        mem_sink.writedata = wr_req.data;
+        mem_sink.byteenable = pick_read ? rd_req.byteenable : wr_req.byteenable;
+        mem_sink.user = pick_read ? rd_req.user : wr_req.user;
     end
 
     // Responses
     always_comb
     begin
-        mem_master.rd_readdata = mem_slave.readdata;
-        mem_master.rd_readdatavalid = mem_slave.readdatavalid;
-        mem_master.rd_response = mem_slave.response;
-        mem_master.rd_readresponseuser = mem_slave.readresponseuser;
+        mem_source.rd_readdata = mem_sink.readdata;
+        mem_source.rd_readdatavalid = mem_sink.readdatavalid;
+        mem_source.rd_response = mem_sink.response;
+        mem_source.rd_readresponseuser = mem_sink.readresponseuser;
     end
 
     always_ff @(posedge clk)
     begin
         if (LOCAL_WR_RESPONSE == 0)
         begin
-            // Slave will generate a response
-            mem_master.wr_writeresponsevalid <= mem_slave.writeresponsevalid;
-            mem_master.wr_response <= mem_slave.writeresponse;
-            mem_master.wr_writeresponseuser <= mem_slave.writeresponseuser;
+            // Sink will generate a response
+            mem_source.wr_writeresponsevalid <= mem_sink.writeresponsevalid;
+            mem_source.wr_response <= mem_sink.writeresponse;
+            mem_source.wr_writeresponseuser <= mem_sink.writeresponseuser;
         end
         else
         begin
             // Response generated here as writes win arbitrarion
-            mem_master.wr_writeresponsevalid <= arb_grant_write && !mem_slave.waitrequest &&
+            mem_source.wr_writeresponsevalid <= arb_grant_write && !mem_sink.waitrequest &&
                                                 !wr_burst_active;
-            mem_master.wr_response <= '0;
-            mem_master.wr_writeresponseuser <= wr_req.user;
+            mem_source.wr_response <= '0;
+            mem_source.wr_writeresponseuser <= wr_req.user;
         end
 
         if (!reset_n)
         begin
-            mem_master.wr_writeresponsevalid <= 1'b0;
+            mem_source.wr_writeresponsevalid <= 1'b0;
         end
     end
 

@@ -31,94 +31,94 @@
 `include "ofs_plat_if.vh"
 
 //
-// mem_master and mem_slave may differ only in the width of their burst counts.
-// Map bursts requested by the master into legal bursts in the slave.
+// mem_source and mem_sink may differ only in the width of their burst counts.
+// Map bursts requested by the source into legal bursts in the sink.
 //
 module ofs_plat_avalon_mem_if_map_bursts
   #(
-    // Which bit in the mem_slave user flags should be set to indicate
+    // Which bit in the mem_sink user flags should be set to indicate
     // injected bursts that should be dropped so that the AFU sees
     // only responses to its original bursts?
     parameter UFLAG_NO_REPLY = 0,
 
-    // Set to non-zero if addresses in the slave must be naturally aligned to
+    // Set to non-zero if addresses in the sink must be naturally aligned to
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0
     )
    (
-    ofs_plat_avalon_mem_if.to_master mem_master,
-    ofs_plat_avalon_mem_if.to_slave mem_slave
+    ofs_plat_avalon_mem_if.to_source mem_source,
+    ofs_plat_avalon_mem_if.to_sink mem_sink
     );
 
 
     initial
     begin
-        if (mem_master.ADDR_WIDTH_ != mem_slave.ADDR_WIDTH_)
+        if (mem_source.ADDR_WIDTH_ != mem_sink.ADDR_WIDTH_)
             $fatal(2, "** ERROR ** %m: ADDR_WIDTH mismatch!");
-        if (mem_master.DATA_WIDTH_ != mem_slave.DATA_WIDTH_)
+        if (mem_source.DATA_WIDTH_ != mem_sink.DATA_WIDTH_)
             $fatal(2, "** ERROR ** %m: DATA_WIDTH mismatch!");
     end
 
     logic clk;
-    assign clk = mem_slave.clk;
+    assign clk = mem_sink.clk;
     logic reset_n;
-    assign reset_n = mem_slave.reset_n;
+    assign reset_n = mem_sink.reset_n;
 
-    localparam ADDR_WIDTH = mem_master.ADDR_WIDTH_;
-    localparam DATA_WIDTH = mem_master.DATA_WIDTH_;
-    localparam DATA_N_BYTES = mem_master.DATA_N_BYTES;
+    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH_;
+    localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
+    localparam DATA_N_BYTES = mem_source.DATA_N_BYTES;
 
-    localparam MASTER_BURST_WIDTH = mem_master.BURST_CNT_WIDTH_;
-    localparam SLAVE_BURST_WIDTH = mem_slave.BURST_CNT_WIDTH_;
-    typedef logic [MASTER_BURST_WIDTH-1 : 0] t_master_burst_cnt;
+    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH_;
+    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH_;
+    typedef logic [SOURCE_BURST_WIDTH-1 : 0] t_source_burst_cnt;
 
     generate
-        if ((! NATURAL_ALIGNMENT && (SLAVE_BURST_WIDTH >= MASTER_BURST_WIDTH)) ||
-            (MASTER_BURST_WIDTH == 1))
+        if ((! NATURAL_ALIGNMENT && (SINK_BURST_WIDTH >= SOURCE_BURST_WIDTH)) ||
+            (SOURCE_BURST_WIDTH == 1))
         begin : nb
-            // There is no alignment requirement and slave can handle all
-            // master burst sizes. Just wire the two interfaces together.
+            // There is no alignment requirement and sink can handle all
+            // source burst sizes. Just wire the two interfaces together.
             ofs_plat_avalon_mem_if_connect
               simple_conn
                (
-                .mem_master,
-                .mem_slave
+                .mem_source,
+                .mem_sink
                 );
         end
         else
         begin : b
             //
-            // Break master bursts into slave-sized bursts.
+            // Break source bursts into sink-sized bursts.
             //
             logic req_complete;
             logic m_new_req;
             logic [ADDR_WIDTH-1 : 0] s_address;
-            logic [SLAVE_BURST_WIDTH-1 : 0] s_burstcount;
+            logic [SINK_BURST_WIDTH-1 : 0] s_burstcount;
             logic m_wr_sop, s_wr_sop;
 
-            // New flits are allowed as long as the slave isn't in waitrequest
+            // New flits are allowed as long as the sink isn't in waitrequest
             // and the previous read is complete. Writes aren't a problem since
             // the data flit count is the same, independent of burst sizes.
-            assign mem_master.waitrequest = mem_slave.waitrequest ||
-                                            (mem_slave.read && ! req_complete);
+            assign mem_source.waitrequest = mem_sink.waitrequest ||
+                                            (mem_sink.read && ! req_complete);
 
-            // Ready to start a new packet burst request coming from the master?
-            // Only master reads or master write SOP flits start a new request.
-            assign m_new_req = ! mem_master.waitrequest && m_wr_sop;
+            // Ready to start a new packet burst request coming from the source?
+            // Only source reads or source write SOP flits start a new request.
+            assign m_new_req = ! mem_source.waitrequest && m_wr_sop;
 
-            // Slave ready to accept request? For reads, this is easy: a request
-            // may be accepted as long as the slave's waitrequest is clear.
-            // Writes accept requests only in the SOP beat of slave bursts.
+            // Sink ready to accept request? For reads, this is easy: a request
+            // may be accepted as long as the sink's waitrequest is clear.
+            // Writes accept requests only in the SOP beat of sink bursts.
             logic s_accept_req;
-            assign s_accept_req = ! mem_slave.waitrequest && s_wr_sop &&
-                                  (mem_slave.write || mem_slave.read);
+            assign s_accept_req = ! mem_sink.waitrequest && s_wr_sop &&
+                                  (mem_sink.write || mem_sink.read);
 
-            // Map burst counts in the master to one or more bursts in the slave.
+            // Map burst counts in the source to one or more bursts in the sink.
             ofs_plat_prim_burstcount1_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
-                .MASTER_BURST_WIDTH(MASTER_BURST_WIDTH),
-                .SLAVE_BURST_WIDTH(SLAVE_BURST_WIDTH),
+                .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
+                .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
                 .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT)
                 )
                gearbox
@@ -127,8 +127,8 @@ module ofs_plat_avalon_mem_if_map_bursts
                  .reset_n,
 
                  .m_new_req,
-                 .m_addr(mem_master.address),
-                 .m_burstcount(mem_master.burstcount),
+                 .m_addr(mem_source.address),
+                 .m_burstcount(mem_source.burstcount),
 
                  .s_accept_req,
                  .s_req_complete(req_complete),
@@ -136,48 +136,48 @@ module ofs_plat_avalon_mem_if_map_bursts
                  .s_burstcount(s_burstcount)
                  );
 
-            // Register request state coming from the master that isn't held
+            // Register request state coming from the source that isn't held
             // in the burst count mapping gearbox.
             always_ff @(posedge clk)
             begin
-                if (! mem_master.waitrequest)
+                if (! mem_source.waitrequest)
                 begin
-                    mem_slave.read <= mem_master.read;
-                    mem_slave.write <= mem_master.write;
-                    mem_slave.writedata <= mem_master.writedata;
-                    mem_slave.byteenable <= mem_master.byteenable;
+                    mem_sink.read <= mem_source.read;
+                    mem_sink.write <= mem_source.write;
+                    mem_sink.writedata <= mem_source.writedata;
+                    mem_sink.byteenable <= mem_source.byteenable;
                 end
 
                 if (!reset_n)
                 begin
-                    mem_slave.read <= 1'b0;
-                    mem_slave.write <= 1'b0;
+                    mem_sink.read <= 1'b0;
+                    mem_sink.write <= 1'b0;
                 end
             end
 
-            // Address and burstcount are valid only during the slave's SOP cycle.
-            // (SOP is valid when reads arrive too, since the slave was prepared
+            // Address and burstcount are valid only during the sink's SOP cycle.
+            // (SOP is valid when reads arrive too, since the sink was prepared
             // to accept the SOP of a write.)
             //
             // Force 'x for debugging. (Without 'x the address and burstcount are
             // associated with the next packet, which is confusing.)
-            assign mem_slave.address = s_wr_sop ? s_address : 'x;
-            assign mem_slave.burstcount = s_wr_sop ? s_burstcount : 'x;
+            assign mem_sink.address = s_wr_sop ? s_address : 'x;
+            assign mem_sink.burstcount = s_wr_sop ? s_burstcount : 'x;
 
             // Responses don't encode anything about bursts. Forward them unmodified.
-            assign mem_master.readdatavalid = mem_slave.readdatavalid;
-            assign mem_master.readdata = mem_slave.readdata;
-            assign mem_master.response = mem_slave.response;
+            assign mem_source.readdatavalid = mem_sink.readdatavalid;
+            assign mem_source.readdata = mem_sink.readdata;
+            assign mem_source.response = mem_sink.response;
 
-            // Forward only responses to master bursts. Extra slave bursts are
+            // Forward only responses to source bursts. Extra sink bursts are
             // indicated by 0 in writeresponseuser[UFLAG_NO_REPLY].
-            assign mem_master.writeresponsevalid =
-                mem_slave.writeresponsevalid && !mem_slave.writeresponseuser[UFLAG_NO_REPLY];
-            assign mem_master.writeresponse = mem_slave.writeresponse;
+            assign mem_source.writeresponsevalid =
+                mem_sink.writeresponsevalid && !mem_sink.writeresponseuser[UFLAG_NO_REPLY];
+            assign mem_source.writeresponse = mem_sink.writeresponse;
 
             // Write ACKs can flow back unchanged. It is up to the part of this
-            // module to ensure that there is only one write ACK per master burst.
-            assign mem_slave.user[UFLAG_NO_REPLY] = !(req_complete && s_wr_sop && mem_slave.write);
+            // module to ensure that there is only one write ACK per source burst.
+            assign mem_sink.user[UFLAG_NO_REPLY] = !(req_complete && s_wr_sop && mem_sink.write);
 
             //
             // Write SOP tracking
@@ -185,28 +185,28 @@ module ofs_plat_avalon_mem_if_map_bursts
 
             ofs_plat_prim_burstcount1_sop_tracker
               #(
-                .BURST_CNT_WIDTH(MASTER_BURST_WIDTH)
+                .BURST_CNT_WIDTH(SOURCE_BURST_WIDTH)
                 )
               m_sop_tracker
                (
                 .clk,
                 .reset_n,
-                .flit_valid(mem_master.write && ! mem_master.waitrequest),
-                .burstcount(mem_master.burstcount),
+                .flit_valid(mem_source.write && ! mem_source.waitrequest),
+                .burstcount(mem_source.burstcount),
                 .sop(m_wr_sop),
                 .eop()
                 );
 
             ofs_plat_prim_burstcount1_sop_tracker
               #(
-                .BURST_CNT_WIDTH(SLAVE_BURST_WIDTH)
+                .BURST_CNT_WIDTH(SINK_BURST_WIDTH)
                 )
               s_sop_tracker
                (
                 .clk,
                 .reset_n,
-                .flit_valid(mem_slave.write && ! mem_slave.waitrequest),
-                .burstcount(mem_slave.burstcount),
+                .flit_valid(mem_sink.write && ! mem_sink.waitrequest),
+                .burstcount(mem_sink.burstcount),
                 .sop(s_wr_sop),
                 .eop()
                 );
@@ -217,9 +217,9 @@ module ofs_plat_avalon_mem_if_map_bursts
             //
             // Validated in simulation: confirm that the parent module is properly
             // returning writeresponseuser[UFLAG_NO_REPLY] based on
-            // wr_slave.user[UFLAG_NO_REPLY] for burst tracking. The test here is
+            // wr_sink.user[UFLAG_NO_REPLY] for burst tracking. The test here is
             // simple: if there are more write responses than write requests from
-            // the master then something is wrong.
+            // the source then something is wrong.
             //
             int m_num_writes, m_num_write_responses;
 
@@ -230,12 +230,12 @@ module ofs_plat_avalon_mem_if_map_bursts
                     $fatal(2, "** ERROR ** %m: More write responses than write requests! Is the parent module returning writeresponseuser[%0d]?", UFLAG_NO_REPLY);
                 end
 
-                if (mem_master.write && ! mem_master.waitrequest && m_wr_sop)
+                if (mem_source.write && ! mem_source.waitrequest && m_wr_sop)
                 begin
                     m_num_writes <= m_num_writes + 1;
                 end
 
-                if (mem_master.writeresponsevalid)
+                if (mem_source.writeresponsevalid)
                 begin
                     m_num_write_responses <= m_num_write_responses + 1;
                 end
