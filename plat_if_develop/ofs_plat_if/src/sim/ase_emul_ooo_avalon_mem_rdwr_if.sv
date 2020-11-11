@@ -40,36 +40,36 @@ module ase_emul_ooo_avalon_mem_rdwr_if
     parameter OUT_OF_ORDER = 0
     )
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk mem_master
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk mem_source
     );
             
-    localparam DATA_WIDTH = mem_slave.DATA_WIDTH_;
-    localparam RESPONSE_WIDTH = mem_slave.RESPONSE_WIDTH_;
-    localparam USER_WIDTH = mem_slave.USER_WIDTH_;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
+    localparam RESPONSE_WIDTH = mem_sink.RESPONSE_WIDTH_;
+    localparam USER_WIDTH = mem_sink.USER_WIDTH_;
 
     generate
         if (OUT_OF_ORDER == 0)
         begin : n
             // Not out of order
-            ofs_plat_avalon_mem_rdwr_if_connect_slave_clk conn
+            ofs_plat_avalon_mem_rdwr_if_connect_sink_clk conn
                (
-                .mem_slave,
-                .mem_master
+                .mem_sink,
+                .mem_source
                 );
         end
         else
         begin : o
-            assign mem_master.clk = mem_slave.clk;
-            assign mem_master.reset_n = mem_slave.reset_n;
-            assign mem_master.instance_number = mem_slave.instance_number;
+            assign mem_source.clk = mem_sink.clk;
+            assign mem_source.reset_n = mem_sink.reset_n;
+            assign mem_source.instance_number = mem_sink.instance_number;
 
             always_comb
             begin
-                `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
+                `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SOURCE_TO_SINK_COMB(mem_sink, mem_source);
 
-                mem_master.rd_waitrequest = mem_slave.rd_waitrequest;
-                mem_master.wr_waitrequest = mem_slave.wr_waitrequest;
+                mem_source.rd_waitrequest = mem_sink.rd_waitrequest;
+                mem_source.wr_waitrequest = mem_sink.wr_waitrequest;
             end
 
             ase_emul_ooo_pipe
@@ -78,16 +78,16 @@ module ase_emul_ooo_avalon_mem_rdwr_if
                 )
               rd_ooo
                (
-                .clk(mem_slave.clk),
-                .reset_n(mem_slave.reset_n),
-                .data_in({ mem_slave.rd_readdata,
-                           mem_slave.rd_response,
-                           mem_slave.rd_readresponseuser,
-                           mem_slave.rd_readdatavalid }),
-                .data_out({ mem_master.rd_readdata,
-                            mem_master.rd_response,
-                            mem_master.rd_readresponseuser,
-                            mem_master.rd_readdatavalid })
+                .clk(mem_sink.clk),
+                .reset_n(mem_sink.reset_n),
+                .data_in({ mem_sink.rd_readdata,
+                           mem_sink.rd_response,
+                           mem_sink.rd_readresponseuser,
+                           mem_sink.rd_readdatavalid }),
+                .data_out({ mem_source.rd_readdata,
+                            mem_source.rd_response,
+                            mem_source.rd_readresponseuser,
+                            mem_source.rd_readdatavalid })
                 );
 
             ase_emul_ooo_pipe
@@ -96,14 +96,14 @@ module ase_emul_ooo_avalon_mem_rdwr_if
                 )
               wr_ooo
                (
-                .clk(mem_slave.clk),
-                .reset_n(mem_slave.reset_n),
-                .data_in({ mem_slave.wr_response,
-                           mem_slave.wr_writeresponseuser,
-                           mem_slave.wr_writeresponsevalid }),
-                .data_out({ mem_master.wr_response,
-                            mem_master.wr_writeresponseuser,
-                            mem_master.wr_writeresponsevalid })
+                .clk(mem_sink.clk),
+                .reset_n(mem_sink.reset_n),
+                .data_in({ mem_sink.wr_response,
+                           mem_sink.wr_writeresponseuser,
+                           mem_sink.wr_writeresponsevalid }),
+                .data_out({ mem_source.wr_response,
+                            mem_source.wr_writeresponseuser,
+                            mem_source.wr_writeresponsevalid })
                 );
         end
     endgenerate

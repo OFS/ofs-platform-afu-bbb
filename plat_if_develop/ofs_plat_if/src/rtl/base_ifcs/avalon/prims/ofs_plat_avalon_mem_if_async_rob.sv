@@ -30,9 +30,9 @@
 
 //
 // Combined crossing bridge and reorder buffer (ROB) for the Avalon
-//  memory interface. The ROB stores tags for sorting in the slave's
-// user fields and assumes that the slave preserves them. This module is
-// needed only for unusual slaves that return responses out of order.
+// memory interface. The ROB stores tags for sorting in the sink's
+// user fields and assumes that the sink preserves them. This module is
+// needed only for unusual sinks that return responses out of order.
 //
 
 module ofs_plat_avalon_mem_if_async_rob
@@ -44,26 +44,26 @@ module ofs_plat_avalon_mem_if_async_rob
     parameter MAX_ACTIVE_RD_LINES = 256,
     parameter MAX_ACTIVE_WR_LINES = 256,
 
-    // First bit in the slave's user fields where the ROB indices should be
+    // First bit in the sink's user fields where the ROB indices should be
     // stored.
     parameter USER_ROB_IDX_START = 0
     )
    (
-    // BURST_CNT_WIDTH of both mem_slave and mem_master must be 3!
-    ofs_plat_avalon_mem_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_if.to_master mem_master
+    // BURST_CNT_WIDTH of both mem_sink and mem_source must be 3!
+    ofs_plat_avalon_mem_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_if.to_source mem_source
     );
 
-    localparam DATA_WIDTH = mem_slave.DATA_WIDTH_;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
-    // Preserve user data in master requests
-    localparam MASTER_USER_WIDTH = mem_master.USER_WIDTH_;
-    typedef logic [MASTER_USER_WIDTH-1 : 0] t_master_user;
+    // Preserve user data in source requests
+    localparam SOURCE_USER_WIDTH = mem_source.USER_WIDTH_;
+    typedef logic [SOURCE_USER_WIDTH-1 : 0] t_source_user;
 
-    // Slave user data is the ROB index space
-    localparam SLAVE_USER_WIDTH = mem_slave.USER_WIDTH_;
-    typedef logic [SLAVE_USER_WIDTH-1 : 0] t_slave_user;
+    // Sink user data is the ROB index space
+    localparam SINK_USER_WIDTH = mem_sink.USER_WIDTH_;
+    typedef logic [SINK_USER_WIDTH-1 : 0] t_sink_user;
 
     //
     // Pick a number of active lines that can actually be encoded
@@ -71,7 +71,7 @@ module ofs_plat_avalon_mem_if_async_rob
     //
     function automatic int validNumActive(int active_lines);
         // Largest counter that can be encoded in the user field
-        int max_lines = 1 << SLAVE_USER_WIDTH;
+        int max_lines = 1 << SINK_USER_WIDTH;
 
         if (active_lines <= max_lines)
             return active_lines;
@@ -93,12 +93,12 @@ module ofs_plat_avalon_mem_if_async_rob
     // ====================================================================
 
     logic rd_req_en;
-    t_slave_user rd_allocIdx;
+    t_sink_user rd_allocIdx;
     logic rd_rob_notFull;
 
     logic readdatavalid, readdatavalid_q;
 
-    assign rd_req_en = mem_master.read && !mem_master.waitrequest;
+    assign rd_req_en = mem_source.read && !mem_source.waitrequest;
 
     //
     // Read reorder buffer. Allocate a unique index for every request.
@@ -107,45 +107,45 @@ module ofs_plat_avalon_mem_if_async_rob
     localparam RD_ROB_N_ENTRIES = 1 << $clog2(validNumActive(MAX_ACTIVE_RD_LINES));
     typedef logic [$clog2(RD_ROB_N_ENTRIES)-1 : 0] t_rd_rob_idx;
     t_rd_rob_idx rd_next_allocIdx;
-    assign rd_allocIdx = t_slave_user'(rd_next_allocIdx);
+    assign rd_allocIdx = t_sink_user'(rd_next_allocIdx);
 
     ofs_plat_prim_rob_maybe_dc
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(RD_ROB_N_ENTRIES),
-        .N_DATA_BITS(mem_slave.RESPONSE_WIDTH + DATA_WIDTH),
-        .N_META_BITS(MASTER_USER_WIDTH),
-        .MAX_ALLOC_PER_CYCLE(1 << (mem_slave.BURST_CNT_WIDTH - 1))
+        .N_DATA_BITS(mem_sink.RESPONSE_WIDTH + DATA_WIDTH),
+        .N_META_BITS(SOURCE_USER_WIDTH),
+        .MAX_ALLOC_PER_CYCLE(1 << (mem_sink.BURST_CNT_WIDTH - 1))
         )
       rd_rob
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
         .alloc_en(rd_req_en),
-        .allocCnt(mem_master.burstcount),
-        .allocMeta(mem_master.user),
+        .allocCnt(mem_source.burstcount),
+        .allocMeta(mem_source.user),
         .notFull(rd_rob_notFull),
         .allocIdx(rd_next_allocIdx),
         .inSpaceAvail(),
 
         // Responses
-        .enq_clk(mem_slave.clk),
-        .enq_reset_n(mem_slave.reset_n),
-        .enqData_en(mem_slave.readdatavalid),
-        .enqDataIdx(mem_slave.readresponseuser[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
-        .enqData({ mem_slave.response, mem_slave.readdata }),
+        .enq_clk(mem_sink.clk),
+        .enq_reset_n(mem_sink.reset_n),
+        .enqData_en(mem_sink.readdatavalid),
+        .enqDataIdx(mem_sink.readresponseuser[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)]),
+        .enqData({ mem_sink.response, mem_sink.readdata }),
 
         .deq_en(readdatavalid),
         .notEmpty(readdatavalid),
-        .T2_first({ mem_master.response, mem_master.readdata }),
-        .T2_firstMeta(mem_master.readresponseuser)
+        .T2_first({ mem_source.response, mem_source.readdata }),
+        .T2_firstMeta(mem_source.readresponseuser)
         );
 
-    // Responses: align mem_master.readdatavalid with ROB's 2 cycle latency
-    always_ff @(posedge mem_master.clk)
+    // Responses: align mem_source.readdatavalid with ROB's 2 cycle latency
+    always_ff @(posedge mem_source.clk)
     begin
         readdatavalid_q <= readdatavalid;
-        mem_master.readdatavalid <= readdatavalid_q;
+        mem_source.readdatavalid <= readdatavalid_q;
     end
     
 
@@ -161,7 +161,7 @@ module ofs_plat_avalon_mem_if_async_rob
 
     logic writeresponsevalid, writeresponsevalid_q;
 
-    assign wr_req_en = mem_master.write && !mem_master.waitrequest;
+    assign wr_req_en = mem_source.write && !mem_source.waitrequest;
 
     //
     // Track write SOP. ROB slots are needed only on start of packet.
@@ -170,14 +170,14 @@ module ofs_plat_avalon_mem_if_async_rob
 
     ofs_plat_prim_burstcount1_sop_tracker
       #(
-        .BURST_CNT_WIDTH(mem_master.BURST_CNT_WIDTH)
+        .BURST_CNT_WIDTH(mem_source.BURST_CNT_WIDTH)
         )
       sop
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
         .flit_valid(wr_req_en),
-        .burstcount(mem_master.burstcount),
+        .burstcount(mem_source.burstcount),
         .sop(wr_sop),
         .eop()
         );
@@ -195,50 +195,50 @@ module ofs_plat_avalon_mem_if_async_rob
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(WR_ROB_N_ENTRIES),
-        .N_DATA_BITS(mem_slave.RESPONSE_WIDTH),
-        .N_META_BITS(MASTER_USER_WIDTH),
+        .N_DATA_BITS(mem_sink.RESPONSE_WIDTH),
+        .N_META_BITS(SOURCE_USER_WIDTH),
         .MAX_ALLOC_PER_CYCLE(1)
         )
       wr_rob
        (
-        .clk(mem_master.clk),
-        .reset_n(mem_master.reset_n),
+        .clk(mem_source.clk),
+        .reset_n(mem_source.reset_n),
         .alloc_en(wr_req_en && wr_sop),
         .allocCnt(1'b1),
-        .allocMeta(mem_master.user),
+        .allocMeta(mem_source.user),
         .notFull(wr_rob_notFull),
         .allocIdx(wr_next_allocIdx),
         .inSpaceAvail(),
 
         // Responses
-        .enq_clk(mem_slave.clk),
-        .enq_reset_n(mem_slave.reset_n),
-        .enqData_en(mem_slave.writeresponsevalid),
-        .enqDataIdx(mem_slave.writeresponseuser[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)]),
-        .enqData(mem_slave.writeresponse),
+        .enq_clk(mem_sink.clk),
+        .enq_reset_n(mem_sink.reset_n),
+        .enqData_en(mem_sink.writeresponsevalid),
+        .enqDataIdx(mem_sink.writeresponseuser[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)]),
+        .enqData(mem_sink.writeresponse),
 
         .deq_en(writeresponsevalid),
         .notEmpty(writeresponsevalid),
-        .T2_first(mem_master.writeresponse),
-        .T2_firstMeta(mem_master.writeresponseuser)
+        .T2_first(mem_source.writeresponse),
+        .T2_firstMeta(mem_source.writeresponseuser)
         );
 
-    // Responses: align mem_master.writeresponsevalid with ROB's 2 cycle latency
-    always_ff @(posedge mem_master.clk)
+    // Responses: align mem_source.writeresponsevalid with ROB's 2 cycle latency
+    always_ff @(posedge mem_source.clk)
     begin
         writeresponsevalid_q <= writeresponsevalid;
-        mem_master.writeresponsevalid <= writeresponsevalid_q;
+        mem_source.writeresponsevalid <= writeresponsevalid_q;
     end
 
     // Hold ROB wr_allocIdx for the full packet
-    t_slave_user wr_allocIdx, wr_packet_allocIdx;
-    assign wr_allocIdx = (wr_sop ? t_slave_user'(wr_next_allocIdx) : wr_packet_allocIdx);
+    t_sink_user wr_allocIdx, wr_packet_allocIdx;
+    assign wr_allocIdx = (wr_sop ? t_sink_user'(wr_next_allocIdx) : wr_packet_allocIdx);
 
-    always_ff @(posedge mem_master.clk)
+    always_ff @(posedge mem_source.clk)
     begin
         if (wr_sop)
         begin
-            wr_packet_allocIdx <= t_slave_user'(wr_next_allocIdx);
+            wr_packet_allocIdx <= t_sink_user'(wr_next_allocIdx);
         end
     end
 
@@ -251,26 +251,26 @@ module ofs_plat_avalon_mem_if_async_rob
 
     logic cmd_is_write;
     logic cmd_fifo_notFull, cmd_fifo_notEmpty;
-    assign mem_master.waitrequest = !rd_rob_notFull || !wr_rob_notFull || !cmd_fifo_notFull;
+    assign mem_source.waitrequest = !rd_rob_notFull || !wr_rob_notFull || !cmd_fifo_notFull;
 
     logic cmd_enq_en;
-    assign cmd_enq_en = (mem_master.read || mem_master.write) && !mem_master.waitrequest;
+    assign cmd_enq_en = (mem_source.read || mem_source.write) && !mem_source.waitrequest;
 
-    assign mem_slave.read = !cmd_is_write && cmd_fifo_notEmpty;
-    assign mem_slave.write = cmd_is_write && cmd_fifo_notEmpty;
+    assign mem_sink.read = !cmd_is_write && cmd_fifo_notEmpty;
+    assign mem_sink.write = cmd_is_write && cmd_fifo_notEmpty;
 
-    t_slave_user slave_user;
+    t_sink_user sink_user;
     always_comb
     begin
-        slave_user = t_slave_user'(mem_master.user);
-        if (mem_master.read)
-            slave_user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)] = rd_allocIdx;
+        sink_user = t_sink_user'(mem_source.user);
+        if (mem_source.read)
+            sink_user[USER_ROB_IDX_START +: $clog2(RD_ROB_N_ENTRIES)] = rd_allocIdx;
         else
-            slave_user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)] = wr_allocIdx;
+            sink_user[USER_ROB_IDX_START +: $clog2(WR_ROB_N_ENTRIES)] = wr_allocIdx;
     end
 
     //
-    // Forward commands to slave, along with the rob index.
+    // Forward commands to sink, along with the rob index.
     //
     generate
         if (ADD_CLOCK_CROSSING)
@@ -278,37 +278,37 @@ module ofs_plat_avalon_mem_if_async_rob
             // Need a clock crossing FIFO for write requests
             ofs_plat_prim_fifo_dc
               #(
-                .N_DATA_BITS(SLAVE_USER_WIDTH +
-                             mem_master.BURST_CNT_WIDTH +
-                             mem_master.DATA_WIDTH +
-                             mem_master.DATA_N_BYTES +
+                .N_DATA_BITS(SINK_USER_WIDTH +
+                             mem_source.BURST_CNT_WIDTH +
+                             mem_source.DATA_WIDTH +
+                             mem_source.DATA_N_BYTES +
                              1 + // is write
-                             mem_master.ADDR_WIDTH),
+                             mem_source.ADDR_WIDTH),
                 .N_ENTRIES(16)
                 )
               cmd_fifo
                (
-                .enq_clk(mem_master.clk),
-                .enq_reset_n(mem_master.reset_n),
-                .enq_data({ slave_user,
-                            mem_master.burstcount,
-                            mem_master.writedata,
-                            mem_master.byteenable,
-                            mem_master.write,
-                            mem_master.address }),
+                .enq_clk(mem_source.clk),
+                .enq_reset_n(mem_source.reset_n),
+                .enq_data({ sink_user,
+                            mem_source.burstcount,
+                            mem_source.writedata,
+                            mem_source.byteenable,
+                            mem_source.write,
+                            mem_source.address }),
                 .enq_en(cmd_enq_en),
                 .notFull(cmd_fifo_notFull),
                 .almostFull(),
 
-                .deq_clk(mem_slave.clk),
-                .deq_reset_n(mem_slave.reset_n),
-                .first({ mem_slave.user,
-                         mem_slave.burstcount,
-                         mem_slave.writedata,
-                         mem_slave.byteenable,
+                .deq_clk(mem_sink.clk),
+                .deq_reset_n(mem_sink.reset_n),
+                .first({ mem_sink.user,
+                         mem_sink.burstcount,
+                         mem_sink.writedata,
+                         mem_sink.byteenable,
                          cmd_is_write,
-                         mem_slave.address }),
-                .deq_en(cmd_fifo_notEmpty && !mem_slave.waitrequest),
+                         mem_sink.address }),
+                .deq_en(cmd_fifo_notEmpty && !mem_sink.waitrequest),
                 .notEmpty(cmd_fifo_notEmpty)
                 );
         end
@@ -317,34 +317,34 @@ module ofs_plat_avalon_mem_if_async_rob
             // No clock crossing. Simple two-stage FIFO.
             ofs_plat_prim_fifo2
               #(
-                .N_DATA_BITS(SLAVE_USER_WIDTH +
-                             mem_master.BURST_CNT_WIDTH +
-                             mem_master.DATA_WIDTH +
-                             mem_master.DATA_N_BYTES +
+                .N_DATA_BITS(SINK_USER_WIDTH +
+                             mem_source.BURST_CNT_WIDTH +
+                             mem_source.DATA_WIDTH +
+                             mem_source.DATA_N_BYTES +
                              1 + // is write
-                             mem_master.ADDR_WIDTH)
+                             mem_source.ADDR_WIDTH)
                 )
               cmd_fifo
                (
-                .clk(mem_master.clk),
-                .reset_n(mem_master.reset_n),
+                .clk(mem_source.clk),
+                .reset_n(mem_source.reset_n),
 
-                .enq_data({ slave_user,
-                            mem_master.burstcount,
-                            mem_master.writedata,
-                            mem_master.byteenable,
-                            mem_master.write,
-                            mem_master.address }),
+                .enq_data({ sink_user,
+                            mem_source.burstcount,
+                            mem_source.writedata,
+                            mem_source.byteenable,
+                            mem_source.write,
+                            mem_source.address }),
                 .enq_en(cmd_enq_en),
                 .notFull(cmd_fifo_notFull),
 
-                .first({ mem_slave.user,
-                         mem_slave.burstcount,
-                         mem_slave.writedata,
-                         mem_slave.byteenable,
+                .first({ mem_sink.user,
+                         mem_sink.burstcount,
+                         mem_sink.writedata,
+                         mem_sink.byteenable,
                          cmd_is_write,
-                         mem_slave.address }),
-                .deq_en(cmd_fifo_notEmpty && !mem_slave.waitrequest),
+                         mem_sink.address }),
+                .deq_en(cmd_fifo_notEmpty && !mem_sink.waitrequest),
                 .notEmpty(cmd_fifo_notEmpty)
                 );
         end

@@ -54,13 +54,13 @@
 module ofs_plat_host_chan_@group@_map_as_axi_mem_if
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
-    ofs_plat_axi_mem_if.to_master mem_master,
-    ofs_plat_axi_mem_lite_if.to_slave mmio_slave,
+    ofs_plat_axi_mem_if.to_source mem_source,
+    ofs_plat_axi_mem_lite_if.to_sink mmio_sink,
 
-    // A second, write-only MMIO slave. If used, an AFU will likely use
+    // A second, write-only MMIO sink. If used, an AFU will likely use
     // this interface to receive wide MMIO writes without also having to
     // build wide MMIO read channels.
-    ofs_plat_axi_mem_lite_if.to_slave mmio_wo_slave
+    ofs_plat_axi_mem_lite_if.to_sink mmio_wo_sink
     );
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
@@ -85,7 +85,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     ofs_plat_axi_mem_if
       #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_master)
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_source)
         )
       mem_if();
 
@@ -95,8 +95,8 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     ofs_plat_axi_mem_if_skid mem_skid
        (
-        .mem_master,
-        .mem_slave(mem_if)
+        .mem_source,
+        .mem_sink(mem_if)
         );
 
     //
@@ -105,7 +105,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     ofs_plat_axi_mem_lite_if
       #(
-        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mmio_slave)
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mmio_sink)
         )
       mmio_if();
 
@@ -115,14 +115,14 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     ofs_plat_axi_mem_lite_if_skid mmio_skid
        (
-        .mem_slave(mmio_slave),
-        .mem_master(mmio_if)
+        .mem_sink(mmio_sink),
+        .mem_source(mmio_if)
         );
 
     // Second (write-only) MMIO interface
     ofs_plat_axi_mem_lite_if
       #(
-        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mmio_wo_slave)
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mmio_wo_sink)
         )
       mmio_wo_if();
 
@@ -138,8 +138,8 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         )
       mmio_wo_skid
        (
-        .mem_slave(mmio_wo_slave),
-        .mem_master(mmio_wo_if)
+        .mem_sink(mmio_wo_sink),
+        .mem_source(mmio_wo_if)
         );
 
     assign mmio_wo_if.arvalid = 1'b0;
@@ -159,14 +159,14 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
     `AXI_STREAM_INSTANCE(host_mmio_req, t_gen_tx_mmio_afu_req);
 
-    localparam MMIO_ADDR_WIDTH = mmio_slave.ADDR_WIDTH_;
+    localparam MMIO_ADDR_WIDTH = mmio_sink.ADDR_WIDTH_;
     typedef logic [MMIO_ADDR_WIDTH-1 : 0] t_mmio_addr;
-    localparam MMIO_DATA_WIDTH = mmio_slave.DATA_WIDTH_;
+    localparam MMIO_DATA_WIDTH = mmio_sink.DATA_WIDTH_;
     typedef logic [MMIO_DATA_WIDTH-1 : 0] t_mmio_data;
 
-    localparam MMIO_WO_ADDR_WIDTH = mmio_wo_slave.ADDR_WIDTH_;
+    localparam MMIO_WO_ADDR_WIDTH = mmio_wo_sink.ADDR_WIDTH_;
     typedef logic [MMIO_WO_ADDR_WIDTH-1 : 0] t_mmio_wo_addr;
-    localparam MMIO_WO_DATA_WIDTH = mmio_wo_slave.DATA_WIDTH_;
+    localparam MMIO_WO_DATA_WIDTH = mmio_wo_sink.DATA_WIDTH_;
     typedef logic [MMIO_WO_DATA_WIDTH-1 : 0] t_mmio_wo_data;
 
     // Index of the minimum addressable size (32 bit DWORD)
@@ -374,9 +374,9 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     //
     // ====================================================================
 
-    localparam ADDR_WIDTH = mem_master.ADDR_WIDTH_;
+    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH_;
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
-    localparam DATA_WIDTH = mem_master.DATA_WIDTH_;
+    localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
     // Mapping byte masks to start and length needs to be broken apart
@@ -390,7 +390,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         w_byte_start_in = '0;
         for (int i = 0; i < DATA_WIDTH/8; i = i + 1)
         begin
-            if (mem_master.w.strb[i])
+            if (mem_source.w.strb[i])
             begin
                 w_byte_start_in = i;
                 break;
@@ -400,7 +400,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         w_byte_end_in = ~'0;
         for (int i = DATA_WIDTH/8 - 1; i >= 0; i = i - 1)
         begin
-            if (mem_master.w.strb[i])
+            if (mem_source.w.strb[i])
             begin
                 w_byte_end_in = i;
                 break;
@@ -418,7 +418,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         .reset_n,
 
         .enq_data({ w_byte_start_in, w_byte_end_in }),
-        .enq_en(mem_master.wvalid && mem_master.wready),
+        .enq_en(mem_source.wvalid && mem_source.wready),
         // Space is the same as the mem_if.w skid buffer
         .notFull(),
 

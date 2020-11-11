@@ -45,12 +45,12 @@ package ofs_plat_host_chan_axi_mem_pkg;
         HC_AXI_UFLAG_NO_REPLY = 0,
 
         // AW (write address) stream only. Inject a write fence. Packet
-        // AWLEN must be 0. AWADDR is ignored. The master must still generate
+        // AWLEN must be 0. AWADDR is ignored. The source must still generate
         // a corresponding W packet to avoid confusing AXI routing networks.
         HC_AXI_UFLAG_FENCE = 1,
 
         // AW stream only. Trigger an interrupt. The vector is indicated by
-        // low bits of the AWADDR. AWLEN must be 0 and the master must still
+        // low bits of the AWADDR. AWLEN must be 0 and the source must still
         // generate a W packet.
         HC_AXI_UFLAG_INTERRUPT = 2
     } t_hc_axi_user_flags_enum;

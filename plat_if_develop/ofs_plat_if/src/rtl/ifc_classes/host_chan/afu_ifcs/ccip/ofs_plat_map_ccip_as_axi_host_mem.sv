@@ -53,7 +53,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
     // Generated AXI host memory interface
-    ofs_plat_axi_mem_if.to_master_clk host_mem_to_afu,
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
 
     // Used for AFU clock/reset_n when ADD_CLOCK_CROSSING is nonzero
     input  logic afu_clk,
@@ -103,11 +103,11 @@ module ofs_plat_map_ccip_as_axi_host_mem
     end
     // synthesis translate_on
 
-    ofs_plat_axi_mem_if_connect_slave_clk
+    ofs_plat_axi_mem_if_connect_sink_clk
       conn_afu_clk
        (
-        .mem_master(host_mem_to_afu),
-        .mem_slave(axi_afu_clk_if)
+        .mem_source(host_mem_to_afu),
+        .mem_sink(axi_afu_clk_if)
         );
 
     //
@@ -116,7 +116,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
 
     // ofs_plat_axi_mem_if_async_rob records the ROB indices of read and
     // write requests in ID fields. The original values are recorded in the
-    // ROB and returned to the master.
+    // ROB and returned to the source.
     localparam ROB_RID_WIDTH = $clog2(MAX_ACTIVE_RD_LINES);
     localparam ROB_WID_WIDTH = $clog2(MAX_ACTIVE_WR_LINES);
 
@@ -145,8 +145,8 @@ module ofs_plat_map_ccip_as_axi_host_mem
         )
       rob
        (
-        .mem_master(axi_afu_clk_if),
-        .mem_slave(axi_fiu_clk_if)
+        .mem_source(axi_afu_clk_if),
+        .mem_sink(axi_fiu_clk_if)
         );
 
 

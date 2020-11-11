@@ -35,58 +35,58 @@
 //
 module ofs_plat_avalon_mem_rdwr_if_connect
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source mem_source
     );
 
     always_comb
     begin
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SOURCE_TO_SINK_COMB(mem_sink, mem_source);
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SINK_TO_SOURCE_COMB(mem_source, mem_sink);
     end
 
 endmodule // ofs_plat_avalon_mem_rdwr_if_connect
 
 
-// Same as standard connection, but pass clk and reset_n from slave to master
-module ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+// Same as standard connection, but pass clk and reset_n from sink to source
+module ofs_plat_avalon_mem_rdwr_if_connect_sink_clk
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk mem_master
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk mem_source
     );
 
-    assign mem_master.clk = mem_slave.clk;
-    assign mem_master.reset_n = mem_slave.reset_n;
+    assign mem_source.clk = mem_sink.clk;
+    assign mem_source.reset_n = mem_sink.reset_n;
 
     // Debugging signal
-    assign mem_master.instance_number = mem_slave.instance_number;
+    assign mem_source.instance_number = mem_sink.instance_number;
 
     always_comb
     begin
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SOURCE_TO_SINK_COMB(mem_sink, mem_source);
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SINK_TO_SOURCE_COMB(mem_source, mem_sink);
     end
 
-endmodule // ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+endmodule // ofs_plat_avalon_mem_rdwr_if_connect_sink_clk
 
 
-// Same as standard connection, but pass clk and reset_n from master to slave
-module ofs_plat_avalon_mem_rdwr_if_connect_master_clk
+// Same as standard connection, but pass clk and reset_n from source to sink
+module ofs_plat_avalon_mem_rdwr_if_connect_source_clk
    (
-    ofs_plat_avalon_mem_rdwr_if.to_slave_clk mem_slave,
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master
+    ofs_plat_avalon_mem_rdwr_if.to_sink_clk mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source mem_source
     );
 
-    assign mem_slave.clk = mem_master.clk;
-    assign mem_slave.reset_n = mem_master.reset_n;
+    assign mem_sink.clk = mem_source.clk;
+    assign mem_sink.reset_n = mem_source.reset_n;
 
     // Debugging signal
-    assign mem_slave.instance_number = mem_master.instance_number;
+    assign mem_sink.instance_number = mem_source.instance_number;
 
     always_comb
     begin
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SLAVE_TO_MASTER_COMB(mem_master, mem_slave);
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SOURCE_TO_SINK_COMB(mem_sink, mem_source);
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_FROM_SINK_TO_SOURCE_COMB(mem_source, mem_sink);
     end
 
-endmodule // ofs_plat_avalon_mem_rdwr_if_connect_master_clk
+endmodule // ofs_plat_avalon_mem_rdwr_if_connect_source_clk

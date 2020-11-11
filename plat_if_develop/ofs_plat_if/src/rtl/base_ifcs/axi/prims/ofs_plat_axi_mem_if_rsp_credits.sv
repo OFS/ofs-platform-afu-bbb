@@ -42,33 +42,33 @@ module ofs_plat_axi_mem_if_rsp_credits
     parameter NUM_WRITE_CREDITS = 128
     )
    (
-    ofs_plat_axi_mem_if.to_slave mem_slave,
-    ofs_plat_axi_mem_if.to_master mem_master
+    ofs_plat_axi_mem_if.to_sink mem_sink,
+    ofs_plat_axi_mem_if.to_source mem_source
     );
 
     logic clk;
-    assign clk = mem_slave.clk;
+    assign clk = mem_sink.clk;
     logic reset_n;
-    assign reset_n = mem_slave.reset_n;
+    assign reset_n = mem_sink.reset_n;
 
     // synthesis translate_off
-    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_sink, mem_source)
     // synthesis translate_on
 
     // Write data needs no flow control here
-    assign mem_master.wready = mem_slave.wready;
-    assign mem_slave.wvalid = mem_master.wvalid;
-    assign mem_slave.w = mem_master.w;
+    assign mem_source.wready = mem_sink.wready;
+    assign mem_sink.wvalid = mem_source.wvalid;
+    assign mem_sink.w = mem_source.w;
 
     // Responses need no flow control here, though they will be monitored
     // in order to restore credits.
-    assign mem_slave.bready = mem_master.bready;
-    assign mem_master.bvalid = mem_slave.bvalid;
-    assign mem_master.b = mem_slave.b;
+    assign mem_sink.bready = mem_source.bready;
+    assign mem_source.bvalid = mem_sink.bvalid;
+    assign mem_source.b = mem_sink.b;
 
-    assign mem_slave.rready = mem_master.rready;
-    assign mem_master.rvalid = mem_slave.rvalid;
-    assign mem_master.r = mem_slave.r;
+    assign mem_sink.rready = mem_source.rready;
+    assign mem_source.rvalid = mem_sink.rvalid;
+    assign mem_source.r = mem_sink.r;
 
     //
     // Incoming write address stream.
@@ -83,22 +83,22 @@ module ofs_plat_axi_mem_if_rsp_credits
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS(mem_master.T_AW_WIDTH)
+        .N_DATA_BITS(mem_source.T_AW_WIDTH)
         )
       aw_fifo
        (
         .clk,
         .reset_n,
-        .enq_data(mem_master.aw),
-        .enq_en(mem_master.awready && mem_master.awvalid),
-        .notFull(mem_master.awready),
-        .first(mem_slave.aw),
+        .enq_data(mem_source.aw),
+        .enq_en(mem_source.awready && mem_source.awvalid),
+        .notFull(mem_source.awready),
+        .first(mem_sink.aw),
         .deq_en(fwd_wr_req),
         .notEmpty(wr_req_valid)
         );
 
-    assign mem_slave.awvalid = wr_req_valid && (n_wr_credits != t_wr_credits'(0));
-    assign fwd_wr_req = mem_slave.awvalid && mem_slave.awready;
+    assign mem_sink.awvalid = wr_req_valid && (n_wr_credits != t_wr_credits'(0));
+    assign fwd_wr_req = mem_sink.awvalid && mem_sink.awready;
 
     // Track write responses. Add a pipeline stage for timing since single
     // response credits aren't important.
@@ -106,7 +106,7 @@ module ofs_plat_axi_mem_if_rsp_credits
 
     always_ff @(posedge clk)
     begin
-        wr_resp_valid <= mem_slave.bvalid && mem_slave.bready;
+        wr_resp_valid <= mem_sink.bvalid && mem_sink.bready;
         wr_resp_valid_q <= wr_resp_valid;
     end
 
@@ -128,7 +128,7 @@ module ofs_plat_axi_mem_if_rsp_credits
     //
     // Incoming read address stream
     //
-    localparam MAX_RD_PER_REQ = 1 << mem_slave.BURST_CNT_WIDTH;
+    localparam MAX_RD_PER_REQ = 1 << mem_sink.BURST_CNT_WIDTH;
     typedef logic [$clog2(NUM_READ_CREDITS+1)-1 : 0] t_rd_credits;
     t_rd_credits n_rd_credits;
 
@@ -137,22 +137,22 @@ module ofs_plat_axi_mem_if_rsp_credits
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS(mem_master.T_AR_WIDTH)
+        .N_DATA_BITS(mem_source.T_AR_WIDTH)
         )
       ar_fifo
        (
         .clk,
         .reset_n,
-        .enq_data(mem_master.ar),
-        .enq_en(mem_master.arready && mem_master.arvalid),
-        .notFull(mem_master.arready),
-        .first(mem_slave.ar),
+        .enq_data(mem_source.ar),
+        .enq_en(mem_source.arready && mem_source.arvalid),
+        .notFull(mem_source.arready),
+        .first(mem_sink.ar),
         .deq_en(fwd_rd_req),
         .notEmpty(rd_req_valid)
         );
 
-    assign mem_slave.arvalid = rd_req_valid && (n_rd_credits >= t_wr_credits'(MAX_RD_PER_REQ));
-    assign fwd_rd_req = mem_slave.arvalid && mem_slave.arready;
+    assign mem_sink.arvalid = rd_req_valid && (n_rd_credits >= t_wr_credits'(MAX_RD_PER_REQ));
+    assign fwd_rd_req = mem_sink.arvalid && mem_sink.arready;
 
     // Track read responses. Add a pipeline stage for timing since single
     // response credits aren't important.
@@ -160,7 +160,7 @@ module ofs_plat_axi_mem_if_rsp_credits
 
     always_ff @(posedge clk)
     begin
-        rd_resp_valid <= mem_slave.rvalid && mem_slave.rready;
+        rd_resp_valid <= mem_sink.rvalid && mem_sink.rready;
         rd_resp_valid_q <= rd_resp_valid;
     end
 
@@ -172,10 +172,10 @@ module ofs_plat_axi_mem_if_rsp_credits
             n_rd_credits <= n_rd_credits + rd_resp_valid_q;
         else if (rd_resp_valid_q)
             // Both response and request
-            n_rd_credits <= n_rd_credits - mem_slave.ar.len;
+            n_rd_credits <= n_rd_credits - mem_sink.ar.len;
         else
             // Just a request
-            n_rd_credits <= n_rd_credits - mem_slave.ar.len - 1;
+            n_rd_credits <= n_rd_credits - mem_sink.ar.len - 1;
 
         if (!reset_n)
         begin

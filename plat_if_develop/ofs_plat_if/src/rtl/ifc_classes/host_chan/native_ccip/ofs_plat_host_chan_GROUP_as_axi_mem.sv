@@ -30,8 +30,8 @@
 
 //
 // Export a CCI-P native host_chan interface to an AFU as AXI interfaces.
-// There are three AXI interfaces: host memory master, MMIO (FPGA memory
-// slave) and write-only MMIO slave. The write-only variant can be useful
+// There are three AXI interfaces: host memory source, MMIO (FPGA memory
+// sink) and write-only MMIO sink. The write-only variant can be useful
 // for 512 bit MMIO. CCI-P supports wide MMIO write but not read.
 //
 
@@ -65,7 +65,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
-    ofs_plat_axi_mem_if.to_master_clk host_mem_to_afu,
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -96,7 +96,7 @@ endmodule // ofs_plat_host_chan_@group@_as_axi_mem
 
 
 //
-// Host memory and FPGA MMIO master as AXI. The width of the MMIO
+// Host memory and FPGA MMIO source as AXI. The width of the MMIO
 // port is determined by the parameters bound to mmio_to_afu.
 //
 module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
@@ -115,8 +115,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
-    ofs_plat_axi_mem_if.to_master_clk host_mem_to_afu,
-    ofs_plat_axi_mem_lite_if.to_slave_clk mmio_to_afu,
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
+    ofs_plat_axi_mem_lite_if.to_sink_clk mmio_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -163,21 +163,21 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
         );
 
     // Add register stages, as requested. Force an extra one for timing.
-    ofs_plat_axi_mem_lite_if_reg_master_clk
+    ofs_plat_axi_mem_lite_if_reg_source_clk
       #(
         .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
         )
       reg_mmio
        (
-        .mem_master(mmio_if),
-        .mem_slave(mmio_to_afu)
+        .mem_source(mmio_if),
+        .mem_sink(mmio_to_afu)
         );
 
 endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
 
 
 //
-// Host memory, FPGA MMIO master and a second write-only MMIO as AXI.
+// Host memory, FPGA MMIO source and a second write-only MMIO as AXI.
 // The widths of the MMIO ports are determined by the interface parameters
 // to mmio_to_afu and mmio_wr_to_afu.
 //
@@ -197,9 +197,9 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
-    ofs_plat_axi_mem_if.to_master_clk host_mem_to_afu,
-    ofs_plat_axi_mem_lite_if.to_slave_clk mmio_to_afu,
-    ofs_plat_axi_mem_lite_if.to_slave_clk mmio_wr_to_afu,
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
+    ofs_plat_axi_mem_lite_if.to_sink_clk mmio_to_afu,
+    ofs_plat_axi_mem_lite_if.to_sink_clk mmio_wr_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -246,14 +246,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
         );
 
     // Add register stages, as requested. Force an extra one for timing.
-    ofs_plat_axi_mem_lite_if_reg_master_clk
+    ofs_plat_axi_mem_lite_if_reg_source_clk
       #(
         .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
         )
       reg_mmio
        (
-        .mem_master(mmio_if),
-        .mem_slave(mmio_to_afu)
+        .mem_source(mmio_if),
+        .mem_sink(mmio_to_afu)
         );
 
     // Internal second (write only) MMIO AXI interface
@@ -279,14 +279,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
         );
 
     // Add register stages, as requested. Force an extra one for timing.
-    ofs_plat_axi_mem_lite_if_reg_master_clk
+    ofs_plat_axi_mem_lite_if_reg_source_clk
       #(
         .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
         )
       reg_mmio_wr
        (
-        .mem_master(mmio_wr_if),
-        .mem_slave(mmio_wr_to_afu)
+        .mem_source(mmio_wr_if),
+        .mem_sink(mmio_wr_to_afu)
         );
 
 endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
@@ -318,7 +318,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
 
-    ofs_plat_axi_mem_if.to_master_clk host_mem_to_afu,
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
 
     // Export a CCI-P port for MMIO mapping
     ofs_plat_host_ccip_if.to_afu ccip_mmio,

@@ -30,55 +30,55 @@
 
 
 //
-// Transform the master TLP vector to a slave vector. The slave may have
-// a different number of channels than the master.
+// Transform the source TLP vector to a sink vector. The sink may have
+// a different number of channels than the source.
 //
-// *** When NUM_SLAVE_TLP_CH is less than NUM_MASTER_TLP_CH, the master
+// *** When NUM_SINK_TLP_CH is less than NUM_SOURCE_TLP_CH, the source
 // *** stream is broken into multiple cycles. The code here assumes that
-// *** valid master channels are packed densely in low channels.
+// *** valid source channels are packed densely in low channels.
 //
 
 module ofs_plat_host_chan_align_axis_tx_tlps
   #(
-    parameter NUM_MASTER_TLP_CH = 2,
-    parameter NUM_SLAVE_TLP_CH = 2,
+    parameter NUM_SOURCE_TLP_CH = 2,
+    parameter NUM_SINK_TLP_CH = 2,
 
     parameter type TDATA_TYPE,
     parameter type TUSER_TYPE
     )
    (
-    ofs_plat_axi_stream_if.to_master stream_master,
-    ofs_plat_axi_stream_if.to_slave stream_slave
+    ofs_plat_axi_stream_if.to_source stream_source,
+    ofs_plat_axi_stream_if.to_sink stream_sink
     );
 
     logic clk;
-    assign clk = stream_master.clk;
+    assign clk = stream_source.clk;
     logic reset_n;
-    assign reset_n = stream_master.reset_n;
+    assign reset_n = stream_source.reset_n;
 
-    typedef TDATA_TYPE [NUM_MASTER_TLP_CH-1 : 0] t_master_tdata_vec;
-    typedef TUSER_TYPE [NUM_MASTER_TLP_CH-1 : 0] t_master_tuser_vec;
+    typedef TDATA_TYPE [NUM_SOURCE_TLP_CH-1 : 0] t_source_tdata_vec;
+    typedef TUSER_TYPE [NUM_SOURCE_TLP_CH-1 : 0] t_source_tuser_vec;
 
-    typedef TDATA_TYPE [NUM_SLAVE_TLP_CH-1 : 0] t_slave_tdata_vec;
-    typedef TUSER_TYPE [NUM_SLAVE_TLP_CH-1 : 0] t_slave_tuser_vec;
+    typedef TDATA_TYPE [NUM_SINK_TLP_CH-1 : 0] t_sink_tdata_vec;
+    typedef TUSER_TYPE [NUM_SINK_TLP_CH-1 : 0] t_sink_tuser_vec;
 
 
     generate
-        if (NUM_MASTER_TLP_CH <= NUM_SLAVE_TLP_CH)
+        if (NUM_SOURCE_TLP_CH <= NUM_SINK_TLP_CH)
         begin : w
-            // All master channels fit in the set of slave channels.
-            // Just wire them together. If there are extra slave
+            // All source channels fit in the set of sink channels.
+            // Just wire them together. If there are extra sink
             // channels then tie them off since there is nothing
             // to feed them.
 
             always_comb
             begin
-                stream_master.tready = stream_slave.tready;
+                stream_source.tready = stream_sink.tready;
 
-                stream_slave.tvalid = stream_master.tvalid;
-                stream_slave.t.last = stream_master.t.last;
-                stream_slave.t.user = { '0, stream_master.t.user };
-                stream_slave.t.data = { '0, stream_master.t.data };
+                stream_sink.tvalid = stream_source.tvalid;
+                stream_sink.t.last = stream_source.t.last;
+                stream_sink.t.user = { '0, stream_source.t.user };
+                stream_sink.t.data = { '0, stream_source.t.data };
             end
         end
         else
@@ -89,89 +89,89 @@ module ofs_plat_host_chan_align_axis_tx_tlps
             // Add a skid buffer on input for timing
             ofs_plat_axi_stream_if
               #(
-                .TDATA_TYPE(t_master_tdata_vec),
-                .TUSER_TYPE(t_master_tuser_vec)
+                .TDATA_TYPE(t_source_tdata_vec),
+                .TUSER_TYPE(t_source_tuser_vec)
                 )
-              master_skid();
+              source_skid();
 
-            ofs_plat_axi_stream_if_skid_master_clk entry_skid
+            ofs_plat_axi_stream_if_skid_source_clk entry_skid
                (
-                .stream_master(stream_master),
-                .stream_slave(master_skid)
+                .stream_source(stream_source),
+                .stream_sink(source_skid)
                 );
 
-            // Next channel to consume from master
-            logic [$clog2(NUM_MASTER_TLP_CH)-1 : 0] master_chan_next;
+            // Next channel to consume from source
+            logic [$clog2(NUM_SOURCE_TLP_CH)-1 : 0] source_chan_next;
 
-            // Will the full message from master channels be complete
-            // after the current subset is forwarded to the slave?
-            logic master_not_complete;
+            // Will the full message from source channels be complete
+            // after the current subset is forwarded to the sink?
+            logic source_not_complete;
 
             always_comb
             begin
-                master_not_complete = 1'b0;
-                for (int c = NUM_SLAVE_TLP_CH + master_chan_next; c < NUM_MASTER_TLP_CH; c = c + 1)
+                source_not_complete = 1'b0;
+                for (int c = NUM_SINK_TLP_CH + source_chan_next; c < NUM_SOURCE_TLP_CH; c = c + 1)
                 begin
-                    master_not_complete = master_not_complete || master_skid.t.data[c].valid;
+                    source_not_complete = source_not_complete || source_skid.t.data[c].valid;
                 end
             end
 
-            // Outbound from master is ready if the slave is ready and the full
+            // Outbound from source is ready if the sink is ready and the full
             // message is complete.
-            logic slave_ready;
-            assign master_skid.tready = slave_ready && !master_not_complete;
+            logic sink_ready;
+            assign source_skid.tready = sink_ready && !source_not_complete;
             
             always_ff @(posedge clk)
             begin
-                if (slave_ready)
+                if (sink_ready)
                 begin
-                    if (master_skid.tvalid && master_not_complete)
+                    if (source_skid.tvalid && source_not_complete)
                     begin
-                        master_chan_next <= master_chan_next + NUM_SLAVE_TLP_CH;
+                        source_chan_next <= source_chan_next + NUM_SINK_TLP_CH;
                     end
                     else
                     begin
-                        master_chan_next <= '0;
+                        source_chan_next <= '0;
                     end
                 end
 
                 if (!reset_n)
                 begin
-                    master_chan_next <= '0;
+                    source_chan_next <= '0;
                 end
             end
 
             //
-            // Forward a slave-sized chunk of channels.
+            // Forward a sink-sized chunk of channels.
             //
-            assign slave_ready = stream_slave.tready || !stream_slave.tvalid;
+            assign sink_ready = stream_sink.tready || !stream_sink.tvalid;
 
             always_ff @(posedge clk)
             begin
-                if (slave_ready)
+                if (sink_ready)
                 begin
-                    stream_slave.tvalid <= master_skid.tvalid;
-                    stream_slave.t.last <= master_skid.t.last && !master_not_complete;
+                    stream_sink.tvalid <= source_skid.tvalid;
+                    stream_sink.t.last <= source_skid.t.last && !source_not_complete;
 
-                    for (int i = 0; i < NUM_SLAVE_TLP_CH; i = i + 1)
+                    for (int i = 0; i < NUM_SINK_TLP_CH; i = i + 1)
                     begin
-                        if (i + master_chan_next < NUM_MASTER_TLP_CH)
+                        if (i + source_chan_next < NUM_SOURCE_TLP_CH)
                         begin
-                            stream_slave.t.data[i] <= master_skid.t.data[i + master_chan_next];
-                            stream_slave.t.user[i] <= master_skid.t.user[i + master_chan_next];
+                            stream_sink.t.data[i] <= source_skid.t.data[i + source_chan_next];
+                            stream_sink.t.user[i] <= source_skid.t.user[i + source_chan_next];
                         end
                         else
                         begin
-                            stream_slave.t.data[i].valid <= 1'b0;
-                            stream_slave.t.data[i].sop <= 1'b0;
-                            stream_slave.t.data[i].eop <= 1'b0;
+                            stream_sink.t.data[i].valid <= 1'b0;
+                            stream_sink.t.data[i].sop <= 1'b0;
+                            stream_sink.t.data[i].eop <= 1'b0;
                         end
                     end
                 end
 
                 if (!reset_n)
                 begin
-                    stream_slave.tvalid <= 1'b0;
+                    stream_sink.tvalid <= 1'b0;
                 end
             end
         end

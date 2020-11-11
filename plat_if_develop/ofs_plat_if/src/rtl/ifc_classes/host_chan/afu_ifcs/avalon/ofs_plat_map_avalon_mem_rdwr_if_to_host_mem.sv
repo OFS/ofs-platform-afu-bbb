@@ -33,12 +33,12 @@
 //
 // Map an Avalon port to the properties required a host memory port. Maximum
 // burst size, alignment and response ordering are all handled here.
-// The slave remains in Avalon format. The final, protocol-specific, host
+// The sink remains in Avalon format. The final, protocol-specific, host
 // port conversion is handled outside this module.
 //
 module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
   #(
-    // When non-zero the master and slave use different clocks.
+    // When non-zero the source and sink use different clocks.
     parameter ADD_CLOCK_CROSSING = 0,
 
     // Does the host memory port require natural alignment?
@@ -55,13 +55,13 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
     parameter USER_ROB_IDX_START = 0
     )
    (
-    // mem_master parameters should match the master's field widths.
-    ofs_plat_avalon_mem_rdwr_if.to_master mem_master,
+    // mem_source parameters should match the source's field widths.
+    ofs_plat_avalon_mem_rdwr_if.to_source mem_source,
 
-    // mem_slave parameters should match the requirements of the host
+    // mem_sink parameters should match the requirements of the host
     // memory port. The user fields should be sized to hold reorder
     // buffer indices for read and write responses.
-    ofs_plat_avalon_mem_rdwr_if.to_slave mem_slave
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink
     );
 
     //
@@ -70,15 +70,15 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
     //
     ofs_plat_avalon_mem_rdwr_if
       #(
-        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(mem_master),
-        .BURST_CNT_WIDTH(mem_slave.BURST_CNT_WIDTH_),
-        .USER_WIDTH(mem_master.USER_WIDTH_)
+        `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(mem_source),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
+        .USER_WIDTH(mem_source.USER_WIDTH_)
         )
       avmm_fiu_burst_if();
 
-    assign avmm_fiu_burst_if.clk = mem_master.clk;
-    assign avmm_fiu_burst_if.reset_n = mem_master.reset_n;
-    assign avmm_fiu_burst_if.instance_number = mem_slave.instance_number;
+    assign avmm_fiu_burst_if.clk = mem_source.clk;
+    assign avmm_fiu_burst_if.reset_n = mem_source.reset_n;
+    assign avmm_fiu_burst_if.instance_number = mem_sink.instance_number;
 
     ofs_plat_avalon_mem_rdwr_if_map_bursts
       #(
@@ -87,8 +87,8 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
         )
       map_bursts
        (
-        .mem_master(mem_master),
-        .mem_slave(avmm_fiu_burst_if)
+        .mem_source(mem_source),
+        .mem_sink(avmm_fiu_burst_if)
         );
 
 
@@ -105,23 +105,23 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
         )
       rob
        (
-        .mem_master(avmm_fiu_burst_if),
-        .mem_slave
+        .mem_source(avmm_fiu_burst_if),
+        .mem_sink
         );
 
 
     // synthesis translate_off
-    always_ff @(negedge mem_master.clk)
+    always_ff @(negedge mem_source.clk)
     begin
-        if (mem_master.reset_n)
+        if (mem_source.reset_n)
         begin
-            if (mem_master.wr_write && !mem_master.wr_waitrequest)
+            if (mem_source.wr_write && !mem_source.wr_waitrequest)
             begin
                 // Memory fence?
-                if ((mem_master.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) &&
-                    mem_master.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
+                if ((mem_source.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) &&
+                    mem_source.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
                 begin
-                    if (mem_master.wr_burstcount != 1)
+                    if (mem_source.wr_burstcount != 1)
                     begin
                         $fatal(2, "** ERROR ** %m: Memory fence burstcount must be 1!");
                     end

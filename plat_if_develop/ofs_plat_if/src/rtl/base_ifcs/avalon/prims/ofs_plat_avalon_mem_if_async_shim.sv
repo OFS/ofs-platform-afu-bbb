@@ -39,30 +39,30 @@ module ofs_plat_avalon_mem_if_async_shim
     parameter COMMAND_FIFO_DEPTH = 128,
     parameter RESPONSE_FIFO_DEPTH = 256,
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
-    // requests can be received after mem_master.waitrequest is asserted.
+    // requests can be received after mem_source.waitrequest is asserted.
     parameter COMMAND_ALMFULL_THRESHOLD = 0,
     parameter PRESERVE_WR_RESP = 1
     )
    (
-    ofs_plat_avalon_mem_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_if.to_master mem_master
+    ofs_plat_avalon_mem_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_if.to_source mem_source
     );
 
     // Convert resets to active high
-    (* preserve *) logic slave_reset0 = 1'b1;
-    (* preserve *) logic slave_reset = 1'b1;
-    always @(posedge mem_slave.clk)
+    (* preserve *) logic sink_reset0 = 1'b1;
+    (* preserve *) logic sink_reset = 1'b1;
+    always @(posedge mem_sink.clk)
     begin
-        slave_reset0 <= !mem_slave.reset_n;
-        slave_reset <= slave_reset0;
+        sink_reset0 <= !mem_sink.reset_n;
+        sink_reset <= sink_reset0;
     end
 
-    (* preserve *) logic master_reset0 = 1'b1;
-    (* preserve *) logic master_reset = 1'b1;
-    always @(posedge mem_master.clk)
+    (* preserve *) logic source_reset0 = 1'b1;
+    (* preserve *) logic source_reset = 1'b1;
+    always @(posedge mem_source.clk)
     begin
-        master_reset0 <= !mem_master.reset_n;
-        master_reset <= master_reset0;
+        source_reset0 <= !mem_source.reset_n;
+        source_reset <= source_reset0;
     end
 
     localparam SPACE_AVAIL_WIDTH = $clog2(COMMAND_FIFO_DEPTH) + 1;
@@ -76,44 +76,44 @@ module ofs_plat_avalon_mem_if_async_shim
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
         // Leave room for passing "response" along with readdata
-        .DATA_WIDTH($bits(t_response) + mem_slave.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(mem_slave.ADDR_WIDTH),
-        .BURSTCOUNT_WIDTH(mem_slave.BURST_CNT_WIDTH),
+        .DATA_WIDTH($bits(t_response) + mem_sink.DATA_WIDTH),
+        .HDL_ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
         .RESPONSE_FIFO_DEPTH(RESPONSE_FIFO_DEPTH)
         )
       avmm_cross
        (
-        .s0_clk(mem_master.clk),
-        .s0_reset(master_reset),
+        .s0_clk(mem_source.clk),
+        .s0_reset(source_reset),
 
-        .m0_clk(mem_slave.clk),
-        .m0_reset(slave_reset),
+        .m0_clk(mem_sink.clk),
+        .m0_reset(sink_reset),
 
         .s0_waitrequest(cmd_waitrequest),
-        .s0_readdata({mem_master.response, mem_master.readdata}),
-        .s0_readdatavalid(mem_master.readdatavalid),
-        .s0_burstcount(mem_master.burstcount),
+        .s0_readdata({mem_source.response, mem_source.readdata}),
+        .s0_readdatavalid(mem_source.readdatavalid),
+        .s0_burstcount(mem_source.burstcount),
         // Write data width has space for response because DATA_WIDTH was set above
         // in order to pass response with readdata.
-        .s0_writedata({t_response'(0), mem_master.writedata}),
-        .s0_address(mem_master.address),
-        .s0_write(mem_master.write),
-        .s0_read(mem_master.read),
-        .s0_byteenable(mem_master.byteenable),
+        .s0_writedata({t_response'(0), mem_source.writedata}),
+        .s0_address(mem_source.address),
+        .s0_write(mem_source.write),
+        .s0_read(mem_source.read),
+        .s0_byteenable(mem_source.byteenable),
         .s0_debugaccess(1'b0),
         .s0_space_avail_data(cmd_space_avail),
 
-        .m0_waitrequest(mem_slave.waitrequest),
-        .m0_readdata({mem_slave.response, mem_slave.readdata}),
-        .m0_readdatavalid(mem_slave.readdatavalid),
-        .m0_burstcount(mem_slave.burstcount),
+        .m0_waitrequest(mem_sink.waitrequest),
+        .m0_readdata({mem_sink.response, mem_sink.readdata}),
+        .m0_readdatavalid(mem_sink.readdatavalid),
+        .m0_burstcount(mem_sink.burstcount),
         // See s0_writedata above for m0_response_dummy explanation.
-        .m0_writedata({m0_response_dummy, mem_slave.writedata}),
-        .m0_address(mem_slave.address),
-        .m0_write(mem_slave.write),
-        .m0_read(mem_slave.read),
-        .m0_byteenable(mem_slave.byteenable),
+        .m0_writedata({m0_response_dummy, mem_sink.writedata}),
+        .m0_address(mem_sink.address),
+        .m0_write(mem_sink.write),
+        .m0_read(mem_sink.read),
+        .m0_byteenable(mem_sink.byteenable),
         .m0_debugaccess()
         );
 
@@ -136,60 +136,60 @@ module ofs_plat_avalon_mem_if_async_shim
                 )
               avmm_cross_wr_response
                (
-                .enq_clk(mem_slave.clk),
-                .enq_reset_n(mem_slave.reset_n),
-                .enq_data(mem_slave.writeresponse),
-                .enq_en(mem_slave.writeresponsevalid),
+                .enq_clk(mem_sink.clk),
+                .enq_reset_n(mem_sink.reset_n),
+                .enq_data(mem_sink.writeresponse),
+                .enq_en(mem_sink.writeresponsevalid),
                 .notFull(),
                 .almostFull(),
 
-                .deq_clk(mem_master.clk),
-                .deq_reset_n(mem_master.reset_n),
-                .first(mem_master.writeresponse),
+                .deq_clk(mem_source.clk),
+                .deq_reset_n(mem_source.reset_n),
+                .first(mem_source.writeresponse),
                 .deq_en(wr_response_valid),
                 .notEmpty(wr_response_valid)
                 );
 
-            always_ff @(posedge mem_master.clk)
+            always_ff @(posedge mem_source.clk)
             begin
-                mem_master.writeresponsevalid <= wr_response_valid && mem_master.reset_n;
+                mem_source.writeresponsevalid <= wr_response_valid && mem_source.reset_n;
             end
         end
         else
         begin : n_wr_rsp
-            assign mem_master.writeresponsevalid = 1'b0;
-            assign mem_master.writeresponse = '0;
+            assign mem_source.writeresponsevalid = 1'b0;
+            assign mem_source.writeresponse = '0;
         end
     endgenerate
 
 
-    // Compute mem_master.waitrequest
+    // Compute mem_source.waitrequest
     generate
         if (COMMAND_ALMFULL_THRESHOLD == 0)
         begin : no_almfull
             // Use the usual Avalon MM protocol
-            assign mem_master.waitrequest = cmd_waitrequest;
+            assign mem_source.waitrequest = cmd_waitrequest;
         end
         else
         begin : almfull
             // Treat waitrequest as an almost full signal, allowing
             // COMMAND_ALMFULL_THRESHOLD requests after waitrequest is
             // asserted.
-            always_ff @(posedge mem_master.clk)
+            always_ff @(posedge mem_source.clk)
             begin
-                if (!mem_master.reset_n)
+                if (!mem_source.reset_n)
                 begin
-                    mem_master.waitrequest <= 1'b1;
+                    mem_source.waitrequest <= 1'b1;
                 end
                 else
                 begin
-                    mem_master.waitrequest <= cmd_waitrequest ||
+                    mem_source.waitrequest <= cmd_waitrequest ||
                         (cmd_space_avail <= (SPACE_AVAIL_WIDTH)'(COMMAND_ALMFULL_THRESHOLD));
                 end
             end
 
             // synthesis translate_off
-            always @(negedge mem_master.clk)
+            always @(negedge mem_source.clk)
             begin
                 // In almost full mode it is illegal for a request to arrive
                 // when s0_waitrequest is asserted. If this ever happens it
@@ -197,16 +197,16 @@ module ofs_plat_avalon_mem_if_async_shim
                 // cmd_space_avail forced back-pressure too late or it was
                 // ignored.
 
-                if (mem_master.reset_n && cmd_waitrequest && mem_master.write)
+                if (mem_source.reset_n && cmd_waitrequest && mem_source.write)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped write transaction",
-                           mem_master.instance_number);
+                           mem_source.instance_number);
                 end
 
-                if (mem_master.reset_n && cmd_waitrequest && mem_master.read)
+                if (mem_source.reset_n && cmd_waitrequest && mem_source.read)
                 begin
                     $fatal(2, "** ERROR ** %m: instance %0d dropped read transaction",
-                           mem_master.instance_number);
+                           mem_source.instance_number);
                 end
             end
             // synthesis translate_on
@@ -216,38 +216,38 @@ module ofs_plat_avalon_mem_if_async_shim
 endmodule // ofs_plat_avalon_mem_if_async_shim
 
 
-// Same as standard crossing, but set the slave's clock
-module ofs_plat_avalon_mem_if_async_shim_set_slave
+// Same as standard crossing, but set the sink's clock
+module ofs_plat_avalon_mem_if_async_shim_set_sink
   #(
     parameter COMMAND_FIFO_DEPTH = 128,
     parameter RESPONSE_FIFO_DEPTH = 256,
     // When non-zero, set the command buffer such that COMMAND_ALMFULL_THRESHOLD
-    // requests can be received after mem_master.waitrequest is asserted.
+    // requests can be received after mem_source.waitrequest is asserted.
     parameter COMMAND_ALMFULL_THRESHOLD = 0,
     parameter PRESERVE_WR_RESP = 1
     )
    (
-    ofs_plat_avalon_mem_if.to_slave_clk mem_slave,
-    ofs_plat_avalon_mem_if.to_master mem_master,
+    ofs_plat_avalon_mem_if.to_sink_clk mem_sink,
+    ofs_plat_avalon_mem_if.to_source mem_source,
 
-    input  logic slave_clk,
-    input  logic slave_reset_n
+    input  logic sink_clk,
+    input  logic sink_reset_n
     );
 
     ofs_plat_avalon_mem_if
       #(
-        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mem_slave)
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(mem_sink)
         )
-      mem_slave_with_clk();
+      mem_sink_with_clk();
 
-    assign mem_slave_with_clk.clk = slave_clk;
-    assign mem_slave_with_clk.reset_n = slave_reset_n;
-    assign mem_slave_with_clk.instance_number = mem_master.instance_number;
+    assign mem_sink_with_clk.clk = sink_clk;
+    assign mem_sink_with_clk.reset_n = sink_reset_n;
+    assign mem_sink_with_clk.instance_number = mem_source.instance_number;
 
-    ofs_plat_avalon_mem_if_connect_master_clk con_slave
+    ofs_plat_avalon_mem_if_connect_source_clk con_sink
        (
-        .mem_master(mem_slave_with_clk),
-        .mem_slave
+        .mem_source(mem_sink_with_clk),
+        .mem_sink
         );
 
     ofs_plat_avalon_mem_if_async_shim
@@ -259,8 +259,8 @@ module ofs_plat_avalon_mem_if_async_shim_set_slave
         )
       cc
        (
-        .mem_slave(mem_slave_with_clk),
-        .mem_master
+        .mem_sink(mem_sink_with_clk),
+        .mem_source
         );
 
-endmodule // ofs_plat_avalon_mem_if_async_shim_set_slave
+endmodule // ofs_plat_avalon_mem_if_async_shim_set_sink

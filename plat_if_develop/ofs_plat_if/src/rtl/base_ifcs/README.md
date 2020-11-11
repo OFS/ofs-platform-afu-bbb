@@ -10,12 +10,12 @@ Generic modules, such as clock crossing bridges, may also be present.
 ## Port Naming ##
 
 Ports are typically named for the direction of the endpoint to which they
-connect, e.g.: "to_master" and "to_slave". This seems unnecessarily
-complicated for simple cases such as a master connected directly to a
-slave. Consider, however, the naming of ports inside a shim that has two
-ports: one in the direction of the master and one in the direction of the
-slave. The shim's "slave" port would be on the master side and the shim's
-"master" port would be on the slave side.  With "to_" naming, a shim's
-"to_master" connects to the master. The endpoints are also consistent: the
-master's outgoing port is named "to_slave" and the slave's outgoing port is
-named "to_master".
+connect, e.g.: "to_source" and "to_sink". This seems unnecessarily
+complicated for simple cases such as a source connected directly to a
+sink. Consider, however, the naming of ports inside a shim that has two
+ports: one in the direction of the source and one in the direction of the
+sink. The shim's "sink" port would be on the source side and the shim's
+"source" port would be on the sink side.  With "to_" naming, a shim's
+"to_source" connects to the source. The endpoints are also consistent: the
+source's outgoing port is named "to_sink" and the sink's outgoing port is
+named "to_source".

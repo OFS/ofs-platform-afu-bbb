@@ -42,72 +42,72 @@ module ofs_plat_avalon_mem_if_skid
     parameter REG_RSP = 1
     )
    (
-    ofs_plat_avalon_mem_if.to_slave mem_slave,
-    ofs_plat_avalon_mem_if.to_master mem_master
+    ofs_plat_avalon_mem_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_if.to_source mem_source
     );
 
     logic clk;
-    assign clk = mem_master.clk;
+    assign clk = mem_source.clk;
     logic reset_n;
-    assign reset_n = mem_master.reset_n;
+    assign reset_n = mem_source.reset_n;
 
     // synthesis translate_off
-    `OFS_PLAT_AVALON_MEM_IF_CHECK_PARAMS_MATCH(mem_slave, mem_master)
+    `OFS_PLAT_AVALON_MEM_IF_CHECK_PARAMS_MATCH(mem_sink, mem_source)
     // synthesis translate_on
 
     generate
         if (SKID_REQ)
         begin : sk_req
             logic mem_req_ready;
-            assign mem_master.waitrequest = !mem_req_ready;
+            assign mem_source.waitrequest = !mem_req_ready;
 
             logic mem_req_valid;
             logic req_read, req_write;
-            assign mem_slave.read = req_read && mem_req_valid;
-            assign mem_slave.write = req_write && mem_req_valid;
+            assign mem_sink.read = req_read && mem_req_valid;
+            assign mem_sink.write = req_write && mem_req_valid;
 
             ofs_plat_prim_ready_enable_skid
               #(
-                .N_DATA_BITS(mem_master.BURST_CNT_WIDTH_ +
-                             mem_master.DATA_WIDTH_ +
-                             mem_master.ADDR_WIDTH_ +
+                .N_DATA_BITS(mem_source.BURST_CNT_WIDTH_ +
+                             mem_source.DATA_WIDTH_ +
+                             mem_source.ADDR_WIDTH_ +
                              1 +
                              1 +
-                             mem_master.DATA_N_BYTES +
-                             mem_master.USER_WIDTH_)
+                             mem_source.DATA_N_BYTES +
+                             mem_source.USER_WIDTH_)
                 )
               mem_req_skid
                (
                 .clk,
                 .reset_n,
 
-                .enable_from_src(mem_master.read || mem_master.write),
-                .data_from_src({ mem_master.burstcount,
-                                 mem_master.writedata,
-                                 mem_master.address,
-                                 mem_master.write,
-                                 mem_master.read,
-                                 mem_master.byteenable,
-                                 mem_master.user }),
+                .enable_from_src(mem_source.read || mem_source.write),
+                .data_from_src({ mem_source.burstcount,
+                                 mem_source.writedata,
+                                 mem_source.address,
+                                 mem_source.write,
+                                 mem_source.read,
+                                 mem_source.byteenable,
+                                 mem_source.user }),
                 .ready_to_src(mem_req_ready),
 
                 .enable_to_dst(mem_req_valid),
-                .data_to_dst({ mem_slave.burstcount,
-                               mem_slave.writedata,
-                               mem_slave.address,
+                .data_to_dst({ mem_sink.burstcount,
+                               mem_sink.writedata,
+                               mem_sink.address,
                                req_write,
                                req_read,
-                               mem_slave.byteenable,
-                               mem_slave.user }),
-                .ready_from_dst(!mem_slave.waitrequest)
+                               mem_sink.byteenable,
+                               mem_sink.user }),
+                .ready_from_dst(!mem_sink.waitrequest)
                 );
         end
         else
         begin : c_req
-            assign mem_master.waitrequest = mem_slave.waitrequest;
+            assign mem_source.waitrequest = mem_sink.waitrequest;
             always_comb
             begin
-                `OFS_PLAT_AVALON_MEM_IF_FROM_MASTER_TO_SLAVE_COMB(mem_slave, mem_master);
+                `OFS_PLAT_AVALON_MEM_IF_FROM_SOURCE_TO_SINK_COMB(mem_sink, mem_source);
             end
         end
 
@@ -115,14 +115,14 @@ module ofs_plat_avalon_mem_if_skid
         begin : r_rsp
             always_ff @(posedge clk)
             begin
-                `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER(mem_master, <=, mem_slave);
+                `OFS_PLAT_AVALON_MEM_IF_FROM_SINK_TO_SOURCE(mem_source, <=, mem_sink);
             end
         end
         else
         begin : c_rsp
             always_comb
             begin
-                `OFS_PLAT_AVALON_MEM_IF_FROM_SLAVE_TO_MASTER(mem_master, =, mem_slave);
+                `OFS_PLAT_AVALON_MEM_IF_FROM_SINK_TO_SOURCE(mem_source, =, mem_sink);
             end
         end
     endgenerate

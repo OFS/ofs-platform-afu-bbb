@@ -30,8 +30,8 @@
 
 //
 // Export a PCIe TLP native host_chan interface to an AFU as Avalon interfaces.
-// There are three Avalon interfaces: host memory master, MMIO (FPGA memory
-// slave) and write-only MMIO slave. The write-only variant can be useful
+// There are three Avalon interfaces: host memory source, MMIO (FPGA memory
+// sink) and write-only MMIO sink. The write-only variant can be useful
 // for 512 bit MMIO. CCI-P supports wide MMIO write but not read.
 //
 // The extension rd_user field is returned as rd_readresponsuser, but only
@@ -75,7 +75,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
 
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk host_mem_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -136,7 +136,7 @@ endmodule // ofs_plat_host_chan_@group@_as_avalon_mem_rdwr
 
 
 //
-// Host memory and FPGA MMIO master as Avalon. The width of the MMIO
+// Host memory and FPGA MMIO source as Avalon. The width of the MMIO
 // port is determined by the parameters bound to mmio_to_afu.
 //
 module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
@@ -155,8 +155,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
 
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
-    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_if.to_sink_clk mmio_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -213,7 +213,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
                 )
               avmm_mmio_afu_clk();
 
-            ofs_plat_avalon_mem_if_async_shim_set_slave
+            ofs_plat_avalon_mem_if_async_shim_set_sink
               #(
                 .COMMAND_FIFO_DEPTH(4),
                 .RESPONSE_FIFO_DEPTH(ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_OUTSTANDING_MMIO_RD_REQS),
@@ -221,32 +221,32 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
                 )
               cc_mmio
                (
-                .mem_master(avmm_mmio),
-                .mem_slave(avmm_mmio_afu_clk),
-                .slave_clk(host_mem_to_afu.clk),
-                .slave_reset_n(host_mem_to_afu.reset_n)
+                .mem_source(avmm_mmio),
+                .mem_sink(avmm_mmio_afu_clk),
+                .sink_clk(host_mem_to_afu.clk),
+                .sink_reset_n(host_mem_to_afu.reset_n)
                 );
 
-            ofs_plat_avalon_mem_if_reg_master_clk
+            ofs_plat_avalon_mem_if_reg_source_clk
               #(
                 .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
                 )
               reg_mmio
                (
-                .mem_master(avmm_mmio_afu_clk),
-                .mem_slave(mmio_to_afu)
+                .mem_source(avmm_mmio_afu_clk),
+                .mem_sink(mmio_to_afu)
                 );
         end
         else
         begin : nc
-            ofs_plat_avalon_mem_if_reg_master_clk
+            ofs_plat_avalon_mem_if_reg_source_clk
               #(
                 .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
                 )
               reg_mmio
                (
-                .mem_master(avmm_mmio),
-                .mem_slave(mmio_to_afu)
+                .mem_source(avmm_mmio),
+                .mem_sink(mmio_to_afu)
                 );
         end
     endgenerate
@@ -264,7 +264,7 @@ endmodule // ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_mmio
 
 
 //
-// Host memory, FPGA MMIO master and a second write-only MMIO as Avalon.
+// Host memory, FPGA MMIO source and a second write-only MMIO as Avalon.
 // The widths of the MMIO ports are determined by the interface parameters
 // to mmio_to_afu and mmio_wr_to_afu.
 //
@@ -284,9 +284,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
 
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
-    ofs_plat_avalon_mem_if.to_slave_clk mmio_to_afu,
-    ofs_plat_avalon_mem_if.to_slave_clk mmio_wr_to_afu,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_if.to_sink_clk mmio_to_afu,
+    ofs_plat_avalon_mem_if.to_sink_clk mmio_wr_to_afu,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -348,7 +348,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
                 )
               avmm_wo_mmio_afu_clk();
 
-            ofs_plat_avalon_mem_if_async_shim_set_slave
+            ofs_plat_avalon_mem_if_async_shim_set_sink
               #(
                 .COMMAND_FIFO_DEPTH(4),
                 .RESPONSE_FIFO_DEPTH(ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_OUTSTANDING_MMIO_RD_REQS),
@@ -356,13 +356,13 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
                 )
               cc_mmio
                (
-                .mem_master(avmm_mmio),
-                .mem_slave(avmm_mmio_afu_clk),
-                .slave_clk(host_mem_to_afu.clk),
-                .slave_reset_n(host_mem_to_afu.reset_n)
+                .mem_source(avmm_mmio),
+                .mem_sink(avmm_mmio_afu_clk),
+                .sink_clk(host_mem_to_afu.clk),
+                .sink_reset_n(host_mem_to_afu.reset_n)
                 );
 
-            ofs_plat_avalon_mem_if_async_shim_set_slave
+            ofs_plat_avalon_mem_if_async_shim_set_sink
               #(
                 .COMMAND_FIFO_DEPTH(4),
                 .RESPONSE_FIFO_DEPTH(ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_OUTSTANDING_MMIO_RD_REQS),
@@ -370,52 +370,52 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
                 )
               cc_mmio_wo
                (
-                .mem_master(avmm_wo_mmio),
-                .mem_slave(avmm_wo_mmio_afu_clk),
-                .slave_clk(host_mem_to_afu.clk),
-                .slave_reset_n(host_mem_to_afu.reset_n)
+                .mem_source(avmm_wo_mmio),
+                .mem_sink(avmm_wo_mmio_afu_clk),
+                .sink_clk(host_mem_to_afu.clk),
+                .sink_reset_n(host_mem_to_afu.reset_n)
                 );
 
-            ofs_plat_avalon_mem_if_reg_master_clk
+            ofs_plat_avalon_mem_if_reg_source_clk
               #(
                 .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
                 )
               reg_mmio
                (
-                .mem_master(avmm_mmio_afu_clk),
-                .mem_slave(mmio_to_afu)
+                .mem_source(avmm_mmio_afu_clk),
+                .mem_sink(mmio_to_afu)
                 );
 
-            ofs_plat_avalon_mem_if_reg_master_clk
+            ofs_plat_avalon_mem_if_reg_source_clk
               #(
                 .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
                 )
               reg_mmio_wo
                (
-                .mem_master(avmm_wo_mmio_afu_clk),
-                .mem_slave(mmio_wr_to_afu)
+                .mem_source(avmm_wo_mmio_afu_clk),
+                .mem_sink(mmio_wr_to_afu)
                 );
         end
         else
         begin : nc
-            ofs_plat_avalon_mem_if_reg_master_clk
+            ofs_plat_avalon_mem_if_reg_source_clk
               #(
                 .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
                 )
               reg_mmio
                (
-                .mem_master(avmm_mmio),
-                .mem_slave(mmio_to_afu)
+                .mem_source(avmm_mmio),
+                .mem_sink(mmio_to_afu)
                 );
 
-            ofs_plat_avalon_mem_if_reg_master_clk
+            ofs_plat_avalon_mem_if_reg_source_clk
               #(
                 .N_REG_STAGES(1 + ADD_TIMING_REG_STAGES)
                 )
               reg_mmio_wo
                (
-                .mem_master(avmm_wo_mmio),
-                .mem_slave(mmio_wr_to_afu)
+                .mem_source(avmm_wo_mmio),
+                .mem_sink(mmio_wr_to_afu)
                 );
         end
     endgenerate
@@ -449,14 +449,14 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
 
-    ofs_plat_avalon_mem_rdwr_if.to_master_clk host_mem_to_afu,
+    ofs_plat_avalon_mem_rdwr_if.to_source_clk host_mem_to_afu,
 
     // Export an Avalon port for MMIO mapping
-    ofs_plat_avalon_mem_if.to_slave avmm_mmio,
+    ofs_plat_avalon_mem_if.to_sink avmm_mmio,
     // Export a second Avalon port for MMIO write-only mapping. This
     // may be used when the AFU will receive wide MMIO writes but only
     // respond with narrow (e.g. 64 bit) MMIO reads.
-    ofs_plat_avalon_mem_if.to_slave avmm_wo_mmio,
+    ofs_plat_avalon_mem_if.to_sink avmm_wo_mmio,
 
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
@@ -502,11 +502,11 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     end
     // synthesis translate_on
 
-    ofs_plat_avalon_mem_rdwr_if_connect_slave_clk
+    ofs_plat_avalon_mem_rdwr_if_connect_sink_clk
       conn_afu_clk
        (
-        .mem_master(host_mem_to_afu),
-        .mem_slave(avmm_afu_clk_if)
+        .mem_source(host_mem_to_afu),
+        .mem_sink(avmm_afu_clk_if)
         );
 
 
@@ -559,8 +559,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         )
       rob
        (
-        .mem_master(avmm_afu_clk_if),
-        .mem_slave(avmm_fiu_clk_if)
+        .mem_source(avmm_afu_clk_if),
+        .mem_sink(avmm_fiu_clk_if)
         );
 
 
@@ -578,9 +578,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         )
       tlp_as_avalon_mem
        (
-        .mem_master(avmm_fiu_clk_if),
-        .mmio_slave(avmm_mmio),
-        .mmio_wo_slave(avmm_wo_mmio),
+        .mem_source(avmm_fiu_clk_if),
+        .mmio_sink(avmm_mmio),
+        .mmio_wo_sink(avmm_wo_mmio),
         .to_fiu_tlp(to_fiu)
         );
 

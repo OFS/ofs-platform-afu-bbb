@@ -31,7 +31,7 @@
 //
 // AXI stream interface. The payload and user types, TDATA_TYPE and TUSER_TYPE,
 // are parameters to the interface. If the interface is instantiated with a
-// struct, the fields can be accessed by name in both masters and slaves.
+// struct, the fields can be accessed by name in both sources and sinks.
 //
 
 interface ofs_plat_axi_stream_if
@@ -75,8 +75,36 @@ interface ofs_plat_axi_stream_if
     int unsigned instance_number;
 
     //
-    // Connection from master toward slave
+    // Connection from source toward sink
     //
+    modport to_sink
+       (
+        input  clk, reset_n,
+
+        output tvalid,
+        input  tready,
+
+        output t,
+
+        // Debugging
+        input  instance_number
+        );
+
+    // Same as normal to_sink, but sets clk and reset_n
+    modport to_sink_clk
+       (
+        output clk, reset_n,
+
+        output tvalid,
+        input  tready,
+
+        output t,
+
+        // Debugging
+        output instance_number
+        );
+
+    // Old naming, maintained for compatibility
     modport to_slave
        (
         input  clk, reset_n,
@@ -90,25 +118,11 @@ interface ofs_plat_axi_stream_if
         input  instance_number
         );
 
-    // Same as normal to_slave, but sets clk and reset_n
-    modport to_slave_clk
-       (
-        output clk, reset_n,
-
-        output tvalid,
-        input  tready,
-
-        output t,
-
-        // Debugging
-        output instance_number
-        );
-
 
     //
-    // Connection from slave toward master
+    // Connection from sink toward source
     //
-    modport to_master
+    modport to_source
        (
         input  clk, reset_n,
 
@@ -121,8 +135,8 @@ interface ofs_plat_axi_stream_if
         input  instance_number
         );
 
-    // Same as normal to_master, but sets clk and reset_n
-    modport to_master_clk
+    // Same as normal to_source, but sets clk and reset_n
+    modport to_source_clk
        (
         output clk, reset_n,
 
@@ -133,6 +147,20 @@ interface ofs_plat_axi_stream_if
 
         // Debugging
         output instance_number
+        );
+
+    // Old naming, maintained for compatibility
+    modport to_master
+       (
+        input  clk, reset_n,
+
+        input  tvalid,
+        output tready,
+
+        input  t,
+
+        // Debugging
+        input  instance_number
         );
 
 

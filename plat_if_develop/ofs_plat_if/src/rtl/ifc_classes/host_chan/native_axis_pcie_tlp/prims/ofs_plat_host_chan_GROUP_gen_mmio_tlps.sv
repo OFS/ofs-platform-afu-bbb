@@ -31,7 +31,7 @@
 
 //
 // Generate TLP requests for MMIO read responses. The incoming TX stream
-// is protocol-independent and can be used by any AFU memory slave.
+// is protocol-independent and can be used by any AFU memory sink.
 //
 
 `include "ofs_plat_if.vh"
@@ -42,13 +42,13 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     input  logic reset_n,
 
     // Track requests from host (always ready) (t_gen_tx_mmio_host_req)
-    ofs_plat_axi_stream_if.to_master rx_mmio,
+    ofs_plat_axi_stream_if.to_source rx_mmio,
 
     // AFU responses (t_gen_tx_mmio_afu_rsp)
-    ofs_plat_axi_stream_if.to_master host_mmio_rsp,
+    ofs_plat_axi_stream_if.to_source host_mmio_rsp,
 
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
-    ofs_plat_axi_stream_if.to_slave tx_mmio,
+    ofs_plat_axi_stream_if.to_sink tx_mmio,
 
     output logic error
     );

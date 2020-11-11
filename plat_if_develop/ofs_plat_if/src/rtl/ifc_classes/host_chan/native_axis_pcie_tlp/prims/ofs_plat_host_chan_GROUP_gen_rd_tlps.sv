@@ -41,23 +41,23 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     input  logic reset_n,
 
     // Track read requests from AFU (t_gen_tx_afu_rd_req)
-    ofs_plat_axi_stream_if.to_master afu_rd_req,
+    ofs_plat_axi_stream_if.to_source afu_rd_req,
 
     // Output read request TLP stream
-    ofs_plat_axi_stream_if.to_slave tx_rd_tlps,
+    ofs_plat_axi_stream_if.to_sink tx_rd_tlps,
 
     // Input completion TLP stream. It is generally ok to pass the raw
     // stream here. The code here will look only at completion packets.
-    ofs_plat_axi_stream_if.to_master rx_cpl_tlps,
+    ofs_plat_axi_stream_if.to_source rx_cpl_tlps,
 
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
-    ofs_plat_axi_stream_if.to_slave afu_rd_rsp,
+    ofs_plat_axi_stream_if.to_sink afu_rd_rsp,
 
     // Dataless write fence completions are received by the read pipeline
     // The tag value is forwarded to the write pipeline, which will
     // generate the AFU response. The tag is released for reuse in the
     // read pipeline below. (t_dma_rd_tag)
-    ofs_plat_axi_stream_if.to_slave wr_fence_cpl,
+    ofs_plat_axi_stream_if.to_sink wr_fence_cpl,
 
     output logic error
     );
