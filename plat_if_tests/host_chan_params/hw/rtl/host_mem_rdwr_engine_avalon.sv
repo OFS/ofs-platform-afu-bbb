@@ -128,7 +128,7 @@ module host_mem_rdwr_engine_avalon
     )
    (
     // Host memory (Avalon)
-    ofs_plat_avalon_mem_rdwr_if.to_slave host_mem_if,
+    ofs_plat_avalon_mem_rdwr_if.to_sink host_mem_if,
 
     // Events, used for tracking latency through the FIM
     host_chan_events_if.engine host_chan_events_if,

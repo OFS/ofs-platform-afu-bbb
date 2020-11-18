@@ -33,10 +33,10 @@
 module afu
    (
     // Host memory (AXI)
-    ofs_plat_axi_mem_if.to_slave host_mem_if,
+    ofs_plat_axi_mem_if.to_sink host_mem_if,
 
-    // FPGA MMIO master (AXI)
-    ofs_plat_axi_mem_lite_if.to_master mmio64_if,
+    // FPGA MMIO source (AXI)
+    ofs_plat_axi_mem_lite_if.to_source mmio64_if,
 
     // pClk is used to compute the frequency of the AFU's clk, since pClk
     // is a known frequency.

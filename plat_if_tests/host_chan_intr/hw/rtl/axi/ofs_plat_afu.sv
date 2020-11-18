@@ -46,7 +46,7 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    // Host memory AFU master
+    // Host memory AFU source
     ofs_plat_axi_mem_if
       #(
         `HOST_CHAN_AXI_MEM_PARAMS,
@@ -55,7 +55,7 @@ module ofs_plat_afu
         )
         host_mem_to_afu();
 
-    // 64 bit read/write MMIO AFU slave
+    // 64 bit read/write MMIO AFU sink
     ofs_plat_axi_mem_lite_if
       #(
         `HOST_CHAN_AXI_MMIO_PARAMS(64),

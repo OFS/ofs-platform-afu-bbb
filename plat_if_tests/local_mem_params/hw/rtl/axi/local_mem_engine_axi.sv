@@ -98,7 +98,7 @@ module local_mem_engine_axi
     )
    (
     // Local memory (AXI)
-    ofs_plat_axi_mem_if.to_slave local_mem_if,
+    ofs_plat_axi_mem_if.to_sink local_mem_if,
 
     // Control
     engine_csr_if.engine csrs

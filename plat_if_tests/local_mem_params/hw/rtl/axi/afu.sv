@@ -33,10 +33,10 @@
 module afu
    (
     // Local memory group 0
-    ofs_plat_axi_mem_if.to_slave local_mem_g0[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS],
+    ofs_plat_axi_mem_if.to_sink local_mem_g0[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS],
 
-    // FPGA MMIO master
-    ofs_plat_axi_mem_lite_if.to_master mmio64_if,
+    // FPGA MMIO source
+    ofs_plat_axi_mem_lite_if.to_source mmio64_if,
 
     // pClk is used to compute the frequency of the AFU's clk, since pClk
     // is a known frequency.

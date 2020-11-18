@@ -43,7 +43,7 @@ module csr_mgr_axi
     )
    (
     // CSR read and write commands from the host
-    ofs_plat_axi_mem_lite_if.to_master mmio_if,
+    ofs_plat_axi_mem_lite_if.to_source mmio_if,
 
     // Passing in pClk allows us to compute the frequency of clk given a
     // known pClk frequency.
@@ -73,62 +73,78 @@ module csr_mgr_axi
     localparam MMIO_ADDR_WIDTH = mmio_if.ADDR_WIDTH - MMIO_ADDR_START_BIT;
     typedef logic [MMIO_ADDR_WIDTH-1 : 0] t_mmio_addr;
 
-    // Registers so write data and address can be held until both arrive
-    logic mmio_wr_addr_valid, mmio_wr_data_valid;
-    t_mmio_addr mmio_wr_addr;
-    t_mmio_data mmio_wr_data;
-    logic [mmio_if.WID_WIDTH-1 : 0] mmio_wr_id;
-    logic [mmio_if.USER_WIDTH-1 : 0] mmio_wr_user;
-    // Set when this slave has a pending write response
-    logic mmio_wr_bvalid;
+    //
+    // Pass the MMIO channels through skid buffers. The skid buffer module
+    // also can be configured to make the AXI channel behavior more amenable
+    // to use with CSRs:
+    //
+    //   - AW and W are guaranteed to be synchronized.
+    //   - Only one of AW/W and AR may fire in a single cycle.
+    //
+    // In this mode, the AXI bus behaves much like Avalon memory.
+    //
 
-    // Flow control -- prevent overwriting of registered data or address
-    assign mmio_if.awready = !mmio_wr_addr_valid;
-    assign mmio_if.wready = !mmio_wr_data_valid;
+    //
+    // Add skid buffers for timing.
+    //
+    ofs_plat_axi_mem_lite_if
+      #(
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mmio_if)
+        )
+      mmio_skid();
 
-    logic process_mmio_wr;
-    assign process_mmio_wr = mmio_wr_addr_valid && mmio_wr_data_valid &&
-                             !mmio_wr_bvalid;
+    assign mmio_skid.clk = mmio_if.clk;
+    assign mmio_skid.reset_n = mmio_if.reset_n;
+    assign mmio_skid.instance_number = mmio_if.instance_number;
 
-    always_ff @(posedge clk)
-    begin
-        // Receive address
-        if (!mmio_wr_addr_valid && mmio_if.awvalid)
-        begin
-            mmio_wr_addr_valid <= 1'b1;
-            mmio_wr_addr <= mmio_if.aw.addr[MMIO_ADDR_START_BIT +: MMIO_ADDR_WIDTH];
-            mmio_wr_id <= mmio_if.aw.id;
-            mmio_wr_user <= mmio_if.aw.user;
-        end
+    ofs_plat_axi_mem_lite_if_skid afu_mmio_skid
+       (
+        .mem_source(mmio_if),
+        .mem_sink(mmio_skid)
+        );
 
-        // Receive data
-        if (!mmio_wr_data_valid && mmio_if.wvalid)
-        begin
-            mmio_wr_data_valid <= 1'b1;
-            mmio_wr_data <= mmio_if.w.data;
-        end
+    //
+    // Change the behavior of the AXI channels to map more easily to CSRs.
+    // The PIM provides a module that makes AXI lite more like Avalon:
+    // AW and W are tied together and only a read or write request may
+    // be valid but not both.
+    //
+    ofs_plat_axi_mem_lite_if
+      #(
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mmio_if)
+        )
+      mmio_sync();
 
-        // Pass write to CSR manager when data and address have arrived
-        if (process_mmio_wr)
-        begin
-            mmio_wr_addr_valid <= 1'b0;
-            mmio_wr_data_valid <= 1'b0;
-        end
+    assign mmio_sync.clk = mmio_skid.clk;
+    assign mmio_sync.reset_n = mmio_skid.reset_n;
+    assign mmio_sync.instance_number = mmio_skid.instance_number;
 
-        if (!reset_n)
-        begin
-            mmio_wr_addr_valid <= 1'b0;
-            mmio_wr_data_valid <= 1'b0;
-        end
-    end
+    ofs_plat_axi_mem_lite_if_sync
+      #(
+        .NO_SIMULTANEOUS_RW(1)
+        )
+      afu_mmio_sync
+       (
+        .mem_source(mmio_skid),
+        .mem_sink(mmio_sync)
+        );
 
-    // Read tracking. Since the AXI read response path may have flow control,
-    // the logic here allows only one read request to be in flight within
-    // the CSR manager.
+    // Ready for writes as long as the response channel is ready. The
+    // skid buffer module guarantees that bready is independent of bvalid.
+    // The sync module guarantees that awvalid and wvalid are set together.
+    logic do_write;
+    assign do_write = mmio_sync.awvalid && mmio_sync.bready;
+    assign mmio_sync.awready = mmio_sync.bready;
+    assign mmio_sync.wready = mmio_sync.bready;
+
     logic mmio_rd_busy, mmio_rd_valid, mmio_rd_valid_reg;
     t_mmio_data mmio_rd_data, mmio_rd_data_reg;
     logic [mmio_if.RID_WIDTH-1 : 0] mmio_rd_id, mmio_rd_id_reg;
     logic [mmio_if.USER_WIDTH-1 : 0] mmio_rd_user, mmio_rd_user_reg;
+
+    // Only one read in flight at a time. This will be held until the master
+    // accepts a response.
+    assign mmio_sync.arready = !mmio_rd_busy;
 
     csr_mgr
       #(
@@ -144,13 +160,13 @@ module csr_mgr_axi
         .reset_n,
         .pClk,
 
-        .wr_write(process_mmio_wr),
-        .wr_address(mmio_wr_addr),
-        .wr_writedata(mmio_wr_data),
+        .wr_write(do_write),
+        .wr_address(mmio_sync.aw.addr[MMIO_ADDR_START_BIT +: MMIO_ADDR_WIDTH]),
+        .wr_writedata(mmio_sync.w.data),
 
-        .rd_read(mmio_if.arvalid && !mmio_rd_busy),
-        .rd_address(mmio_if.ar.addr[MMIO_ADDR_START_BIT +: MMIO_ADDR_WIDTH]),
-        .rd_tid_in({ mmio_if.ar.user, mmio_if.ar.id }),
+        .rd_read(mmio_sync.arvalid && !mmio_rd_busy),
+        .rd_address(mmio_sync.ar.addr[MMIO_ADDR_START_BIT +: MMIO_ADDR_WIDTH]),
+        .rd_tid_in({ mmio_sync.ar.user, mmio_sync.ar.id }),
         .rd_readdatavalid(mmio_rd_valid),
         .rd_readdata(mmio_rd_data),
         .rd_tid_out({ mmio_rd_user, mmio_rd_id }),
@@ -159,21 +175,17 @@ module csr_mgr_axi
         .eng_csr
         );
 
-    // Only one read in flight at a time. This will be held until the master
-    // accepts a response.
-    assign mmio_if.arready = !mmio_rd_busy;
-
     // Register and hold read responses until the master accepts them.
     always_ff @(posedge clk)
     begin
         // Only one read request at a time
-        if (mmio_if.arvalid && !mmio_rd_busy)
+        if (mmio_sync.arvalid)
         begin
             mmio_rd_busy <= 1'b1;
         end
 
         // Available response accepted?
-        if (mmio_rd_valid_reg && mmio_if.rready)
+        if (mmio_sync.rvalid && mmio_sync.rready)
         begin
             mmio_rd_valid_reg <= 1'b0;
             mmio_rd_busy <= 1'b0;
@@ -195,39 +207,23 @@ module csr_mgr_axi
         end
     end
 
-    // Read response to master
-    assign mmio_if.rvalid = mmio_rd_valid_reg;
+    // Read response to source
+    assign mmio_sync.rvalid = mmio_rd_valid_reg;
     always_comb
     begin
-        mmio_if.r = '0;
-        mmio_if.r.data = mmio_rd_data_reg;
-        mmio_if.r.id = mmio_rd_id_reg;
-        mmio_if.r.user = mmio_rd_user_reg;
+        mmio_sync.r = '0;
+        mmio_sync.r.data = mmio_rd_data_reg;
+        mmio_sync.r.id = mmio_rd_id_reg;
+        mmio_sync.r.user = mmio_rd_user_reg;
     end
 
-    // Write response to master
-    assign mmio_if.bvalid = mmio_wr_bvalid;
+    // Write response to source
+    assign mmio_sync.bvalid = do_write;
     always_comb
     begin
-        mmio_if.b = '0;
-        mmio_if.b.id = mmio_wr_id;
-        mmio_if.b.user = mmio_wr_user;
-    end
-
-    always_ff @(posedge clk)
-    begin
-        // New write processed? Only one write can be processed at a time. The
-        // states of mmio_wr_id and mmio_wr_user will be held until mmio_if.bready
-        // is set and the slave can send the response.
-        if (process_mmio_wr)
-            mmio_wr_bvalid <= 1'b1;
-        else if (mmio_if.bready)
-            mmio_wr_bvalid <= 1'b0;
-
-        if (!reset_n)
-        begin
-            mmio_wr_bvalid <= 1'b0;
-        end
+        mmio_sync.b = '0;
+        mmio_sync.b.id = mmio_sync.aw.id;
+        mmio_sync.b.user = mmio_sync.aw.user;
     end
 
 endmodule // csr_mgr_axi

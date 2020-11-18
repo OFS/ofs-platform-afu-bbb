@@ -46,10 +46,10 @@ module afu
 `endif
 `ifdef TEST_PARAM_IFC_AVALON
     // Host memory (Avalon)
-    ofs_plat_avalon_mem_rdwr_if.to_slave host_mem_if[NUM_PORTS_G0],
+    ofs_plat_avalon_mem_rdwr_if.to_sink host_mem_if[NUM_PORTS_G0],
     // Zero length is illegal -- force minimum size 1 dummy entry
-    ofs_plat_avalon_mem_rdwr_if.to_slave host_mem_g1_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
-    ofs_plat_avalon_mem_rdwr_if.to_slave host_mem_g2_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
+    ofs_plat_avalon_mem_rdwr_if.to_sink host_mem_g1_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
+    ofs_plat_avalon_mem_rdwr_if.to_sink host_mem_g2_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
 `endif
 
     // Events, used for tracking latency through the FIM
@@ -57,8 +57,8 @@ module afu
     host_chan_events_if.engine host_chan_g1_events_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
     host_chan_events_if.engine host_chan_g2_events_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
 
-    // FPGA MMIO master (Avalon)
-    ofs_plat_avalon_mem_if.to_master mmio64_if,
+    // FPGA MMIO source (Avalon)
+    ofs_plat_avalon_mem_if.to_source mmio64_if,
 
     // pClk is used to compute the frequency of the AFU's clk, since pClk
     // is a known frequency.
