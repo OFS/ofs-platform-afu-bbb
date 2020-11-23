@@ -144,7 +144,7 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
       #(
         `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
         )
-        afu_mem_if();
+        afu_resp_if();
 
     generate
         if (to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)
@@ -154,15 +154,15 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
             ofs_plat_avalon_mem_if_connect_sink_clk conn
                (
                 .mem_source(afu_burst_if),
-                .mem_sink(afu_mem_if)
+                .mem_sink(afu_resp_if)
                 );
         end
         else
         begin : b
             // AFU bursts counts may be too large for the FIU.
-            assign afu_burst_if.clk = afu_mem_if.clk;
-            assign afu_burst_if.reset_n = afu_mem_if.reset_n;
-            assign afu_burst_if.instance_number = afu_mem_if.instance_number;
+            assign afu_burst_if.clk = afu_resp_if.clk;
+            assign afu_burst_if.reset_n = afu_resp_if.reset_n;
+            assign afu_burst_if.instance_number = afu_resp_if.instance_number;
 
             ofs_plat_avalon_mem_if_map_bursts
               #(
@@ -171,10 +171,43 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
               map_bursts
                (
                 .mem_source(afu_burst_if),
-                .mem_sink(afu_mem_if)
+                .mem_sink(afu_resp_if)
                 );
         end
     endgenerate
+
+
+    //
+    // Native Avalon interfaces don't have user fields or write responses.
+    // Synthesize them here. The extra logic will be dropped by Quartus if
+    // the AFU doesn't consume the result.
+    //
+    // At this point:
+    //  - Synthesize write responses. Most Avalon memory interfaces won't
+    //    generate a write response. Due to the ordered, shared read/write
+    //    bus, the point at which responses are generated in the pipeline
+    //    doesn't affect the result.
+    //  - Decorate read responses with readresponseuser.
+    //
+    ofs_plat_avalon_mem_if
+      #(
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+        )
+        afu_mem_if();
+
+    assign afu_resp_if.clk = afu_mem_if.clk;
+    assign afu_resp_if.reset_n = afu_mem_if.reset_n;
+    assign afu_resp_if.instance_number = afu_mem_if.instance_number;
+
+    ofs_plat_avalon_mem_if_user_ext
+      #(
+        .RD_RESP_USER_ENTRIES(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_MAX_BW_ACTIVE_LINES_RD)
+        )
+      user_ext
+       (
+        .mem_source(afu_resp_if),
+        .mem_sink(afu_mem_if)
+        );
 
 
     //
@@ -192,8 +225,8 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
                 )
               mem_pipe
                (
-                .mem_sink(to_fiu),
-                .mem_source(afu_mem_if)
+                .mem_source(afu_mem_if),
+                .mem_sink(to_fiu)
                 );
         end
         else

@@ -93,7 +93,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     begin
         // Read request
         axi_source.arready = !avmm_sink.rd_waitrequest && rd_meta_fifo_ready;
-        avmm_sink.rd_read = axi_source.arvalid;
+        avmm_sink.rd_read = axi_source.arvalid && rd_meta_fifo_ready;
         avmm_sink.rd_address = axi_source.ar.addr[AXI_ADDR_START_BIT +: ADDR_WIDTH];
         avmm_sink.rd_burstcount = t_burst_cnt'(axi_source.ar.len) + 1;
         avmm_sink.rd_byteenable = ~t_byteenable'(0);

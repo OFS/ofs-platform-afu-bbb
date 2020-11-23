@@ -63,9 +63,8 @@ package local_mem_@group@_cfg_pkg;
     parameter LOCAL_MEM_BYTE_ADDR_WIDTH = LOCAL_MEM_ADDR_WIDTH + $clog2(LOCAL_MEM_DATA_N_BYTES);
 
     parameter LOCAL_MEM_USER_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_USER_WIDTH;
-    // The native Avalon interface doesn't define these AXI parameters
-    parameter LOCAL_MEM_RID_WIDTH = 8;
-    parameter LOCAL_MEM_WID_WIDTH = 8;
+    parameter LOCAL_MEM_RID_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_RID_WIDTH;
+    parameter LOCAL_MEM_WID_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_WID_WIDTH;
 
 
     // Base types
@@ -81,5 +80,9 @@ package local_mem_@group@_cfg_pkg;
     // Byte-level mask of a data line
     typedef logic [LOCAL_MEM_DATA_N_BYTES-1:0] t_local_mem_byte_mask;
     typedef logic [LOCAL_MEM_FULL_BUS_N_BYTES-1:0] t_local_mem_bus_byte_mask;
+
+    typedef logic [LOCAL_MEM_USER_WIDTH-1:0] t_local_mem_user_width;
+    typedef logic [LOCAL_MEM_RID_WIDTH-1:0] t_local_mem_rid_width;
+    typedef logic [LOCAL_MEM_WID_WIDTH-1:0] t_local_mem_wid_width;
 
 endpackage // local_mem_@group@_cfg_pkg

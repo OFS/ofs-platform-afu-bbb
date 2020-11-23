@@ -438,7 +438,7 @@ module host_mem_rdwr_engine_avalon
                 // Only check the part of rd_readresponseuser above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,
                 // interrupts, etc. and are not guaranteed to be returned.
-                if (host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] != rd_rsp_user)
+                if (host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] !== rd_rsp_user)
                 begin
                     $display("** ERROR ** %m: rd_readresponseuser is 0x%x, expected 0x%x",
                              { host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1], t_hc_avalon_user_flags'(0) },
@@ -572,7 +572,7 @@ module host_mem_rdwr_engine_avalon
                 // Only check the part of wr_writeresponseuser above the flag bits.
                 // Flags are used to trigger fences, interrupts, etc. and are not
                 // guaranteed to be returned.
-                if (host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] != wr_rsp_user)
+                if (host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] !== wr_rsp_user)
                 begin
                     $display("** ERROR ** %m: wr_writeresponseuser is 0x%x, expected 0x%x",
                              { host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1], t_hc_avalon_user_flags'(0) },

@@ -443,6 +443,7 @@ testSmallRegions(
         {
             uint64_t seed = rand();
             uint64_t expected_hash, hw_hash;
+            uint64_t err_bits;
 
             //
             // Test only writes (mode 1), only reads (mode 2) and
@@ -472,6 +473,19 @@ testSmallRegions(
                 if (runEnginesTest((uint64_t)1 << e))
                 {
                     testDumpEngineState(e);
+                    num_errors += 1;
+                    goto fail;
+                }
+
+                // Check errors
+                err_bits = (csrEngRead(s_csr_handle, e, 0) >> 43) & 0xf;
+                if (err_bits)
+                {
+                    if (err_bits & 8) printf(" - FAIL (write response ID error)\n");
+                    if (err_bits & 4) printf(" - FAIL (read response ID error)\n");
+                    if (err_bits & 2) printf(" - FAIL (write response user error)\n");
+                    if (err_bits & 1) printf(" - FAIL (read response user error)\n");
+
                     num_errors += 1;
                     goto fail;
                 }

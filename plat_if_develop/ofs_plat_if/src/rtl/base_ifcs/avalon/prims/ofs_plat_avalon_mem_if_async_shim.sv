@@ -73,11 +73,17 @@ module ofs_plat_avalon_mem_if_async_shim
     typedef logic [1:0] t_response;
     t_response m0_response_dummy;
 
+    localparam USER_WIDTH = mem_sink.USER_WIDTH;
+    typedef logic [USER_WIDTH-1 : 0] t_user;
+    t_user m0_user_dummy;
+
+    logic [((USER_WIDTH + $bits(t_response) + mem_sink.DATA_WIDTH) / 8) - 1 : 0] m0_byteenable;
+
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
         // Leave room for passing "response" along with readdata
-        .DATA_WIDTH($bits(t_response) + mem_sink.DATA_WIDTH),
-        .HDL_ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .DATA_WIDTH(USER_WIDTH + $bits(t_response) + mem_sink.DATA_WIDTH),
+        .HDL_ADDR_WIDTH(USER_WIDTH + mem_sink.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
         .RESPONSE_FIFO_DEPTH(RESPONSE_FIFO_DEPTH)
@@ -91,31 +97,33 @@ module ofs_plat_avalon_mem_if_async_shim
         .m0_reset(sink_reset),
 
         .s0_waitrequest(cmd_waitrequest),
-        .s0_readdata({mem_source.response, mem_source.readdata}),
+        .s0_readdata({ mem_source.readresponseuser, mem_source.response, mem_source.readdata }),
         .s0_readdatavalid(mem_source.readdatavalid),
         .s0_burstcount(mem_source.burstcount),
         // Write data width has space for response because DATA_WIDTH was set above
         // in order to pass response with readdata.
-        .s0_writedata({t_response'(0), mem_source.writedata}),
-        .s0_address(mem_source.address),
+        .s0_writedata({ t_user'(0), t_response'(0), mem_source.writedata }),
+        .s0_address({ mem_source.user, mem_source.address }),
         .s0_write(mem_source.write),
         .s0_read(mem_source.read),
-        .s0_byteenable(mem_source.byteenable),
+        .s0_byteenable({ '0, mem_source.byteenable }),
         .s0_debugaccess(1'b0),
         .s0_space_avail_data(cmd_space_avail),
 
         .m0_waitrequest(mem_sink.waitrequest),
-        .m0_readdata({mem_sink.response, mem_sink.readdata}),
+        .m0_readdata({ mem_sink.readresponseuser, mem_sink.response, mem_sink.readdata }),
         .m0_readdatavalid(mem_sink.readdatavalid),
         .m0_burstcount(mem_sink.burstcount),
         // See s0_writedata above for m0_response_dummy explanation.
-        .m0_writedata({m0_response_dummy, mem_sink.writedata}),
-        .m0_address(mem_sink.address),
+        .m0_writedata({ m0_user_dummy, m0_response_dummy, mem_sink.writedata }),
+        .m0_address({ mem_sink.user, mem_sink.address }),
         .m0_write(mem_sink.write),
         .m0_read(mem_sink.read),
-        .m0_byteenable(mem_sink.byteenable),
+        .m0_byteenable(m0_byteenable),
         .m0_debugaccess()
         );
+
+    assign mem_sink.byteenable = m0_byteenable[mem_sink.DATA_WIDTH / 8 - 1 : 0];
 
     //
     // The standard Avalon clock crossing bridge doesn't pass write responses.
@@ -131,34 +139,32 @@ module ofs_plat_avalon_mem_if_async_shim
 
             ofs_plat_prim_fifo_dc
               #(
-                .N_DATA_BITS($bits(t_response)),
+                .N_DATA_BITS(USER_WIDTH + $bits(t_response)),
                 .N_ENTRIES(1024)
                 )
               avmm_cross_wr_response
                (
                 .enq_clk(mem_sink.clk),
                 .enq_reset_n(mem_sink.reset_n),
-                .enq_data(mem_sink.writeresponse),
+                .enq_data({ mem_sink.writeresponseuser, mem_sink.writeresponse }),
                 .enq_en(mem_sink.writeresponsevalid),
                 .notFull(),
                 .almostFull(),
 
                 .deq_clk(mem_source.clk),
                 .deq_reset_n(mem_source.reset_n),
-                .first(mem_source.writeresponse),
+                .first({ mem_source.writeresponseuser, mem_source.writeresponse }),
                 .deq_en(wr_response_valid),
                 .notEmpty(wr_response_valid)
                 );
 
-            always_ff @(posedge mem_source.clk)
-            begin
-                mem_source.writeresponsevalid <= wr_response_valid && mem_source.reset_n;
-            end
+            assign mem_source.writeresponsevalid = wr_response_valid && mem_source.reset_n;
         end
         else
         begin : n_wr_rsp
             assign mem_source.writeresponsevalid = 1'b0;
             assign mem_source.writeresponse = '0;
+            assign mem_source.writeresponseuser = '0;
         end
     endgenerate
 

@@ -472,7 +472,7 @@ module host_mem_rdwr_engine_axi
 
             if (host_mem_if.rvalid && host_mem_if.rready)
             begin
-                if (host_mem_if.r.id != rd_rsp_id)
+                if (host_mem_if.r.id !== rd_rsp_id)
                 begin
                     $display("** ERROR ** %m: r.id is 0x%x, expected 0x%x", host_mem_if.r.id, rd_rsp_id);
                     rd_id_error <= 1'b1;
@@ -481,7 +481,7 @@ module host_mem_rdwr_engine_axi
                 // Only check the part of user field above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,
                 // interrupts, etc. and are not guaranteed to be returned.
-                if (host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1] != rd_rsp_user)
+                if (host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1] !== rd_rsp_user)
                 begin
                     $display("** ERROR ** %m: r.user is 0x%x, expected 0x%x",
                              { host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1], t_hc_axi_user_flags'(0) },
@@ -646,7 +646,7 @@ module host_mem_rdwr_engine_axi
 
             if (host_mem_if.bvalid && host_mem_if.bready)
             begin
-                if (host_mem_if.b.id != wr_rsp_id)
+                if (host_mem_if.b.id !== wr_rsp_id)
                 begin
                     $display("** ERROR ** %m: b.id is 0x%x, expected 0x%x", host_mem_if.b.id, wr_rsp_id);
                     wr_id_error <= 1'b1;
@@ -655,7 +655,7 @@ module host_mem_rdwr_engine_axi
                 // Only check the part of b.user above the flag bits.
                 // Flags are used to trigger fences, interrupts, etc. and are not
                 // guaranteed to be returned.
-                if (host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1] != wr_rsp_user)
+                if (host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1] !== wr_rsp_user)
                 begin
                     $display("** ERROR ** %m: b.user is 0x%x, expected 0x%x",
                              { host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_MAX+1], t_hc_axi_user_flags'(0) },

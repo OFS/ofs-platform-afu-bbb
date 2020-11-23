@@ -33,10 +33,20 @@
 module afu
    (
     // Local memory group 0
-    ofs_plat_avalon_mem_if.to_slave local_mem_g0[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS],
+    ofs_plat_avalon_mem_if.to_sink local_mem_g0[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS],
 
-    // FPGA MMIO master (Avalon)
-    ofs_plat_avalon_mem_if.to_master mmio64_if,
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS
+    // Local memory group 1
+    ofs_plat_avalon_mem_if.to_sink local_mem_g1[local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS],
+`endif
+
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS
+    // Local memory group 2
+    ofs_plat_avalon_mem_if.to_sink local_mem_g2[local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS],
+`endif
+
+    // FPGA MMIO source (Avalon)
+    ofs_plat_avalon_mem_if.to_source mmio64_if,
 
     // pClk is used to compute the frequency of the AFU's clk, since pClk
     // is a known frequency.
@@ -55,7 +65,14 @@ module afu
         reset_n <= mmio64_if.reset_n;
     end
 
-    localparam NUM_ENGINES = local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS;
+    localparam NUM_ENGINES = local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS
+                             + local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS
+`endif
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS
+                             + local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS
+`endif
+                             ;
 
     engine_csr_if eng_csr_glob();
     engine_csr_if eng_csr[NUM_ENGINES]();
@@ -92,11 +109,10 @@ module afu
     //
     // ====================================================================
 
-    genvar b;
     generate
-        for (b = 0; b < local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
+        for (genvar b = 0; b < local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
         begin : mb
-            local_mem_engine
+            local_mem_engine_avalon
               #(
                 .ENGINE_NUMBER(b)
                 )
@@ -106,6 +122,38 @@ module afu
                 .csrs(eng_csr[b])
                 );
         end
+
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS
+        for (genvar b = 0; b < local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
+        begin : mb_g1
+            local_mem_engine_avalon
+              #(
+                .ENGINE_NUMBER(b + local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS)
+                )
+              eng
+               (
+                .local_mem_if(local_mem_g1[b]),
+                .csrs(eng_csr[b + local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS])
+                );
+        end
+`endif
+
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS
+        for (genvar b = 0; b < local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
+        begin : mb_g2
+            local_mem_engine_avalon
+              #(
+                .ENGINE_NUMBER(b + local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS +
+                                   local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS)
+                )
+              eng
+               (
+                .local_mem_if(local_mem_g2[b]),
+                .csrs(eng_csr[b + local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS +
+                                  local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS])
+                );
+        end
+`endif
     endgenerate
 
 

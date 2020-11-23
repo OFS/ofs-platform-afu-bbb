@@ -241,6 +241,85 @@ module ofs_plat_afu
     endgenerate
 
 
+    //
+    // Group 1 local memory (if present)
+    //
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS
+    localparam LOCAL_MEM_G1_NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS;
+
+    ofs_plat_avalon_mem_if
+      #(
+        .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
+  `ifndef TEST_FULL_LOCAL_MEM_BUS
+        `LOCAL_MEM_G1_AVALON_MEM_PARAMS,
+  `else
+        `LOCAL_MEM_G1_AVALON_MEM_PARAMS_FULL_BUS,
+  `endif
+        .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
+        )
+      local_mem_g1_to_afu[local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+
+    // Map each bank individually
+    generate
+        for (genvar b = 0; b < local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
+        begin : mb_g1
+            ofs_plat_local_mem_g1_as_avalon_mem
+              #(
+                .ADD_CLOCK_CROSSING(1),
+                // Vary the number of register stages for testing.
+                .ADD_TIMING_REG_STAGES(b)
+                )
+              shim
+               (
+                .afu_clk(host_mem_to_afu.clk),
+                .afu_reset_n(host_mem_to_afu.reset_n),
+                .to_fiu(plat_ifc.local_mem_g1.banks[b]),
+                .to_afu(local_mem_g1_to_afu[b])
+                );
+        end
+    endgenerate
+`endif
+
+    //
+    // Group 2 local memory (if present)
+    //
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS
+    localparam LOCAL_MEM_G2_NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS;
+
+    ofs_plat_avalon_mem_if
+      #(
+        .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
+  `ifndef TEST_FULL_LOCAL_MEM_BUS
+        `LOCAL_MEM_G2_AVALON_MEM_PARAMS,
+  `else
+        `LOCAL_MEM_G2_AVALON_MEM_PARAMS_FULL_BUS,
+  `endif
+        .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
+        )
+      local_mem_g2_to_afu[local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+
+    // Map each bank individually
+    generate
+        for (genvar b = 0; b < local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
+        begin : mb_g2
+            ofs_plat_local_mem_g2_as_avalon_mem
+              #(
+                .ADD_CLOCK_CROSSING(1),
+                // Vary the number of register stages for testing.
+                .ADD_TIMING_REG_STAGES(b)
+                )
+              shim
+               (
+                .afu_clk(host_mem_to_afu.clk),
+                .afu_reset_n(host_mem_to_afu.reset_n),
+                .to_fiu(plat_ifc.local_mem_g2.banks[b]),
+                .to_afu(local_mem_g2_to_afu[b])
+                );
+        end
+    endgenerate
+`endif
+
+
     // ====================================================================
     //
     //  Tie off unused ports.
@@ -254,6 +333,14 @@ module ofs_plat_afu
         // This way, the AFU does not need to know about every available
         // device. By default, devices are tied off.
         .HOST_CHAN_IN_USE_MASK(1),
+
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS
+        .LOCAL_MEM_G1_IN_USE_MASK(-1),
+`endif
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS
+        .LOCAL_MEM_G2_IN_USE_MASK(-1),
+`endif
+
         // All banks are used
         .LOCAL_MEM_IN_USE_MASK(-1)
         )
@@ -269,6 +356,13 @@ module ofs_plat_afu
     afu afu
       (
        .local_mem_g0(local_mem_to_afu),
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS
+       .local_mem_g1(local_mem_g1_to_afu),
+`endif
+`ifdef OFS_PLAT_PARAM_LOCAL_MEM_G2_NUM_BANKS
+       .local_mem_g2(local_mem_g2_to_afu),
+`endif
+
        .mmio64_if(mmio64_to_afu),
        .pClk(plat_ifc.clocks.pClk.clk),
        .pwrState(afu_pwrState)

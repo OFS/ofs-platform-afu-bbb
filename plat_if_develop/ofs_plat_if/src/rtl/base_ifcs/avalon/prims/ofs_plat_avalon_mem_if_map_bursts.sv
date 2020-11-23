@@ -67,6 +67,7 @@ module ofs_plat_avalon_mem_if_map_bursts
     localparam ADDR_WIDTH = mem_source.ADDR_WIDTH_;
     localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
     localparam DATA_N_BYTES = mem_source.DATA_N_BYTES;
+    localparam USER_WIDTH = mem_source.USER_WIDTH;
 
     localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH_;
     localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH_;
@@ -94,6 +95,7 @@ module ofs_plat_avalon_mem_if_map_bursts
             logic m_new_req;
             logic [ADDR_WIDTH-1 : 0] s_address;
             logic [SINK_BURST_WIDTH-1 : 0] s_burstcount;
+            logic [USER_WIDTH-1 : 0] m_user;
             logic m_wr_sop, s_wr_sop;
 
             // New flits are allowed as long as the sink isn't in waitrequest
@@ -146,6 +148,10 @@ module ofs_plat_avalon_mem_if_map_bursts
                     mem_sink.write <= mem_source.write;
                     mem_sink.writedata <= mem_source.writedata;
                     mem_sink.byteenable <= mem_source.byteenable;
+                    if (m_wr_sop)
+                    begin
+                        m_user <= mem_source.user;
+                    end
                 end
 
                 if (!reset_n)
@@ -168,16 +174,22 @@ module ofs_plat_avalon_mem_if_map_bursts
             assign mem_source.readdatavalid = mem_sink.readdatavalid;
             assign mem_source.readdata = mem_sink.readdata;
             assign mem_source.response = mem_sink.response;
+            assign mem_source.readresponseuser = mem_sink.readresponseuser;
 
             // Forward only responses to source bursts. Extra sink bursts are
             // indicated by 0 in writeresponseuser[UFLAG_NO_REPLY].
             assign mem_source.writeresponsevalid =
                 mem_sink.writeresponsevalid && !mem_sink.writeresponseuser[UFLAG_NO_REPLY];
             assign mem_source.writeresponse = mem_sink.writeresponse;
+            assign mem_source.writeresponseuser = mem_sink.writeresponseuser;
 
             // Write ACKs can flow back unchanged. It is up to the part of this
             // module to ensure that there is only one write ACK per source burst.
-            assign mem_sink.user[UFLAG_NO_REPLY] = !(req_complete && s_wr_sop && mem_sink.write);
+            always_comb
+            begin
+                mem_sink.user = m_user;
+                mem_sink.user[UFLAG_NO_REPLY] = !req_complete && mem_sink.write;
+            end
 
             //
             // Write SOP tracking

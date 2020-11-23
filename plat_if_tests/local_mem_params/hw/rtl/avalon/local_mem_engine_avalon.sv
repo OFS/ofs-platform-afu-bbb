@@ -60,7 +60,9 @@
 //
 //   0: Engine configuration
 //       [63:56] - Number of data bytes
-//       [56:43] - Reserved
+//       [55:45] - Reserved
+//       [44]    - Writer esponse user error
+//       [43]    - Read response user error
 //       [42:40] - Request wait signals { 0, 0, waitrequest }
 //       [39]    - Read responses are ordered (when 1)
 //       [38]    - Reserved
@@ -82,17 +84,19 @@
 //       [63: 0] - Hash of lines read (for ordered memory interfaces)
 //
 
-module local_mem_engine
+module local_mem_engine_avalon
   #(
     parameter ENGINE_NUMBER = 0
     )
    (
     // Local memory (Avalon)
-    ofs_plat_avalon_mem_if.to_slave local_mem_if,
+    ofs_plat_avalon_mem_if.to_sink local_mem_if,
 
     // Control
     engine_csr_if.engine csrs
     );
+
+    import ofs_plat_local_mem_avalon_mem_pkg::*;
 
     logic clk;
     assign clk = local_mem_if.clk;
@@ -110,6 +114,11 @@ module local_mem_engine
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
     localparam DATA_WIDTH = local_mem_if.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
+
+    localparam USER_WIDTH = local_mem_if.USER_WIDTH;
+    typedef logic [USER_WIDTH-1 : 0] t_user;
+    // Portion of user field that doesn't include command flags (like FENCE)
+    typedef logic [USER_WIDTH-LM_AVALON_UFLAG_MAX-2 : 0] t_user_afu;
 
     localparam COUNTER_WIDTH = 48;
     typedef logic [COUNTER_WIDTH-1 : 0] t_counter;
@@ -134,6 +143,7 @@ module local_mem_engine
     logic [127:0] wr_start_byteenable;
     logic wr_zeros;
     logic waitrequest_q;
+    logic rd_user_error, wr_user_error;
 
     always_ff @(posedge clk)
     begin
@@ -176,7 +186,9 @@ module local_mem_engine
     always_comb
     begin
         csrs.rd_data[0] = { 8'(DATA_WIDTH / 8),
-                            13'h0,		   // Reserved
+                            11'h0,		   // Reserved
+                            wr_user_error,         // 44: writeresponseuser error
+                            rd_user_error,	   // 43: readresponseuser error
                             2'b0,		   // Unused wait request (AXI needs them)
                             waitrequest_q,
                             1'b1,		   // Read responses are ordered
@@ -212,6 +224,7 @@ module local_mem_engine
     t_addr rd_cur_addr, wr_cur_addr;
     t_num_burst_reqs rd_num_burst_reqs_left, wr_num_burst_reqs_left;
     logic rd_unlimited, wr_unlimited;
+    t_user_afu rd_req_user, wr_req_user;
     logic rd_done, wr_done;
     logic arb_do_read;
 
@@ -238,6 +251,7 @@ module local_mem_engine
         begin
             rd_cur_addr <= rd_cur_addr + rd_req_burst_len;
             rd_num_burst_reqs_left <= rd_num_burst_reqs_left - 1;
+            rd_req_user <= rd_req_user + 1;
             rd_done <= ! rd_unlimited && (rd_num_burst_reqs_left == t_num_burst_reqs'(1));
         end
 
@@ -247,6 +261,11 @@ module local_mem_engine
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
+
+            // Pick some non-zero start value for the incrementing user tag so
+            // it doesn't sync with the address or request ID. The test will
+            // confirm that the user-tag extension is returned with the request.
+            rd_req_user <= t_user_afu'(29);
         end
 
         if (!reset_n || state_reset)
@@ -271,6 +290,76 @@ module local_mem_engine
 
 
     //
+    // Check that readresponseuser matches user on the request. The
+    // request logic above incremenets the user field by one for each
+    // request.
+    //
+    t_burst_cnt rd_rsp_burst_rem;
+    t_user_afu rd_rsp_user;
+    logic rd_rsp_sop;
+
+    always_ff @(posedge clk)
+    begin
+        if (local_mem_if.readdatavalid)
+        begin
+            // Increment the expected value at the end of each burst.
+            rd_rsp_burst_rem <= rd_rsp_burst_rem - 1;
+            rd_rsp_sop <= 1'b0;
+
+            if (rd_rsp_burst_rem == t_burst_cnt'(1))
+            begin
+                rd_rsp_user <= rd_rsp_user + 1;
+                rd_rsp_burst_rem <= rd_req_burst_len;
+                rd_rsp_sop <= 1'b1;
+            end
+        end
+
+        if (state_reset)
+        begin
+            // Initial value of requests
+            rd_rsp_user <= t_user_afu'(29);
+            rd_rsp_burst_rem <= rd_req_burst_len;
+            rd_rsp_sop <= 1'b1;
+        end
+    end
+
+
+    //
+    // Check the user response field.
+    //
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && !state_reset)
+        begin
+            // synthesis translate_off
+            if (rd_user_error) $fatal(2, "Aborting due to error");
+            // synthesis translate_on
+
+            if (local_mem_if.readdatavalid)
+            begin
+                // Only check the part of readresponseuser above the flag bits.
+                // Flags are used (mostly by write requests) to trigger fences,
+                // interrupts, etc. and are not guaranteed to be returned.
+                if (local_mem_if.readresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1] !== rd_rsp_user)
+                begin
+                    // synthesis translate_off
+                    $display("** ERROR ** %m: readresponseuser is 0x%x, expected 0x%x",
+                             { local_mem_if.readresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1], t_lm_avalon_user_flags'(0) },
+                             { rd_rsp_user, t_lm_avalon_user_flags'(0) });
+                    // synthesis translate_on
+
+                    rd_user_error <= 1'b1;
+                end
+            end
+        end
+        else
+        begin
+            rd_user_error <= 1'b0;
+        end
+    end
+
+
+    //
     // Generate write requests
     //
     t_burst_cnt wr_flits_left;
@@ -292,6 +381,12 @@ module local_mem_engine
             // Advance one line, reduce the flit count by one
             wr_cur_addr <= wr_cur_addr + t_addr'(1);
             wr_flits_left <= wr_flits_left - t_burst_cnt'(1);
+
+            if (wr_sop)
+            begin
+                wr_req_user <= wr_req_user + 1;
+            end
+
             wr_eop <= (wr_flits_left == t_burst_cnt'(2));
             wr_sop <= 1'b0;
             // Rotate byte enable mask
@@ -316,6 +411,11 @@ module local_mem_engine
             wr_num_burst_reqs_left <= wr_num_burst_reqs;
             wr_unlimited <= ~(|(wr_num_burst_reqs));
             wr_byteenable <= wr_start_byteenable;
+
+            // Pick some non-zero start value for the incrementing user tag so
+            // it doesn't sync with the address or request ID. The test will
+            // confirm that the user-tag extension is returned with the request.
+            wr_req_user <= t_user_afu'(13);
         end
 
         if (!reset_n || state_reset)
@@ -339,6 +439,60 @@ module local_mem_engine
         .data(wr_data)
         );
 
+    //
+    // Check that writeresponseuser matches user on the request.
+    //
+    t_user_afu wr_rsp_user;
+
+    always_ff @(posedge clk)
+    begin
+        if (local_mem_if.writeresponsevalid)
+        begin
+            wr_rsp_user <= wr_rsp_user + 1;
+        end
+
+        if (state_reset)
+        begin
+            // Initial value of requests
+            wr_rsp_user <= t_user_afu'(13);
+        end
+    end
+
+
+    //
+    // Check the user response field.
+    //
+    always_ff @(posedge clk)
+    begin
+        if (reset_n && !state_reset)
+        begin
+            // synthesis translate_off
+            if (wr_user_error) $fatal(2, "Aborting due to error");
+            // synthesis translate_on
+
+            if (local_mem_if.writeresponsevalid)
+            begin
+                // Only check the part of writeresponseuser above the flag bits.
+                // Flags are used to trigger fences, interrupts, etc. and are not
+                // guaranteed to be returned.
+                if (local_mem_if.writeresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1] !== wr_rsp_user)
+                begin
+                    // synthesis translate_off
+                    $display("** ERROR ** %m: writeresponseuser is 0x%x, expected 0x%x",
+                             { local_mem_if.writeresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1], t_lm_avalon_user_flags'(0) },
+                             { wr_rsp_user, t_lm_avalon_user_flags'(0) });
+                    // synthesis translate_on
+
+                    wr_user_error <= 1'b1;
+                end
+            end
+        end
+        else
+        begin
+            wr_user_error <= 1'b0;
+        end
+    end
+
 
     //
     // Pass requests to local memory
@@ -352,6 +506,7 @@ module local_mem_engine
             local_mem_if.write = 1'b0;
             local_mem_if.burstcount = rd_req_burst_len;
             local_mem_if.byteenable = ~64'b0;
+            local_mem_if.user = { rd_req_user, t_lm_avalon_user_flags'(0) };
         end
         else
         begin
@@ -360,6 +515,7 @@ module local_mem_engine
             local_mem_if.write = (state_run && ! wr_done) || ! wr_sop;
             local_mem_if.burstcount = wr_flits_left;
             local_mem_if.byteenable = wr_byteenable;
+            local_mem_if.user = { wr_req_user, t_lm_avalon_user_flags'(0) };
         end
 
         local_mem_if.writedata = wr_zeros ? '0 : wr_data;
@@ -473,4 +629,4 @@ module local_mem_engine
         .value(wr_lines_req)
         );
 
-endmodule // local_mem_engine
+endmodule // local_mem_engine_avalon
