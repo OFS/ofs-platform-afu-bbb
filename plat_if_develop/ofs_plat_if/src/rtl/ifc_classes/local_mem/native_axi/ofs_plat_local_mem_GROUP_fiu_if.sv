@@ -59,6 +59,9 @@ interface ofs_plat_local_mem_@group@_fiu_if
         .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH),
         // ECC and data combined into a single data bus
         .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH),
+        .USER_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_USER_WIDTH),
+        .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH),
+        .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH),
         // LOCAL_MEM_BURST_CNT_WIDTH always encodes the Avalon burst width
         .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH - 1),
         .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH),

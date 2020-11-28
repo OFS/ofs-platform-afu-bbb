@@ -116,6 +116,11 @@ module csr_mgr
     typedef logic [MMIO_DATA_WIDTH-1 : 0] t_mmio_value;
     typedef logic [MMIO_TID_WIDTH-1 : 0] t_mmio_tid;
 
+    // Engine CSRs are decoded in pipelined stages, selecting using 2 bits
+    // each stage.
+    localparam MAX_NUM_ENGINES = 64;
+    localparam NUM_ENG_DECODE_STAGES = 2 + $clog2(MAX_NUM_ENGINES) / 2;
+
     // The CSR manager uses only a subset of the MMIO space
     typedef logic [11:0] t_csr_idx;
 
@@ -145,125 +150,193 @@ module csr_mgr
 
     // In the first cycle of a read each engine's array of CSRs is reduced
     // to a single register. This splits the multiplexing into two cycles.
-    logic read_req_q;
-    t_csr_idx read_idx_q;
-    t_mmio_tid read_tid_q;
-    t_mmio_value eng_csr_data_q[NUM_ENGINES];
-    t_mmio_value eng_csr_glob_data_q;
+    logic read_req[NUM_ENG_DECODE_STAGES];
+    t_csr_idx read_idx[NUM_ENG_DECODE_STAGES];
+    t_mmio_tid read_tid[NUM_ENG_DECODE_STAGES];
 
     // Engine states
     logic [NUM_ENGINES-1 : 0] state_reset, state_run, status_active;
 
-    genvar e;
-    generate
-        always_ff @(posedge clk)
-        begin : r_addr
-            read_req_q <= rd_read;
-            read_idx_q <= t_csr_idx'(rd_address);
-            read_tid_q <= rd_tid_in;
+    // Pass read request through the CSR decoder pipeline
+    always_ff @(posedge clk)
+    begin
+        read_req[NUM_ENG_DECODE_STAGES-1] <= rd_read;
+        read_idx[NUM_ENG_DECODE_STAGES-1] <= t_csr_idx'(rd_address);
+        read_tid[NUM_ENG_DECODE_STAGES-1] <= rd_tid_in;
 
-            if (!reset_n)
+        for (int i = 0; i < NUM_ENG_DECODE_STAGES-1; i = i + 1)
+        begin
+            read_req[i] <= read_req[i+1];
+            read_idx[i] <= read_idx[i+1];
+            read_tid[i] <= read_tid[i+1];
+        end
+
+        if (!reset_n)
+        begin
+            read_req[NUM_ENG_DECODE_STAGES-1] <= 1'b0;
+        end
+    end
+
+
+    // Pipeline of individual engine status_active, just for timing
+    logic [NUM_ENGINES-1 : 0] status_active_p0, status_active_p1;
+
+    generate
+        for (genvar e = 0; e < NUM_ENGINES; e = e + 1)
+        begin : sa
+            // Map individual engine status_active to a register
+            always_ff @(posedge clk)
             begin
-                read_req_q <= 1'b0;
+                status_active_p1[e] <= eng_csr[e].status_active;
             end
         end
 
-        // Reduce each individual engine's CSR read vector to the selected entry
-        for (e = 0; e < NUM_ENGINES; e = e + 1)
-        begin : r_eng_reduce
-            always_ff @(posedge clk)
-            begin
-                eng_csr_data_q[e] <= eng_csr[e].rd_data[rd_address[3:0]];
-                status_active[e] <= eng_csr[e].status_active;
-            end
+        // Extra stages for timing
+        always_ff @(posedge clk)
+        begin
+            status_active_p0 <= status_active_p1;
+            status_active <= status_active_p0;
         end
     endgenerate
 
+
+    //
+    // Reduce individual engine CSRs to a single register over multiple
+    // pipeline stages.
+    //
+
+    // Reduction tree stage storage
+    t_mmio_value eng_csr_data_s3[64];
+    t_mmio_value eng_csr_data_s2[16];
+    t_mmio_value eng_csr_data_s1[4];
+    t_mmio_value eng_csr_data;
+
+    generate
+        // First stage, pick from the 16 registers in each engine.
+        for (genvar e = 0; e < NUM_ENGINES; e = e + 1)
+        begin : es3
+            always_ff @(posedge clk)
+            begin
+                eng_csr_data_s3[e] <= eng_csr[e].rd_data[read_idx[4][3:0]];
+            end
+        end
+        for (genvar e = NUM_ENGINES; e < 64; e = e + 1)
+        begin : es3z
+            assign eng_csr_data_s3[e] = '0;
+        end
+
+        // 4:1 reduction in each stage, using increasing pairs of read_idx
+        // index bits.
+
+        // 64 -> 16
+        for (genvar i = 0; i < 16; i = i + 1)
+        begin : es2
+            always_ff @(posedge clk)
+            begin
+                eng_csr_data_s2[i] <= eng_csr_data_s3[{i, read_idx[3][5:4]}];
+            end
+        end
+
+        // 16 -> 4
+        for (genvar i = 0; i < 4; i = i + 1)
+        begin : es1
+            always_ff @(posedge clk)
+            begin
+                eng_csr_data_s1[i] <= eng_csr_data_s2[{i, read_idx[2][7:6]}];
+            end
+        end
+
+        // 4 -> 1
+        always_ff @(posedge clk)
+        begin : es0
+            eng_csr_data <= eng_csr_data_s1[read_idx[1][9:8]];
+        end
+    endgenerate
+
+
     // Reduce the global CSR read vector to the selected entry
+    t_mmio_value eng_csr_glob_data;
+
     always_ff @(posedge clk)
     begin
-        eng_csr_glob_data_q <= eng_csr_glob.rd_data[rd_address[3:0]];
+        eng_csr_glob_data <= eng_csr_glob.rd_data[read_idx[1][3:0]];
     end
 
+
     // Reduce the mandatory feature header CSRs (read address 12'h00?)
-    t_mmio_value dfh_afu_id_q;
+    t_mmio_value dfh_afu_id;
+
     always_ff @(posedge clk)
     begin
-        case (rd_address[3:0])
+        case (read_idx[1][3:0])
             4'h0: // AFU DFH (device feature header)
                 begin
                     // Here we define a trivial feature list.  In this
                     // example, our AFU is the only entry in this list.
-                    dfh_afu_id_q <= 64'b0;
+                    dfh_afu_id <= 64'b0;
                     // Feature type is AFU
-                    dfh_afu_id_q[63:60] <= 4'h1;
+                    dfh_afu_id[63:60] <= 4'h1;
                     // End of list (last entry in list)?
-                    dfh_afu_id_q[40] <= (DFH_MMIO_NEXT_ADDR == 0);
+                    dfh_afu_id[40] <= (DFH_MMIO_NEXT_ADDR == 0);
                     // Next feature
-                    dfh_afu_id_q[39:16] <= 24'(DFH_MMIO_NEXT_ADDR);
+                    dfh_afu_id[39:16] <= 24'(DFH_MMIO_NEXT_ADDR);
                 end
 
             // AFU_ID_L
-            4'h1: dfh_afu_id_q <= afu_id[63:0];
+            4'h1: dfh_afu_id <= afu_id[63:0];
             // AFU_ID_H
-            4'h2: dfh_afu_id_q <= afu_id[127:64];
-            default: dfh_afu_id_q <= 64'b0;
+            4'h2: dfh_afu_id <= afu_id[127:64];
+            default: dfh_afu_id <= 64'b0;
         endcase
     end
 
+
     // Reduce CSR manager control space (read address 12'h01?)
-    t_mmio_value csr_mgr_ctrl_q;
+    t_mmio_value csr_mgr_ctrl;
+
     always_ff @(posedge clk)
     begin
-        case (rd_address[3:0])
+        case (read_idx[1][3:0])
             4'h0: // Configuration details
                 begin
-                    csr_mgr_ctrl_q <= 64'b0;
+                    csr_mgr_ctrl <= 64'b0;
                     // pClk frequency (MHz)
-                    csr_mgr_ctrl_q[23:8] <= 16'(`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ);
+                    csr_mgr_ctrl[23:8] <= 16'(`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ);
                     // Number of engines
-                    csr_mgr_ctrl_q[7:0] <= 8'(NUM_ENGINES);
+                    csr_mgr_ctrl[7:0] <= 8'(NUM_ENGINES);
                 end
-            4'h1: csr_mgr_ctrl_q <= 64'(state_run);
-            4'h2: csr_mgr_ctrl_q <= 64'(status_active);
-            4'h3: csr_mgr_ctrl_q <= 64'(num_clk_cycles);
-            4'h4: csr_mgr_ctrl_q <= 64'(num_pClk_cycles);
-            default: csr_mgr_ctrl_q <= 64'b0;
+            4'h1: csr_mgr_ctrl <= 64'(state_run);
+            4'h2: csr_mgr_ctrl <= 64'(status_active);
+            4'h3: csr_mgr_ctrl <= 64'(num_clk_cycles);
+            4'h4: csr_mgr_ctrl <= 64'(num_pClk_cycles);
+            default: csr_mgr_ctrl <= 64'b0;
         endcase
     end
+
 
     // Second cycle selects from among the already reduced groups
     always_ff @(posedge clk)
     begin
-        rd_readdatavalid <= read_req_q;
-        rd_tid_out <= read_tid_q;
+        rd_readdatavalid <= read_req[0];
+        rd_tid_out <= read_tid[0];
 
-        casez (read_idx_q)
+        casez (read_idx[0])
             // AFU DFH (device feature header) and AFU ID
-            12'h00?: rd_readdata <= dfh_afu_id_q;
+            12'h00?: rd_readdata <= dfh_afu_id;
 
             // CSR manager control space
-            12'h01?: rd_readdata <= csr_mgr_ctrl_q;
+            12'h01?: rd_readdata <= csr_mgr_ctrl;
 
             // 16 registers in the global CSR space at 'h2?. The value
             // is sampled as soon as the read request arrives.
-            12'h02?: rd_readdata <= eng_csr_glob_data_q;
+            12'h02?: rd_readdata <= eng_csr_glob_data;
 
-            // 16 registers in each engine's CSR space at 'h1xy, where the 'x'
-            // hex digit is the engine index and the 'y' hex digit is the
-            // register number. The value is sampled as soon as the read
-            // request arrives.
-            12'h10?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(0)];
-            12'h11?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(1)];
-            12'h12?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(2)];
-            12'h13?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(3)];
-            12'h14?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(4)];
-            12'h15?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(5)];
-            12'h16?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(6)];
-            12'h17?: rd_readdata <= eng_csr_data_q[`SAFE_IDX(7)];
+            // Individual engines have 16 registers each, reduced
+            // to a single register in a pipeline above.
+            12'b01??????????: rd_readdata <= eng_csr_data;
 
             default: rd_readdata <= 64'h0;
-        endcase // casez (read_idx_q)
+        endcase // casez (read_idx[0])
     end
 
 
@@ -295,7 +368,7 @@ module csr_mgr
 
 
     //
-    // Individual engine CSRs (0x1??)
+    // Individual engine CSRs (12'b01??????????)
     //
     logic eng_csr_wr_write;
     t_mmio_addr eng_csr_wr_address;
@@ -309,18 +382,34 @@ module csr_mgr
     end
 
     generate
-        for (e = 0; e < NUM_ENGINES; e = e + 1)
+        for (genvar e = 0; e < NUM_ENGINES; e = e + 1)
         begin : w_eng
+            // Add pipeline stages for timing
+            struct {
+                logic wr_req;
+                t_csr_idx wr_idx;
+                logic [63:0] wr_data;
+                logic state_reset;
+                logic state_run;
+            } e_wr_pipe[2];
+
             always_ff @(posedge clk)
             begin
-                eng_csr[e].wr_req <= (eng_csr_wr_write &&
-                                      (eng_csr_wr_address[11:8] == 4'h1) &&
-                                      (eng_csr_wr_address[7:4] == 4'(e)));
-                eng_csr[e].wr_idx <= eng_csr_wr_address[3:0];
-                eng_csr[e].wr_data <= eng_csr_wr_writedata;
+                e_wr_pipe[1].wr_req <= (eng_csr_wr_write &&
+                                        (eng_csr_wr_address[11:10] == 2'b01) &&
+                                        (eng_csr_wr_address[9:4] == 6'(e)));
+                e_wr_pipe[1].wr_idx <= t_csr_idx'(eng_csr_wr_address);
+                e_wr_pipe[1].wr_data <= eng_csr_wr_writedata;
+                e_wr_pipe[1].state_reset <= state_reset[e];
+                e_wr_pipe[1].state_run <= state_run[e];
 
-                eng_csr[e].state_reset <= state_reset[e];
-                eng_csr[e].state_run <= state_run[e];
+                e_wr_pipe[0] <= e_wr_pipe[1];
+
+                eng_csr[e].wr_req <= e_wr_pipe[0].wr_req;
+                eng_csr[e].wr_idx <= e_wr_pipe[0].wr_idx[3:0];
+                eng_csr[e].wr_data <= e_wr_pipe[0].wr_data;
+                eng_csr[e].state_reset <= e_wr_pipe[0].state_reset;
+                eng_csr[e].state_run <= e_wr_pipe[0].state_run;
             end
         end
     endgenerate
@@ -361,7 +450,7 @@ module csr_mgr
     assign is_eng_disable_cmd = is_cmd && (cmd_wr_address[3:0] == 4'h1);
 
     generate
-        for (e = 0; e < NUM_ENGINES; e = e + 1)
+        for (genvar e = 0; e < NUM_ENGINES; e = e + 1)
         begin : cmd_eng
             always_ff @(posedge clk)
             begin

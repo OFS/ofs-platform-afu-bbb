@@ -56,6 +56,7 @@ package ofs_plat_host_chan_avalon_mem_pkg;
     // Maximum value of a HC_AVALON_UFLAG
     localparam HC_AVALON_UFLAG_MAX = HC_AVALON_UFLAG_INTERRUPT;
 
-    typedef logic [HC_AVALON_UFLAG_MAX : 0] t_hc_avalon_user_flags;
+    localparam HC_AVALON_UFLAG_WIDTH = HC_AVALON_UFLAG_MAX + 1;
+    typedef logic [HC_AVALON_UFLAG_WIDTH-1 : 0] t_hc_avalon_user_flags;
 
 endpackage // ofs_plat_host_chan_avalon_mem_pkg

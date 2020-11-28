@@ -129,7 +129,7 @@ csrEngGlobWrite(t_csr_handle_p csr_handle, uint32_t idx, uint64_t value)
 uint64_t
 csrEngRead(t_csr_handle_p csr_handle, uint32_t eng_num, uint32_t idx)
 {
-    if ((eng_num > 16) || (idx > 16)) return -1;
+    if ((eng_num > 64) || (idx > 16)) return -1;
     return csrRead(csr_handle,
                    CSR_ENG_BASE | (eng_num << 4) | idx);
 }
@@ -138,7 +138,7 @@ fpga_result
 csrEngWrite(t_csr_handle_p csr_handle, uint32_t eng_num, uint32_t idx,
             uint64_t value)
 {
-    if ((eng_num > 16) || (idx > 16)) return -1;
+    if ((eng_num > 64) || (idx > 16)) return -1;
     return csrWrite(csr_handle,
                     CSR_ENG_BASE | (eng_num << 4) | idx,
                     value);

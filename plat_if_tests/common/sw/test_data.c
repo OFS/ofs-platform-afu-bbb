@@ -79,7 +79,7 @@ testDataGenReset(size_t byte_len, uint64_t seed, uint64_t *data)
         size_t len = (i_byte_len > 64) ? 64 : i_byte_len;
         memcpy(i_data, init_data, len);
 
-        i_data += 8;
+        i_data += (len / 8);
         i_byte_len -= len;
     }
 

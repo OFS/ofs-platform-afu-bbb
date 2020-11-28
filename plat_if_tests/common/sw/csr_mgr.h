@@ -54,7 +54,7 @@ typedef enum
     CSR_WR_CTRL_ENG_DISABLE_MASK = 0x11,
 
     CSR_ENG_GLOB_BASE = 0x020,
-    CSR_ENG_BASE = 0x100
+    CSR_ENG_BASE = 0x400
 }
 t_csr_enum;
 

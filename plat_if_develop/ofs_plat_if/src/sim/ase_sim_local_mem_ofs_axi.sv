@@ -71,7 +71,6 @@ module ase_sim_local_mem_ofs_axi
     //
     ofs_plat_avalon_mem_if
       #(
-        .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH),
         .BURST_CNT_WIDTH(BURST_CNT_WIDTH + 1),
@@ -173,7 +172,6 @@ module ase_sim_local_mem_ofs_axi
             //
             ofs_plat_avalon_mem_rdwr_if
               #(
-                .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
                 .ADDR_WIDTH(ADDR_WIDTH),
                 .DATA_WIDTH(DATA_WIDTH),
                 .BURST_CNT_WIDTH(BURST_CNT_WIDTH + 1),

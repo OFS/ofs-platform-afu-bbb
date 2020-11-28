@@ -7,3 +7,4 @@ csr_mgr_axi.sv
 fifo2.sv
 hash32.sv
 test_data.sv
+test_data.sdc

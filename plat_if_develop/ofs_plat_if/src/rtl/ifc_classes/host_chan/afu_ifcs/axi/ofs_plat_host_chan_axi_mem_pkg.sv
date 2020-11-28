@@ -58,6 +58,7 @@ package ofs_plat_host_chan_axi_mem_pkg;
     // Maximum value of a HC_AXI_UFLAG
     localparam HC_AXI_UFLAG_MAX = HC_AXI_UFLAG_INTERRUPT;
 
-    typedef logic [HC_AXI_UFLAG_MAX : 0] t_hc_axi_user_flags;
+    localparam HC_AXI_UFLAG_WIDTH = HC_AXI_UFLAG_MAX + 1;
+    typedef logic [HC_AXI_UFLAG_WIDTH-1 : 0] t_hc_axi_user_flags;
 
 endpackage // ofs_plat_host_chan_axi_mem_pkg

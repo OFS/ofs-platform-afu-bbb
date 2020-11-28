@@ -48,6 +48,7 @@ package ofs_plat_local_mem_avalon_mem_pkg;
     // Maximum value of an LM_AVALON_UFLAG
     localparam LM_AVALON_UFLAG_MAX = LM_AVALON_UFLAG_NO_REPLY;
 
-    typedef logic [LM_AVALON_UFLAG_MAX : 0] t_lm_avalon_user_flags;
+    localparam LM_AVALON_UFLAG_WIDTH = LM_AVALON_UFLAG_MAX + 1;
+    typedef logic [LM_AVALON_UFLAG_WIDTH-1 : 0] t_lm_avalon_user_flags;
 
 endpackage // ofs_plat_local_mem_avalon_mem_pkg
