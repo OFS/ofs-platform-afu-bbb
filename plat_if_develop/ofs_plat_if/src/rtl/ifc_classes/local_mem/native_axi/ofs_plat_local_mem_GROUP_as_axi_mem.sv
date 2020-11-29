@@ -77,12 +77,12 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     //
     // Compile-time parameter check.
     //
-    // AWID, ARID and USER fields are returned by logic in the FIM, so their maximum
+    // AWID and ARID fields are returned by logic in the FIM, so their maximum
     // width is fixed by the FIM's parameters. We could add complexity to the PIM to
     // allow wider values, but it would require building tables and renumbering
     // AWID and ARID. AFUs could do this without the PIM. The current PIM
     // implementation does not support AFU fields wider than FIM fields and
-    // triggers an error here during compilation in order to avoid ID and USER tag
+    // triggers an error here during compilation in order to avoid ID tag
     // data loss.
     //
     generate
@@ -96,12 +96,6 @@ module ofs_plat_local_mem_@group@_as_axi_mem
         begin : wid_err
             // Compilation error: WID_WIDTH from AFU is larger than FIM field
             illegal_WID_WIDTH_error fatal_error(); // Non-existent module - force compilation error
-        end
-
-        if (to_afu.USER_WIDTH > to_fiu.USER_WIDTH)
-        begin : user_err
-            // Compilation error: USER_WIDTH from AFU is larger than FIM field
-            illegal_USER_WIDTH_error fatal_error(); // Non-existent module - force compilation error
         end
     endgenerate
 
@@ -185,6 +179,35 @@ module ofs_plat_local_mem_@group@_as_axi_mem
 
 
     //
+    // Preserve AFU user bits and return them with responses. The PIM adds
+    // extra state to AXI user fields that devices may not implement.
+    //
+    ofs_plat_axi_mem_if
+      #(
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(to_afu),
+        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
+        .RID_WIDTH(to_afu.RID_WIDTH_),
+        .WID_WIDTH(to_afu.WID_WIDTH_),
+        .USER_WIDTH(to_fiu.USER_WIDTH_)
+        )
+      axi_fiu_user_if();
+
+    assign axi_fiu_user_if.clk = axi_afu_if.clk;
+    assign axi_fiu_user_if.reset_n = axi_afu_if.reset_n;
+    assign axi_fiu_user_if.instance_number = to_fiu.instance_number;
+
+    ofs_plat_axi_mem_if_user_ext
+      #(
+        .FIM_USER_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_USER_WIDTH)
+        )
+      map_user
+       (
+        .mem_source(axi_fiu_burst_if),
+        .mem_sink(axi_fiu_user_if)
+        );
+
+
+    //
     // Clock crossing between AFU and FIU?
     //
     generate
@@ -199,7 +222,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
                 )
               mem_pipe
                (
-                .mem_source(axi_fiu_burst_if),
+                .mem_source(axi_fiu_user_if),
                 .mem_sink(to_fiu)
                 );
         end
@@ -222,7 +245,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
                 )
               async_shim
                (
-                .mem_source(axi_fiu_burst_if),
+                .mem_source(axi_fiu_user_if),
                 .mem_sink(axi_fiu_clk_if)
                 );
 

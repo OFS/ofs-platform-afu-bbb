@@ -161,7 +161,7 @@ module ofs_plat_avalon_mem_if_user_ext
     //
     always_comb
     begin
-        // Must fields can just be wired together
+        // Most fields can just be wired together
         `OFS_PLAT_AVALON_MEM_IF_FROM_SOURCE_TO_SINK_COMB(mem_sink, mem_source);
         `OFS_PLAT_AVALON_MEM_IF_FROM_SINK_TO_SOURCE_COMB(mem_source, mem_sink);
 

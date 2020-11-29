@@ -86,7 +86,8 @@
 
 module local_mem_engine_avalon
   #(
-    parameter ENGINE_NUMBER = 0
+    parameter ENGINE_NUMBER = 0,
+    parameter LM_AFU_USER_WIDTH = 4
     )
    (
     // Local memory (Avalon)
@@ -116,9 +117,11 @@ module local_mem_engine_avalon
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
     localparam USER_WIDTH = local_mem_if.USER_WIDTH;
-    typedef logic [USER_WIDTH-1 : 0] t_user;
+    localparam LM_AFU_USER_START = USER_WIDTH - LM_AFU_USER_WIDTH;
+    // Device (PIM + FIM) user flags
+    typedef logic [LM_AFU_USER_START-1 : 0] t_user_dev;
     // Portion of user field that doesn't include command flags (like FENCE)
-    typedef logic [USER_WIDTH-LM_AVALON_UFLAG_MAX-2 : 0] t_user_afu;
+    typedef logic [LM_AFU_USER_WIDTH-1 : 0] t_user_afu;
 
     localparam COUNTER_WIDTH = 48;
     typedef logic [COUNTER_WIDTH-1 : 0] t_counter;
@@ -340,12 +343,12 @@ module local_mem_engine_avalon
                 // Only check the part of readresponseuser above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,
                 // interrupts, etc. and are not guaranteed to be returned.
-                if (local_mem_if.readresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1] !== rd_rsp_user)
+                if (local_mem_if.readresponseuser[USER_WIDTH-1 : LM_AFU_USER_START] !== rd_rsp_user)
                 begin
                     // synthesis translate_off
                     $display("** ERROR ** %m: readresponseuser is 0x%x, expected 0x%x",
-                             { local_mem_if.readresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1], t_lm_avalon_user_flags'(0) },
-                             { rd_rsp_user, t_lm_avalon_user_flags'(0) });
+                             { local_mem_if.readresponseuser[USER_WIDTH-1 : LM_AFU_USER_START], t_user_dev'(0) },
+                             { rd_rsp_user, t_user_dev'(0) });
                     // synthesis translate_on
 
                     rd_user_error <= 1'b1;
@@ -475,12 +478,12 @@ module local_mem_engine_avalon
                 // Only check the part of writeresponseuser above the flag bits.
                 // Flags are used to trigger fences, interrupts, etc. and are not
                 // guaranteed to be returned.
-                if (local_mem_if.writeresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1] !== wr_rsp_user)
+                if (local_mem_if.writeresponseuser[USER_WIDTH-1 : LM_AFU_USER_START] !== wr_rsp_user)
                 begin
                     // synthesis translate_off
                     $display("** ERROR ** %m: writeresponseuser is 0x%x, expected 0x%x",
-                             { local_mem_if.writeresponseuser[USER_WIDTH-1 : LM_AVALON_UFLAG_MAX+1], t_lm_avalon_user_flags'(0) },
-                             { wr_rsp_user, t_lm_avalon_user_flags'(0) });
+                             { local_mem_if.writeresponseuser[USER_WIDTH-1 : LM_AFU_USER_START], t_user_dev'(0) },
+                             { wr_rsp_user, t_user_dev'(0) });
                     // synthesis translate_on
 
                     wr_user_error <= 1'b1;
@@ -506,7 +509,7 @@ module local_mem_engine_avalon
             local_mem_if.write = 1'b0;
             local_mem_if.burstcount = rd_req_burst_len;
             local_mem_if.byteenable = ~64'b0;
-            local_mem_if.user = { rd_req_user, t_lm_avalon_user_flags'(0) };
+            local_mem_if.user = { rd_req_user, t_user_dev'(0) };
         end
         else
         begin
@@ -515,7 +518,7 @@ module local_mem_engine_avalon
             local_mem_if.write = (state_run && ! wr_done) || ! wr_sop;
             local_mem_if.burstcount = wr_flits_left;
             local_mem_if.byteenable = wr_byteenable;
-            local_mem_if.user = { wr_req_user, t_lm_avalon_user_flags'(0) };
+            local_mem_if.user = { wr_req_user, t_user_dev'(0) };
         end
 
         local_mem_if.writedata = wr_zeros ? '0 : wr_data;

@@ -62,7 +62,11 @@ package local_mem_@group@_cfg_pkg;
     parameter LOCAL_MEM_LINE_ADDR_WIDTH = LOCAL_MEM_ADDR_WIDTH;
     parameter LOCAL_MEM_BYTE_ADDR_WIDTH = LOCAL_MEM_ADDR_WIDTH + $clog2(LOCAL_MEM_DATA_N_BYTES);
 
-    parameter LOCAL_MEM_USER_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_USER_WIDTH;
+    // User bits are organized with { AFU user bits, FIM user bits, PIM user bits }.
+    // Only the FIM's user width is in the macro.
+    parameter LOCAL_MEM_USER_WIDTH = `OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_USER_WIDTH +
+                                     ofs_plat_local_mem_avalon_mem_pkg::LM_AVALON_UFLAG_WIDTH;
+
     // The native Avalon interface doesn't define these AXI parameters
     parameter LOCAL_MEM_RID_WIDTH = 8;
     parameter LOCAL_MEM_WID_WIDTH = 8;

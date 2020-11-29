@@ -31,6 +31,9 @@
 `include "ofs_plat_if.vh"
 
 module afu
+  #(
+    parameter LM_AFU_USER_WIDTH = 4
+    )
    (
     // Local memory group 0
     ofs_plat_avalon_mem_if.to_sink local_mem_g0[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS],
@@ -114,7 +117,8 @@ module afu
         begin : mb
             local_mem_engine_avalon
               #(
-                .ENGINE_NUMBER(b)
+                .ENGINE_NUMBER(b),
+                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
                 )
               eng
                (
@@ -128,7 +132,8 @@ module afu
         begin : mb_g1
             local_mem_engine_avalon
               #(
-                .ENGINE_NUMBER(b + local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS)
+                .ENGINE_NUMBER(b + local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS),
+                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
                 )
               eng
                (
@@ -144,7 +149,8 @@ module afu
             local_mem_engine_avalon
               #(
                 .ENGINE_NUMBER(b + local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS +
-                                   local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS)
+                                   local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS),
+                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
                 )
               eng
                (

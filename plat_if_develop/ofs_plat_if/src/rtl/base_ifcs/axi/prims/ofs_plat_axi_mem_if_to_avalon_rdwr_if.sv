@@ -52,6 +52,9 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
     // user data in a FIFO? Also generates RLAST if non-zero.
     parameter GEN_RD_RESPONSE_METADATA = 0,
 
+    // Pass user fields back to source? If 0, user responses are set to 0.
+    parameter PRESERVE_RESPONSE_USER = 1,
+
     parameter RD_RESPONSE_FIFO_DEPTH = 256
     )
    (
@@ -111,8 +114,16 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
         if (GEN_RD_RESPONSE_METADATA == 0)
         begin : nrm
             assign rd_meta_fifo_ready = 1'b1;
-            assign { axi_source.r.user, axi_source.r.id } = avmm_sink.rd_readresponseuser;
             assign axi_source.r.last = 'x;
+
+            always_comb
+            begin
+                { axi_source.r.user, axi_source.r.id } = avmm_sink.rd_readresponseuser;
+                if (PRESERVE_RESPONSE_USER == 0)
+                begin
+                    axi_source.r.user = '0;
+                end
+            end
         end
         else
         begin : rm
@@ -132,7 +143,7 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
                 .process_req(axi_source.arvalid && axi_source.arready),
                 .req_len(axi_source.ar.len),
                 .req_id(axi_source.ar.id),
-                .req_user(axi_source.ar.user),
+                .req_user((PRESERVE_RESPONSE_USER != 0) ? axi_source.ar.user : '0),
 
                 .process_rsp(avmm_sink.rd_readdatavalid && axi_source.rready),
                 .rsp_id(axi_source.r.id),
@@ -279,7 +290,12 @@ module ofs_plat_axi_mem_if_to_avalon_rdwr_if
 
         axi_source.bvalid = avmm_sink.wr_writeresponsevalid && !wr_error;
         axi_source.b.resp = avmm_sink.wr_response;
+
         { axi_source.b.user, axi_source.b.id } = avmm_sink.wr_writeresponseuser;
+        if (PRESERVE_RESPONSE_USER == 0)
+        begin
+            axi_source.b.user = '0;
+        end
     end
 
     always_ff @(posedge clk)

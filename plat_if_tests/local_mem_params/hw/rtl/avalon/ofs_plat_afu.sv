@@ -121,6 +121,12 @@ module ofs_plat_afu
     localparam LM_BURST_CNT_WIDTH = local_mem_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH;
 `endif
 
+    // The user extension field has three sub-components:
+    //   { AFU user bits, native FIU user bits, PIM user bits }
+    // The PIM uses the low bits for control and guarantees to return the AFU
+    // portion with responses. The FIU portion is passed to the native interface.
+    localparam LM_AFU_USER_WIDTH = 6;
+
     ofs_plat_avalon_mem_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::LOCAL_MEM),
@@ -129,6 +135,7 @@ module ofs_plat_afu
 `else
         `LOCAL_MEM_AVALON_MEM_PARAMS_FULL_BUS,
 `endif
+        .USER_WIDTH(LM_AFU_USER_WIDTH + local_mem_cfg_pkg::LOCAL_MEM_USER_WIDTH),
         .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
         )
       local_mem_to_afu[local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
@@ -172,6 +179,7 @@ module ofs_plat_afu
                 ofs_plat_avalon_mem_if
                   #(
                     `LOCAL_MEM_AVALON_MEM_PARAMS,
+                    .USER_WIDTH(LM_AFU_USER_WIDTH + local_mem_cfg_pkg::LOCAL_MEM_USER_WIDTH),
                     .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
                     )
                   local_mem_if();
@@ -201,6 +209,7 @@ module ofs_plat_afu
                 ofs_plat_avalon_mem_if
                   #(
                     `LOCAL_MEM_AVALON_MEM_PARAMS,
+                    .USER_WIDTH(LM_AFU_USER_WIDTH + local_mem_cfg_pkg::LOCAL_MEM_USER_WIDTH),
                     .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
                     )
                   local_mem_cross_if();
@@ -255,6 +264,7 @@ module ofs_plat_afu
   `else
         `LOCAL_MEM_G1_AVALON_MEM_PARAMS_FULL_BUS,
   `endif
+        .USER_WIDTH(LM_AFU_USER_WIDTH + local_mem_g1_cfg_pkg::LOCAL_MEM_USER_WIDTH),
         .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
         )
       local_mem_g1_to_afu[local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
@@ -294,6 +304,7 @@ module ofs_plat_afu
   `else
         `LOCAL_MEM_G2_AVALON_MEM_PARAMS_FULL_BUS,
   `endif
+        .USER_WIDTH(LM_AFU_USER_WIDTH + local_mem_g2_cfg_pkg::LOCAL_MEM_USER_WIDTH),
         .BURST_CNT_WIDTH(LM_BURST_CNT_WIDTH)
         )
       local_mem_g2_to_afu[local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
@@ -353,7 +364,11 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    afu afu
+    afu
+     #(
+       .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
+       )
+     afu
       (
        .local_mem_g0(local_mem_to_afu),
 `ifdef OFS_PLAT_PARAM_LOCAL_MEM_G1_NUM_BANKS

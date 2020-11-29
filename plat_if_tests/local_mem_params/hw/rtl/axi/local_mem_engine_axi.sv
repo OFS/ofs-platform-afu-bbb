@@ -98,7 +98,8 @@
 
 module local_mem_engine_axi
   #(
-    parameter ENGINE_NUMBER = 0
+    parameter ENGINE_NUMBER = 0,
+    parameter LM_AFU_USER_WIDTH = 4
     )
    (
     // Local memory (AXI)
@@ -135,9 +136,11 @@ module local_mem_engine_axi
     typedef logic [ADDR_BYTE_IDX_WIDTH-1 : 0] t_byte_idx;
 
     localparam USER_WIDTH = local_mem_if.USER_WIDTH;
-    typedef logic [USER_WIDTH-1 : 0] t_user;
-    // Portion of user field that doesn't include command flags
-    typedef logic [USER_WIDTH-LM_AXI_UFLAG_MAX-2 : 0] t_user_afu;
+    localparam LM_AFU_USER_START = USER_WIDTH - LM_AFU_USER_WIDTH;
+    // Device (PIM + FIM) user flags
+    typedef logic [LM_AFU_USER_START-1 : 0] t_user_dev;
+    // Portion of user field that doesn't include command flags (like FENCE)
+    typedef logic [LM_AFU_USER_WIDTH-1 : 0] t_user_afu;
 
     localparam RID_WIDTH = local_mem_if.RID_WIDTH;
     typedef logic [RID_WIDTH-1 : 0] t_rid;
@@ -286,7 +289,7 @@ module local_mem_engine_axi
         local_mem_if.ar.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.ar.len = rd_req_burst_len - 1;
         local_mem_if.ar.id = rd_req_id;
-        local_mem_if.ar.user = { rd_req_user, t_lm_axi_user_flags'(0) };
+        local_mem_if.ar.user = { rd_req_user, t_user_dev'(0) };
     end
 
     always_ff @(posedge clk)
@@ -309,7 +312,7 @@ module local_mem_engine_axi
             // so they don't sync with the address. The test will confirm that
             // the user-tag extension is returned with the request.
             rd_req_id <= t_rid'(37);
-            rd_req_user <= t_user'(29);
+            rd_req_user <= t_user_afu'(29);
 
             rd_num_burst_reqs_left <= rd_num_burst_reqs;
             rd_unlimited <= ~(|(rd_num_burst_reqs));
@@ -399,12 +402,12 @@ module local_mem_engine_axi
                 // Only check the part of user field above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,
                 // interrupts, etc. and are not guaranteed to be returned.
-                if (local_mem_if.r.user[USER_WIDTH-1 : LM_AXI_UFLAG_MAX+1] !== rd_rsp_user)
+                if (local_mem_if.r.user[USER_WIDTH-1 : LM_AFU_USER_START] !== rd_rsp_user)
                 begin
                     // synthesis translate_off
                     $display("** ERROR ** %m: r.user is 0x%x, expected 0x%x",
-                             { local_mem_if.r.user[USER_WIDTH-1 : LM_AXI_UFLAG_MAX+1], t_lm_axi_user_flags'(0) },
-                             { rd_rsp_user, t_lm_axi_user_flags'(0) });
+                             { local_mem_if.r.user[USER_WIDTH-1 : LM_AFU_USER_START], t_user_dev'(0) },
+                             { rd_rsp_user, t_user_dev'(0) });
                     // synthesis translate_on
 
                     rd_user_error <= 1'b1;
@@ -523,7 +526,7 @@ module local_mem_engine_axi
         local_mem_if.aw.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.aw.len = wr_flits_left - 1;
         local_mem_if.aw.id = wr_req_id;
-        local_mem_if.aw.user = { wr_req_user, t_lm_axi_user_flags'(0) };
+        local_mem_if.aw.user = { wr_req_user, t_user_dev'(0) };
 
         local_mem_if.wvalid = do_write_line;
         local_mem_if.w = '0;
@@ -582,12 +585,12 @@ module local_mem_engine_axi
                 // Only check the part of b.user above the flag bits.
                 // Flags are used to trigger fences, interrupts, etc. and are not
                 // guaranteed to be returned.
-                if (local_mem_if.b.user[USER_WIDTH-1 : LM_AXI_UFLAG_MAX+1] !== wr_rsp_user)
+                if (local_mem_if.b.user[USER_WIDTH-1 : LM_AFU_USER_START] !== wr_rsp_user)
                 begin
                     // synthesis translate_off
                     $display("** ERROR ** %m: b.user is 0x%x, expected 0x%x",
-                             { local_mem_if.b.user[USER_WIDTH-1 : LM_AXI_UFLAG_MAX+1], t_lm_axi_user_flags'(0) },
-                             { wr_rsp_user, t_lm_axi_user_flags'(0) });
+                             { local_mem_if.b.user[USER_WIDTH-1 : LM_AFU_USER_START], t_user_dev'(0) },
+                             { wr_rsp_user, t_user_dev'(0) });
                     // synthesis translate_on
 
                     wr_user_error <= 1'b1;

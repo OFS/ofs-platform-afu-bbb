@@ -40,7 +40,11 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     // commit? Some Avalon sinks may not generate write responses.
     // With LOCAL_WR_RESPONSE set, write responses are generated as
     // soon as write requests win arbitration.
-    parameter LOCAL_WR_RESPONSE = 0
+    parameter LOCAL_WR_RESPONSE = 0,
+
+    // When LOCAL_WR_RESPONSE is set, preserve USER field? This
+    // field is ignored when LOCAL_WR_RESPONSE is 0.
+    parameter PRESERVE_WR_RESPONSE_USER = 1
     )
    (
     ofs_plat_avalon_mem_if.to_sink mem_sink,
@@ -245,7 +249,11 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
             mem_source.wr_writeresponsevalid <= arb_grant_write && !mem_sink.waitrequest &&
                                                 !wr_burst_active;
             mem_source.wr_response <= '0;
-            mem_source.wr_writeresponseuser <= wr_req.user;
+
+            if (PRESERVE_WR_RESPONSE_USER != 0)
+                mem_source.wr_writeresponseuser <= wr_req.user;
+            else
+                mem_source.wr_writeresponseuser <= '0;
         end
 
         if (!reset_n)

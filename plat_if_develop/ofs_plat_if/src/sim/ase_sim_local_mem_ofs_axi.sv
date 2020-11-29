@@ -186,7 +186,8 @@ module ase_sim_local_mem_ofs_axi
 
             ofs_plat_axi_mem_if_to_avalon_rdwr_if
               #(
-                .GEN_RD_RESPONSE_METADATA(1)
+                .GEN_RD_RESPONSE_METADATA(1),
+                .PRESERVE_RESPONSE_USER(0)
                 )
               map_to_avmm_rdwr
                (
