@@ -42,6 +42,9 @@
 // and returning them with responses. The code assumes responses are returned
 // in request order.
 //
+// Since the module assumes in-order responses, it can also preserve extra
+// ID bits if the AFU's ARID or AWID field is wider than the FIM's.
+//
 
 module ofs_plat_axi_mem_if_user_ext
   #(
@@ -70,19 +73,31 @@ module ofs_plat_axi_mem_if_user_ext
     localparam USER_WIDTH = mem_source.USER_WIDTH;
     typedef logic [USER_WIDTH-1 : 0] t_user;
 
+    localparam RID_WIDTH = mem_source.RID_WIDTH;
+    typedef logic [RID_WIDTH-1 : 0] t_rid;
+    // Common portion of RID (the smaller of sink and source)
+    localparam RID_COMMON_WIDTH = (RID_WIDTH < mem_sink.RID_WIDTH) ? RID_WIDTH : mem_sink.RID_WIDTH;
+
+    localparam WID_WIDTH = mem_source.WID_WIDTH;
+    typedef logic [WID_WIDTH-1 : 0] t_wid;
+    localparam WID_COMMON_WIDTH = (WID_WIDTH < mem_sink.WID_WIDTH) ? WID_WIDTH : mem_sink.WID_WIDTH;
+
     localparam FIM_USER_START = ofs_plat_local_mem_axi_mem_pkg::LM_AXI_UFLAG_WIDTH;
 
 
     //
-    // Track read request/response user fields.
+    // Track read request/response user and ID fields. The whole field is tracked,
+    // though not all is required since the FIM will return some. Quartus will
+    // drop the unconsumed portion.
     //
     logic rd_fifo_notFull;
     t_user rd_fifo_user;
+    t_rid rd_fifo_rid;
     logic rd_fifo_deq;
 
     ofs_plat_prim_fifo_bram
       #(
-        .N_DATA_BITS(USER_WIDTH),
+        .N_DATA_BITS(RID_WIDTH + USER_WIDTH),
         .N_ENTRIES(RD_FIFO_ENTRIES)
         )
       rd_fifo
@@ -91,11 +106,11 @@ module ofs_plat_axi_mem_if_user_ext
         .reset_n,
 
         .enq_en(mem_source.arvalid && mem_source.arready),
-        .enq_data(mem_source.ar.user),
+        .enq_data({ mem_source.ar.id, mem_source.ar.user }),
         .notFull(rd_fifo_notFull),
         .almostFull(),
 
-        .first(rd_fifo_user),
+        .first({ rd_fifo_rid, rd_fifo_user }),
         .deq_en(mem_source.rvalid && mem_source.rready && mem_source.r.last),
         // FIFO must have data. The FIFO primitive will generate an error
         // (in simulation) if this isn't true.
@@ -104,14 +119,15 @@ module ofs_plat_axi_mem_if_user_ext
 
 
     //
-    // Track write request/response user fields.
+    // Track write request/response user and ID fields.
     //
     logic wr_fifo_notFull;
     t_user wr_fifo_user;
+    t_wid wr_fifo_wid;
 
     ofs_plat_prim_fifo_bram
       #(
-        .N_DATA_BITS(USER_WIDTH),
+        .N_DATA_BITS(WID_WIDTH + USER_WIDTH),
         .N_ENTRIES(WR_FIFO_ENTRIES)
         )
       wr_fifo
@@ -120,11 +136,11 @@ module ofs_plat_axi_mem_if_user_ext
         .reset_n,
 
         .enq_en(mem_source.awvalid && mem_source.awready),
-        .enq_data(mem_source.aw.user),
+        .enq_data({ mem_source.aw.id, mem_source.aw.user }),
         .notFull(wr_fifo_notFull),
         .almostFull(),
 
-        .first(wr_fifo_user),
+        .first({ wr_fifo_wid, wr_fifo_user }),
         .deq_en(mem_source.bvalid && mem_source.bready),
         // FIFO must have data. The FIFO primitive will generate an error
         // (in simulation) if this isn't true.
@@ -151,6 +167,8 @@ module ofs_plat_axi_mem_if_user_ext
         `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_source.b, =, mem_sink.b);
         mem_source.b.user = wr_fifo_user;
         mem_source.b.user[FIM_USER_START +: FIM_USER_WIDTH] = mem_sink.b.user[FIM_USER_START +: FIM_USER_WIDTH];
+        mem_source.b.id = wr_fifo_wid;
+        mem_source.b.id[WID_COMMON_WIDTH-1 : 0] = mem_sink.b.id;
 
 
         mem_sink.arvalid = mem_source.arvalid;
@@ -162,6 +180,8 @@ module ofs_plat_axi_mem_if_user_ext
         `OFS_PLAT_AXI_MEM_IF_COPY_R(mem_source.r, =, mem_sink.r);
         mem_source.r.user = rd_fifo_user;
         mem_source.r.user[FIM_USER_START +: FIM_USER_WIDTH] = mem_sink.r.user[FIM_USER_START +: FIM_USER_WIDTH];
+        mem_source.r.id = rd_fifo_rid;
+        mem_source.r.id[RID_COMMON_WIDTH-1 : 0] = mem_sink.r.id;
     end
 
 endmodule // ofs_plat_axi_mem_if_user_ext

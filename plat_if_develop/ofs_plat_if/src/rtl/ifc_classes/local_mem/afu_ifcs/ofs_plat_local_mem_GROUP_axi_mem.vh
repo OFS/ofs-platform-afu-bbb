@@ -55,15 +55,9 @@
 //       )
 //     local_mem_to_afu[local_mem_@group@_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 //
-// ID fields are included in the definition because the fields
-// may reach all the way to the FIM's native AXI memory implementaiton.
-// Allowing an AFU to pick wider fields could result in lost ID
-// data.
 `define LOCAL_MEM_@GROUP@_AXI_MEM_PARAMS \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH), \
-    .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
-    .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH), \
-    .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH)
+    .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH)
 
 // The default AXI interface exposes only data bits, not ECC. This
 // version exposes ECC along with data, calling it all "data".
@@ -73,8 +67,6 @@
 `define LOCAL_MEM_@GROUP@_AXI_MEM_PARAMS_FULL_BUS \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH), \
-    .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH), \
-    .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH), \
     .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH)
 
 //
@@ -85,15 +77,11 @@
 `define LOCAL_MEM_@GROUP@_AXI_MEM_PARAMS_DEFAULT \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
-    .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH), \
-    .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH), \
     .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH-1)
 
 `define LOCAL_MEM_@GROUP@_AXI_MEM_PARAMS_FULL_BUS_DEFAULT \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH), \
-    .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH), \
-    .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH), \
     .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH), \
     .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH-1)
 

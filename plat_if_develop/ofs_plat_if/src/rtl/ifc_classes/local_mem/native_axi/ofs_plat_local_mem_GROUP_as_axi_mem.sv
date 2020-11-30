@@ -74,31 +74,6 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_axi_mem_if.to_source_clk to_afu
     );
 
-    //
-    // Compile-time parameter check.
-    //
-    // AWID and ARID fields are returned by logic in the FIM, so their maximum
-    // width is fixed by the FIM's parameters. We could add complexity to the PIM to
-    // allow wider values, but it would require building tables and renumbering
-    // AWID and ARID. AFUs could do this without the PIM. The current PIM
-    // implementation does not support AFU fields wider than FIM fields and
-    // triggers an error here during compilation in order to avoid ID tag
-    // data loss.
-    //
-    generate
-        if (to_afu.RID_WIDTH > to_fiu.RID_WIDTH)
-        begin : rid_err
-            // Compilation error: RID_WIDTH from AFU is larger than FIM field
-            illegal_RID_WIDTH_error fatal_error(); // Non-existent module - force compilation error
-        end
-
-        if (to_afu.WID_WIDTH > to_fiu.WID_WIDTH)
-        begin : wid_err
-            // Compilation error: WID_WIDTH from AFU is larger than FIM field
-            illegal_WID_WIDTH_error fatal_error(); // Non-existent module - force compilation error
-        end
-    endgenerate
-
 
     //
     // How many register stages should be inserted for timing?
@@ -179,15 +154,16 @@ module ofs_plat_local_mem_@group@_as_axi_mem
 
 
     //
-    // Preserve AFU user bits and return them with responses. The PIM adds
-    // extra state to AXI user fields that devices may not implement.
+    // Preserve AFU user and extra ID bits and return them with responses.
+    // The PIM adds extra state to AXI user fields that devices may not
+    // implement.
     //
     ofs_plat_axi_mem_if
       #(
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(to_afu),
         .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
-        .RID_WIDTH(to_afu.RID_WIDTH_),
-        .WID_WIDTH(to_afu.WID_WIDTH_),
+        .RID_WIDTH(to_fiu.RID_WIDTH_),
+        .WID_WIDTH(to_fiu.WID_WIDTH_),
         .USER_WIDTH(to_fiu.USER_WIDTH_)
         )
       axi_fiu_user_if();
