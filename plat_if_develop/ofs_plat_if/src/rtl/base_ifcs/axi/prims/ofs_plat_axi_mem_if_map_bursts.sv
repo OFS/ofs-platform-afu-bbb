@@ -44,7 +44,7 @@ module ofs_plat_axi_mem_if_map_bursts
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0,
 
-    // Set to a page size if the sink must avoid bursts that cross pages.
+    // Set to a page size (bytes) if the sink must avoid bursts that cross pages.
     parameter PAGE_SIZE = 0
     )
    (
@@ -127,7 +127,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0,
 
-    // Set to a page size if the sink must avoid bursts that cross pages.
+    // Set to a page size (bytes) if the sink must avoid bursts that cross pages.
     parameter PAGE_SIZE = 0
     )
    (
@@ -180,7 +180,8 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
         .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
         .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
-        .PAGE_SIZE(PAGE_SIZE)
+        // Map page size to lines
+        .PAGE_SIZE(PAGE_SIZE >> ADDR_START)
         )
        rd_gearbox
         (
@@ -209,7 +210,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         // request is from the source (and thus completes a source
         // read request) or is generated here and should not get an
         // r.last tag.
-        mem_sink.ar.user[UFLAG_NO_REPLY] = !rd_complete;
+        mem_sink.ar.user[UFLAG_NO_REPLY] = !rd_complete || mem_source_reg.ar.user[UFLAG_NO_REPLY];
     end
 
     // Register read request state coming from the source that isn't held
@@ -275,7 +276,8 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
         .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
         .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
-        .PAGE_SIZE(PAGE_SIZE)
+        // Map page size to lines
+        .PAGE_SIZE(PAGE_SIZE >> ADDR_START)
         )
        wr_gearbox
         (
@@ -303,7 +305,7 @@ module ofs_plat_axi_mem_if_map_bursts_impl
         // Set a bit in aw.user to indicate whether a write
         // request is from the source (and should get a response) or
         // generated here and the response should be squashed.
-        mem_sink.aw.user[UFLAG_NO_REPLY] = !wr_complete;
+        mem_sink.aw.user[UFLAG_NO_REPLY] = !wr_complete || mem_source_reg.aw.user[UFLAG_NO_REPLY];
     end
 
     // Register write request state coming from the source that isn't held

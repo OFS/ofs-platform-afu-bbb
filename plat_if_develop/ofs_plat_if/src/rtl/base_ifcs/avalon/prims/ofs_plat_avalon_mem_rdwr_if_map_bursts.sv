@@ -45,7 +45,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     // the burst size.
     parameter NATURAL_ALIGNMENT = 0,
 
-    // Set to a page size if the sink must avoid bursts that cross pages.
+    // Set to a page size (bytes) if the sink must avoid bursts that cross pages.
     parameter PAGE_SIZE = 0
     )
    (
@@ -111,7 +111,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
                 .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
                 .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
-                .PAGE_SIZE(PAGE_SIZE)
+                // Map page size to lines
+                .PAGE_SIZE(PAGE_SIZE / (DATA_WIDTH / 8))
                 )
                rd_gearbox
                 (
@@ -138,7 +139,6 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                     mem_sink.rd_read <= mem_source.rd_read;
                     mem_sink.rd_byteenable <= mem_source.rd_byteenable;
                     mem_sink.rd_user <= mem_source.rd_user;
-                    mem_sink.rd_user[UFLAG_NO_REPLY] <= 1'b0;
                 end
 
                 if (!reset_n)
@@ -173,7 +173,8 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
                 .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
                 .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
                 .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
-                .PAGE_SIZE(PAGE_SIZE)
+                // Map page size to lines
+                .PAGE_SIZE(PAGE_SIZE / (DATA_WIDTH / 8))
                 )
                wr_gearbox
                 (
@@ -223,7 +224,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             always_comb
             begin
                 mem_sink.wr_user = s_wr_user;
-                mem_sink.wr_user[UFLAG_NO_REPLY] = !(wr_complete && s_wr_sop);
+                mem_sink.wr_user[UFLAG_NO_REPLY] = !(wr_complete && s_wr_sop) || s_wr_user[UFLAG_NO_REPLY];
             end
 
             ofs_plat_prim_burstcount1_sop_tracker

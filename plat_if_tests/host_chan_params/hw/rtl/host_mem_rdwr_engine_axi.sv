@@ -535,7 +535,7 @@ module host_mem_rdwr_engine_axi
         host_mem_if.w.data[$bits(t_data)-1 -: 64] = 64'hdeadbeef;
         host_mem_if.w.data[63 : 0] = 64'(wr_base_addr + wr_cur_addr_offset);
         host_mem_if.w.strb = wr_data_mask;
-        host_mem_if.w.last = wr_eop;
+        host_mem_if.w.last = (wr_eop || wr_done);
     end
 
     assign do_write_line = ((state_run && (!wr_done || !wr_fence_done) && !wr_line_quota_exceeded) || !wr_sop) &&

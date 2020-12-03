@@ -540,9 +540,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
-        // Don't allow packets to cross 4KB pages due to PCIe requirement. PAGE_SIZE
-        // is translated here to the width of the Avalon data bus.
-        .PAGE_SIZE(4096 / (host_mem_to_afu.DATA_WIDTH_ / 8))
+        // Don't allow packets to cross 4KB pages due to PCIe requirement.
+        .PAGE_SIZE(4096)
         )
       rob
        (
