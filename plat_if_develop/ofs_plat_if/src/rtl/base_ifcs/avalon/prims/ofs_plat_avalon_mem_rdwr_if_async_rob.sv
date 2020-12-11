@@ -46,7 +46,13 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
 
     // First bit in the sink's user fields where the ROB indices should be
     // stored.
-    parameter USER_ROB_IDX_START = 0
+    parameter USER_ROB_IDX_START = 0,
+
+    // When non-zero, the write channel is blocked when the read channel runs
+    // out of credits. On some channels, such as PCIe TLP, blocking writes along
+    // with reads solves a fairness problem caused by writes not having either
+    // tags or completions.
+    parameter BLOCK_WRITE_WITH_READ = 0
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
@@ -73,8 +79,22 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
 
     logic rd_req_en;
     t_sink_user rd_allocIdx;
-    logic rd_rob_notFull;
+    logic rd_rob_notFull_cur, rd_rob_notFull;
     logic rd_fifo_notFull;
+
+    // Debounce rd_rob_notFull by disallowing back-to-back notFull after
+    // a transition from full to notFull. Because the ROB maintains multiple
+    // slots per request for multi-line reads, there is some pipelining in the
+    // notFull calculation. Making it more regular helps with the read/write
+    // synchronization when BLOCK_WRITE_WITH_READ is set.
+    logic rd_rob_wasFull, rd_rob_notFull_q;
+    assign rd_rob_notFull = rd_rob_notFull_cur && !rd_rob_wasFull;
+
+    always_ff @(posedge mem_source.clk)
+    begin
+        rd_rob_notFull_q <= rd_rob_notFull_cur;
+        rd_rob_wasFull <= !rd_rob_notFull_q && rd_rob_notFull_cur;
+    end
 
     logic rd_readdatavalid, rd_readdatavalid_q;
 
@@ -107,7 +127,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
         .alloc_en(rd_req_en),
         .allocCnt(mem_source.rd_burstcount),
         .allocMeta(mem_source.rd_user),
-        .notFull(rd_rob_notFull),
+        .notFull(rd_rob_notFull_cur),
         .allocIdx(rd_next_allocIdx),
         .inSpaceAvail(),
 
@@ -233,17 +253,18 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     logic wr_req_en;
     logic wr_rob_notFull;
     logic wr_fifo_notFull;
+    logic wr_sop;
 
     logic wr_writeresponsevalid, wr_writeresponsevalid_q;
 
-    assign mem_source.wr_waitrequest = !wr_rob_notFull || !wr_fifo_notFull;
-    assign wr_req_en = mem_source.wr_write && wr_rob_notFull && wr_fifo_notFull;
+    assign mem_source.wr_waitrequest =
+        !wr_rob_notFull || !wr_fifo_notFull ||
+        ((BLOCK_WRITE_WITH_READ != 0) ? (!rd_rob_notFull && wr_sop) : 1'b0);
+    assign wr_req_en = mem_source.wr_write && !mem_source.wr_waitrequest;
 
     //
     // Track write SOP. ROB slots are needed only on start of packet.
     //
-    logic wr_sop;
-
     ofs_plat_prim_burstcount1_sop_tracker
       #(
         .BURST_CNT_WIDTH(mem_source.BURST_CNT_WIDTH)

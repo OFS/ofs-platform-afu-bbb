@@ -541,7 +541,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
         // Don't allow packets to cross 4KB pages due to PCIe requirement.
-        .PAGE_SIZE(4096)
+        .PAGE_SIZE(4096),
+        .BLOCK_WRITE_WITH_READ(1)
         )
       rob
        (

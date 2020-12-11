@@ -134,6 +134,61 @@ module ofs_plat_host_chan_@group@_as_ccip
 
 
     // ====================================================================
+    //  Throttle write credits
+    // ====================================================================
+
+    //
+    // With PCIe TLP interfaces, writes have neither tags nor completions.
+    // This enables them to fill the request pipeline, starving reads.
+    // Blocking the write pipeline here when the read pipeline is blocked
+    // solves the problem.
+    //
+
+    ofs_plat_host_ccip_if wr_credit_ccip_if();
+
+    assign afu_clk_ccip_if.clk = wr_credit_ccip_if.clk;
+    assign afu_clk_ccip_if.reset_n = wr_credit_ccip_if.reset_n;
+    assign afu_clk_ccip_if.error = wr_credit_ccip_if.error;
+    assign afu_clk_ccip_if.instance_number = wr_credit_ccip_if.instance_number;
+
+    // Only force c1TxAlmFull on SOP
+    logic wr_credit_is_sop, wr_credit_is_eop;
+
+    always_comb
+    begin
+        wr_credit_ccip_if.sTx = afu_clk_ccip_if.sTx;
+
+        afu_clk_ccip_if.sRx = wr_credit_ccip_if.sRx;
+        afu_clk_ccip_if.sRx.c1TxAlmFull = wr_credit_ccip_if.sRx.c1TxAlmFull ||
+                                          (wr_credit_ccip_if.sRx.c0TxAlmFull && wr_credit_is_sop);
+    end
+
+    always_ff @(posedge wr_credit_ccip_if.clk)
+    begin
+        if (wr_credit_ccip_if.sTx.c1.valid)
+        begin
+            wr_credit_is_sop <= wr_credit_is_eop;
+        end
+
+        if (!wr_credit_ccip_if.reset_n)
+        begin
+            wr_credit_is_sop <= 1'b1;
+        end
+    end
+
+    ofs_plat_utils_ccip_track_multi_write track_eop
+       (
+        .clk(wr_credit_ccip_if.clk),
+        .reset_n(wr_credit_ccip_if.reset_n),
+        .c1Tx(wr_credit_ccip_if.sTx.c1),
+        .c1Tx_en(1'b1),
+        .eop(wr_credit_is_eop),
+        .packetActive(),
+        .nextBeatNum()
+        );
+
+
+    // ====================================================================
     //  Convert CCI-P signals from the AFU to the FIU clock domain.
     // ====================================================================
 
@@ -145,7 +200,7 @@ module ofs_plat_host_chan_@group@_as_ccip
             // No clock crossing
             ofs_plat_ccip_if_connect conn
                (
-                .to_afu(afu_clk_ccip_if),
+                .to_afu(wr_credit_ccip_if),
                 .to_fiu(rd_ccip_if)
                 );
         end
@@ -160,7 +215,7 @@ module ofs_plat_host_chan_@group@_as_ccip
                (
                 .afu_clk,
                 .afu_reset_n,
-                .to_afu(afu_clk_ccip_if),
+                .to_afu(wr_credit_ccip_if),
 
                 .to_fiu(rd_ccip_if),
 

@@ -49,7 +49,13 @@ module ofs_plat_map_axi_mem_if_to_host_mem
 
     // Sizes of the response buffers in the ROB and clock crossing.
     parameter MAX_ACTIVE_RD_LINES = 256,
-    parameter MAX_ACTIVE_WR_LINES = 256
+    parameter MAX_ACTIVE_WR_LINES = 256,
+
+    // When non-zero, the write channel is blocked when the read channel runs
+    // out of credits. On some channels, such as PCIe TLP, blocking writes along
+    // with reads solves a fairness problem caused by writes not having either
+    // tags or completions.
+    parameter BLOCK_WRITE_WITH_READ = 0
     )
    (
     // mem_source parameters should match the source's field widths.
@@ -109,7 +115,8 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     ofs_plat_axi_mem_if_rsp_credits
       #(
         .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
+        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES),
+        .BLOCK_WRITE_WITH_READ(BLOCK_WRITE_WITH_READ)
         )
       rsp_credits
        (

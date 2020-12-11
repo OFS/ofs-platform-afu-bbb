@@ -502,7 +502,10 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     end
     // synthesis translate_on
 
-    ofs_plat_avalon_mem_rdwr_if_connect_sink_clk
+    ofs_plat_avalon_mem_rdwr_if_reg_sink_clk
+      #(
+        .N_REG_STAGES(1)
+        )
       conn_afu_clk
        (
         .mem_source(host_mem_to_afu),
@@ -554,9 +557,10 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
         .USER_ROB_IDX_START(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1),
         // Don't allow packets to cross 4KB pages due to PCIe requirement.
-        .PAGE_SIZE(4096)
+        .PAGE_SIZE(4096),
+        .BLOCK_WRITE_WITH_READ(1)
         )
-      rob
+      hc
        (
         .mem_source(avmm_afu_clk_if),
         .mem_sink(avmm_fiu_clk_if)

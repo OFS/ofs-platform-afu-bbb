@@ -51,6 +51,12 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
     parameter MAX_ACTIVE_RD_LINES = 256,
     parameter MAX_ACTIVE_WR_LINES = 256,
 
+    // When non-zero, the write channel is blocked when the read channel runs
+    // out of credits. On some channels, such as PCIe TLP, blocking writes along
+    // with reads solves a fairness problem caused by writes not having either
+    // tags or completions.
+    parameter BLOCK_WRITE_WITH_READ = 0,
+
     // First bit in the user fields where the ROB indices should be stored.
     parameter USER_ROB_IDX_START = 0
     )
@@ -101,7 +107,8 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES),
-        .USER_ROB_IDX_START(USER_ROB_IDX_START)
+        .USER_ROB_IDX_START(USER_ROB_IDX_START),
+        .BLOCK_WRITE_WITH_READ(BLOCK_WRITE_WITH_READ)
         )
       rob
        (

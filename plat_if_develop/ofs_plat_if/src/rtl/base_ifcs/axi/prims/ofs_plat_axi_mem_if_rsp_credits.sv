@@ -39,7 +39,13 @@
 module ofs_plat_axi_mem_if_rsp_credits
   #(
     parameter NUM_READ_CREDITS = 256,
-    parameter NUM_WRITE_CREDITS = 128
+    parameter NUM_WRITE_CREDITS = 128,
+
+    // When non-zero, the write channel is blocked when the read channel runs
+    // out of credits. On some channels, such as PCIe TLP, blocking writes along
+    // with reads solves a fairness problem caused by writes not having either
+    // tags or completions.
+    parameter BLOCK_WRITE_WITH_READ = 0
     )
    (
     ofs_plat_axi_mem_if.to_sink mem_sink,
@@ -50,6 +56,8 @@ module ofs_plat_axi_mem_if_rsp_credits
     assign clk = mem_sink.clk;
     logic reset_n;
     assign reset_n = mem_sink.reset_n;
+
+    logic rd_credits_available;
 
     // synthesis translate_off
     `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_sink, mem_source)
@@ -97,7 +105,8 @@ module ofs_plat_axi_mem_if_rsp_credits
         .notEmpty(wr_req_valid)
         );
 
-    assign mem_sink.awvalid = wr_req_valid && (n_wr_credits != t_wr_credits'(0));
+    assign mem_sink.awvalid = wr_req_valid && (n_wr_credits != t_wr_credits'(0)) &&
+                              ((BLOCK_WRITE_WITH_READ != 0) ? rd_credits_available : 1'b1);
     assign fwd_wr_req = mem_sink.awvalid && mem_sink.awready;
 
     // Track write responses. Add a pipeline stage for timing since single
@@ -151,7 +160,8 @@ module ofs_plat_axi_mem_if_rsp_credits
         .notEmpty(rd_req_valid)
         );
 
-    assign mem_sink.arvalid = rd_req_valid && (n_rd_credits >= t_wr_credits'(MAX_RD_PER_REQ));
+    assign rd_credits_available = (n_rd_credits >= t_wr_credits'(MAX_RD_PER_REQ));
+    assign mem_sink.arvalid = rd_req_valid && rd_credits_available;
     assign fwd_rd_req = mem_sink.arvalid && mem_sink.arready;
 
     // Track read responses. Add a pipeline stage for timing since single
