@@ -639,7 +639,6 @@ testSmallRegions(
                 // and the engine active flag going high. Execution is done when
                 // the engine is enabled and the active flag goes low.
                 struct timespec wait_time;
-                // Poll less often in simulation
                 wait_time.tv_sec = 0;
                 wait_time.tv_nsec = 1000000;
                 uint64_t wait_nsec = 0;
@@ -860,15 +859,15 @@ printBandwidth(
 
     if (! write_lines)
     {
-        printf("  Read GB/s:  %0.2f\n", read_bw);
+        printf("  Read GiB/s:  %0.2f\n", read_bw);
     }
     else if (! read_lines)
     {
-        printf("  Write GB/s: %0.2f\n", write_bw);
+        printf("  Write GiB/s: %0.2f\n", write_bw);
     }
     else
     {
-        printf("  R+W GB/s:   %0.2f (read %0.2f, write %0.2f)\n",
+        printf("  R+W GiB/s:   %0.2f (read %0.2f, write %0.2f)\n",
                read_bw + write_bw, read_bw, write_bw);
     }
 
@@ -982,7 +981,7 @@ printLatencyAndBandwidth(
 
     if (print_header)
     {
-        printf("Read GB/s, Write GB/s, Read Inflight Lines Limit, Read Max Measured Inflight Lines, "
+        printf("Read GiB/s, Write GiB/s, Read Inflight Lines Limit, Read Max Measured Inflight Lines, "
                "FIM Read Max Measured Inflight Lines, Write Inflight Lines Limit, "
                "Read Avg Latency ns, FIM Read Avg Latency ns, Write Avg Latency ns\n");
     }
