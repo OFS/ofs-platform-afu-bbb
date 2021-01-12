@@ -36,6 +36,10 @@
 `include "ofs_plat_if.vh"
 
 module ofs_plat_host_chan_@group@_gen_rd_tlps
+  #(
+    // Does the platform allow more than one read request in a single TLP vector?
+    parameter ALLOW_DUAL_RD_REQS = 0
+    )
    (
     input  logic clk,
     input  logic reset_n,
@@ -58,6 +62,11 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     // generate the AFU response. The tag is released for reuse in the
     // read pipeline below. (t_dma_rd_tag)
     ofs_plat_axi_stream_if.to_sink wr_fence_cpl,
+
+    // Are CPLD tags still available? If not, reads will block until a
+    // response arrives. This port exists for tuning of read/write
+    // arbitration. It is not required for correct functioning.
+    output logic tlp_cpld_tag_available,
 
     output logic error
     );
@@ -138,6 +147,11 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         .free_uid(free_tlp_tag_value)
         );
 
+    always_ff @(posedge clk)
+    begin
+        tlp_cpld_tag_available <= req_tlp_tag_ready;
+    end
+
 
     // ====================================================================
     //
@@ -187,9 +201,13 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     //
     // ====================================================================
 
+    logic allow_ch1_req;
+    assign allow_ch1_req = (ALLOW_DUAL_RD_REQS != 0);
+
     assign rd_req_deq = rd_req_notEmpty &&
                         req_tlp_tag_ready &&
-                        (tx_rd_tlps.tready || !tx_rd_tlps.tvalid);
+                        ((tx_rd_tlps.tready || !tx_rd_tlps.tvalid) ||
+                         (allow_ch1_req && tx_rd_tlps.tvalid && !tx_rd_tlps.t.data[1].valid));
     assign tx_rd_tlps.t.user = '0;
 
     ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tlp_mem_hdr;
@@ -228,6 +246,14 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             tx_rd_tlps.t.data[0].eop <= rd_req_notEmpty;
 
             tx_rd_tlps.t.data[0].hdr <= tlp_mem_hdr;
+        end
+        else if (allow_ch1_req && !tx_rd_tlps.t.data[1].valid && req_tlp_tag_ready)
+        begin
+            tx_rd_tlps.t.data[1].valid <= rd_req_notEmpty;
+            tx_rd_tlps.t.data[1].sop <= rd_req_notEmpty;
+            tx_rd_tlps.t.data[1].eop <= rd_req_notEmpty;
+
+            tx_rd_tlps.t.data[1].hdr <= tlp_mem_hdr;
         end
 
         if (!reset_n)

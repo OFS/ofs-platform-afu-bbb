@@ -12,7 +12,7 @@ mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 
-set ylabel "Bandwidth (GB/s)" offset 1,0 font ",15"
+set ylabel "Bandwidth (GiB/s)" offset 1,0 font ",15"
 set y2label "Latency (ns)" offset -1.75,0 font ",15"
 set xlabel "Maximum Outstanding Lines" font ",15"
 
@@ -21,6 +21,7 @@ set boxwidth 0.8
 set xtics out font ",12"
 
 set ytics out nomirror font ",12"
+set mytics 4
 set y2tics out font ",12"
 
 set yrange [0:]
@@ -30,6 +31,9 @@ set bmargin 0.5
 set tmargin 0.5
 set lmargin 3.0
 set rmargin 6.25
+
+set grid ytics mytics
+set grid xtics
 
 set key on inside bottom right width 2 samplen 4 spacing 1.5 font ",14"
 set style fill pattern

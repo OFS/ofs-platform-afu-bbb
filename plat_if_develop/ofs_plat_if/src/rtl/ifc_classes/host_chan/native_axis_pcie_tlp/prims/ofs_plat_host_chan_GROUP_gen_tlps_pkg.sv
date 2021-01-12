@@ -39,14 +39,6 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
 
-    // The PIM maintains a logical number of PCIe channels that is a
-    // function of the channel payload width and the PIM's view of the
-    // host channel data width. This makes it easier to deal with AFU
-    // line sizes that are wider than a single PCIe channel. The PIM's
-    // channel width is mapped to the FIU's width at the FIU edge.
-    localparam NUM_PIM_PCIE_TLP_CH = ofs_plat_host_chan_@group@_pkg::DATA_WIDTH /
-                                     ofs_plat_host_chan_@group@_pcie_tlp_pkg::FIU_PCIE_TLP_CH_PW;
-
     typedef t_ofs_plat_axis_pcie_tdata [NUM_PIM_PCIE_TLP_CH-1 : 0] t_gen_tx_tlp_vec;
     typedef t_ofs_plat_axis_pcie_tx_tuser [NUM_PIM_PCIE_TLP_CH-1 : 0] t_gen_tx_tlp_user_vec;
 

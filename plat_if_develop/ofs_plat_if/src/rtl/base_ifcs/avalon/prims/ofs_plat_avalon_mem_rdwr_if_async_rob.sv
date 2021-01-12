@@ -112,13 +112,22 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     logic rd_rsp_is_sop;
     t_source_user rd_readresponseuser, rd_readresponseuser_sop;
 
+    // Limit allocation in the ROB to MAX_ACTIVE_RD_LINES. Using less space
+    // may seem counterintuitive, but MAX_ACTIVE_RD_LINES is already enough
+    // for full throughput. Allowing more just increases latency.
+    localparam RD_ROB_MAX_ALLOC_PER_CYCLE = 1 << (mem_sink.BURST_CNT_WIDTH - 1);
+    localparam RD_ROB_EXCESS_SLOTS = RD_ROB_N_ENTRIES - MAX_ACTIVE_RD_LINES;
+    localparam RD_ROB_MIN_FREE_SLOTS = (RD_ROB_EXCESS_SLOTS > RD_ROB_MAX_ALLOC_PER_CYCLE) ?
+                                       RD_ROB_EXCESS_SLOTS : RD_ROB_MAX_ALLOC_PER_CYCLE;
+
     ofs_plat_prim_rob_maybe_dc
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(RD_ROB_N_ENTRIES),
         .N_DATA_BITS(1 + mem_sink.RESPONSE_WIDTH + DATA_WIDTH),
         .N_META_BITS(SOURCE_USER_WIDTH),
-        .MAX_ALLOC_PER_CYCLE(1 << (mem_sink.BURST_CNT_WIDTH - 1))
+        .MAX_ALLOC_PER_CYCLE(RD_ROB_MAX_ALLOC_PER_CYCLE),
+        .MIN_FREE_SLOTS(RD_ROB_MIN_FREE_SLOTS)
         )
       rd_rob
        (
@@ -288,13 +297,20 @@ module ofs_plat_avalon_mem_rdwr_if_async_rob
     typedef logic [$clog2(WR_ROB_N_ENTRIES)-1 : 0] t_wr_rob_idx;
     t_wr_rob_idx wr_next_allocIdx;
 
+    // Limit allocation in the ROB to MAX_ACTIVE_WR_LINES.
+    localparam WR_ROB_MAX_ALLOC_PER_CYCLE = 1;
+    localparam WR_ROB_EXCESS_SLOTS = WR_ROB_N_ENTRIES - MAX_ACTIVE_WR_LINES;
+    localparam WR_ROB_MIN_FREE_SLOTS = (WR_ROB_EXCESS_SLOTS > WR_ROB_MAX_ALLOC_PER_CYCLE) ?
+                                       WR_ROB_EXCESS_SLOTS : WR_ROB_MAX_ALLOC_PER_CYCLE;
+
     ofs_plat_prim_rob_maybe_dc
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(WR_ROB_N_ENTRIES),
         .N_DATA_BITS(mem_sink.RESPONSE_WIDTH),
         .N_META_BITS(SOURCE_USER_WIDTH),
-        .MAX_ALLOC_PER_CYCLE(1)
+        .MAX_ALLOC_PER_CYCLE(WR_ROB_MAX_ALLOC_PER_CYCLE),
+        .MIN_FREE_SLOTS(WR_ROB_MIN_FREE_SLOTS)
         )
       wr_rob
        (

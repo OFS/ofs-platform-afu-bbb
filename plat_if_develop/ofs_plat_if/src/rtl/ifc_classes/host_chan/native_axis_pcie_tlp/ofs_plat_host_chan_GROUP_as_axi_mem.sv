@@ -454,12 +454,10 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     input  logic afu_reset_n
     );
 
-    parameter int MAX_BW_ACTIVE_RD_LINES =
-                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_RD /
-                      ofs_plat_host_chan_@group@_gen_tlps_pkg::NUM_PIM_PCIE_TLP_CH;
-    parameter int MAX_BW_ACTIVE_WR_LINES =
-                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_WR /
-                      ofs_plat_host_chan_@group@_gen_tlps_pkg::NUM_PIM_PCIE_TLP_CH;
+    localparam int MAX_BW_ACTIVE_RD_LINES =
+                       ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_BW_ACTIVE_RD_LINES;
+    localparam int MAX_BW_ACTIVE_WR_LINES =
+                       ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_BW_ACTIVE_WR_LINES;
 
     // ====================================================================
     //  Bind the proper clock to the AFU interface. If there is no clock
@@ -541,8 +539,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
         // Don't allow packets to cross 4KB pages due to PCIe requirement.
-        .PAGE_SIZE(4096),
-        .BLOCK_WRITE_WITH_READ(1)
+        .PAGE_SIZE(4096)
         )
       rob
        (

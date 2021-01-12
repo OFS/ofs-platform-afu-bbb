@@ -297,6 +297,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // Write fence completions
     `AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
 
+    logic rd_cpld_tag_available;
+
     ofs_plat_host_chan_@group@_gen_rd_tlps rd_req_to_tlps
        (
         .clk,
@@ -317,6 +319,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         // Tags of write fence responses (dataless completion TLP)
         .wr_fence_cpl,
 
+        .tlp_cpld_tag_available(rd_cpld_tag_available),
         .error()
         );
 
@@ -370,6 +373,10 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     logic [2:0] arb_req;
     logic [2:0] arb_grant;
 
+    logic arb_grant_mmio, arb_grant_rd, arb_grant_wr;
+    logic allow_rd_tlps, allow_wr_tlps;
+    logic history_fewer_rds;
+
     ofs_plat_prim_arb_rr
       #(
         .NUM_CLIENTS(3)
@@ -379,17 +386,15 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         .clk,
         .reset_n,
 
-        .ena(aligned_tx_st.tready),
+        .ena(aligned_tx_st.tready && (arb_state == ARB_NONE)),
         .request(arb_req),
         .grant(arb_grant),
         .grantIdx()
         );
 
-    assign arb_req[0] = tx_mmio_tlps.tvalid &&
-                        ((arb_state == ARB_NONE) || (arb_state == ARB_LOCK_MMIO));
-    assign arb_req[1] = tx_rd_tlps.tvalid &&
-                        (arb_state == ARB_NONE);
-    assign arb_req[2] = tx_wr_tlps.tvalid &&
+    assign arb_req[0] = tx_mmio_tlps.tvalid;
+    assign arb_req[1] = tx_rd_tlps.tvalid && allow_rd_tlps;
+    assign arb_req[2] = tx_wr_tlps.tvalid && allow_wr_tlps &&
                         // Block write traffic when reads are blocked due to TLP
                         // tag exhaustion. Writes lack back-pressure since they
                         // don't require tags. Allowing writes to proceed when
@@ -397,16 +402,21 @@ module ofs_plat_host_chan_@group@_map_to_tlps
                         // read and write streams are both active. Without back-
                         // pressure on writes, the FIM pipeline fills with only
                         // write requests.
-                        (((arb_state == ARB_NONE) && afu_rd_req.tready) ||
-                         (arb_state == ARB_LOCK_WR));
+                        rd_cpld_tag_available;
+
+    assign arb_grant_mmio = arb_grant[0] ||
+                            ((arb_state == ARB_LOCK_MMIO) && aligned_tx_st.tready);
+    assign arb_grant_rd = arb_grant[1];
+    assign arb_grant_wr = arb_grant[2] ||
+                          ((arb_state == ARB_LOCK_WR) && aligned_tx_st.tready);
 
     always_comb
     begin
-        aligned_tx_st.tvalid = aligned_tx_st.tready && |(arb_req);
+        aligned_tx_st.tvalid = (arb_grant_mmio || arb_grant_rd || arb_grant_wr);
 
-        tx_mmio_tlps.tready = arb_grant[0];
-        tx_rd_tlps.tready = arb_grant[1];
-        tx_wr_tlps.tready = arb_grant[2];
+        tx_mmio_tlps.tready = arb_grant_mmio;
+        tx_rd_tlps.tready = arb_grant_rd;
+        tx_wr_tlps.tready = arb_grant_wr;
 
         if (tx_mmio_tlps.tready)
         begin
@@ -432,7 +442,6 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         // Ready signals in the local protocol here are true only when
         // arbitration is won.
         //
-
         if (tx_mmio_tlps.tready &&
             !tx_mmio_tlps.t.data[0].eop &&
             !tx_mmio_tlps.t.data[1].eop)
@@ -456,13 +465,67 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         end
     end
 
+
+    //
+    // Fair arbitration is quite complicated, mostly as a result of the
+    // relatively deep FIM pipeline. When reads are blocked, writes gain
+    // an unfair advantage by filling the FIM pipline. The reverse is
+    // also true.
+    //
+    // The arbitration below tracks read and write DWORDs in flight
+    // in order to skew arbitration toward whichever is starved.
+    //
+
+    ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tx_rd_tlps_mem_hdr;
+    assign tx_rd_tlps_mem_hdr = tx_rd_tlps.t.data[0].hdr;
+    ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tx_wr_tlps_mem_hdr;
+    assign tx_wr_tlps_mem_hdr = tx_wr_tlps.t.data[0].hdr;
+
+
+    //
+    // Learning algorithms for picking the probability of applying channel
+    // favoring. If you apply it every cycle, performance will be suboptimal.
+    // The learning algorithm measures bandwidth over intervals and adjusts
+    // the weights to maximize total bandwidth.
+    //
+    // Weights for reads and writes are computed separately.
+    //
+    ofs_plat_host_chan_tlp_learning_weight
+      #(
+        .BURST_CNT_WIDTH($bits(t_tlp_payload_line_count)),
+        .RD_TRAFFIC_CNT_SHIFT(1),
+        // Giving writes slightly less weight than reads seems to result in
+        // better decisions.
+        .WR_TRAFFIC_CNT_SHIFT(2)
+        )
+      fairness_weight
+       (
+        .clk,
+        .reset_n,
+
+        .rd_valid(arb_grant_rd),
+        .rd_burstcount(dwordLenToLineCount(tx_rd_tlps_mem_hdr.dw0.length)),
+
+        // Track only the SOP beat of writes
+        .wr_valid(arb_grant_wr && (arb_state == ARB_NONE)),
+        .wr_burstcount(dwordLenToLineCount(tx_wr_tlps_mem_hdr.dw0.length)),
+
+        .update_favoring((tx_rd_tlps.tvalid || tx_wr_tlps.tvalid) &&
+                         (arb_state == ARB_NONE)),
+
+        .rd_enable_favoring(allow_rd_tlps),
+        .wr_enable_favoring(allow_wr_tlps)
+        );
+
+
     // synthesis translate_off
     always_ff @(negedge clk)
     begin
         if (reset_n)
         begin
-            assert(aligned_tx_st.tvalid == |(arb_grant)) else
-                $fatal(2, " ** ERROR ** %m: Arbitration request doesn't match winners!");
+            // Only one winner is allowed!
+            assert(2'(arb_grant_mmio) + 2'(arb_grant_rd) + 2'(arb_grant_wr) <= 2'b1) else
+                $fatal(2, " ** ERROR ** %m: Multiple arbitration winners!");
         end
     end
     // synthesis translate_on

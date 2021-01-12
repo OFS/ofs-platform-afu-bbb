@@ -99,10 +99,9 @@ package ccip_@group@_cfg_pkg;
     // Maximum bandwidth tends to be a function of the number of lines in
     // flight and not the number of requests.  Each of these is indexed
     // by virtual channel (t_ccip_vc).
-    parameter int C0_BW_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_RD /
-                                ofs_plat_host_chan_@group@_gen_tlps_pkg::NUM_PIM_PCIE_TLP_CH;
-    parameter int C1_BW_LINES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_WR /
-                                ofs_plat_host_chan_@group@_gen_tlps_pkg::NUM_PIM_PCIE_TLP_CH;
+    parameter int C0_BW_LINES = ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_BW_ACTIVE_RD_LINES;
+    parameter int C1_BW_LINES = ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_BW_ACTIVE_WR_LINES;
+
     parameter int C0_MAX_BW_ACTIVE_LINES[4] = { C0_BW_LINES, C0_BW_LINES, C0_BW_LINES, C0_BW_LINES };
     parameter int C1_MAX_BW_ACTIVE_LINES[4] = { C1_BW_LINES, C1_BW_LINES, C1_BW_LINES, C1_BW_LINES };
 

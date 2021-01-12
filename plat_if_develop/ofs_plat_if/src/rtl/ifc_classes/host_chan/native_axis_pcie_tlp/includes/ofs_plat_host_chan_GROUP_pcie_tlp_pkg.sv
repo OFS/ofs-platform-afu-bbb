@@ -88,6 +88,22 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     localparam PAYLOAD_LINE_BYTES = PAYLOAD_LINE_SIZE / 8;
     typedef logic [$clog2(PAYLOAD_LINE_BYTES)-1 : 0] t_tlp_payload_line_byte_idx;
 
+    // The PIM maintains a logical number of PCIe channels that is a
+    // function of the channel payload width and the PIM's view of the
+    // host channel data width. This makes it easier to deal with AFU
+    // line sizes that are wider than a single PCIe channel. The PIM's
+    // channel width is mapped to the FIU's width at the FIU edge.
+    localparam NUM_PIM_PCIE_TLP_CH = ofs_plat_host_chan_@group@_pkg::DATA_WIDTH /
+                                     FIU_PCIE_TLP_CH_PW;
+
+    localparam int MAX_BW_ACTIVE_RD_LINES =
+                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_RD /
+                      NUM_PIM_PCIE_TLP_CH;
+    localparam int MAX_BW_ACTIVE_WR_LINES =
+                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_WR /
+                      NUM_PIM_PCIE_TLP_CH;
+
+
     // Isolate just the line index portion of a byte-level address
     function automatic t_tlp_payload_line_idx byteAddrToPayloadLineIdx(logic [63:0] addr);
         return addr[$clog2(PAYLOAD_LINE_SIZE) +: $bits(t_tlp_payload_line_idx)];
