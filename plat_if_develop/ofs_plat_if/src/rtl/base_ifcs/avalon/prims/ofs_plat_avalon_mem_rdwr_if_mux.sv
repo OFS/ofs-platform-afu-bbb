@@ -385,7 +385,8 @@ module ofs_plat_avalon_mem_rdwr_if_mux
             .clk,
             .reset_n,
             .enq_data({ wr_req[wr_winnerIdx].user, wr_grantIdx }),
-            .enq_en(wr_sop && (|(wr_grant_onehot))),
+            .enq_en(wr_sop && (|(wr_grant_onehot)) &&
+                    !wr_req[wr_winnerIdx].user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY]),
             .notFull(wr_tracker_notFull),
             .almostFull(),
             .first({ wr_rsp_user, wr_rsp_port_idx }),
