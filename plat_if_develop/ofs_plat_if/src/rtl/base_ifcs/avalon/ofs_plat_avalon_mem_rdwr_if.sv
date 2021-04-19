@@ -58,9 +58,6 @@ interface ofs_plat_avalon_mem_rdwr_if
     // user fields. It is returned with responses and some fields have
     // sink-specific meanings. E.g., write fence can be encoded as a user
     // bit on write requests.
-    //
-    // Unlike AXI, most OFS Avalon sinks do not return user request fields
-    // along with responses.
     parameter USER_WIDTH = 8,
 
     // This parameter does not affect the interface. Instead, it is a guide to

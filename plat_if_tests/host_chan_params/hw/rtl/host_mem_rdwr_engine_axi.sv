@@ -637,6 +637,15 @@ module host_mem_rdwr_engine_axi
     logic wr_id_error;
     logic wr_user_error;
 
+    // Fence responses are expected as the final write response, when
+    // wr_bursts_resp is one less than wr_bursts_req. A separate response
+    // counter is kept during simulation since the synthesized wr_bursts_resp
+    // counter is multi-cycle and may not be up to date for the test here.
+    t_counter wr_bursts_resp_sim;
+    logic wr_fence_resp_expected;
+    assign wr_fence_resp_expected = wr_fence_done &&
+                                    (wr_bursts_req == wr_bursts_resp_sim + t_counter'(1));
+
     always_ff @(posedge clk)
     begin
         if (reset_n && !state_reset)
@@ -646,6 +655,8 @@ module host_mem_rdwr_engine_axi
 
             if (host_mem_if.bvalid && host_mem_if.bready)
             begin
+                wr_bursts_resp_sim <= wr_bursts_resp_sim + 1;
+
                 if (host_mem_if.b.id !== wr_rsp_id)
                 begin
                     $display("** ERROR ** %m: b.id is 0x%x, expected 0x%x", host_mem_if.b.id, wr_rsp_id);
@@ -662,11 +673,29 @@ module host_mem_rdwr_engine_axi
                              { wr_rsp_user, t_hc_axi_user_flags'(0) });
                     wr_user_error <= 1'b1;
                 end
+
+                // Ensure that the FENCE flag is set only on responses for memory fences.
+                if (wr_fence_resp_expected !=
+                    host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+                begin
+                    $display("** ERROR ** %m: b.user FENCE flag is %0s unexpectedly!",
+                             (wr_fence_resp_expected ? "clear" : "set"));
+                    wr_user_error <= 1'b1;
+                end
+
+                // Ensure that the INTERRUPT flag is not set. This AFU never requests
+                // an interrupt.
+                if (host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT])
+                begin
+                    $display("** ERROR ** %m: b.user INTERRUPT flag is set unexpectedly!");
+                    wr_user_error <= 1'b1;
+                end
             end
         end
         else
         begin
             wr_user_error <= 1'b0;
+            wr_bursts_resp_sim <= '0;
         end
     end
     // synthesis translate_on

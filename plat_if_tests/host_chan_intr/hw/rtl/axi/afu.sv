@@ -158,7 +158,7 @@ module afu
         // case they are returned out of order. (Note that OFS PIM shims currently
         // all return AXI responses in order, so this is not strictly necessary.)
         host_mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1 +: $clog2(NUM_INTR_IDS)] =
-            { '0, cur_intr_id };
+            cur_intr_id;
 
         // Generate a corresponding write data packet
         host_mem_if.wvalid = state_active && host_mem_if.awready && host_mem_if.wready;
@@ -182,7 +182,8 @@ module afu
 
     always_ff @(posedge clk)
     begin
-        if (host_mem_if.bvalid)
+        if (host_mem_if.bvalid &&
+            host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT])
         begin
             num_intr_responses <= num_intr_responses + 1;
             intr_response_mask[rsp_intr_id] <= 1'b1;
@@ -194,6 +195,43 @@ module afu
             intr_response_mask <= '0;
         end
     end
+
+
+    // synthesis translate_off
+
+    //
+    // Fail in simulation if the user response field is incorrect.
+    //
+    logic wr_user_error;
+
+    always_ff @(posedge clk)
+    begin
+        if (reset_n)
+        begin
+            if (wr_user_error) $fatal(2, "Aborting due to error");
+
+            if (host_mem_if.bvalid &&
+                !host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT])
+            begin
+                $display("** ERROR ** %m: b.user INTERRUPT flag not set!");
+                wr_user_error <= 1'b1;
+            end
+
+            // Ensure that the FENCE flag is not set
+            if (host_mem_if.bvalid &&
+                host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+            begin
+                $display("** ERROR ** %m: b.user FENCE flag is set unexpectedly!");
+                wr_user_error <= 1'b1;
+            end
+        end
+        else
+        begin
+            wr_user_error <= 1'b0;
+        end
+    end
+
+    // synthesis translate_on
 
 
     // ====================================================================
