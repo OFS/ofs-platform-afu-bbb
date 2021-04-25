@@ -56,7 +56,7 @@ module ase_emul_host_chan_native_axis_pcie_tlp
 
     axis_pcie_tlp_emulator
       #(
-        .NUM_TLP_CHANNELS(ofs_plat_host_chan_pcie_tlp_pkg::NUM_FIU_PCIE_TLP_CH),
+        .NUM_TLP_CHANNELS(ofs_plat_host_chan_fim_gasket_pkg::NUM_FIM_PCIE_TLP_CH),
         .MAX_OUTSTANDING_DMA_RD_REQS(ofs_plat_host_chan_pcie_tlp_pkg::MAX_OUTSTANDING_DMA_RD_REQS),
         .MAX_OUTSTANDING_MMIO_RD_REQS(ofs_plat_host_chan_pcie_tlp_pkg::MAX_OUTSTANDING_MMIO_RD_REQS),
         .NUM_AFU_INTERRUPTS(ofs_plat_host_chan_pcie_tlp_pkg::NUM_AFU_INTERRUPTS),

@@ -55,6 +55,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
+    import ofs_plat_pcie_tlp_hdr_pkg::*;
 
     assign rx_mmio.tready = 1'b1;
     assign error = 1'b0;
@@ -127,27 +128,18 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     //
     assign mmio_rsp_deq = mmio_rsp_notEmpty &&
                           (tx_mmio.tready || !tx_mmio.tvalid);
-    assign tx_mmio.t.user = '0;
 
-    ofs_fim_pcie_hdr_def::t_tlp_cpl_hdr mmio_cpl_hdr;
+    t_ofs_plat_pcie_hdr mmio_cpl_hdr;
     always_comb
     begin
         mmio_cpl_hdr = '0;
-        mmio_cpl_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_CPLD;
-        mmio_cpl_hdr.dw0.length = mmio_rsp_meta.byte_count >> 2;
-        mmio_cpl_hdr.byte_count = mmio_rsp_meta.byte_count;
-        mmio_cpl_hdr.requester_id = mmio_rsp_meta.requester_id;
-        mmio_cpl_hdr.lower_addr = mmio_rsp_meta.lower_addr;
-        mmio_cpl_hdr.tag = mmio_rsp.tag;
+        mmio_cpl_hdr.fmttype = OFS_PLAT_PCIE_FMTTYPE_CPLD;
+        mmio_cpl_hdr.length = mmio_rsp_meta.byte_count >> 2;
+        mmio_cpl_hdr.u.cpl.byte_count = mmio_rsp_meta.byte_count;
+        mmio_cpl_hdr.u.cpl.requester_id = mmio_rsp_meta.requester_id;
+        mmio_cpl_hdr.u.cpl.lower_addr = mmio_rsp_meta.lower_addr;
+        mmio_cpl_hdr.u.cpl.tag = mmio_rsp.tag;
     end
-
-    // Wide response?
-    logic dual_channel_rsp;
-    assign dual_channel_rsp = mmio_rsp_meta.byte_count > 32;
-
-    logic [1:0] tx_mmio_is_eop;
-    assign tx_mmio_is_eop[0] = mmio_rsp_notEmpty && !dual_channel_rsp;
-    assign tx_mmio_is_eop[1] = mmio_rsp_notEmpty && dual_channel_rsp;
 
     always_ff @(posedge clk)
     begin
@@ -155,19 +147,13 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
         begin
             tx_mmio.tvalid <= mmio_rsp_notEmpty;
 
-            tx_mmio.t.data <= '0;
-            tx_mmio.t.last <= |(tx_mmio_is_eop);
+            tx_mmio.t.data <= { '0, mmio_rsp.payload };
+            tx_mmio.t.last <= 1'b1;
 
-            tx_mmio.t.data[0].valid <= mmio_rsp_notEmpty;
-            tx_mmio.t.data[0].sop <= mmio_rsp_notEmpty;
-            tx_mmio.t.data[0].eop <= tx_mmio_is_eop[0];
-
-            tx_mmio.t.data[1].valid <= mmio_rsp_notEmpty && dual_channel_rsp;
-            tx_mmio.t.data[1].eop <= tx_mmio_is_eop[1];
-
-            tx_mmio.t.data[0].hdr <= mmio_cpl_hdr;
-
-            { tx_mmio.t.data[1].payload, tx_mmio.t.data[0].payload } <= mmio_rsp.payload;
+            tx_mmio.t.user <= '0;
+            tx_mmio.t.user[0].hdr <= mmio_cpl_hdr;
+            tx_mmio.t.user[0].sop <= mmio_rsp_notEmpty;
+            tx_mmio.t.user[0].eop <= mmio_rsp_notEmpty;
         end
 
         if (!reset_n)

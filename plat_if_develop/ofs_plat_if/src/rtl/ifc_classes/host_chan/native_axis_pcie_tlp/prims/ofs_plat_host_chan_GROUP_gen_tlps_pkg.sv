@@ -39,9 +39,6 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
 
-    typedef t_ofs_plat_axis_pcie_tdata [NUM_PIM_PCIE_TLP_CH-1 : 0] t_gen_tx_tlp_vec;
-    typedef t_ofs_plat_axis_pcie_tx_tuser [NUM_PIM_PCIE_TLP_CH-1 : 0] t_gen_tx_tlp_user_vec;
-
     // AFU's tag for a request, returned with responses. PCIe tags are a
     // separate space, assigned internally in the modules here. The AFU tag width
     // just has to be large enough to return whatever tags might reach this code.

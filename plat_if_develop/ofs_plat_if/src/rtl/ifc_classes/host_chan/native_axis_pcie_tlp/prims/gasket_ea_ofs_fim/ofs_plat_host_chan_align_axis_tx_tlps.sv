@@ -67,19 +67,32 @@ module ofs_plat_host_chan_align_axis_tx_tlps
         if (NUM_SOURCE_TLP_CH <= NUM_SINK_TLP_CH)
         begin : w
             // All source channels fit in the set of sink channels.
-            // Just wire them together. If there are extra sink
-            // channels then tie them off since there is nothing
+            // Just connect them with a skid buffer. If there are extra
+            // sink channels then tie them off since there is nothing
             // to feed them.
+
+            ofs_plat_axi_stream_if
+              #(
+                .TDATA_TYPE(t_sink_tdata_vec),
+                .TUSER_TYPE(t_sink_tuser_vec)
+                )
+              sink_skid();
 
             always_comb
             begin
-                stream_source.tready = stream_sink.tready;
+                stream_source.tready = sink_skid.tready;
 
-                stream_sink.tvalid = stream_source.tvalid;
-                stream_sink.t.last = stream_source.t.last;
-                stream_sink.t.user = { '0, stream_source.t.user };
-                stream_sink.t.data = { '0, stream_source.t.data };
+                sink_skid.tvalid = stream_source.tvalid;
+                sink_skid.t.last = stream_source.t.last;
+                sink_skid.t.user = { '0, stream_source.t.user };
+                sink_skid.t.data = { '0, stream_source.t.data };
             end
+
+            ofs_plat_axi_stream_if_skid_sink_clk skid
+               (
+                .stream_source(sink_skid),
+                .stream_sink
+                );
         end
         else
         begin : m

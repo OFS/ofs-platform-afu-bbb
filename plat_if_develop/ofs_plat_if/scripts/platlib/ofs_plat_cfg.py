@@ -156,9 +156,17 @@ class ofs_plat_cfg(object):
         """Return a list of the options within a section."""
         return self.merged_config[section].keys()
 
+    def has_option(self, section, option):
+        """Is option defined within the section?"""
+        return option in self.merged_config[section]
+
     def get(self, section, option):
         """Return the value of the option within the section."""
         return self.merged_config[section][option]
+
+    def get_options_dict(self, section):
+        """Return a section's entire options dictionary."""
+        return self.merged_config[section]
 
     def __validate_section_names(self):
         """Confirm that section names are legal."""

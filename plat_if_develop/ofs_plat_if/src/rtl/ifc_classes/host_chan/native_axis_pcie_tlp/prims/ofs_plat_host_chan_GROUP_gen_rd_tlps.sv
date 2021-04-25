@@ -73,6 +73,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
+    import ofs_plat_pcie_tlp_hdr_pkg::*;
 
     assign error = 1'b0;
 
@@ -201,35 +202,23 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     //
     // ====================================================================
 
-    logic allow_ch1_req;
-    assign allow_ch1_req = (ALLOW_DUAL_RD_REQS != 0);
-
     assign rd_req_deq = rd_req_notEmpty &&
                         req_tlp_tag_ready &&
-                        ((tx_rd_tlps.tready || !tx_rd_tlps.tvalid) ||
-                         (allow_ch1_req && tx_rd_tlps.tvalid && !tx_rd_tlps.t.data[1].valid));
-    assign tx_rd_tlps.t.user = '0;
+                        (tx_rd_tlps.tready || !tx_rd_tlps.tvalid);
+    assign tx_rd_tlps.t.data = '0;
 
-    ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tlp_mem_hdr;
+    t_ofs_plat_pcie_hdr tlp_mem_hdr;
     always_comb
     begin
         tlp_mem_hdr = '0;
 
-        if (rd_req_is_addr64)
-        begin
-            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ64;
-            { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = rd_req.addr;
-        end
-        else
-        begin
-            tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ32;
-            tlp_mem_hdr.addr = rd_req.addr;
-        end
-
-        tlp_mem_hdr.dw0.length = lineCountToDwordLen(rd_req.line_count);
-        tlp_mem_hdr.tag = { '0, req_tlp_tag };
-        tlp_mem_hdr.last_be = 4'b1111;
-        tlp_mem_hdr.first_be = 4'b1111;
+        tlp_mem_hdr.fmttype = rd_req_is_addr64 ? OFS_PLAT_PCIE_FMTTYPE_MEM_READ64 :
+                                                 OFS_PLAT_PCIE_FMTTYPE_MEM_READ32;
+        tlp_mem_hdr.length = lineCountToDwordLen(rd_req.line_count);
+        tlp_mem_hdr.u.mem_req.addr = rd_req.addr;
+        tlp_mem_hdr.u.mem_req.tag = { '0, req_tlp_tag };
+        tlp_mem_hdr.u.mem_req.last_be = 4'b1111;
+        tlp_mem_hdr.u.mem_req.first_be = 4'b1111;
     end
 
     always_ff @(posedge clk)
@@ -238,22 +227,13 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         begin
             tx_rd_tlps.tvalid <= rd_req_notEmpty && req_tlp_tag_ready;
 
-            tx_rd_tlps.t.data <= '0;
+            tx_rd_tlps.t.user <= '0;
             tx_rd_tlps.t.last <= 1'b1;
 
-            tx_rd_tlps.t.data[0].valid <= rd_req_notEmpty;
-            tx_rd_tlps.t.data[0].sop <= rd_req_notEmpty;
-            tx_rd_tlps.t.data[0].eop <= rd_req_notEmpty;
+            tx_rd_tlps.t.user[0].sop <= rd_req_notEmpty;
+            tx_rd_tlps.t.user[0].eop <= rd_req_notEmpty;
 
-            tx_rd_tlps.t.data[0].hdr <= tlp_mem_hdr;
-        end
-        else if (allow_ch1_req && !tx_rd_tlps.t.data[1].valid && req_tlp_tag_ready)
-        begin
-            tx_rd_tlps.t.data[1].valid <= rd_req_notEmpty;
-            tx_rd_tlps.t.data[1].sop <= rd_req_notEmpty;
-            tx_rd_tlps.t.data[1].eop <= rd_req_notEmpty;
-
-            tx_rd_tlps.t.data[1].hdr <= tlp_mem_hdr;
+            tx_rd_tlps.t.user[0].hdr <= tlp_mem_hdr;
         end
 
         if (!reset_n)
@@ -269,9 +249,9 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     //
     // ====================================================================
 
-    ofs_fim_pcie_hdr_def::t_tlp_cpl_hdr tlp_cpl_hdr;
-    assign tlp_cpl_hdr = rx_cpl_tlps.t.data[0].hdr;
-    assign rd_rsp_tlp_tag = t_dma_rd_tag'(tlp_cpl_hdr.tag);
+    t_ofs_plat_pcie_hdr tlp_cpl_hdr;
+    assign tlp_cpl_hdr = rx_cpl_tlps.t.user[0].hdr;
+    assign rd_rsp_tlp_tag = t_dma_rd_tag'(tlp_cpl_hdr.u.cpl.tag);
 
     assign rx_cpl_tlps.tready = (!afu_rd_rsp.tvalid || afu_rd_rsp.tready) &&
                                 wr_fence_cpl.tready;
@@ -284,8 +264,8 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     begin
         wr_fence_cpl.tvalid =
             rx_cpl_tlps.tready && rx_cpl_tlps.tvalid &&
-            rx_cpl_tlps.t.data[0].sop &&
-            ofs_fim_pcie_hdr_def::func_is_completion(tlp_cpl_hdr.dw0.fmttype) &&
+            rx_cpl_tlps.t.user[0].sop &&
+            ofs_plat_pcie_func_is_completion(tlp_cpl_hdr.fmttype) &&
             rsp_is_wr_fence;
         wr_fence_cpl.t.data = rd_rsp_tlp_tag;
     end
@@ -301,24 +281,24 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     // both in the SOP cycle and subsequent beats.
     always_comb
     begin
-        if (rx_cpl_tlps.t.data[0].sop)
+        if (rx_cpl_tlps.t.user[0].sop)
         begin
             // Starting a new response -- completion with data?
             afu_rd_rsp_active =
-                ofs_fim_pcie_hdr_def::func_is_completion(tlp_cpl_hdr.dw0.fmttype) &&
-                ofs_fim_pcie_hdr_def::func_has_data(tlp_cpl_hdr.dw0.fmttype) &&
+                ofs_plat_pcie_func_is_completion(tlp_cpl_hdr.fmttype) &&
+                ofs_plat_pcie_func_has_data(tlp_cpl_hdr.fmttype) &&
                 !rsp_is_wr_fence;
 
             // The last response packet if the remaining bytes matches the length
             // of this packet. This still is not necessarily the last beat. Check EOP
             // for the last beat.
-            afu_rd_rsp_is_last = (tlp_cpl_hdr.byte_count[11:2] == tlp_cpl_hdr.dw0.length);
+            afu_rd_rsp_is_last = (tlp_cpl_hdr.u.cpl.byte_count[11:2] == tlp_cpl_hdr.length);
             afu_rd_rsp_tag = rd_rsp_meta.afu_tag;
             // byte_count is the number of bytes still remaining. We can use it
             // to compute the line index relative to the entire repsonse, even
             // if the response is broken into multiple packets.
             afu_rd_rsp_line_idx = rd_rsp_meta.line_count -
-                                  dwordLenToLineCount(tlp_cpl_hdr.byte_count[11:2]);
+                                  dwordLenToLineCount(tlp_cpl_hdr.u.cpl.byte_count[11:2]);
         end
         else
         begin
@@ -336,19 +316,20 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         end
     end
 
+    logic rx_cpl_tlps_eop;
+    assign rx_cpl_tlps_eop = ofs_plat_pcie_func_is_eop(rx_cpl_tlps.t.user);
+
     // Record SOP state for subsequent flits
     always_ff @(posedge clk)
     begin
         if (rx_cpl_tlps.tready && rx_cpl_tlps.tvalid)
         begin
-            reg_afu_rd_rsp_active <= afu_rd_rsp_active &&
-                                     !rx_cpl_tlps.t.data[0].eop &&
-                                     !rx_cpl_tlps.t.data[1].eop;
+            reg_afu_rd_rsp_active <= afu_rd_rsp_active && !rx_cpl_tlps_eop;
             reg_afu_rd_rsp_is_last <= afu_rd_rsp_is_last;
             reg_afu_rd_rsp_tag <= afu_rd_rsp_tag;
             reg_afu_rd_rsp_line_idx <= afu_rd_rsp_line_idx;
 
-            if (rx_cpl_tlps.t.data[0].sop)
+            if (rx_cpl_tlps.t.user[0].sop)
             begin
                 reg_afu_rd_rsp_tlp_tag <= rd_rsp_tlp_tag;
             end
@@ -368,11 +349,8 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             afu_rd_rsp.tvalid <= afu_rd_rsp_active;
             afu_rd_rsp.t.data.tag <= afu_rd_rsp_tag;
             afu_rd_rsp.t.data.line_idx <= afu_rd_rsp_line_idx;
-            afu_rd_rsp.t.data.last <= afu_rd_rsp_is_last &&
-                                      (rx_cpl_tlps.t.data[0].eop || rx_cpl_tlps.t.data[1].eop);
-
-            afu_rd_rsp.t.data.payload <= { rx_cpl_tlps.t.data[1].payload,
-                                           rx_cpl_tlps.t.data[0].payload };
+            afu_rd_rsp.t.data.last <= afu_rd_rsp_is_last && rx_cpl_tlps_eop;
+            afu_rd_rsp.t.data.payload <= { '0, rx_cpl_tlps.t.data };
         end
 
         if (!reset_n)
@@ -390,17 +368,17 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     begin
         if (reset_n)
         begin
-            if (rx_cpl_tlps.tvalid && rx_cpl_tlps.t.data[0].sop)
+            if (rx_cpl_tlps.tvalid && rx_cpl_tlps.t.user[0].sop)
             begin
                 assert(!reg_afu_rd_rsp_active) else
                   $fatal(2, " ** ERROR ** %m: SOP in the middle of an active read completion!");
             end
 
-            if (rx_cpl_tlps.tready && rx_cpl_tlps.tvalid && rx_cpl_tlps.t.data[0].sop &&
-                ofs_fim_pcie_hdr_def::func_is_completion(tlp_cpl_hdr.dw0.fmttype) &&
+            if (rx_cpl_tlps.tready && rx_cpl_tlps.tvalid && rx_cpl_tlps.t.user[0].sop &&
+                ofs_plat_pcie_func_is_completion(tlp_cpl_hdr.fmttype) &&
                 !rsp_is_wr_fence)
             begin
-                assert(ofs_fim_pcie_hdr_def::func_has_data(tlp_cpl_hdr.dw0.fmttype)) else
+                assert(ofs_plat_pcie_func_has_data(tlp_cpl_hdr.fmttype)) else
                     $fatal(2, " ** ERROR ** %m: Completion WITHOUT data for read (tag 0x%x)", rd_rsp_tlp_tag);
             end
         end

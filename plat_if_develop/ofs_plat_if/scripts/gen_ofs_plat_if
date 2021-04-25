@@ -178,6 +178,7 @@ def gen_fim_interface():
                         template_class=template_class,
                         base_class=base_class,
                         native_class=native_class,
+                        params=plat_cfg.get_options_dict(s),
                         group_num=group_num, verbose=args.verbose)
 
         # Update the template files for the group number

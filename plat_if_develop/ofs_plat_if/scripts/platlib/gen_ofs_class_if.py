@@ -39,6 +39,7 @@ import sys
 import fnmatch
 import re
 from distutils import dir_util, file_util
+import shutil
 
 
 def copy_class(src=None, tgt=None, template_class=None,
@@ -77,8 +78,17 @@ def copy_class(src=None, tgt=None, template_class=None,
     if (verbose):
         print('  Copying source {0} to {1}'.format(
             src_subdir, os.path.join(tgt, tgt_subdir)))
-    dir_util.copy_tree(os.path.join(src, src_subdir),
-                       os.path.join(tgt, tgt_subdir))
+    files_tgt = dir_util.copy_tree(os.path.join(src, src_subdir),
+                                   os.path.join(tgt, tgt_subdir))
+
+    # A class implementation may have more than one gasket for mapping
+    # the PIM's state to the FIM's interface. Keep only the gasket used
+    # by this instance. Most classes do not have gaskets.
+    tgt_gasket = None
+    if 'gasket' in params:
+        tgt_gasket = params['gasket']
+    __prune_gasket_trees(os.path.join(tgt, tgt_subdir),
+                         tgt_gasket=tgt_gasket, verbose=verbose)
 
     # Is there also an afu_ifcs tree? If yes, merge it into the target
     src_afu_ifc_subdir = os.path.join('rtl', 'ifc_classes',
@@ -90,6 +100,26 @@ def copy_class(src=None, tgt=None, template_class=None,
                 src_afu_ifc_subdir, os.path.join(tgt, tgt_afu_ifc_subdir)))
         dir_util.copy_tree(os.path.join(src, src_afu_ifc_subdir),
                            os.path.join(tgt, tgt_afu_ifc_subdir))
+
+
+def __prune_gasket_trees(tgt_tree, tgt_gasket, verbose=False):
+    """A class implementation may have more than one gasket for mapping
+    the PIM's state to the FIM's interface. Keep only the gasket used
+    by this instance by deleting all others."""
+
+    # Walk the tree for the current class that was copied to the target
+    # directory.
+    for dirpath, dirnames, filenames in os.walk(tgt_tree, topdown=False):
+        # Gaskets are all in directories beginning with "gasket_".
+        for d in fnmatch.filter(dirnames, 'gasket_*'):
+            gp = os.path.join(dirpath, d)
+            if (d[7:] != tgt_gasket):
+                if (verbose):
+                    print('    Removing unused gasket {0} '
+                          '(looking for gasket_{1})'.format(gp, tgt_gasket))
+                shutil.rmtree(gp)
+            else:
+                print('    Preserving {0} '.format(gp))
 
 
 def use_class_templates(tgt=None, base_class=None, group_num=0,

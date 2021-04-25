@@ -34,6 +34,37 @@
 
 `include "ofs_plat_if.vh"
 
+module ofs_plat_axi_stream_if_skid
+   (
+    ofs_plat_axi_stream_if.to_sink stream_sink,
+    ofs_plat_axi_stream_if.to_source stream_source
+    );
+
+    // synthesis translate_off
+    `OFS_PLAT_AXI_STREAM_IF_CHECK_PARAMS_MATCH(stream_sink, stream_source)
+    // synthesis translate_on
+
+    ofs_plat_prim_ready_enable_skid
+      #(
+        .N_DATA_BITS(stream_source.T_PAYLOAD_WIDTH)
+        )
+      skid
+       (
+        .clk(stream_source.clk),
+        .reset_n(stream_source.reset_n),
+
+        .enable_from_src(stream_source.tvalid),
+        .data_from_src(stream_source.t),
+        .ready_to_src(stream_source.tready),
+
+        .enable_to_dst(stream_sink.tvalid),
+        .data_to_dst(stream_sink.t),
+        .ready_from_dst(stream_sink.tready)
+        );
+
+endmodule // ofs_plat_axi_stream_if_skid_sink_clk
+
+
 // Pass clock from sink to source
 module ofs_plat_axi_stream_if_skid_sink_clk
    (

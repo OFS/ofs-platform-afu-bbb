@@ -53,7 +53,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     // (t_dma_rd_tag)
     ofs_plat_axi_stream_if.to_source wr_fence_cpl,
 
-    // Interrupt completions from the FIU (t_ofs_plat_axis_pcie_irq_data)
+    // Interrupt completions from the FIU (t_ofs_plat_pcie_hdr_irq)
     ofs_plat_axi_stream_if.to_source irq_cpl,
 
     output logic error
@@ -61,6 +61,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
+    import ofs_plat_pcie_tlp_hdr_pkg::*;
 
     assign error = 1'b0;
 
@@ -308,9 +309,6 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         end
     end
 
-    logic wr_req_short_eop;
-    assign wr_req_short_eop = wr_req.enable_byte_range && (br_req.dword_len <= 8);
-
     logic [63:0] wr_req_addr;
     always_comb
     begin
@@ -331,10 +329,9 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     assign wr_req_deq = wr_req_ready && std_wr_rsp_notFull &&
                         (tx_wr_tlps.tready || !tx_wr_tlps.tvalid);
 
-    ofs_fim_pcie_hdr_def::t_tlp_mem_req_hdr tlp_mem_hdr;
+    t_ofs_plat_pcie_hdr tlp_mem_hdr;
     logic [AFU_TAG_WIDTH-1 : 0] wr_req_tag_q;
     t_tlp_payload_line_idx wr_req_last_line_idx_q;
-    t_ofs_plat_axis_pcie_irq_data irq_hdr;
 
     always_comb
     begin
@@ -343,48 +340,29 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         if (wr_req.is_fence)
         begin
             // Fence
-            if (last_wr_is_addr64)
-            begin
-                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ64;
-                { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = last_wr_addr;
-            end
-            else
-            begin
-                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_READ32;
-                tlp_mem_hdr.addr = last_wr_addr;
-            end
-
-            tlp_mem_hdr.dw0.length = 1;
-            tlp_mem_hdr.tag = req_tlp_tag;
+            tlp_mem_hdr.fmttype = last_wr_is_addr64 ? OFS_PLAT_PCIE_FMTTYPE_MEM_READ64 :
+                                                      OFS_PLAT_PCIE_FMTTYPE_MEM_READ32;
+            tlp_mem_hdr.length = 1;
+            tlp_mem_hdr.u.mem_req.addr = last_wr_addr;
+            tlp_mem_hdr.u.mem_req.tag = req_tlp_tag;
         end
         else if (wr_req.is_interrupt)
         begin
             // Interrupt ID is passed in from the AFU using the tag
-            irq_hdr = '0;
-            irq_hdr.irq_id = wr_req.tag[$bits(irq_hdr.irq_id)-1 : 0];
-            // Pass irq_hdr instead of normal TLP header. The afu_irq user bit will
-            // be set to indicate the interrupt header.
-            tlp_mem_hdr = { '0, irq_hdr };
+            tlp_mem_hdr.u.irq.irq_id = wr_req.tag[$bits(t_ofs_plat_pcie_hdr_irq_id)-1 : 0];
+            tlp_mem_hdr.is_irq = 1'b1;
         end
         else
         begin
             // Normal write
-            if (wr_req_is_addr64)
-            begin
-                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE64;
-                { tlp_mem_hdr.addr, tlp_mem_hdr.lsb_addr } = wr_req_addr;
-            end
-            else
-            begin
-                tlp_mem_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_MEM_WRITE32;
-                tlp_mem_hdr.addr = wr_req_addr;
-            end
-
-            tlp_mem_hdr.dw0.length =
+            tlp_mem_hdr.fmttype = wr_req_is_addr64 ? OFS_PLAT_PCIE_FMTTYPE_MEM_WRITE64 :
+                                                     OFS_PLAT_PCIE_FMTTYPE_MEM_WRITE32;
+            tlp_mem_hdr.length =
                 (wr_req.enable_byte_range ? br_req.dword_len :
                                             lineCountToDwordLen(wr_req.line_count));
-            tlp_mem_hdr.last_be = (wr_req.enable_byte_range ? br_req_hdr_last_be : 4'b1111);
-            tlp_mem_hdr.first_be = (wr_req.enable_byte_range ? br_req_hdr_first_be : 4'b1111);
+            tlp_mem_hdr.u.mem_req.addr = wr_req_addr;
+            tlp_mem_hdr.u.mem_req.last_be = (wr_req.enable_byte_range ? br_req_hdr_last_be : 4'b1111);
+            tlp_mem_hdr.u.mem_req.first_be = (wr_req.enable_byte_range ? br_req_hdr_first_be : 4'b1111);
         end
     end
 
@@ -415,11 +393,9 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .d_out(wr_req_shifted_payload)
         );
 
-    logic [1:0] tx_wr_is_eop;
-    assign tx_wr_is_eop[0] = wr_req_notEmpty &&
-                             (wr_req.is_fence || wr_req.is_interrupt || wr_req_short_eop);
-    assign tx_wr_is_eop[1] = wr_req_notEmpty &&
-                             wr_req.eop && !wr_req.is_fence && !wr_req.is_interrupt;
+    logic tx_wr_is_eop;
+    assign tx_wr_is_eop = wr_req_notEmpty &&
+                          (wr_req.is_fence || wr_req.is_interrupt || wr_req.eop);
 
     always_ff @(posedge clk)
     begin
@@ -427,31 +403,19 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         begin
             tx_wr_tlps.tvalid <= wr_req_ready && std_wr_rsp_notFull;
 
-            tx_wr_tlps.t.data <= '0;
             tx_wr_tlps.t.last <= |(tx_wr_is_eop);
 
-            tx_wr_tlps.t.data[0].valid <= wr_req_notEmpty && !wr_req_is_invalid_fence;
-            tx_wr_tlps.t.data[0].sop <= wr_req_notEmpty && wr_req.sop;
-            // The request is one empty read if it's a fence or a short byte
-            // range, otherwise write data spans multiple channels.
-            tx_wr_tlps.t.data[0].eop <= tx_wr_is_eop[0];
+            tx_wr_tlps.t.user <= '0;
+            tx_wr_tlps.t.user[0].sop <= wr_req_notEmpty && wr_req.sop;
+            tx_wr_tlps.t.user[0].eop <= tx_wr_is_eop;
+            tx_wr_tlps.t.user[0].poison <= wr_req_is_invalid_fence;
 
-            tx_wr_tlps.t.data[1].valid <=
-                wr_req_notEmpty && !wr_req.is_fence && !wr_req.is_interrupt &&
-                !wr_req_short_eop;
-            tx_wr_tlps.t.data[1].eop <= tx_wr_is_eop[1];
-
-            tx_wr_tlps.t.data[0].hdr <= (wr_req.sop ? tlp_mem_hdr : '0);
+            tx_wr_tlps.t.user[0].hdr <= (wr_req.sop ? tlp_mem_hdr : '0);
 
             // It is always safe to use the shifted payload since byte_start_idx
             // is guaranteed by the canonicalization step above to be 0 when in
             // full-line mode. Using the value from the shifter avoids an extra MUX.
-            { tx_wr_tlps.t.data[1].payload, tx_wr_tlps.t.data[0].payload } <=
-                wr_req_shifted_payload;
-
-            // Request meta-data
-            tx_wr_tlps.t.user <= '0;
-            tx_wr_tlps.t.user[0].afu_irq <= wr_req.is_interrupt;
+            tx_wr_tlps.t.data <= { '0, wr_req_shifted_payload };
         end
 
         if (!reset_n)
@@ -501,7 +465,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     logic irq_cpl_reg_valid;
     assign irq_cpl.tready = !irq_cpl_reg_valid;
 
-    t_ofs_plat_axis_pcie_irq_data irq_cpl_reg;
+    t_ofs_plat_pcie_hdr_irq irq_cpl_reg;
 
     always_ff @(posedge clk)
     begin
