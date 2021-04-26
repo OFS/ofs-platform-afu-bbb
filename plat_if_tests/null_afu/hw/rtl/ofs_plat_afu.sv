@@ -28,20 +28,24 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
 //
-// Tie off a single host channel interface port.
-//
+// NULL AFU, resulting in tie-off of all interfaces.
 //
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_host_chan_@group@_fiu_if_tie_off
+module ofs_plat_afu
    (
-    ofs_plat_host_chan_@group@_axis_pcie_tlp_if port
+    // All platform wires, wrapped in one interface.
+    ofs_plat_if plat_ifc
     );
 
-    // FIM-specific tie off
-    ofs_plat_host_chan_@group@_fim_gasket_tie_off tie_off(.port);
+    // ====================================================================
+    //
+    //  Tie off unused ports.
+    //
+    // ====================================================================
 
-endmodule
+    ofs_plat_if_tie_off_unused tie_off(plat_ifc);
+
+endmodule // ofs_plat_afu
