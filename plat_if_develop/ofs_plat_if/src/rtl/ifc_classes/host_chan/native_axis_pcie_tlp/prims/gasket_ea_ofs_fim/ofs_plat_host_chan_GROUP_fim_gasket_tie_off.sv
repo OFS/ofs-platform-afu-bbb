@@ -127,6 +127,7 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
 
     always_comb
     begin
+        // Build the header -- always the same for any address
         tx_cpl_hdr = '0;
         tx_cpl_hdr.dw0.fmttype = ofs_fim_pcie_hdr_def::PCIE_FMTTYPE_CPLD;
         tx_cpl_hdr.dw0.length = rx_mem_req_hdr.dw0.length;
@@ -153,10 +154,25 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
             tx_st.tvalid &&
             (rx_mem_req_hdr.dw0.length > (ofs_fim_if_pkg::AXIS_PCIE_PW / 32));
 
-        if (tx_cpl_hdr.lower_addr[6:3] == 4'b0010)
-        begin
-            tx_st.t.data[0].payload[63:32] = 32'hd15ab1ed;
-        end
+        // Completion data. There is minimal address decoding here to keep
+        // it simple. Location 0 needs a device feature header and an AFU
+        // ID is set.
+        case (tx_cpl_hdr.lower_addr[6:3])
+            // AFU DFH
+            4'h0:
+                begin
+                    tx_st.t.data[0].payload[63:0] = '0;
+                    // Feature type is AFU
+                    tx_st.t.data[0].payload[63:60] = 4'h1;
+                    // End of list
+                    tx_st.t.data[0].payload[40] = 1'b1;
+                end
+
+            // AFU_ID_H
+            4'h2: tx_st.t.data[0].payload[63:0] = 64'hd15ab1ed00000000;
+
+            default: tx_st.t.data[0].payload[63:0] = '0;
+        endcase
     end
 
 

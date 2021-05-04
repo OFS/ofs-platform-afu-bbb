@@ -55,12 +55,16 @@ interface ofs_plat_axi_stream_if
     localparam TUSER_WIDTH = $bits(TUSER_TYPE);
     localparam TUSER_WIDTH_ = $bits(logic [TUSER_WIDTH:0]) - 1;
 
+    localparam TKEEP_WIDTH = (TDATA_WIDTH_ + 7) / 8;
+    typedef logic [TKEEP_WIDTH-1 : 0] t_keep;
+
     wire clk;
     logic reset_n;
 
     // Data stream
     typedef struct packed {
         logic last;
+        t_keep keep;
         TUSER_TYPE user;
         TDATA_TYPE data;
     } t_payload;
@@ -197,11 +201,11 @@ interface ofs_plat_axi_stream_if
                 // Write address
                 if (reset_n && tvalid && tready)
                 begin
-                    $fwrite(log_fd, "%s: %t %s %0d last %0d user 0x%x data 0x%x\n",
+                    $fwrite(log_fd, "%s: %t %s %0d last %0d keep 0x%x user 0x%x data 0x%x\n",
                             ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            t.last, t.user, t.data);
+                            t.last, t.keep, t.user, t.data);
                 end
             end
         end
