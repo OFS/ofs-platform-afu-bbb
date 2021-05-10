@@ -36,10 +36,16 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_axi_mem_lite_if_reg
+module ofs_plat_axi_mem_lite_if_reg_impl
   #(
     // Number of stages to add when registering inputs or outputs
-    parameter N_REG_STAGES = 1
+    parameter N_REG_STAGES = 1,
+
+    parameter ADDR_WIDTH,
+    parameter DATA_WIDTH,
+    parameter RID_WIDTH,
+    parameter WID_WIDTH,
+    parameter USER_WIDTH
     )
    (
     ofs_plat_axi_mem_lite_if.to_sink mem_sink,
@@ -61,7 +67,11 @@ module ofs_plat_axi_mem_lite_if_reg
             // Pipeline stages.
             ofs_plat_axi_mem_lite_if
               #(
-                `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(mem_sink)
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .RID_WIDTH(RID_WIDTH),
+                .WID_WIDTH(WID_WIDTH),
+                .USER_WIDTH(USER_WIDTH)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
@@ -83,7 +93,7 @@ module ofs_plat_axi_mem_lite_if_reg
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_sink.T_AW_WIDTH)
+                    .N_DATA_BITS(mem_pipe[0].T_AW_WIDTH)
                     )
                   aw
                    (
@@ -101,7 +111,7 @@ module ofs_plat_axi_mem_lite_if_reg
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_sink.T_W_WIDTH)
+                    .N_DATA_BITS(mem_pipe[0].T_W_WIDTH)
                     )
                   w
                    (
@@ -119,7 +129,7 @@ module ofs_plat_axi_mem_lite_if_reg
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_sink.T_B_WIDTH)
+                    .N_DATA_BITS(mem_pipe[0].T_B_WIDTH)
                     )
                   b
                    (
@@ -137,7 +147,7 @@ module ofs_plat_axi_mem_lite_if_reg
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_sink.T_AR_WIDTH)
+                    .N_DATA_BITS(mem_pipe[0].T_AR_WIDTH)
                     )
                   ar
                    (
@@ -155,7 +165,7 @@ module ofs_plat_axi_mem_lite_if_reg
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_sink.T_R_WIDTH)
+                    .N_DATA_BITS(mem_pipe[0].T_R_WIDTH)
                     )
                   r
                    (
@@ -181,6 +191,34 @@ module ofs_plat_axi_mem_lite_if_reg
                                                    .mem_source(mem_source));
         end
     endgenerate
+
+endmodule // ofs_plat_axi_mem_lite_if_reg_impl
+
+
+module ofs_plat_axi_mem_lite_if_reg
+  #(
+    // Number of stages to add when registering inputs or outputs
+    parameter N_REG_STAGES = 1
+    )
+   (
+    ofs_plat_axi_mem_lite_if.to_sink mem_sink,
+    ofs_plat_axi_mem_lite_if.to_source mem_source
+    );
+
+    ofs_plat_axi_mem_lite_if_reg_impl
+      #(
+        .N_REG_STAGES(N_REG_STAGES),
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
+        .RID_WIDTH(mem_sink.RID_WIDTH_),
+        .WID_WIDTH(mem_sink.WID_WIDTH_),
+        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        )
+      r
+       (
+        .mem_sink(mem_sink),
+        .mem_source(mem_source)
+        );
 
 endmodule // ofs_plat_axi_mem_lite_if_reg
 

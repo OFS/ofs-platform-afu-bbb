@@ -38,11 +38,22 @@
 // forwarding waitrequest from the sink side to the source side.
 //
 
-module ofs_plat_avalon_mem_if_reg_simple
+module ofs_plat_avalon_mem_if_reg_simple_impl
   #(
     // Number of stages to add when registering inputs or outputs
     parameter N_REG_STAGES = 1,
-    parameter N_WAITREQUEST_STAGES = N_REG_STAGES
+    parameter N_WAITREQUEST_STAGES = N_REG_STAGES,
+
+    // Internal wrapped implementation takes explicit parameters instead of
+    // consuming them from the mem_sink interface because some synthesis
+    // tools fail to map mem_sink.ADDR_WIDTH to the mem_pipe[] array.
+    // The wrapper modules below work around the problem without affecting
+    // other modules.
+    parameter ADDR_WIDTH,
+    parameter DATA_WIDTH,
+    parameter BURST_CNT_WIDTH,
+    parameter RESPONSE_WIDTH,
+    parameter USER_WIDTH
     )
    (
     ofs_plat_avalon_mem_if.to_sink mem_sink,
@@ -60,9 +71,9 @@ module ofs_plat_avalon_mem_if_reg_simple
             // Pipeline stages.
             ofs_plat_avalon_mem_if
               #(
-                .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-                .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .BURST_CNT_WIDTH(BURST_CNT_WIDTH),
                 .WAIT_REQUEST_ALLOWANCE(N_WAITREQUEST_STAGES)
                 )
                 mem_pipe[N_REG_STAGES+1]();
@@ -127,5 +138,35 @@ module ofs_plat_avalon_mem_if_reg_simple
             end
         end
     endgenerate
+
+endmodule // ofs_plat_avalon_mem_if_reg_simple_impl
+
+
+module ofs_plat_avalon_mem_if_reg_simple
+  #(
+    // Number of stages to add when registering inputs or outputs
+    parameter N_REG_STAGES = 1,
+    parameter N_WAITREQUEST_STAGES = N_REG_STAGES
+    )
+   (
+    ofs_plat_avalon_mem_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_if.to_source mem_source
+    );
+
+    ofs_plat_avalon_mem_if_reg_simple_impl
+      #(
+        .N_REG_STAGES(N_REG_STAGES),
+        .N_WAITREQUEST_STAGES(N_WAITREQUEST_STAGES),
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
+        .RESPONSE_WIDTH(mem_sink.RESPONSE_WIDTH_),
+        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        )
+      r
+       (
+        .mem_sink(mem_sink),
+        .mem_source(mem_source)
+        );
 
 endmodule // ofs_plat_avalon_mem_if_reg_simple

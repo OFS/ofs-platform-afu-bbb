@@ -136,7 +136,8 @@
     MEM_SOURCE.address OPER '0; \
     MEM_SOURCE.write OPER 1'b0; \
     MEM_SOURCE.read OPER 1'b0; \
-    MEM_SOURCE.byteenable OPER '0
+    MEM_SOURCE.byteenable OPER '0; \
+    MEM_SOURCE.user OPER '0
 
 `define OFS_PLAT_AVALON_MEM_IF_INIT_SOURCE_COMB(MEM_SOURCE) \
     `OFS_PLAT_AVALON_MEM_IF_INIT_SOURCE(MEM_SOURCE, =)

@@ -36,10 +36,22 @@
 
 `include "ofs_plat_if.vh"
 
-module ofs_plat_avalon_mem_rdwr_if_reg
+module ofs_plat_avalon_mem_rdwr_if_reg_impl
   #(
     // Number of stages to add when registering inputs or outputs
-    parameter N_REG_STAGES = 1
+    parameter N_REG_STAGES = 1,
+
+    // Internal wrapped implementation takes explicit parameters instead of
+    // consuming them from the mem_sink interface because some synthesis
+    // tools fail to map mem_sink.ADDR_WIDTH to the mem_pipe[] array.
+    // The wrapper modules below work around the problem without affecting
+    // other modules.
+    parameter ADDR_WIDTH,
+    parameter DATA_WIDTH,
+    parameter BURST_CNT_WIDTH,
+    parameter RESPONSE_WIDTH,
+    parameter USER_WIDTH,
+    parameter MASKED_SYMBOL_WIDTH
     )
    (
     ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
@@ -54,13 +66,14 @@ module ofs_plat_avalon_mem_rdwr_if_reg
         end
         else
         begin : regs
-            // Pass user extension fields through the pipeline
-            localparam USER_WIDTH = mem_sink.USER_WIDTH_;
-
             // Pipeline stages.
             ofs_plat_avalon_mem_rdwr_if
               #(
-                `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_PARAMS(mem_sink)
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .MASKED_SYMBOL_WIDTH(MASKED_SYMBOL_WIDTH),
+                .BURST_CNT_WIDTH(BURST_CNT_WIDTH),
+                .USER_WIDTH(USER_WIDTH)
                 )
                 mem_pipe[N_REG_STAGES+1]();
 
@@ -80,10 +93,10 @@ module ofs_plat_avalon_mem_rdwr_if_reg
 
                 ofs_plat_utils_avalon_mm_bridge
                   #(
-                    .DATA_WIDTH(mem_sink.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(USER_WIDTH + mem_sink.ADDR_WIDTH),
-                    .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
-                    .RESPONSE_WIDTH(USER_WIDTH + mem_sink.RESPONSE_WIDTH)
+                    .DATA_WIDTH(DATA_WIDTH),
+                    .HDL_ADDR_WIDTH(USER_WIDTH + ADDR_WIDTH),
+                    .BURSTCOUNT_WIDTH(BURST_CNT_WIDTH),
+                    .RESPONSE_WIDTH(USER_WIDTH + RESPONSE_WIDTH)
                     )
                   bridge_rd
                    (
@@ -121,10 +134,10 @@ module ofs_plat_avalon_mem_rdwr_if_reg
 
                 ofs_plat_utils_avalon_mm_bridge
                   #(
-                    .DATA_WIDTH(mem_sink.DATA_WIDTH),
-                    .HDL_ADDR_WIDTH(USER_WIDTH + mem_sink.ADDR_WIDTH),
-                    .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
-                    .RESPONSE_WIDTH(USER_WIDTH + mem_sink.RESPONSE_WIDTH)
+                    .DATA_WIDTH(DATA_WIDTH),
+                    .HDL_ADDR_WIDTH(USER_WIDTH + ADDR_WIDTH),
+                    .BURSTCOUNT_WIDTH(BURST_CNT_WIDTH),
+                    .RESPONSE_WIDTH(USER_WIDTH + RESPONSE_WIDTH)
                     )
                   bridge_wr
                    (
@@ -172,6 +185,35 @@ module ofs_plat_avalon_mem_rdwr_if_reg
                                                       .mem_source(mem_source));
         end
     endgenerate
+
+endmodule // ofs_plat_avalon_mem_rdwr_if_reg_impl
+
+
+module ofs_plat_avalon_mem_rdwr_if_reg
+  #(
+    // Number of stages to add when registering inputs or outputs
+    parameter N_REG_STAGES = 1
+    )
+   (
+    ofs_plat_avalon_mem_rdwr_if.to_sink mem_sink,
+    ofs_plat_avalon_mem_rdwr_if.to_source mem_source
+    );
+
+    ofs_plat_avalon_mem_rdwr_if_reg_impl
+      #(
+        .N_REG_STAGES(N_REG_STAGES),
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
+        .RESPONSE_WIDTH(mem_sink.RESPONSE_WIDTH_),
+        .USER_WIDTH(mem_sink.USER_WIDTH_),
+        .MASKED_SYMBOL_WIDTH(mem_sink.MASKED_SYMBOL_WIDTH_)
+        )
+      r
+       (
+        .mem_sink(mem_sink),
+        .mem_source(mem_source)
+        );
 
 endmodule // ofs_plat_avalon_mem_rdwr_if_reg
 
