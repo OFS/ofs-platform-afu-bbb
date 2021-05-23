@@ -59,6 +59,17 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     typedef ofs_fim_if_pkg::t_axis_pcie_rx_tuser [NUM_FIM_PCIE_TLP_CH-1:0] t_ofs_fim_axis_pcie_rx_tuser_vec;
     typedef ofs_fim_if_pkg::t_axis_irq_tdata t_ofs_fim_axis_pcie_irq_tdata;
 
+    // The OFS EA interface breaks down the PCIe stream into multiple parallel
+    // channels. (These became "segments" in the later PCIe subsystem naming.)
+    // The PIM's OFS EA .ini gives the bandwidth hint in flits, where there
+    // may be up to two flits per beat. The PIM calls a "line" the width of
+    // the PCIe stream's data bus.
+    localparam int MAX_BW_ACTIVE_RD_LINES =
+                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_RD /
+                      ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_FIM_PCIE_TLP_CH;
+    localparam int MAX_BW_ACTIVE_WR_LINES =
+                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_WR /
+                      ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_FIM_PCIE_TLP_CH;
 
     // synthesis translate_off
 

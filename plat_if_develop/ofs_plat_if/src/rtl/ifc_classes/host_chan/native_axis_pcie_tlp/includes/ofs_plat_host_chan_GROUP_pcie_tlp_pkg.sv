@@ -94,11 +94,9 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     typedef logic [$clog2(PAYLOAD_LINE_BYTES)-1 : 0] t_tlp_payload_line_byte_idx;
 
     localparam int MAX_BW_ACTIVE_RD_LINES =
-                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_RD /
-                      ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_FIM_PCIE_TLP_CH;
+        ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_BW_ACTIVE_RD_LINES;
     localparam int MAX_BW_ACTIVE_WR_LINES =
-                      `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MAX_BW_ACTIVE_FLITS_WR /
-                      ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_FIM_PCIE_TLP_CH;
+        ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_BW_ACTIVE_WR_LINES;
 
 
     // Isolate just the line index portion of a byte-level address

@@ -29,12 +29,50 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Host channel event tracker for native PCIe TLP AXI stream
+// Host channel event tracker for native PCIe TLP AXI stream. There are
+// multiple implementations here, for different FIM variants, chosen by
+// preprocessor macros.
 //
 
 `include "ofs_plat_if.vh"
 
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP
+
+// OFS PCIe subsystem interface
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
+
+module host_chan_events_axi
+   (
+    input  logic clk,
+    input  logic reset_n,
+
+    // Track TLP traffic (in domain clk)
+    input  logic en_tx,
+    input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata tx_data,
+    input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser tx_user,
+    input  logic en_rx,
+    input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata rx_data,
+    input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser rx_user,
+
+    // Send counted events to a specific traffic generator engine
+    host_chan_events_if.monitor events
+    );
+
+    import ofs_plat_host_chan_fim_gasket_pkg::*;
+
+    // Not implemented yet
+    assign events.notEmpty = 1'b0;
+    assign events.eng_clk_cycle_count = '0;
+    assign events.fim_clk_cycle_count = '0;
+    assign events.num_rd_reqs = '0;
+    assign events.active_rd_req_sum = '0;
+
+endmodule // host_chan_events_axi
+
+`endif //  `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
+
+
+// OFS Early Access FIM interface
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_EA_OFS_FIM
 
 module host_chan_events_axi
@@ -136,4 +174,5 @@ module host_chan_events_axi
 endmodule // host_chan_events_axi
 
 `endif //  `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_EA_OFS_FIM
+
 `endif //  `ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP

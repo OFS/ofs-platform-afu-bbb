@@ -62,7 +62,7 @@ module ofs_plat_axi_stream_if_skid
         .ready_from_dst(stream_sink.tready)
         );
 
-endmodule // ofs_plat_axi_stream_if_skid_sink_clk
+endmodule // ofs_plat_axi_stream_if_skid
 
 
 // Pass clock from sink to source

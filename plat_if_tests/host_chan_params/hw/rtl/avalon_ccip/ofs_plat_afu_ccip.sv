@@ -48,107 +48,101 @@ module ofs_plat_afu
     //
     // ====================================================================
 
+    //
+    // Assume that all group 0 interfaces have their own MMIO as well.
+    // They are likely either separate virtual or physical interfaces
+    // to the host.
+    //
+    // Separate instances of the test harness will be instantiated on
+    // each group 0 interface.
+    //
+
+    localparam NUM_PORTS_G0 = plat_ifc.host_chan.NUM_PORTS_;
+
     // Instance of a CCI-P interface. The interface wraps usual CCI-P
     // sRx and sTx structs as well as the associated clock and reset.
-    ofs_plat_host_ccip_if ccip_to_afu();
+    ofs_plat_host_ccip_if ccip_to_afu[NUM_PORTS_G0]();
 
-    // Use the platform-provided module to map the primary host interface
-    // to CCI-P. The "primary" interface is the port that includes the
-    // main OPAE-managed MMIO connection.
-    ofs_plat_host_chan_as_ccip
-      #(
-`ifdef TEST_PARAM_AFU_CLK
-        .ADD_CLOCK_CROSSING(1),
-`endif
-`ifdef TEST_PARAM_SORT_RD_RESP
-        .SORT_READ_RESPONSES(1),
-`endif
-`ifdef TEST_PARAM_SORT_WR_RESP
-        .SORT_WRITE_RESPONSES(1),
-`endif
-`ifdef TEST_PARAM_AFU_REG_STAGES
-        .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
-`endif
-        )
-      primary_ccip
-       (
-        .to_fiu(plat_ifc.host_chan.ports[0]),
-        .to_afu(ccip_to_afu),
-
-`ifdef TEST_PARAM_AFU_CLK
-        .afu_clk(`TEST_PARAM_AFU_CLK.clk),
-        .afu_reset_n(`TEST_PARAM_AFU_CLK.reset_n)
-`else
-        .afu_clk(),
-        .afu_reset_n()
-`endif
-        );
-
-
-    // Split CCI-P into a pair of CCI-P interfaces: one for host memory
-    // and the other for MMIO.
-    localparam NUM_PORTS_G0 = plat_ifc.host_chan.NUM_PORTS_;
+    // CCI-P interfaces will be split into a pair of CCI-P interfaces: one for
+    // host memory and the other for MMIO.
     ofs_plat_host_ccip_if#(.LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)) host_mem_to_afu[NUM_PORTS_G0]();
-    ofs_plat_host_ccip_if ccip_to_mmio();
+    ofs_plat_host_ccip_if ccip_to_mmio[NUM_PORTS_G0]();
 
-    ofs_plat_shim_ccip_split_mmio ccip_split
-       (
-        .to_fiu(ccip_to_afu),
-        .host_mem(host_mem_to_afu[0]),
-        .mmio(ccip_to_mmio)
-        );
-
-
-    // Map the the CCI-P MMIO interface to a 64 bit Avalon interface.
+    // And the the CCI-P MMIO interface will be mapped to a 64 bit Avalon interface,
+    // since that's what the AFU expects.
     ofs_plat_avalon_mem_if
       #(
         `HOST_CHAN_AVALON_MMIO_PARAMS(64),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
-        mmio64_to_afu();
+        mmio64_to_afu[NUM_PORTS_G0]();
 
-    ofs_plat_map_ccip_as_avalon_mmio
-      #(
-        .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
-        )
-      av_host_mmio
-       (
-        .to_fiu(ccip_to_mmio),
-        .mmio_to_afu(mmio64_to_afu),
 
-        // Not used (no clock crossing)
-        .afu_clk(),
-        .afu_reset_n()
-        );
-
-    // Are there any more ports in group 0? Map them to host_mem_to_afu.
+    // Map group 0 ports to host_mem_to_afu.
     genvar p;
     generate
-        for (p = 1; p < NUM_PORTS_G0; p = p + 1)
+        for (p = 0; p < NUM_PORTS_G0; p = p + 1)
         begin : hc_g0
             ofs_plat_host_chan_as_ccip
               #(
+`ifdef TEST_PARAM_AFU_CLK
+                .ADD_CLOCK_CROSSING(1),
+`endif
 `ifdef TEST_PARAM_SORT_RD_RESP
                 .SORT_READ_RESPONSES(1),
 `endif
-`ifdef TEST_PARAM_AFU_REG_STAGES
-                .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES),
+`ifdef TEST_PARAM_SORT_WR_RESP
+                .SORT_WRITE_RESPONSES(1),
 `endif
-                .ADD_CLOCK_CROSSING(1)
+`ifdef TEST_PARAM_AFU_REG_STAGES
+                .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
+`endif
                 )
-              ccip
+              primary_ccip
                (
                 .to_fiu(plat_ifc.host_chan.ports[p]),
-                .to_afu(host_mem_to_afu[p]),
+                .to_afu(ccip_to_afu[p]),
 
-                .afu_clk(host_mem_to_afu[0].clk),
-                .afu_reset_n(host_mem_to_afu[0].reset_n)
+`ifdef TEST_PARAM_AFU_CLK
+                .afu_clk(`TEST_PARAM_AFU_CLK.clk),
+                .afu_reset_n(`TEST_PARAM_AFU_CLK.reset_n)
+`else
+                .afu_clk(),
+                .afu_reset_n()
+`endif
+                );
+
+
+            // Split DMA and MMIO interfaces
+            ofs_plat_shim_ccip_split_mmio ccip_split
+               (
+                .to_fiu(ccip_to_afu[p]),
+                .host_mem(host_mem_to_afu[p]),
+                .mmio(ccip_to_mmio[p])
+                );
+
+
+            // Map MMIO to Avalon
+            ofs_plat_map_ccip_as_avalon_mmio
+              #(
+                .MAX_OUTSTANDING_MMIO_RD_REQS(ccip_cfg_pkg::MAX_OUTSTANDING_MMIO_RD_REQS)
+                )
+              av_host_mmio
+               (
+                .to_fiu(ccip_to_mmio[p]),
+                .mmio_to_afu(mmio64_to_afu[p]),
+
+                // Not used (no clock crossing)
+                .afu_clk(),
+                .afu_reset_n()
                 );
         end
     endgenerate
 
     //
     // If there is a second group of host channel ports map them too.
+    // We assume they do not have MMIO control. These ports will be
+    // associated with the G0 engine 0 environment.
     //
 `ifndef OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS
 
@@ -334,19 +328,24 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    t_ofs_plat_power_state afu_pwrState;
+    t_ofs_plat_power_state afu_pwrState[NUM_PORTS_G0];
 
-    ofs_plat_prim_clock_crossing_reg
-      #(
-        .WIDTH($bits(t_ofs_plat_power_state))
-        )
-      map_pwrState
-       (
-        .clk_src(plat_ifc.clocks.pClk.clk),
-        .clk_dst(ccip_to_afu.clk),
-        .r_in(plat_ifc.pwrState),
-        .r_out(afu_pwrState)
-        );
+    generate
+        for (p = 0; p < NUM_PORTS_G0; p = p + 1)
+        begin : ps_g0
+            ofs_plat_prim_clock_crossing_reg
+              #(
+                .WIDTH($bits(t_ofs_plat_power_state))
+                )
+              map_pwrState
+               (
+                .clk_src(plat_ifc.clocks.pClk.clk),
+                .clk_dst(host_mem_to_afu[p].clk),
+                .r_in(plat_ifc.pwrState),
+                .r_out(afu_pwrState[p])
+                );
+        end
+    endgenerate
 
 
     // ====================================================================
@@ -377,25 +376,57 @@ module ofs_plat_afu
     //
     // ====================================================================
 
+    // Group 0, port 0 gets all the G1/G2 ports
     afu
      #(
-       .NUM_PORTS_G0(NUM_PORTS_G0),
        .NUM_PORTS_G1(NUM_PORTS_G1),
        .NUM_PORTS_G2(NUM_PORTS_G2)
        )
      afu_impl
       (
-       .host_mem_if(host_mem_to_afu),
+       .host_mem_if(host_mem_to_afu[0]),
        .host_mem_g1_if(host_mem_g1_to_afu),
        .host_mem_g2_if(host_mem_g2_to_afu),
 
-       .host_chan_events_if(host_chan_events),
+       .host_chan_events_if(host_chan_events[0]),
        .host_chan_g1_events_if(host_chan_g1_events),
        .host_chan_g2_events_if(host_chan_g2_events),
 
-       .mmio64_if(mmio64_to_afu),
+       .mmio64_if(mmio64_to_afu[0]),
        .pClk(plat_ifc.clocks.pClk.clk),
-       .pwrState(afu_pwrState)
+       .pwrState(afu_pwrState[0])
        );
+
+    // Any other group 0 ports get their own AFU instances
+    generate
+        for (p = 1; p < NUM_PORTS_G0; p = p + 1)
+        begin : afu_g0
+            ofs_plat_host_ccip_if dummy_host_mem_g1[1]();
+            ofs_plat_host_ccip_if dummy_host_mem_g2[1]();
+
+            host_chan_events_if dummy_host_chan_g1_events[1]();
+            host_chan_events_if dummy_host_chan_g2_events[1]();
+
+            afu
+              #(
+                .NUM_PORTS_G1(0),
+                .NUM_PORTS_G2(0)
+                )
+              afu_impl
+               (
+                .host_mem_if(host_mem_to_afu[p]),
+                .host_mem_g1_if(dummy_host_mem_g1),
+                .host_mem_g2_if(dummy_host_mem_g2),
+
+                .host_chan_events_if(host_chan_events[p]),
+                .host_chan_g1_events_if(dummy_host_chan_g1_events),
+                .host_chan_g2_events_if(dummy_host_chan_g2_events),
+
+                .mmio64_if(mmio64_to_afu[p]),
+                .pClk(plat_ifc.clocks.pClk.clk),
+                .pwrState(afu_pwrState[p])
+                );
+        end
+    endgenerate
 
 endmodule // ofs_plat_afu

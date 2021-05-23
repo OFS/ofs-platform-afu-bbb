@@ -72,6 +72,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         logic [6:0] lower_addr;
         logic [11:0] byte_count;
         logic [15:0] requester_id;
+        logic [2:0] tc;
     } t_gen_tx_mmio_host_req;
 
 

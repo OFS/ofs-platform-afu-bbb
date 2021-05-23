@@ -32,19 +32,18 @@
 
 module afu
   #(
-    parameter NUM_PORTS_G0 = 1,
     parameter NUM_PORTS_G1 = 0,
     parameter NUM_PORTS_G2 = 0
     )
    (
     // Host memory (AXI)
-    ofs_plat_axi_mem_if.to_sink host_mem_if[NUM_PORTS_G0],
+    ofs_plat_axi_mem_if.to_sink host_mem_if,
     // Zero length is illegal -- force minimum size 1 dummy entry
     ofs_plat_axi_mem_if.to_sink host_mem_g1_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
     ofs_plat_axi_mem_if.to_sink host_mem_g2_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
 
     // Events, used for tracking latency through the FIM
-    host_chan_events_if.engine host_chan_events_if[NUM_PORTS_G0],
+    host_chan_events_if.engine host_chan_events_if,
     host_chan_events_if.engine host_chan_g1_events_if[NUM_PORTS_G1 > 0 ? NUM_PORTS_G1 : 1],
     host_chan_events_if.engine host_chan_g2_events_if[NUM_PORTS_G2 > 0 ? NUM_PORTS_G2 : 1],
 
@@ -59,6 +58,7 @@ module afu
     input  t_ofs_plat_power_state pwrState
     );
 
+    localparam NUM_PORTS_G0 = 1;
     localparam NUM_ENGINES = NUM_PORTS_G0 + NUM_PORTS_G1 + NUM_PORTS_G2;
 
     engine_csr_if eng_csr_glob();
@@ -102,24 +102,21 @@ module afu
 
     genvar p;
     generate
-        // Group 0 engines, one per port
-        for (p = 0; p < NUM_PORTS_G0; p = p + 1)
-        begin : g0
-            host_mem_rdwr_engine_axi
-              #(
+        // Group 0 engine
+        host_mem_rdwr_engine_axi
+          #(
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE
-                .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE),
+            .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE),
 `endif
-                .ENGINE_NUMBER(p),
-                .ENGINE_GROUP(0)
-                )
-              eng
-               (
-                .host_mem_if(host_mem_if[p]),
-                .host_chan_events_if(host_chan_events_if[p]),
-                .csrs(eng_csr[p])
-                );
-        end
+            .ENGINE_NUMBER(0),
+            .ENGINE_GROUP(0)
+            )
+          eng
+           (
+            .host_mem_if(host_mem_if),
+            .host_chan_events_if(host_chan_events_if),
+            .csrs(eng_csr[0])
+            );
 
         // Group 1 engines follow group 0
         for (p = 0; p < NUM_PORTS_G1; p = p + 1)

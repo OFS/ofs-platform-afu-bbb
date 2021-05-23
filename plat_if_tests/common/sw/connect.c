@@ -156,37 +156,8 @@ probeForASE(const t_target_bdf *bdf)
     fpgaGetProperties(NULL, &filter);
     fpgaPropertiesSetObjectType(filter, FPGA_DEVICE);
 
-    if (-1 != bdf->segment)
-    {
-        r = fpgaPropertiesSetSegment(filter, bdf->segment);
-        ON_ERR_GOTO(r, out_destroy, "setting segment");
-    }
-
-    if (-1 != bdf->bus)
-    {
-        r = fpgaPropertiesSetBus(filter, bdf->bus);
-        ON_ERR_GOTO(r, out_destroy, "setting bus");
-    }
-
-    if (-1 != bdf->device)
-    {
-        r = fpgaPropertiesSetDevice(filter, bdf->device);
-        ON_ERR_GOTO(r, out_destroy, "setting device");
-    }
-
-    if (-1 != bdf->function)
-    {
-        r = fpgaPropertiesSetFunction(filter, bdf->function);
-        ON_ERR_GOTO(r, out_destroy, "setting function");
-    }
-
-    if (-1 != bdf->socket)
-    {
-        r = fpgaPropertiesSetSocketID(filter, bdf->socket);
-        ON_ERR_GOTO(r, out_destroy, "setting socket id");
-    }
-
-    // Connecting to one is sufficient to find ASE.
+    // BDF is ignored when checking for ASE. Connecting to one is
+    // sufficient to find ASE.
     fpgaEnumerate(&filter, 1, &fme_token, 1, &num_matches);
     if (0 != num_matches)
     {

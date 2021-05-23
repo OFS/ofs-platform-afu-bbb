@@ -173,6 +173,12 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
 
             default: tx_st.t.data[0].payload[63:0] = '0;
         endcase
+
+        // Was the request short, asking for the high 32 bits of the 64 bit register?
+        if (tx_cpl_hdr.lower_addr[2])
+        begin
+            tx_st.t.data[0].payload[31:0] = tx_st.t.data[0].payload[63:32];
+        end
     end
 
 

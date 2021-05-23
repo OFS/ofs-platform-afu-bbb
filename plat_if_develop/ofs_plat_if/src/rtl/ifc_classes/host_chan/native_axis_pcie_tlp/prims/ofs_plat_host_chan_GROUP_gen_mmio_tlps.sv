@@ -137,6 +137,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
         mmio_cpl_hdr.length = mmio_rsp_meta.byte_count >> 2;
         mmio_cpl_hdr.u.cpl.byte_count = mmio_rsp_meta.byte_count;
         mmio_cpl_hdr.u.cpl.requester_id = mmio_rsp_meta.requester_id;
+        mmio_cpl_hdr.u.cpl.tc = mmio_rsp_meta.tc;
         mmio_cpl_hdr.u.cpl.lower_addr = mmio_rsp_meta.lower_addr;
         mmio_cpl_hdr.u.cpl.tag = mmio_rsp.tag;
     end

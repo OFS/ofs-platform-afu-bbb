@@ -258,6 +258,15 @@ allocSharedBuffer(
 #endif
     }
 
+    // The test engines treat a zero buffer IOVA as a hint to disable the engine.
+    // If IOVA is zero, just leave it allocated as a placeholder and get another
+    // buffer.
+    if (0 == *ioaddr)
+    {
+        buf = allocSharedBuffer(accel_handle, size, addr_mode, numa_mem_mask,
+                                wsid, ioaddr);
+    }
+
     return buf;
 }
 

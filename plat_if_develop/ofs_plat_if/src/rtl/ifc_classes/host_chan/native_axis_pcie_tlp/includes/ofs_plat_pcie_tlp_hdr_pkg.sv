@@ -76,24 +76,26 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     // Header fields specific to memory requests
     typedef struct packed
     {
-        t_ofs_plat_pcie_hdr_id requester_id;		// 16
-        t_ofs_plat_pcie_hdr_tag tag;			// 10
-        logic [3:0] last_be;				// 4
-        logic [3:0] first_be;				// 4
-        t_ofs_plat_pcie_hdr_addr addr;			// 64
-                                                        // = 98
+        t_ofs_plat_pcie_hdr_id requester_id;            // 16
+        logic [2:0] tc;                                 // 3
+        t_ofs_plat_pcie_hdr_tag tag;                    // 10
+        logic [3:0] last_be;                            // 4
+        logic [3:0] first_be;                           // 4
+        t_ofs_plat_pcie_hdr_addr addr;                  // 64
+                                                        // = 101
     }
     t_ofs_plat_pcie_hdr_mem_req;
 
     // Header fields specific to read completions
     typedef struct packed
     {
-        t_ofs_plat_pcie_hdr_id requester_id;		// 16
-        t_ofs_plat_pcie_hdr_tag tag;			// 10
-        t_ofs_plat_pcie_hdr_id completer_id;		// 16
-        t_ofs_plat_pcie_hdr_byte_count byte_count;	// 12
-        t_ofs_plat_pcie_hdr_lower_addr lower_addr;	// 7
-                                                        // = 61
+        t_ofs_plat_pcie_hdr_id requester_id;            // 16
+        logic [2:0] tc;                                 // 3
+        t_ofs_plat_pcie_hdr_tag tag;                    // 10
+        t_ofs_plat_pcie_hdr_id completer_id;            // 16
+        t_ofs_plat_pcie_hdr_byte_count byte_count;      // 12
+        t_ofs_plat_pcie_hdr_lower_addr lower_addr;      // 7
+                                                        // = 64
         logic [36:0] pad; // All union entries must be the same size
     }
     t_ofs_plat_pcie_hdr_cpl;
@@ -101,21 +103,22 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     // Interrupt request
     typedef struct packed
     {
-        t_ofs_plat_pcie_hdr_id requester_id;		// 16
-        t_ofs_plat_pcie_hdr_irq_id irq_id;		// 8
+        t_ofs_plat_pcie_hdr_id requester_id;            // 16
+        t_ofs_plat_pcie_hdr_irq_id irq_id;              // 8
                                                         // = 24
-        logic [73:0] pad; // All union entries must be the same size
+        logic [76:0] pad; // All union entries must be the same size
     }
     t_ofs_plat_pcie_hdr_irq;
 
     // Generic message (interrupts)
     typedef struct packed
     {
-        t_ofs_plat_pcie_hdr_id requester_id;		// 16
-        t_ofs_plat_pcie_hdr_tag tag;			// 10
-        logic [7:0] msg_code;				// 8
-        logic [63:0] msg;				// 64
-                                                        // = 98
+        t_ofs_plat_pcie_hdr_id requester_id;            // 16
+        logic [2:0] tc;                                 // 3
+        t_ofs_plat_pcie_hdr_tag tag;                    // 10
+        logic [7:0] msg_code;                           // 8
+        logic [63:0] msg;                               // 64
+                                                        // = 101
     }
     t_ofs_plat_pcie_hdr_msg;
 

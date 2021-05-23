@@ -216,6 +216,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     assign rx_mmio_from_host.t.data.lower_addr = rx_mem_req_hdr_q.u.mem_req.addr[6:0];
     assign rx_mmio_from_host.t.data.byte_count = { rx_mem_req_hdr_q.length, 2'b0 };
     assign rx_mmio_from_host.t.data.requester_id = rx_mem_req_hdr_q.u.mem_req.requester_id;
+    assign rx_mmio_from_host.t.data.tc = rx_mem_req_hdr_q.u.mem_req.tc;
 
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TLP_STREAM_INSTANCE(tx_mmio_tlps);
@@ -488,7 +489,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
                 $fatal(2, " ** ERROR ** %m: Multiple arbitration winners!");
 
             // Check that TX addresses are encoded properly as 32 or 64 bits.
-            if (to_fiu_tx_st.tvalid && ofs_plat_pcie_func_is_mem_req(to_fiu_tx_st.t.user[0].hdr.fmttype))
+            if (to_fiu_tx_st.tvalid && !to_fiu_tx_st.t.user[0].poison &&
+                ofs_plat_pcie_func_is_mem_req(to_fiu_tx_st.t.user[0].hdr.fmttype))
             begin
                 if (ofs_plat_pcie_func_is_addr64(to_fiu_tx_st.t.user[0].hdr.fmttype))
                 begin
