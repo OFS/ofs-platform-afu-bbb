@@ -60,12 +60,84 @@ module host_chan_events_axi
 
     import ofs_plat_host_chan_fim_gasket_pkg::*;
 
-    // Not implemented yet
-    assign events.notEmpty = 1'b0;
-    assign events.eng_clk_cycle_count = '0;
-    assign events.fim_clk_cycle_count = '0;
-    assign events.num_rd_reqs = '0;
-    assign events.active_rd_req_sum = '0;
+    //
+    // Track new requests and responses
+    //
+    typedef logic [12:0] t_dword_count;
+    t_dword_count rd_n_dwords_req, rd_n_dwords_req_q;
+    t_dword_count rd_n_dwords_rsp, rd_n_dwords_rsp_q;
+
+    // Map segments within the TLP data vector as request and completion headers.
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_hdrs[ofs_pcie_ss_cfg_pkg::NUM_OF_SEG];
+    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_hdrs[ofs_pcie_ss_cfg_pkg::NUM_OF_SEG];
+    always_comb
+    begin
+        for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
+        begin
+            tx_hdrs[s] = pcie_ss_hdr_pkg::PCIe_PUReqHdr_t'(tx_data.segs[s]);
+            rx_hdrs[s] = pcie_ss_hdr_pkg::PCIe_PUCplHdr_t'(rx_data.segs[s]);
+        end
+    end
+
+    // Count requested reads, allowing a read request at the start of any segment.
+    always_comb
+    begin
+        rd_n_dwords_req = '0;
+        if (en_tx)
+        begin
+            for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
+            begin
+                if (tx_user[s].sop && pcie_ss_hdr_pkg::func_is_mrd_req(tx_hdrs[s].fmt_type))
+                begin
+                    rd_n_dwords_req = rd_n_dwords_req + tx_hdrs[s].length;
+                end
+            end
+        end
+    end
+
+    // Count read completions, allowing a completion at the start of any segment.
+    always_comb
+    begin
+        rd_n_dwords_rsp = '0;
+        if (en_rx)
+        begin
+            for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
+            begin
+                if (rx_user[s].sop &&
+                    pcie_ss_hdr_pkg::func_is_completion(rx_hdrs[s].fmt_type) &&
+                    pcie_ss_hdr_pkg::func_has_data(rx_hdrs[s].fmt_type))
+                begin
+                    rd_n_dwords_rsp = rd_n_dwords_rsp + rx_hdrs[s].length;
+                end
+            end
+        end
+    end
+
+    always_ff @(posedge clk)
+    begin
+        rd_n_dwords_req_q <= rd_n_dwords_req;
+        rd_n_dwords_rsp_q <= rd_n_dwords_rsp;
+    end
+
+
+    //
+    // Manage events
+    //
+    host_chan_events_common
+      #(
+        .READ_CNT_WIDTH($bits(t_dword_count)),
+        .UNIT_IS_DWORDS(1)
+        )
+      hc_evt
+       (
+        .clk,
+        .reset_n,
+
+        .rdReqCnt(rd_n_dwords_req_q),
+        .rdRespCnt(rd_n_dwords_rsp_q),
+
+        .events
+        );
 
 endmodule // host_chan_events_axi
 

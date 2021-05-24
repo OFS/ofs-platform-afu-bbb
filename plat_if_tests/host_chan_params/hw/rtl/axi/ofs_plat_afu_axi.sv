@@ -418,6 +418,7 @@ module ofs_plat_afu
 
             afu
               #(
+                .AFU_INSTANCE_ID(p),
                 .NUM_PORTS_G1(0),
                 .NUM_PORTS_G2(0)
                 )

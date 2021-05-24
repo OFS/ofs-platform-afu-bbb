@@ -32,6 +32,7 @@
 
 module afu
   #(
+    parameter AFU_INSTANCE_ID = 0,
     parameter NUM_PORTS_G1 = 0,
     parameter NUM_PORTS_G2 = 0
     )
@@ -93,7 +94,8 @@ module afu
     begin
         eng_csr_glob.rd_data[0] = test_id[63:0];
         eng_csr_glob.rd_data[1] = test_id[127:64];
-        eng_csr_glob.rd_data[2] = { 40'd0,
+        eng_csr_glob.rd_data[2] = { 32'd0,
+                                    8'(AFU_INSTANCE_ID),
                                     8'(NUM_PORTS_G2),
                                     8'(NUM_PORTS_G1),
                                     8'(NUM_PORTS_G0) };
