@@ -48,6 +48,9 @@ static t_target_bdf target;
 static bool latency_mode;
 static uint32_t latency_engine_mask;
 
+const uint32_t max_allowed_accels = 16;
+static uint32_t max_accels = 1;
+
 //
 // Print help
 //
@@ -70,6 +73,9 @@ help(void)
            "                            With no arguments, run on all available engines.\n"
            "                            An optional numeric bitmask selects engines.\n"
            "                            E.g., 6 skips engine 0 and runs engines 2 and 3.\n"
+           "        --max-accels        Maximum number of accelerators to open. An\n"
+           "                            accelerator is a unique AFU. This parameter is\n"
+           "                            relevant only in --latency mode.\n"
            "\n");
 }
 
@@ -82,13 +88,14 @@ static int
 parse_args(int argc, char *argv[])
 {
     struct option longopts[] = {
-        {"help",      no_argument,       NULL, 'h'},
-        {"bus",       required_argument, NULL, 'B'},
-        {"device",    required_argument, NULL, 'D'},
-        {"function",  required_argument, NULL, 'F'},
-        {"socket-id", required_argument, NULL, 'S'},
-        {"segment",   required_argument, NULL, 0xe},
-        {"latency",   optional_argument, NULL, 0xf},
+        {"help",       no_argument,       NULL, 'h'},
+        {"bus",        required_argument, NULL, 'B'},
+        {"device",     required_argument, NULL, 'D'},
+        {"function",   required_argument, NULL, 'F'},
+        {"socket-id",  required_argument, NULL, 'S'},
+        {"segment",    required_argument, NULL, 0xe},
+        {"latency",    optional_argument, NULL, 0xf},
+        {"max-accels", required_argument, NULL, 0x10},
         {0, 0, 0, 0}
     };
 
@@ -110,6 +117,19 @@ parse_args(int argc, char *argv[])
             help();
             return -1;
 
+        case 0xe: /* segment */
+            if (NULL == tmp_optarg)
+                break;
+            endptr = NULL;
+            target.segment =
+                (int)strtoul(tmp_optarg, &endptr, 0);
+            if (endptr != tmp_optarg + strlen(tmp_optarg)) {
+                fprintf(stderr, "invalid segment: %s\n",
+                    tmp_optarg);
+                return -1;
+            }
+            break;
+
         case 0xf: /* latency mode */
             latency_mode = true;
 
@@ -130,15 +150,20 @@ parse_args(int argc, char *argv[])
             }
             break;
 
-        case 0xe: /* segment */
+        case 0x10: /* max-accels */
             if (NULL == tmp_optarg)
                 break;
             endptr = NULL;
-            target.segment =
+            max_accels =
                 (int)strtoul(tmp_optarg, &endptr, 0);
             if (endptr != tmp_optarg + strlen(tmp_optarg)) {
-                fprintf(stderr, "invalid segment: %s\n",
+                fprintf(stderr, "invalid number of accelerators: %s\n",
                     tmp_optarg);
+                return -1;
+            }
+            if (max_accels > max_allowed_accels) {
+                fprintf(stderr, "number of accelerators exceeds %d\n",
+                        max_allowed_accels);
                 return -1;
             }
             break;
@@ -218,43 +243,55 @@ parse_args(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
     fpga_result r;
-    fpga_handle accel_handle;
+    fpga_handle accel_handles[max_allowed_accels];
+    t_csr_handle_p csr_handles[max_allowed_accels];
+    uint32_t num_accels;
 
     initTargetBDF(&target);
     if (parse_args(argc, argv) < 0)
         return 1;
 
-    // Find and connect to the accelerator
-    accel_handle = connectToAccel(AFU_ACCEL_UUID, &target);
-    assert(NULL != accel_handle);
+    // Find and connect to the accelerator(s)
+    num_accels = max_accels;
+    r = connectToMatchingAccels(AFU_ACCEL_UUID, &target,
+                                &num_accels, accel_handles);
+    assert(FPGA_OK == r);
+    if (0 == num_accels) return 0;
     bool is_ase = probeForASE(&target);
     if (is_ase)
     {
         printf("# Running in ASE mode\n");
     }
 
-    t_csr_handle_p csr_handle = csrAllocHandle(accel_handle, 0);
-    assert(csr_handle != NULL);
+    for (uint32_t a = 0; a < num_accels; a += 1)
+    {
+        csr_handles[a] = csrAllocHandle(accel_handles[a], 0);
+        assert(csr_handles[a] != NULL);
 
-    printf("# AFU ID:  %016" PRIx64 " %016" PRIx64 "\n",
-           csrRead(csr_handle, CSR_AFU_ID_H),
-           csrRead(csr_handle, CSR_AFU_ID_L));
+        printf("# AFU ID:  %016" PRIx64 " %016" PRIx64 " (%d)\n",
+               csrRead(csr_handles[a], CSR_AFU_ID_H),
+               csrRead(csr_handles[a], CSR_AFU_ID_L),
+               a);
+    }
 
     // Run tests
     int status;
     if (! latency_mode)
     {
-        status = testHostChanParams(argc, argv, accel_handle, csr_handle, is_ase);
+        status = testHostChanParams(argc, argv, accel_handles[0], csr_handles[0], is_ase);
     }
     else
     {
-        status = testHostChanLatency(argc, argv, accel_handle, csr_handle, is_ase,
+        status = testHostChanLatency(argc, argv, num_accels, accel_handles, csr_handles, is_ase,
                                      latency_engine_mask);
     }
 
     // Done
-    csrReleaseHandle(csr_handle);
-    fpgaClose(accel_handle);
+    for (uint32_t a = 0; a < num_accels; a += 1)
+    {
+        csrReleaseHandle(csr_handles[a]);
+        fpgaClose(accel_handles[a]);
+    }
 
     return status;
 }

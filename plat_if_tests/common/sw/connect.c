@@ -55,20 +55,47 @@ print_err(const char *s, fpga_result res)
 }
 
 
-//
-// Search for an accelerator matching the requested UUID and connect to it.
-//
 fpga_handle
 connectToAccel(const char *accel_uuid, const t_target_bdf *bdf)
 {
+    fpga_result r;
+    fpga_handle accel_handle;
+    uint32_t num_handles = 1;
+    r = connectToMatchingAccels(accel_uuid, bdf, &num_handles, &accel_handle);
+    assert(FPGA_OK == r);
+    assert(num_handles == 1);
+
+    return accel_handle;
+}
+
+
+//
+// Search for all accelerators matching the requested properties and
+// connect to them. The input value of *num_handles is the maximum
+// number of connections allowed. (The size of accel_handles.) The
+// output value of *num_handles is the actual number of connections.
+//
+fpga_result
+connectToMatchingAccels(const char *accel_uuid,
+                        const t_target_bdf *bdf,
+                        uint32_t *num_handles,
+                        fpga_handle *accel_handles)
+{
     fpga_properties filter = NULL;
     fpga_guid guid;
-    fpga_token accel_token = NULL;
+    const uint32_t max_tokens = 16;
+    fpga_token accel_tokens[max_tokens];
     uint32_t num_matches;
-    fpga_handle accel_handle = NULL;
     fpga_result r;
 
     assert(NULL != bdf);
+    assert(num_handles && *num_handles);
+    assert(accel_handles);
+
+    // Limit num_handles to max_tokens. We could be smarter and dynamically
+    // allocate accel_tokens.
+    if (*num_handles > max_tokens)
+        *num_handles = max_tokens;
 
     // Don't print verbose messages in ASE by default
     setenv("ASE_LOG", "0", 0);
@@ -112,23 +139,29 @@ connectToAccel(const char *accel_uuid, const t_target_bdf *bdf)
     fpgaPropertiesSetGUID(filter, guid);
 
     // Do the search across the available FPGA contexts
-    num_matches = 1;
-    fpgaEnumerate(&filter, 1, &accel_token, 1, &num_matches);
+    r = fpgaEnumerate(&filter, 1, accel_tokens, *num_handles, &num_matches);
+    if (*num_handles > num_matches)
+        *num_handles = num_matches;
 
-    if (num_matches < 1)
+    if ((FPGA_OK != r) || (num_matches < 1))
     {
         fprintf(stderr, "Accelerator %s not found!\n", accel_uuid);
         goto out_destroy;
     }
 
-    // Open accelerator
-    r = fpgaOpen(accel_token, &accel_handle, 0);
-    assert(FPGA_OK == r);
+    // Open accelerators
+    for (uint32_t i = 0; i < *num_handles; i += 1)
+    {
+        r = fpgaOpen(accel_tokens[i], &accel_handles[i], 0);
+        assert(FPGA_OK == r);
+        fpgaDestroyToken(&accel_tokens[i]);
+        assert(FPGA_OK == r);
+    }
 
   out_destroy:
     fpgaDestroyProperties(&filter);
 
-    return accel_handle;
+    return r;
 }
 
 

@@ -104,6 +104,10 @@ const char* addr_mode_str[] =
 //
 typedef struct
 {
+    fpga_handle accel_handle;
+    t_csr_handle_p csr_handle;
+    uint32_t accel_eng_idx;
+
     volatile uint64_t *rd_buf;
     uint64_t rd_buf_ioaddr;
     uint64_t rd_wsid;
@@ -125,10 +129,9 @@ typedef struct
 }
 t_engine_buf;
 
-static fpga_handle s_accel_handle;
-static t_csr_handle_p s_csr_handle;
 static bool s_is_ase;
 static t_engine_buf* s_eng_bufs;
+static uint32_t s_num_engines;
 static double s_afu_mhz;
 
 static char *engine_type[] = 
@@ -163,13 +166,37 @@ flushRange(void* start, size_t len)
     uint8_t* end = start + len;
 
     // Does the CPU support clflushopt?
-    static bool checked_clflushopt;
-    static bool supports_clflushopt;
+    static bool checked_clflushopt = false;
+    static bool supports_clflushopt = false;
+    static bool disable_flushrange = false;
+
+    if (disable_flushrange) return;
 
     if (! checked_clflushopt)
     {
         checked_clflushopt = true;
         supports_clflushopt = false;
+
+        // If each accelerator has only one engine, then assume it is PCIe-
+        // attached and disable cache flushing. Flushing is only required on
+        // unusual architectures and may lower performance for short read
+        // requests, since they have to go all the way to host DRAM instead
+        // of CPU caches.
+        disable_flushrange = true;
+        for (uint32_t e = 0; e < s_num_engines; e += 1)
+        {
+            if (0 != s_eng_bufs[e].accel_eng_idx)
+            {
+                disable_flushrange = false;
+                break;
+            }
+        }
+
+        if (disable_flushrange)
+        {
+            printf("# Cache flush disabled\n");
+            return;
+        }
 
         unsigned int eax, ebx, ecx, edx;
         if (__get_cpuid_max(0, 0) >= 7)
@@ -294,21 +321,24 @@ engineErrorAndExit(
 )
 {
     printf("\nEngine mask 0x%lx failure:\n", emask);
-    for (uint32_t e = 0; e < num_engines; e += 1)
+    for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
     {
-        if (emask & ((uint64_t)1 << e))
-        {
-            printf("  Engine %d state:\n", e);
+        t_csr_handle_p csr_handle = s_eng_bufs[glob_e].csr_handle;
 
-            printf("    Read burst requests: %ld\n", csrEngRead(s_csr_handle, e, 1));
+        if (emask & ((uint64_t)1 << glob_e))
+        {
+            printf("  Engine %d state:\n", glob_e);
+
+            uint32_t e = s_eng_bufs[glob_e].accel_eng_idx;
+            printf("    Read burst requests: %ld\n", csrEngRead(csr_handle, e, 1));
             if (s_eng_bufs[e].eng_type == 2)
             {
-                printf("    Read burst responses: %ld\n", csrEngRead(s_csr_handle, e, 6));
+                printf("    Read burst responses: %ld\n", csrEngRead(csr_handle, e, 6));
             }
-            printf("    Read lines responses: %ld\n", csrEngRead(s_csr_handle, e, 2));
+            printf("    Read lines responses: %ld\n", csrEngRead(csr_handle, e, 2));
 
-            printf("    Write burst requests: %ld\n", csrEngRead(s_csr_handle, e, 3));
-            printf("    Write burst responses: %ld\n", csrEngRead(s_csr_handle, e, 4));
+            printf("    Write burst requests: %ld\n", csrEngRead(csr_handle, e, 3));
+            printf("    Write burst responses: %ld\n", csrEngRead(csr_handle, e, 4));
         }
     }
 
@@ -320,10 +350,15 @@ static void
 initEngine(
     uint32_t e,
     fpga_handle accel_handle,
-    t_csr_handle_p csr_handle)
+    t_csr_handle_p csr_handle,
+    uint32_t accel_eng_idx)
 {
+    s_eng_bufs[e].accel_handle = accel_handle;
+    s_eng_bufs[e].csr_handle = csr_handle;
+    s_eng_bufs[e].accel_eng_idx = accel_eng_idx;
+
     // Get the maximum burst size for the engine.
-    uint64_t r = csrEngRead(s_csr_handle, e, 0);
+    uint64_t r = csrEngRead(csr_handle, accel_eng_idx, 0);
     s_eng_bufs[e].max_burst_size = r & 0x7fff;
     s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
     s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
@@ -339,12 +374,6 @@ initEngine(
     printf("#  Engine %d masked writes allowed: %d\n", e, s_eng_bufs[e].masked_writes);
     printf("#  Engine %d addressing mode: %s\n", e, addr_mode_str[s_eng_bufs[e].addr_mode]);
     printf("#  Engine %d group: %d\n", e, s_eng_bufs[e].group);
-
-    if (eng_num != e)
-    {
-        fprintf(stderr, "  Engine %d internal numbering mismatch (%d)\n", e, eng_num);
-        exit(1);
-    }
 
     // 64 bit mask of valid NUMA nodes, according to the FPGA configuration
     struct bitmask* numa_mask;
@@ -399,7 +428,7 @@ initEngine(
     // Set the buffer size mask. The buffer is 2MB but the mask covers
     // only 1MB. This allows bursts to flow a bit beyond the mask
     // without concern for overflow.
-    csrEngWrite(csr_handle, e, 4, (MB(1) / CL(1)) - 1);
+    csrEngWrite(csr_handle, accel_eng_idx, 4, (MB(1) / CL(1)) - 1);
 }
 
 
@@ -494,6 +523,7 @@ testMaskedWrite(
 {
     int num_errors = 0;
     uint64_t emask = (uint64_t)1 << e;
+    t_csr_handle_p csr_handle = s_eng_bufs[e].csr_handle;
 
     // No support for masked writes?
     if (! s_eng_bufs[e].masked_writes)
@@ -503,18 +533,18 @@ testMaskedWrite(
     }
 
     // No read
-    csrEngWrite(s_csr_handle, e, 0, 0);
+    csrEngWrite(csr_handle, e, 0, 0);
     // Configure write
-    csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+    csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
 
     // Write 1 line (1 burst of 1 line)
-    csrEngWrite(s_csr_handle, e, 2, ((uint64_t)1 << 32) | 1);
-    csrEngWrite(s_csr_handle, e, 3, ((uint64_t)1 << 32) | 1);
+    csrEngWrite(csr_handle, e, 2, ((uint64_t)1 << 32) | 1);
+    csrEngWrite(csr_handle, e, 3, ((uint64_t)1 << 32) | 1);
 
     uint64_t mask = 0x3fffffffffffffe;
 
     // Test a simple mask -- just prove that the mask reaches the FIM
-    csrEngWrite(s_csr_handle, e, 5, mask);
+    csrEngWrite(csr_handle, e, 5, mask);
 
     // Set the line to all ones to make it easier to observe the mask
     memset((void*)s_eng_bufs[e].wr_buf, ~0, CL(1));
@@ -523,19 +553,19 @@ testMaskedWrite(
     printf("  Write engine %d, mask 0x%016" PRIx64 " - ", e, mask);
 
     // Start engine
-    csrEnableEngines(s_csr_handle, emask);
+    csrEnableEngines(csr_handle, emask);
 
     // Wait for it to start
     struct timespec wait_time;
     wait_time.tv_sec = 0;
     wait_time.tv_nsec = 1000000;
-    while ((csrGetEnginesEnabled(s_csr_handle) == 0) ||
-           csrGetEnginesActive(s_csr_handle))
+    while ((csrGetEnginesEnabled(csr_handle) == 0) ||
+           csrGetEnginesActive(csr_handle))
     {
         nanosleep(&wait_time, NULL);
     }
 
-    csrDisableEngines(s_csr_handle, emask);
+    csrDisableEngines(csr_handle, emask);
 
     uint64_t *buf = (uint64_t*)s_eng_bufs[e].wr_buf;
 
@@ -559,7 +589,7 @@ testMaskedWrite(
     }
 
     // Clear the write mask
-    csrEngWrite(s_csr_handle, e, 5, ~(uint64_t)0);
+    csrEngWrite(csr_handle, e, 5, ~(uint64_t)0);
 
     return num_errors;
 }
@@ -603,28 +633,30 @@ testSmallRegions(
             {
                 for (uint32_t e = 0; e < num_engines; e += 1)
                 {
+                    t_csr_handle_p csr_handle = s_eng_bufs[e].csr_handle;
+
                     if (emask & ((uint64_t)1 << e))
                     {
                         // Read buffer base address (0 disables reads)
                         if (mode & 1)
-                            csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
+                            csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
                         else
-                            csrEngWrite(s_csr_handle, e, 0, 0);
+                            csrEngWrite(csr_handle, e, 0, 0);
 
                         // Write buffer base address (0 disables writes)
                         if (mode & 2)
-                            csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+                            csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
                         else
-                            csrEngWrite(s_csr_handle, e, 1, 0);
+                            csrEngWrite(csr_handle, e, 1, 0);
 
                         // Clear the write buffer
                         memset((void*)s_eng_bufs[e].wr_buf, 0, MB(2));
                         flushRange((void*)s_eng_bufs[e].wr_buf, MB(2));
 
                         // Configure engine burst details
-                        csrEngWrite(s_csr_handle, e, 2,
+                        csrEngWrite(csr_handle, e, 2,
                                     (num_bursts << 32) | burst_size);
-                        csrEngWrite(s_csr_handle, e, 3,
+                        csrEngWrite(csr_handle, e, 3,
                                     (num_bursts << 32) | burst_size);
                     }
                 }
@@ -641,7 +673,7 @@ testSmallRegions(
                        num_bursts, burst_size);
 
                 // Start your engines
-                csrEnableEngines(s_csr_handle, emask);
+                csrEnableEngines(s_eng_bufs[0].csr_handle, emask);
 
                 // Wait for engine to complete. Checking csrGetEnginesEnabled()
                 // resolves a race between the request to start an engine
@@ -651,8 +683,8 @@ testSmallRegions(
                 wait_time.tv_sec = 0;
                 wait_time.tv_nsec = 1000000;
                 uint64_t wait_nsec = 0;
-                while ((csrGetEnginesEnabled(s_csr_handle) == 0) ||
-                       csrGetEnginesActive(s_csr_handle))
+                while ((csrGetEnginesEnabled(s_eng_bufs[0].csr_handle) == 0) ||
+                       csrGetEnginesActive(s_eng_bufs[0].csr_handle))
                 {
                     nanosleep(&wait_time, NULL);
 
@@ -664,11 +696,13 @@ testSmallRegions(
                 }
 
                 // Stop the engine
-                csrDisableEngines(s_csr_handle, emask);
+                csrDisableEngines(s_eng_bufs[0].csr_handle, emask);
 
                 bool pass = true;
                 for (uint32_t e = 0; e < num_engines; e += 1)
                 {
+                    t_csr_handle_p csr_handle = s_eng_bufs[e].csr_handle;
+
                     if (emask & ((uint64_t)1 << e))
                     {
                         // Compute the expected hash and sum
@@ -690,7 +724,7 @@ testSmallRegions(
                         uint32_t actual_sum = 0;
                         if (mode & 1)
                         {
-                            uint64_t check_val = csrEngRead(s_csr_handle, e, 5);
+                            uint64_t check_val = csrEngRead(csr_handle, e, 5);
                             actual_hash = (uint32_t)check_val;
                             actual_sum = check_val >> 32;
                         }
@@ -767,27 +801,31 @@ testSmallRegions(
 //
 static int
 configBandwidth(
-    uint32_t e,
+    uint32_t glob_e,
     uint32_t burst_size,
     uint32_t mode,         // 1 - read, 2 - write, 3 - read+write
     uint32_t max_active    // Maximum outstanding requests at once (0 is unlimited)
 )
 {
+    t_csr_handle_p csr_handle = s_eng_bufs[glob_e].csr_handle;
+    // Map to local engine index
+    uint32_t e = s_eng_bufs[glob_e].accel_eng_idx;
+
     // Read buffer base address (0 disables reads)
     if (mode & 1)
-        csrEngWrite(s_csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
+        csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
     else
-        csrEngWrite(s_csr_handle, e, 0, 0);
+        csrEngWrite(csr_handle, e, 0, 0);
 
     // Write buffer base address (0 disables writes)
     if (mode & 2)
-        csrEngWrite(s_csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+        csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
     else
-        csrEngWrite(s_csr_handle, e, 1, 0);
+        csrEngWrite(csr_handle, e, 1, 0);
 
     // Configure engine burst details
-    csrEngWrite(s_csr_handle, e, 2, ((uint64_t)max_active << 48) | burst_size);
-    csrEngWrite(s_csr_handle, e, 3, ((uint64_t)max_active << 48) | burst_size);
+    csrEngWrite(csr_handle, e, 2, ((uint64_t)max_active << 48) | burst_size);
+    csrEngWrite(csr_handle, e, 3, ((uint64_t)max_active << 48) | burst_size);
 
     return 0;
 }
@@ -805,13 +843,23 @@ runBandwidth(
 {
     assert(emask != 0);
 
-    csrEnableEngines(s_csr_handle, emask);
+    // Start engines. In some modes, there may be multiple accelerator controllers
+    // connected. Enable them all.
+    t_csr_handle_p csr_handle = NULL;
+    for (uint32_t c = 0; c < num_engines; c += 1)
+    {
+        if (s_eng_bufs[c].csr_handle != csr_handle)
+        {
+            csr_handle = s_eng_bufs[c].csr_handle;
+            csrEnableEngines(csr_handle, emask);
+        }
+    }
 
-    // Wait for them to start
+    // Wait for them to start.
     struct timespec wait_time;
     wait_time.tv_sec = 0;
     wait_time.tv_nsec = 1000000;
-    while (csrGetEnginesEnabled(s_csr_handle) == 0)
+    while (csrGetEnginesEnabled(s_eng_bufs[num_engines-1].csr_handle) == 0)
     {
         nanosleep(&wait_time, NULL);
     }
@@ -819,17 +867,33 @@ runBandwidth(
     // Let them run for a while
     usleep(s_is_ase ? 10000000 : 100000);
     
-    csrDisableEngines(s_csr_handle, emask);
+    csr_handle = NULL;
+    for (uint32_t c = 0; c < num_engines; c += 1)
+    {
+        if (s_eng_bufs[c].csr_handle != csr_handle)
+        {
+            csr_handle = s_eng_bufs[c].csr_handle;
+            csrDisableEngines(csr_handle, emask);
+        }
+    }
 
     // Wait for them to stop
-    while (csrGetEnginesActive(s_csr_handle))
+    csr_handle = NULL;
+    for (uint32_t c = 0; c < num_engines; c += 1)
     {
-        nanosleep(&wait_time, NULL);
+        if (s_eng_bufs[c].csr_handle != csr_handle)
+        {
+            csr_handle = s_eng_bufs[c].csr_handle;
+            while (csrGetEnginesActive(csr_handle))
+            {
+                nanosleep(&wait_time, NULL);
+            }
+        }
     }
 
     if (s_afu_mhz == 0)
     {
-        s_afu_mhz = csrGetClockMHz(s_csr_handle);
+        s_afu_mhz = csrGetClockMHz(s_eng_bufs[0].csr_handle);
     }
 }
 
@@ -845,15 +909,18 @@ printBandwidth(
 {
     assert(emask != 0);
 
-    uint64_t cycles = csrGetClockCycles(s_csr_handle);
+    uint64_t cycles = csrGetClockCycles(s_eng_bufs[0].csr_handle);
     uint64_t read_lines = 0;
     uint64_t write_lines = 0;
-    for (uint32_t e = 0; e < num_engines; e += 1)
+    for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
     {
-        if (emask & ((uint64_t)1 << e))
+        t_csr_handle_p csr_handle = s_eng_bufs[glob_e].csr_handle;
+        uint32_t e = s_eng_bufs[glob_e].accel_eng_idx;
+
+        if (emask & ((uint64_t)1 << glob_e))
         {
-            read_lines += csrEngRead(s_csr_handle, e, 2);
-            write_lines += csrEngRead(s_csr_handle, e, 3);
+            read_lines += csrEngRead(csr_handle, e, 2);
+            write_lines += csrEngRead(csr_handle, e, 3);
         }
     }
 
@@ -892,12 +959,14 @@ printLatencyAndBandwidth(
     uint32_t num_engines,
     uint64_t emask,
     uint32_t max_active_reqs,
+    uint32_t num_only_rd_engines,
+    uint32_t num_only_wr_engines,
     bool print_header
 )
 {
     assert(emask != 0);
 
-    uint64_t cycles = csrGetClockCycles(s_csr_handle);
+    uint64_t cycles = csrGetClockCycles(s_eng_bufs[0].csr_handle);
     double afu_ns_per_cycle = 1000.0 / s_afu_mhz;
 
     uint64_t total_read_lines = 0;
@@ -918,57 +987,66 @@ printLatencyAndBandwidth(
         }
     }
 
-    for (uint32_t e = 0; e < num_engines; e += 1)
+    // In a mode where only one engine is read or one is write? If so, one
+    // engine is devoted to read or write and all others are doing the opposite.
+    // If none are devoted to only read or write then all are doing the same thing.
+    uint32_t n_sampled_rd_engines = (num_only_rd_engines ? num_only_rd_engines : num_engines - num_only_wr_engines);
+    uint32_t n_sampled_wr_engines = (num_only_wr_engines ? num_only_wr_engines : num_engines - num_only_rd_engines);
+    
+    for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
     {
-        if (emask & ((uint64_t)1 << e))
+        t_csr_handle_p csr_handle = s_eng_bufs[glob_e].csr_handle;
+        uint32_t e = s_eng_bufs[glob_e].accel_eng_idx;
+
+        if (emask & ((uint64_t)1 << glob_e))
         {
             // Is the engine's FIM frequency known yet?
-            if (0 == s_eng_bufs[e].fim_ifc_mhz)
+            if (0 == s_eng_bufs[glob_e].fim_ifc_mhz)
             {
-                uint64_t fim_clk_cycles = csrEngRead(s_csr_handle, e, 14);
-                uint64_t eng_clk_cycles = csrEngRead(s_csr_handle, e, 15);
-                s_eng_bufs[e].fim_ifc_mhz = s_afu_mhz * fim_clk_cycles / eng_clk_cycles;
-                printf("# FIM %d interface MHz: %0.1f\n", e, s_eng_bufs[e].fim_ifc_mhz);
+                uint64_t fim_clk_cycles = csrEngRead(csr_handle, e, 14);
+                uint64_t eng_clk_cycles = csrEngRead(csr_handle, e, 15);
+                s_eng_bufs[glob_e].fim_ifc_mhz = s_afu_mhz * fim_clk_cycles / eng_clk_cycles;
+                printf("# FIM %d interface MHz: %0.1f\n", glob_e, s_eng_bufs[glob_e].fim_ifc_mhz);
             }
-            double fim_ns_per_cycle = 1000.0 / s_eng_bufs[e].fim_ifc_mhz;
+            double fim_ns_per_cycle = 1000.0 / s_eng_bufs[glob_e].fim_ifc_mhz;
 
             // Count of lines read and written by the engine
-            uint64_t read_lines = csrEngRead(s_csr_handle, e, 2);
+            uint64_t read_lines = csrEngRead(csr_handle, e, 2);
             total_read_lines += read_lines;
-            uint64_t write_lines = csrEngRead(s_csr_handle, e, 3);
+            uint64_t write_lines = csrEngRead(csr_handle, e, 3);
             total_write_lines += write_lines;
 
             // Total active lines across all cycles, from the AFU
-            uint64_t read_active_lines = csrEngRead(s_csr_handle, e, 8);
-            uint64_t write_active_lines = csrEngRead(s_csr_handle, e, 9);
+            uint64_t read_active_lines = csrEngRead(csr_handle, e, 8);
+            uint64_t write_active_lines = csrEngRead(csr_handle, e, 9);
 
             // Compute average latency using Little's Law. Each sampled engine
             // is given equal weight.
             if (read_lines)
             {
-                read_avg_lat += afu_ns_per_cycle * (read_active_lines / read_lines) / n_sampled_engines;
+                read_avg_lat += afu_ns_per_cycle * (read_active_lines / read_lines) / n_sampled_rd_engines;
             }
             if (write_lines)
             {
-                write_avg_lat += afu_ns_per_cycle * (write_active_lines / write_lines) / n_sampled_engines;
+                write_avg_lat += afu_ns_per_cycle * (write_active_lines / write_lines) / n_sampled_wr_engines;
             }
 
             // Sample latency calculation for reads at the boundary to the FIM.
             // The separates the FIM latency from the PIM latency.
-            uint64_t fim_reads = csrEngRead(s_csr_handle, e, 10);
+            uint64_t fim_reads = csrEngRead(csr_handle, e, 10);
             if (fim_reads >> 63)
             {
                 fprintf(stderr, "ERROR: FIM read tracking request/response mismatch!\n");
                 exit(1);
             }
-            uint64_t fim_read_active = csrEngRead(s_csr_handle, e, 11);
+            uint64_t fim_read_active = csrEngRead(csr_handle, e, 11);
             if (fim_reads)
             {
-                fim_read_avg_lat += fim_ns_per_cycle * (fim_read_active / fim_reads) / n_sampled_engines;
+                fim_read_avg_lat += fim_ns_per_cycle * (fim_read_active / fim_reads) / n_sampled_rd_engines;
             }
 
-            max_reads_in_flight += csrEngRead(s_csr_handle, e, 12);
-            uint64_t fim_max_reads = csrEngRead(s_csr_handle, e, 13);
+            max_reads_in_flight += csrEngRead(csr_handle, e, 12);
+            uint64_t fim_max_reads = csrEngRead(csr_handle, e, 13);
             if (fim_max_reads >> 63)
             {
                 // Unit is DWORDs, not lines. Reduce to lines.
@@ -1013,13 +1091,12 @@ testHostChanParams(
     bool is_ase)
 {
     int result = 0;
-    s_accel_handle = accel_handle;
-    s_csr_handle = csr_handle;
     s_is_ase = is_ase;
 
-    printf("# Test ID: %016" PRIx64 " %016" PRIx64 "\n",
+    printf("# Test ID: %016" PRIx64 " %016" PRIx64 " (%ld)\n",
            csrEngGlobRead(csr_handle, 1),
-           csrEngGlobRead(csr_handle, 0));
+           csrEngGlobRead(csr_handle, 0),
+           0xff & (csrEngGlobRead(csr_handle, 2) >> 24));
 
     uint32_t num_engines = csrGetNumEngines(csr_handle);
     printf("# Engines: %d\n", num_engines);
@@ -1027,9 +1104,10 @@ testHostChanParams(
     // Allocate memory buffers for each engine
     s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
     assert(NULL != s_eng_bufs);
+    s_num_engines = num_engines;
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
-        initEngine(e, accel_handle, csr_handle);
+        initEngine(e, accel_handle, csr_handle, e);
     }
     printf("\n");
 
@@ -1138,22 +1216,27 @@ int
 testHostChanLatency(
     int argc,
     char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
+    uint32_t num_accels,
+    fpga_handle *accel_handles,
+    t_csr_handle_p *csr_handles,
     bool is_ase,
     uint32_t engine_mask
 )
 {
     int result = 0;
-    s_accel_handle = accel_handle;
-    s_csr_handle = csr_handle;
+    uint32_t num_engines = 0;
     s_is_ase = is_ase;
 
-    printf("# Test ID: %016" PRIx64 " %016" PRIx64 "\n",
-           csrEngGlobRead(csr_handle, 1),
-           csrEngGlobRead(csr_handle, 0));
+    for (uint32_t a = 0; a < num_accels; a += 1)
+    {
+        printf("# Test ID: %016" PRIx64 " %016" PRIx64 " (%ld)\n",
+               csrEngGlobRead(csr_handles[a], 1),
+               csrEngGlobRead(csr_handles[a], 0),
+               0xff & (csrEngGlobRead(csr_handles[a], 2) >> 24));
 
-    uint32_t num_engines = csrGetNumEngines(csr_handle);
+        num_engines += csrGetNumEngines(csr_handles[a]);
+    }
+
     printf("# Engines: %d\n", num_engines);
 
     // Limit incoming engine mask to available engines
@@ -1167,17 +1250,29 @@ testHostChanLatency(
     // Allocate memory buffers for each engine
     s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
     assert(NULL != s_eng_bufs);
-    for (uint32_t e = 0; e < num_engines; e += 1)
+    s_num_engines = num_engines;
+    uint32_t glob_e = 0;
+    for (uint32_t a = 0; a < num_accels; a += 1)
     {
-        initEngine(e, accel_handle, csr_handle);
+        uint32_t accel_num_engines = csrGetNumEngines(csr_handles[a]);
+        for (uint32_t e = 0; e < accel_num_engines; e += 1)
+        {
+            initEngine(glob_e, accel_handles[a], csr_handles[a], e);
+            glob_e += 1;
+        }
     }
 
     // Bandwidth test each engine individually
     bool printed_afu_mhz = false;
     uint64_t burst_size = 1;
+
+    int max_mode = 3;
+    if (num_accels > 1) max_mode = 4;
+    if (num_accels > 2) max_mode = 5;
+
     while (burst_size <= 4)
     {
-        for (int mode = 1; mode <= 3; mode += 1)
+        for (int mode = 1; mode <= max_mode; mode += 1)
         {
             bool printed_header = false;
             for (uint32_t max_reqs = burst_size; max_reqs <= 512; max_reqs = (max_reqs + 4) & 0xfffffffc)
@@ -1186,7 +1281,14 @@ testHostChanLatency(
                 {
                     if (engine_mask & (1 << e))
                     {
-                        configBandwidth(e, burst_size, mode, max_reqs);
+                        if (mode == 4)
+                            // Only engine 0 read, all others write
+                            configBandwidth(e, burst_size, (e == 0) ? 1 : 2, max_reqs);
+                        else if (mode == 5)
+                            // Only engine 0 write, all others read
+                            configBandwidth(e, burst_size, (e == 0) ? 2 : 1, max_reqs);
+                        else
+                            configBandwidth(e, burst_size, mode, max_reqs);
                     }
                 }
 
@@ -1202,11 +1304,17 @@ testHostChanLatency(
                 {
                     printf("\n\n# Engine mask: %d\n", engine_mask);
                     printf("# Burst size: %ld\n", burst_size);
-                    printf("# Mode: %s\n",
-                           ((mode == 1) ? "read" : ((mode == 2) ? "write" : "read+write")));
+                    printf("# Mode: ");
+                    if (mode == 1) printf("read\n");
+                    else if (mode == 2) printf("write\n");
+                    else if (mode == 3) printf("read+write\n");
+                    else if (mode == 4) printf("one read+others write\n");
+                    else printf("one write+others read\n");
                 }
 
                 printLatencyAndBandwidth(num_engines, engine_mask, max_reqs,
+                                         (mode == 4) ? 1 : 0,
+                                         (mode == 5) ? 1 : 0,
                                          ! printed_header);
 
                 printed_header = true;
@@ -1224,8 +1332,8 @@ testHostChanLatency(
   done:
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
-        fpgaReleaseBuffer(accel_handle, s_eng_bufs[e].rd_wsid);
-        fpgaReleaseBuffer(accel_handle, s_eng_bufs[e].wr_wsid);
+        fpgaReleaseBuffer(s_eng_bufs[e].accel_handle, s_eng_bufs[e].rd_wsid);
+        fpgaReleaseBuffer(s_eng_bufs[e].accel_handle, s_eng_bufs[e].wr_wsid);
     }
 
     return result;

@@ -46,6 +46,18 @@ t_target_bdf;
 // Search for an accelerator matching the requested UUID and connect to it.
 fpga_handle connectToAccel(const char *accel_uuid, const t_target_bdf *bdf);
 
+//
+// Search for all accelerators matching the requested properties and
+// connect to them. The input value of *num_handles is the maximum
+// number of connections allowed. (The size of accel_handles.) The
+// output value of *num_handles is the actual number of connections.
+//
+fpga_result
+connectToMatchingAccels(const char *accel_uuid,
+                        const t_target_bdf *bdf,
+                        uint32_t *num_handles,
+                        fpga_handle *accel_handles);
+
 void initTargetBDF(t_target_bdf *bdf);
 
 // Is the AFU simulated?

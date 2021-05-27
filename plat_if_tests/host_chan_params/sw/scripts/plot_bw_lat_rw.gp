@@ -7,6 +7,16 @@ cycle_time = 1000.0 / afu_mhz
 print sprintf("AFU cycle time: %f ns", cycle_time)
 platform = platform . " (" . afu_mhz . "MHz)"
 
+# The number of "# AFU ID" lines in the data file header indicates the number
+# of accelerators (individual AFUs) used in the run. The base grouping of
+# tables is all read, all write, all read+all write (3 tables). When two accelerators are
+# present, one read+one write is added. When three are present, the three base
+# tables are extended with one read+others write and one write+others read.
+afu_cnt = system("grep -c '# AFU ID' " . data_file) + 0
+set_size = 3
+if (afu_cnt > 1) { set_size = 4 }
+if (afu_cnt > 2) { set_size = 5 }
+
 # Does data for 3 line requests exist?
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
 
@@ -15,6 +25,7 @@ set term postscript color enhanced font "Helvetica" 17 butt dashed
 set ylabel "Bandwidth (GiB/s)" offset 1,0 font ",15"
 set y2label "Latency (ns)" offset -1.75,0 font ",15"
 set xlabel "Maximum Outstanding Lines" font ",15"
+if (afu_cnt > 1) { set xlabel "Maximum Outstanding Lines per VF" font ",15" }
 
 set mxtics 3
 set boxwidth 0.8
@@ -54,8 +65,12 @@ mcl = 1
 table_idx = 2
 while (mcl <= 4) {
   if ((mcl != 3) || mcl3_found) {
-    set output "| ps2pdf - rw_credit_vc_mcl" . mcl . ".pdf"
-    set title platform . " RD+WR Varying Offered Load (MCL=" . mcl . ")" offset 0,1 font ",18"
+    set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_a.pdf"
+
+    work = "RD+WR"
+    if (afu_cnt > 1) { work = "All RD+All WR" }
+
+    set title platform . " " . work . " Varying Offered Load (MCL=" . mcl . ")" offset 0,1 font ",18"
 
     plot data_file index table_idx using ($3):($1) with lines smooth bezier ls 1 title "Read Bandwidth", \
          data_file index table_idx using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Read Latency", \
@@ -63,7 +78,35 @@ while (mcl <= 4) {
          data_file index table_idx using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Write Latency", \
          data_file index table_idx using ($3):($1 + $2) with lines smooth bezier ls 7 title "Total Bandwidth"
 
-    table_idx = table_idx + 3
+    if (afu_cnt > 1) {
+      set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_rd1.pdf"
+
+      work = "One RD+One WR"
+      if (afu_cnt > 2) { work = "One RD+Many WR" }
+
+      set title platform . " " . work . " Varying Offered Load (MCL=" . mcl . ")" offset 0,1 font ",18"
+
+      plot data_file index (table_idx+1) using ($3):($1) with lines smooth bezier ls 1 title "Read Bandwidth", \
+           data_file index (table_idx+1) using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Read Latency", \
+           data_file index (table_idx+1) using ($6):($2) with lines smooth bezier ls 3 title "Write Bandwidth", \
+           data_file index (table_idx+1) using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Write Latency", \
+           data_file index (table_idx+1) using ($3):($1 + $2) with lines smooth bezier ls 7 title "Total Bandwidth"
+    }
+
+    if (afu_cnt > 2) {
+      set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_wr1.pdf"
+      work = "Many RD+One WR"
+
+      set title platform . " " . work . " Varying Offered Load (MCL=" . mcl . ")" offset 0,1 font ",18"
+
+      plot data_file index (table_idx+2) using ($3):($1) with lines smooth bezier ls 1 title "Read Bandwidth", \
+           data_file index (table_idx+2) using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Read Latency", \
+           data_file index (table_idx+2) using ($6):($2) with lines smooth bezier ls 3 title "Write Bandwidth", \
+           data_file index (table_idx+2) using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Write Latency", \
+           data_file index (table_idx+2) using ($3):($1 + $2) with lines smooth bezier ls 7 title "Total Bandwidth"
+    }
+
+    table_idx = table_idx + set_size
   }
 
   mcl = mcl + 1

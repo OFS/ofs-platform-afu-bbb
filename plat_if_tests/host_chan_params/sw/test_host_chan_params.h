@@ -46,8 +46,9 @@ int
 testHostChanLatency(
     int argc,
     char *argv[],
-    fpga_handle accel_handle,
-    t_csr_handle_p csr_handle,
+    uint32_t num_accels,
+    fpga_handle *accel_handles,
+    t_csr_handle_p *csr_handles,
     bool is_ase,
     uint32_t engine_mask);
 
