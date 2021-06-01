@@ -54,7 +54,7 @@
                     ofs_plat_host_chan_@group@_pcie_tlp_pkg::ofs_plat_pcie_log_tlp( \
                         log_fd, ofs_plat_log_pkg::instance_name[LOG_CLASS], \
                         ctx_name, tlp_st.instance_number, \
-                        tlp_st.t.data, tlp_st.t.user); \
+                        tlp_st.t.data, tlp_st.t.user, tlp_st.t.keep); \
                 end \
             end \
         end \

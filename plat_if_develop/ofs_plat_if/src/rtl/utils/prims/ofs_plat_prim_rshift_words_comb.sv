@@ -53,7 +53,7 @@ module ofs_plat_prim_rshift_words_comb
     localparam NUM_WORDS = DATA_WIDTH / WORD_WIDTH;
     localparam WORD_IDX_WIDTH = $clog2(NUM_WORDS);
 
-    typedef logic [NUM_WORDS-1:0][31:0] t_word_vec;
+    typedef logic [NUM_WORDS-1:0][WORD_WIDTH-1:0] t_word_vec;
 
     // Incoming data to wv[WORD_IDX_WIDTH]. Outgoing shifted data on wv[0].
     t_word_vec wv[WORD_IDX_WIDTH + 1];

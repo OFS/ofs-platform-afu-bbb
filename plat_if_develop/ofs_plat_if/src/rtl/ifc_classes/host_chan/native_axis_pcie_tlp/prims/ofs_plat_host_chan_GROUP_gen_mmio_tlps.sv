@@ -149,6 +149,9 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
             tx_mmio.tvalid <= mmio_rsp_notEmpty;
 
             tx_mmio.t.data <= { '0, mmio_rsp.payload };
+            tx_mmio.t.keep <= { '0,
+                                (mmio_rsp_meta.byte_count[3] ? 4'b1111 : 4'b0000),
+                                4'b1111 };
             tx_mmio.t.last <= 1'b1;
 
             tx_mmio.t.user <= '0;

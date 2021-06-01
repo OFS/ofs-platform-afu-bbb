@@ -206,6 +206,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
                         req_tlp_tag_ready &&
                         (tx_rd_tlps.tready || !tx_rd_tlps.tvalid);
     assign tx_rd_tlps.t.data = '0;
+    assign tx_rd_tlps.t.keep = '0;
 
     t_ofs_plat_pcie_hdr tlp_mem_hdr;
     always_comb

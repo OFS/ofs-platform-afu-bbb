@@ -124,9 +124,13 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     // internal PCIe data bus. Moving the TLP header in-band, if needed by the
     // FIM, is the job of a FIM-specific gasket.
     typedef logic [(PAYLOAD_LINE_SIZE / NUM_PIM_PCIE_TLP_CH) - 1 : 0] t_ofs_plat_axis_pcie_tdata;
+    typedef logic [(PAYLOAD_LINE_SIZE / NUM_PIM_PCIE_TLP_CH)/8 - 1 : 0] t_ofs_plat_axis_pcie_tkeep;
 
     typedef t_ofs_plat_axis_pcie_tdata [NUM_PIM_PCIE_TLP_CH-1:0]
         t_ofs_plat_axis_pcie_tdata_vec;
+
+    typedef t_ofs_plat_axis_pcie_tkeep [NUM_PIM_PCIE_TLP_CH-1:0]
+        t_ofs_plat_axis_pcie_tkeep_vec;
 
     // Header and metadata
     typedef struct packed
@@ -169,11 +173,12 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
 
     function automatic string ofs_plat_pcie_payload_to_string(
         input t_ofs_plat_axis_pcie_tuser tuser,
-        input t_ofs_plat_axis_pcie_tdata tdata
+        input t_ofs_plat_axis_pcie_tdata tdata,
+        input t_ofs_plat_axis_pcie_tkeep tkeep
         );
         if (tuser.sop && !ofs_plat_pcie_func_has_data(tuser.hdr.fmttype)) return "";
 
-        return $sformatf(" data 0x%x", tdata);
+        return $sformatf(" keep 0x%x data 0x%x", tkeep, tdata);
     endfunction
 
     // Standard formatting of the contents of a channel
@@ -203,7 +208,8 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
         input string ctx_name,
         input int unsigned instance_number,
         t_ofs_plat_axis_pcie_tdata_vec tdata,
-        t_ofs_plat_axis_pcie_tuser_vec tuser
+        t_ofs_plat_axis_pcie_tuser_vec tuser,
+        t_ofs_plat_axis_pcie_tkeep_vec tkeep
         );
 
         for (int i = 0; i < NUM_PIM_PCIE_TLP_CH; i = i + 1)
@@ -214,7 +220,7 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
                     instance_number, i,
                     ofs_plat_pcie_func_fmt_hdr(tuser[i]),
                     (tuser[i].poison ? " POISON " : ""),
-                    ofs_plat_pcie_payload_to_string(tuser[i], tdata[i]));
+                    ofs_plat_pcie_payload_to_string(tuser[i], tdata[i], tkeep[i]));
             $fflush(log_fd);
         end
     endtask // ofs_plat_pcie_log_tlp

@@ -108,7 +108,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
         fim_enc_tx_data.t = '0;
         fim_enc_tx_data.t.data = tx_from_pim.t.data[0];
         fim_enc_tx_data.t.last = tx_from_pim.t.user[0].eop;
-        fim_enc_tx_data.t.keep = ~'0;
+        fim_enc_tx_data.t.keep = tx_from_pim.t.keep;
     end
 
     // Construct headers for all message types. Only one will actually be
@@ -291,6 +291,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // Payload (data only)
     //
     assign rx_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
+    assign rx_to_pim.t.keep = fim_enc_rx_data.t.keep;
 
 
     //

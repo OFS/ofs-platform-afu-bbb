@@ -351,6 +351,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             // Interrupt ID is passed in from the AFU using the tag
             tlp_mem_hdr.u.irq.irq_id = wr_req.tag[$bits(t_ofs_plat_pcie_hdr_irq_id)-1 : 0];
             tlp_mem_hdr.is_irq = 1'b1;
+            tlp_mem_hdr.length = 1;
         end
         else
         begin
@@ -386,12 +387,29 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .DATA_WIDTH(PAYLOAD_LINE_SIZE),
         .WORD_WIDTH(32)
         )
-      pshift
+      pshift_data
        (
         .d_in(wr_req.payload),
         .rshift_cnt(dw_idx(wr_req.byte_start_idx)),
         .d_out(wr_req_shifted_payload)
         );
+
+    // Generate a keep mask for the payload. Shifting above guarantees that data
+    // always begins at bit 0, so this mask always begins from the low bits.
+    logic [(PAYLOAD_LINE_SIZE/8)-1 : 0] wr_req_shifted_keep;
+    // Start by shifting a vector where 1 bit masks each dword.
+    logic [(PAYLOAD_LINE_SIZE/32)-1 : 0] wr_req_shifted_keep_dword;
+    assign wr_req_shifted_keep_dword = {(PAYLOAD_LINE_SIZE/32){1'b1}} << tlp_mem_hdr.length;
+    // Map dword to byte mask
+    always_comb
+    begin
+        for (int w = 0; w < PAYLOAD_LINE_SIZE/32; w = w + 1)
+        begin
+            // The shifted vector held all ones to simplify the code. Invert it
+            // to generate the mask.
+            wr_req_shifted_keep[w*4 +: 4] = {4{~wr_req_shifted_keep_dword[w]}};
+        end
+    end
 
     logic tx_wr_is_eop;
     assign tx_wr_is_eop = wr_req_notEmpty &&
@@ -416,6 +434,10 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             // is guaranteed by the canonicalization step above to be 0 when in
             // full-line mode. Using the value from the shifter avoids an extra MUX.
             tx_wr_tlps.t.data <= { '0, wr_req_shifted_payload };
+            // If the cycle isn't SOP, then keep covers the whole line because
+            // of PIM rules. Partial line writes are permitted only for
+            // short, single-line requests .
+            tx_wr_tlps.t.keep <= wr_req.sop ? { '0, wr_req_shifted_keep } : ~'0;
         end
 
         if (!reset_n)

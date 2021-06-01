@@ -302,6 +302,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     always_comb
     begin
         rx_to_pim_invalid_cmd = 1'b0;
+        rx_to_pim.t.keep = ~'0;
         rx_to_pim.t.user = '0;
 
         // SOP guaranteed in FIM slot 0 after alignment above

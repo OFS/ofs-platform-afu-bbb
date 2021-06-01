@@ -178,6 +178,8 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
             begin
                 data_to_skid.t = '0;
                 data_to_skid.t.last = source_skid.t.last;
+                // The PIM doesn't care about tkeep
+                data_to_skid.t.keep = ~'0;
 
                 if (payload_is_short)
                 begin
