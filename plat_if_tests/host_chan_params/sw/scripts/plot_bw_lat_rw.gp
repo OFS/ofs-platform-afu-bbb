@@ -14,8 +14,8 @@ platform = platform . " (" . afu_mhz . "MHz)"
 # tables are extended with one read+others write and one write+others read.
 afu_cnt = system("grep -c '# AFU ID' " . data_file) + 0
 set_size = 3
-if (afu_cnt > 1) { set_size = 4 }
-if (afu_cnt > 2) { set_size = 5 }
+if (afu_cnt > 1) { set_size = 5 }
+if (afu_cnt > 2) { set_size = 6 }
 
 # Does data for 3 line requests exist?
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
@@ -91,11 +91,11 @@ while (mcl <= 4) {
            data_file index (table_idx+1) using ($6):($2) with lines smooth bezier ls 3 title "Write Bandwidth", \
            data_file index (table_idx+1) using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Write Latency", \
            data_file index (table_idx+1) using ($3):($1 + $2) with lines smooth bezier ls 7 title "Total Bandwidth"
-    }
 
-    if (afu_cnt > 2) {
-      set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_wr1.pdf"
-      work = "Many RD+One WR"
+      set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_rd1_rdwr.pdf"
+
+      work = "One RD+One RD+WR"
+      if (afu_cnt > 2) { work = "One RD+Many RD+WR" }
 
       set title platform . " " . work . " Varying Offered Load (MCL=" . mcl . ")" offset 0,1 font ",18"
 
@@ -104,6 +104,19 @@ while (mcl <= 4) {
            data_file index (table_idx+2) using ($6):($2) with lines smooth bezier ls 3 title "Write Bandwidth", \
            data_file index (table_idx+2) using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Write Latency", \
            data_file index (table_idx+2) using ($3):($1 + $2) with lines smooth bezier ls 7 title "Total Bandwidth"
+    }
+
+    if (afu_cnt > 2) {
+      set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_wr1.pdf"
+      work = "Many RD+One WR"
+
+      set title platform . " " . work . " Varying Offered Load (MCL=" . mcl . ")" offset 0,1 font ",18"
+
+      plot data_file index (table_idx+3) using ($3):($1) with lines smooth bezier ls 1 title "Read Bandwidth", \
+           data_file index (table_idx+3) using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Read Latency", \
+           data_file index (table_idx+3) using ($6):($2) with lines smooth bezier ls 3 title "Write Bandwidth", \
+           data_file index (table_idx+3) using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Write Latency", \
+           data_file index (table_idx+3) using ($3):($1 + $2) with lines smooth bezier ls 7 title "Total Bandwidth"
     }
 
     table_idx = table_idx + set_size

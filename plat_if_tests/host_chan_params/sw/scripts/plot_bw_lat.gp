@@ -14,8 +14,8 @@ platform = platform . " (" . afu_mhz . " MHz)"
 # tables are extended with one read+others write and one write+others read.
 afu_cnt = system("grep -c '# AFU ID' " . data_file) + 0
 set_size = 3
-if (afu_cnt > 1) { set_size = 4 }
-if (afu_cnt > 2) { set_size = 5 }
+if (afu_cnt > 1) { set_size = 5 }
+if (afu_cnt > 2) { set_size = 6 }
 
 # Does data for 3 line requests exist?
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0

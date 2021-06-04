@@ -116,7 +116,8 @@ typedef struct
     uint64_t wr_buf_ioaddr;
     uint64_t wr_wsid;
 
-    struct bitmask* numa_mem_mask;
+    struct bitmask* numa_rd_mem_mask;
+    struct bitmask* numa_wr_mem_mask;
     uint32_t max_burst_size;
     uint32_t group;
     uint32_t eng_type;
@@ -168,35 +169,11 @@ flushRange(void* start, size_t len)
     // Does the CPU support clflushopt?
     static bool checked_clflushopt = false;
     static bool supports_clflushopt = false;
-    static bool disable_flushrange = false;
-
-    if (disable_flushrange) return;
 
     if (! checked_clflushopt)
     {
         checked_clflushopt = true;
         supports_clflushopt = false;
-
-        // If each accelerator has only one engine, then assume it is PCIe-
-        // attached and disable cache flushing. Flushing is only required on
-        // unusual architectures and may lower performance for short read
-        // requests, since they have to go all the way to host DRAM instead
-        // of CPU caches.
-        disable_flushrange = true;
-        for (uint32_t e = 0; e < s_num_engines; e += 1)
-        {
-            if (0 != s_eng_bufs[e].accel_eng_idx)
-            {
-                disable_flushrange = false;
-                break;
-            }
-        }
-
-        if (disable_flushrange)
-        {
-            printf("# Cache flush disabled\n");
-            return;
-        }
 
         unsigned int eax, ebx, ecx, edx;
         if (__get_cpuid_max(0, 0) >= 7)
@@ -216,6 +193,24 @@ flushRange(void* start, size_t len)
     }
 
     _mm_sfence();
+}
+
+
+//
+// Prefetch a range into the local cache.
+//
+static void
+prefetchRange(void* start, size_t len)
+{
+    uint8_t* cl = start;
+    uint8_t* end = start + len;
+    static volatile uint64_t sum = 0;
+
+    while (cl < end)
+    {
+        sum += *cl;
+        cl += CACHELINE_BYTES;
+    }
 }
 
 
@@ -376,7 +371,8 @@ initEngine(
     printf("#  Engine %d group: %d\n", e, s_eng_bufs[e].group);
 
     // 64 bit mask of valid NUMA nodes, according to the FPGA configuration
-    struct bitmask* numa_mask;
+    struct bitmask* numa_rd_mask;
+    struct bitmask* numa_wr_mask;
     if ((s_eng_bufs[e].addr_mode == ADDR_MODE_HOST_PHYSICAL) && !s_is_ase)
     {
 #ifndef FPGA_NEAR_MEM_MAP
@@ -391,31 +387,39 @@ initEngine(
         // At some point we will have to pass something other than 0 for the
         // controller number.
         uint64_t base_phys;
-        numa_mask = numa_allocate_nodemask();
-        r = fpgaNearMemGetCtrlInfo(0, &base_phys, numa_mask);
+        numa_rd_mask = numa_allocate_nodemask();
+        r = fpgaNearMemGetCtrlInfo(0, &base_phys, numa_rd_mask);
+        numa_wr_mask = numa_rd_mask;
 #endif
     }
     else
     {
-        numa_mask = numa_get_membind();
+        numa_rd_mask = numa_get_membind();
+        numa_wr_mask = numa_get_membind();
     }
-    s_eng_bufs[e].numa_mem_mask = numa_mask;
+    s_eng_bufs[e].numa_rd_mem_mask = numa_rd_mask;
+    s_eng_bufs[e].numa_wr_mem_mask = numa_wr_mask;
 
     // Separate 2MB read and write buffers
     s_eng_bufs[e].rd_buf = allocSharedBuffer(accel_handle, MB(2),
                                              s_eng_bufs[e].addr_mode,
-                                             s_eng_bufs[e].numa_mem_mask,
+                                             s_eng_bufs[e].numa_rd_mem_mask,
                                              &s_eng_bufs[e].rd_wsid,
                                              &s_eng_bufs[e].rd_buf_ioaddr);
     assert(NULL != s_eng_bufs[e].rd_buf);
     printf("#  Engine %d read buffer: VA %p, DMA address %p\n", e,
            s_eng_bufs[e].rd_buf, (void*)s_eng_bufs[e].rd_buf_ioaddr);
     initReadBuf(s_eng_bufs[e].rd_buf, MB(2));
+    // Flush to guarantee that the values reach RAM
     flushRange((void*)s_eng_bufs[e].rd_buf, MB(2));
+    // Read back to the local cache. Some engine types may benefit from reading
+    // cached memory. This doesn't undo the flushRange() above, which was needed
+    // only to guarantee that RAM and cache are consistent.
+    prefetchRange((void*)s_eng_bufs[e].rd_buf, MB(2));
 
     s_eng_bufs[e].wr_buf = allocSharedBuffer(accel_handle, MB(2),
                                              s_eng_bufs[e].addr_mode,
-                                             s_eng_bufs[e].numa_mem_mask,
+                                             s_eng_bufs[e].numa_wr_mem_mask,
                                              &s_eng_bufs[e].wr_wsid,
                                              &s_eng_bufs[e].wr_buf_ioaddr);
     assert(NULL != s_eng_bufs[e].wr_buf);
@@ -959,8 +963,8 @@ printLatencyAndBandwidth(
     uint32_t num_engines,
     uint64_t emask,
     uint32_t max_active_reqs,
-    uint32_t num_only_rd_engines,
-    uint32_t num_only_wr_engines,
+    uint32_t n_sampled_rd_engines,
+    uint32_t n_sampled_wr_engines,
     bool print_header
 )
 {
@@ -987,12 +991,6 @@ printLatencyAndBandwidth(
         }
     }
 
-    // In a mode where only one engine is read or one is write? If so, one
-    // engine is devoted to read or write and all others are doing the opposite.
-    // If none are devoted to only read or write then all are doing the same thing.
-    uint32_t n_sampled_rd_engines = (num_only_rd_engines ? num_only_rd_engines : num_engines - num_only_wr_engines);
-    uint32_t n_sampled_wr_engines = (num_only_wr_engines ? num_only_wr_engines : num_engines - num_only_rd_engines);
-    
     for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
     {
         t_csr_handle_p csr_handle = s_eng_bufs[glob_e].csr_handle;
@@ -1267,8 +1265,8 @@ testHostChanLatency(
     uint64_t burst_size = 1;
 
     int max_mode = 3;
-    if (num_accels > 1) max_mode = 4;
-    if (num_accels > 2) max_mode = 5;
+    if (num_accels > 1) max_mode = 5;
+    if (num_accels > 2) max_mode = 6;
 
     while (burst_size <= 4)
     {
@@ -1277,19 +1275,37 @@ testHostChanLatency(
             bool printed_header = false;
             for (uint32_t max_reqs = burst_size; max_reqs <= 512; max_reqs = (max_reqs + 4) & 0xfffffffc)
             {
+                uint32_t num_readers = 0;
+                uint32_t num_writers = 0;
+
                 for (uint32_t e = 0; e < num_engines; e += 1)
                 {
                     if (engine_mask & (1 << e))
                     {
+                        int eng_mode = mode;
                         if (mode == 4)
                             // Only engine 0 read, all others write
-                            configBandwidth(e, burst_size, (e == 0) ? 1 : 2, max_reqs);
+                            eng_mode = (e == 0) ? 1 : 2;
                         else if (mode == 5)
+                            // Only engine 0 read, all others read+write
+                            eng_mode = (e == 0) ? 1 : 3;
+                        else if (mode == 6)
                             // Only engine 0 write, all others read
-                            configBandwidth(e, burst_size, (e == 0) ? 2 : 1, max_reqs);
-                        else
-                            configBandwidth(e, burst_size, mode, max_reqs);
+                            eng_mode = (e == 0) ? 2 : 1;
+
+                        configBandwidth(e, burst_size, eng_mode, max_reqs);
+                        if (eng_mode & 1)
+                        {
+                            num_readers += 1;
+                            prefetchRange((void*)s_eng_bufs[e].rd_buf, MB(2));
+                        }
+                        if (eng_mode & 2)
+                        {
+                            num_writers += 1;
+                            flushRange((void*)s_eng_bufs[e].wr_buf, MB(2));
+                        }
                     }
+
                 }
 
                 runBandwidth(num_engines, engine_mask);
@@ -1309,12 +1325,12 @@ testHostChanLatency(
                     else if (mode == 2) printf("write\n");
                     else if (mode == 3) printf("read+write\n");
                     else if (mode == 4) printf("one read+others write\n");
+                    else if (mode == 5) printf("one read+others read+write\n");
                     else printf("one write+others read\n");
                 }
 
                 printLatencyAndBandwidth(num_engines, engine_mask, max_reqs,
-                                         (mode == 4) ? 1 : 0,
-                                         (mode == 5) ? 1 : 0,
+                                         num_readers, num_writers,
                                          ! printed_header);
 
                 printed_header = true;
