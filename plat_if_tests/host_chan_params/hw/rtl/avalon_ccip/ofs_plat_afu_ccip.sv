@@ -104,8 +104,8 @@ module ofs_plat_afu
                 .to_afu(ccip_to_afu[p]),
 
 `ifdef TEST_PARAM_AFU_CLK
-                .afu_clk(`TEST_PARAM_AFU_CLK.clk),
-                .afu_reset_n(`TEST_PARAM_AFU_CLK.reset_n)
+                .afu_clk(plat_ifc.clocks.ports[p].`TEST_PARAM_AFU_CLK.clk),
+                .afu_reset_n(plat_ifc.clocks.ports[p].`TEST_PARAM_AFU_CLK.reset_n)
 `else
                 .afu_clk(),
                 .afu_reset_n()

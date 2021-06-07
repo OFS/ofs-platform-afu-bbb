@@ -1,5 +1,5 @@
 # Use uClk instead of the default clock
-+define+TEST_PARAM_AFU_CLK=plat_ifc.clocks.uClk_usr
++define+TEST_PARAM_AFU_CLK=uClk_usr
 # Add register stages to the host channel path for timing
 +define+TEST_PARAM_AFU_REG_STAGES=1
 

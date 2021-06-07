@@ -104,8 +104,8 @@ module ofs_plat_afu
                 .mmio_to_afu(mmio64_to_afu[p]),
 
 `ifdef TEST_PARAM_AFU_CLK
-                .afu_clk(`TEST_PARAM_AFU_CLK.clk),
-                .afu_reset_n(`TEST_PARAM_AFU_CLK.reset_n)
+                .afu_clk(plat_ifc.clocks.ports[p].`TEST_PARAM_AFU_CLK.clk),
+                .afu_reset_n(plat_ifc.clocks.ports[p].`TEST_PARAM_AFU_CLK.reset_n)
 `else
                 .afu_clk(),
                 .afu_reset_n()
@@ -337,7 +337,7 @@ module ofs_plat_afu
                 )
               map_pwrState
                (
-                .clk_src(plat_ifc.clocks.pClk.clk),
+                .clk_src(plat_ifc.clocks.ports[p].pClk.clk),
                 .clk_dst(host_mem_to_afu[p].clk),
                 .r_in(plat_ifc.pwrState),
                 .r_out(afu_pwrState[p])
