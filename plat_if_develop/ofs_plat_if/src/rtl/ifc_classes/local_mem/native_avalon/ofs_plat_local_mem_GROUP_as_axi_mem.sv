@@ -61,7 +61,12 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     parameter SORT_WRITE_RESPONSES = 1
     )
    (
-    // AFU clock for memory when a clock crossing is requested
+    // AFU clock and reset must always be passed in, even when ADD_CLOCK_CROSSING
+    // is 0. On systems with multiple AFU interfaces, the local memory reset can
+    // not be driven globally by soft reset signals. The AFU-specific soft
+    // reset bound to the memory is unknown, except to the AFU. afu_reset_n
+    // is mapped below to the local memory's clock domain and drives reset
+    // of the full stack instantiated here.
     input  logic afu_clk,
     input  logic afu_reset_n,
 
@@ -72,6 +77,23 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_avalon_mem_if.to_sink to_fiu,
     ofs_plat_axi_mem_if.to_source_clk to_afu
     );
+
+    // Combine AFU soft reset with the FIU local memory reset
+    logic fiu_soft_reset_n = 1'b0;
+    logic afu_reset_n_in_fiu_clk;
+
+    ofs_plat_prim_clock_crossing_reset soft_reset
+       (
+        .clk_src(afu_clk),
+        .clk_dst(to_fiu.clk),
+        .reset_in(afu_reset_n),
+        .reset_out(afu_reset_n_in_fiu_clk)
+        );
+
+    always @(posedge to_fiu.clk)
+    begin
+        fiu_soft_reset_n <= to_fiu.reset_n && afu_reset_n_in_fiu_clk;
+    end
 
     // ====================================================================
     //
@@ -124,7 +146,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     logic reset_n = 1'b0;
     always @(posedge axi_afu_if.clk)
     begin
-        reset_n <= (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n;
+        reset_n <= (ADD_CLOCK_CROSSING == 0) ? fiu_soft_reset_n : afu_reset_n;
     end
 
     assign axi_afu_if.reset_n = reset_n;
@@ -205,7 +227,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
       axi_fiu_clk_if();
 
     assign axi_fiu_clk_if.clk = to_fiu.clk;
-    assign axi_fiu_clk_if.reset_n = to_fiu.reset_n;
+    assign axi_fiu_clk_if.reset_n = fiu_soft_reset_n;
     assign axi_fiu_clk_if.instance_number = to_fiu.instance_number;
 
     ofs_plat_axi_mem_if_async_shim
@@ -242,7 +264,7 @@ module ofs_plat_local_mem_@group@_as_axi_mem
       avmm_rdwr_if();
 
     assign avmm_rdwr_if.clk = to_fiu.clk;
-    assign avmm_rdwr_if.reset_n = to_fiu.reset_n;
+    assign avmm_rdwr_if.reset_n = fiu_soft_reset_n;
     assign avmm_rdwr_if.instance_number = to_fiu.instance_number;
 
     // synthesis translate_off
@@ -289,8 +311,18 @@ module ofs_plat_local_mem_@group@_as_axi_mem
 
 
     //
-    // Connect to the FIU
+    // Add register stages and soft reset to the FIU clock domain
     //
+    ofs_plat_avalon_mem_if
+      #(
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_fiu)
+        )
+        fiu_with_reset_if();
+
+    assign fiu_with_reset_if.clk = to_fiu.clk;
+    assign fiu_with_reset_if.reset_n = fiu_soft_reset_n;
+    assign fiu_with_reset_if.instance_number = to_fiu.instance_number;
+
     ofs_plat_avalon_mem_if_reg_sink_clk
       #(
         .N_REG_STAGES(1)
@@ -298,6 +330,16 @@ module ofs_plat_local_mem_@group@_as_axi_mem
       mem_pipe
        (
         .mem_source(avmm_if),
+        .mem_sink(fiu_with_reset_if)
+        );
+
+
+    //
+    // Connect to the FIU, adding AFU soft reset
+    //
+    ofs_plat_avalon_mem_if_connect fiu_conn
+       (
+        .mem_source(fiu_with_reset_if),
         .mem_sink(to_fiu)
         );
 
