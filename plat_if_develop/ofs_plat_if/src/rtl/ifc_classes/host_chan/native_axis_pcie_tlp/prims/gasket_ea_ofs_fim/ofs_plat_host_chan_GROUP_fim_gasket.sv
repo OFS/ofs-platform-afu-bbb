@@ -42,6 +42,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
 
     // PIM encoding
     ofs_plat_axi_stream_if.to_source tx_from_pim,
+    // PIM encoding (FPGA->host, optional separate MRd stream). Not used in
+    // EA -- just set tready.
+    ofs_plat_axi_stream_if.to_source tx_mrd_from_pim,
 
     // PIM encoding
     ofs_plat_axi_stream_if.to_sink rx_to_pim,
@@ -68,6 +71,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
     //  AFU -> FIM TX stream translation from PIM to FIM encoding
     //
     // ====================================================================
+
+    // Not used. Reads are sent on EA in the tx_from_pim stream.
+    assign tx_mrd_from_pim.tready = 1'b1;
 
     ofs_plat_axi_stream_if
       #(

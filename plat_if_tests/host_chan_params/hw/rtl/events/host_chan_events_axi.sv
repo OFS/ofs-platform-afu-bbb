@@ -50,6 +50,11 @@ module host_chan_events_axi
     input  logic en_tx,
     input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata tx_data,
     input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser tx_user,
+
+    input  logic en_tx_b,
+    input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata tx_b_data,
+    input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser tx_b_user,
+
     input  logic en_rx,
     input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata rx_data,
     input  ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser rx_user,
@@ -64,17 +69,19 @@ module host_chan_events_axi
     // Track new requests and responses
     //
     typedef logic [12:0] t_dword_count;
-    t_dword_count rd_n_dwords_req, rd_n_dwords_req_q;
+    t_dword_count rd_n_dwords_req, b_pipe_rd_n_dwords_req, rd_n_dwords_req_q;
     t_dword_count rd_n_dwords_rsp, rd_n_dwords_rsp_q;
 
     // Map segments within the TLP data vector as request and completion headers.
     pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_hdrs[ofs_pcie_ss_cfg_pkg::NUM_OF_SEG];
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_b_hdrs[ofs_pcie_ss_cfg_pkg::NUM_OF_SEG];
     pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_hdrs[ofs_pcie_ss_cfg_pkg::NUM_OF_SEG];
     always_comb
     begin
         for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
         begin
             tx_hdrs[s] = pcie_ss_hdr_pkg::PCIe_PUReqHdr_t'(tx_data.segs[s]);
+            tx_b_hdrs[s] = pcie_ss_hdr_pkg::PCIe_PUReqHdr_t'(tx_b_data.segs[s]);
             rx_hdrs[s] = pcie_ss_hdr_pkg::PCIe_PUCplHdr_t'(rx_data.segs[s]);
         end
     end
@@ -90,6 +97,18 @@ module host_chan_events_axi
                 if (tx_user[s].sop && pcie_ss_hdr_pkg::func_is_mrd_req(tx_hdrs[s].fmt_type))
                 begin
                     rd_n_dwords_req = rd_n_dwords_req + tx_hdrs[s].length;
+                end
+            end
+        end
+
+        b_pipe_rd_n_dwords_req = '0;
+        if (en_tx_b)
+        begin
+            for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
+            begin
+                if (tx_b_user[s].sop && pcie_ss_hdr_pkg::func_is_mrd_req(tx_b_hdrs[s].fmt_type))
+                begin
+                    b_pipe_rd_n_dwords_req = b_pipe_rd_n_dwords_req + tx_b_hdrs[s].length;
                 end
             end
         end
@@ -115,7 +134,7 @@ module host_chan_events_axi
 
     always_ff @(posedge clk)
     begin
-        rd_n_dwords_req_q <= rd_n_dwords_req;
+        rd_n_dwords_req_q <= rd_n_dwords_req + b_pipe_rd_n_dwords_req;
         rd_n_dwords_rsp_q <= rd_n_dwords_rsp;
     end
 

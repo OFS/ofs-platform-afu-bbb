@@ -362,6 +362,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
                 (wr_req.enable_byte_range ? br_req.dword_len :
                                             lineCountToDwordLen(wr_req.line_count));
             tlp_mem_hdr.u.mem_req.addr = wr_req_addr;
+            tlp_mem_hdr.u.mem_req.tag = wr_req.tag;
             tlp_mem_hdr.u.mem_req.last_be = (wr_req.enable_byte_range ? br_req_hdr_last_be : 4'b1111);
             tlp_mem_hdr.u.mem_req.first_be = (wr_req.enable_byte_range ? br_req_hdr_first_be : 4'b1111);
         end

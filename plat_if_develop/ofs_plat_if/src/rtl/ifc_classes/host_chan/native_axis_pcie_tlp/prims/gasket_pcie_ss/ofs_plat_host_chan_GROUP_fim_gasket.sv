@@ -40,8 +40,10 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // Interface to FIM
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
 
-    // PIM encoding
+    // PIM encoding (FPGA->host)
     ofs_plat_axi_stream_if.to_source tx_from_pim,
+    // PIM encoding (FPGA->host, optional separate MRd stream)
+    ofs_plat_axi_stream_if.to_source tx_mrd_from_pim,
 
     // PIM encoding
     ofs_plat_axi_stream_if.to_sink rx_to_pim,
@@ -93,7 +95,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     ofs_plat_host_chan_@group@_align_tx_tlps
       align_tx
        (
-        .stream_sink(to_fiu_tlp.afu_tx_st),
+        .stream_sink(to_fiu_tlp.afu_tx_a_st),
         .hdr_stream_source(fim_enc_tx_hdr),
         .data_stream_source(fim_enc_tx_data)
         );
@@ -213,6 +215,73 @@ module ofs_plat_host_chan_@group@_fim_gasket
 
     // ====================================================================
     //
+    //  AFU -> FIM TX MRd stream translation from PIM to FIM encoding
+    //
+    // ====================================================================
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_enc_tx_mrd();
+
+    assign tx_mrd_from_pim.tready = fim_enc_tx_mrd.tready;
+
+    // Construct a read request header
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_mrd_req_hdr;
+
+    pcie_ss_hdr_pkg::ReqHdr_FmtType_e tx_mrd_fmttype;
+    assign tx_mrd_fmttype = pcie_ss_hdr_pkg::ReqHdr_FmtType_e'(tx_mrd_from_pim.t.user[0].hdr.fmttype);
+
+    // Memory request
+    always_comb
+    begin
+        tx_mrd_req_hdr = '0;
+        tx_mrd_req_hdr.fmt_type = tx_mrd_fmttype;
+        tx_mrd_req_hdr.length = tx_mrd_from_pim.t.user[0].hdr.length;
+        tx_mrd_req_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
+        tx_mrd_req_hdr.TC = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tc;
+        { tx_mrd_req_hdr.tag_h, tx_mrd_req_hdr.tag_m, tx_mrd_req_hdr.tag_l } =
+            { '0, tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tag };
+        tx_mrd_req_hdr.last_dw_be = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.last_be;
+        tx_mrd_req_hdr.first_dw_be = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.first_be;
+        if (pcie_ss_hdr_pkg::func_is_addr64(tx_mrd_fmttype))
+        begin
+            tx_mrd_req_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[63:32];
+            tx_mrd_req_hdr.host_addr_l = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:2];
+        end
+        else
+        begin
+            tx_mrd_req_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
+        end
+        tx_mrd_req_hdr.pf_num = to_fiu_tlp.pf_num;
+        tx_mrd_req_hdr.vf_num = to_fiu_tlp.vf_num;
+        tx_mrd_req_hdr.vf_active = to_fiu_tlp.vf_active;
+    end
+
+    assign fim_enc_tx_mrd.tvalid = tx_mrd_from_pim.tvalid;
+
+    always_comb
+    begin
+        fim_enc_tx_mrd.t = '0;
+        fim_enc_tx_mrd.t.data = { '0, tx_mrd_req_hdr };
+        fim_enc_tx_mrd.t.keep = { '0, {($bits(tx_mrd_req_hdr)/8){1'b1}} };
+        fim_enc_tx_mrd.t.last = tx_mrd_from_pim.t.user[0].eop;
+        fim_enc_tx_mrd.t.user[0].dm_mode = 1'b0;
+        fim_enc_tx_mrd.t.user[0].sop = tx_mrd_from_pim.t.user[0].sop;
+        fim_enc_tx_mrd.t.user[0].eop = tx_mrd_from_pim.t.user[0].eop;
+    end
+
+    ofs_plat_axi_stream_if_skid_sink_clk mrd_exit_skid
+       (
+        .stream_source(fim_enc_tx_mrd),
+        .stream_sink(to_fiu_tlp.afu_tx_b_st)
+        );
+
+
+    // ====================================================================
+    //
     //  FIM -> AFU RX stream translation from FIM to PIM encoding
     //
     // ====================================================================
@@ -247,12 +316,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
     //   2. Data aligned to the bus width in data_stream_sink.
     //
     ofs_plat_host_chan_@group@_align_rx_tlps
-      align_rx
+      align_rx_a
        (
-        .stream_source(to_fiu_tlp.afu_rx_st),
+        .stream_source(to_fiu_tlp.afu_rx_a_st),
         .hdr_stream_sink(fim_enc_rx_hdr),
         .data_stream_sink(fim_enc_rx_data)
         );
+
+    assign to_fiu_tlp.afu_rx_b_st.tready = 1'b1;
 
 
     //

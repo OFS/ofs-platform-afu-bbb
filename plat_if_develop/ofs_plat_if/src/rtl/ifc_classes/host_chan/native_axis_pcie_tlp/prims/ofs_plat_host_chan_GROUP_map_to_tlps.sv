@@ -102,6 +102,11 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     logic reset_n;
     assign reset_n = to_fiu_tlp.reset_n;
 
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
+    localparam FIM_HAS_SEPARATE_READ_STREAM = 1;
+`else
+    localparam FIM_HAS_SEPARATE_READ_STREAM = 0;
+`endif
 
     `AXI_TLP_STREAM_INSTANCE(from_fiu_rx_st);
     `AXI_STREAM_INSTANCE(from_fiu_irq_cpl, t_ofs_plat_pcie_hdr_irq);
@@ -113,6 +118,10 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     `AXI_TLP_STREAM_INSTANCE(to_fiu_tx_st);
     `AXI_TLP_STREAM_INSTANCE(to_fiu_tx_st_skid);
+
+    // Read request stream to FIM, used only when the FIM provides a separate
+    // port for read requests. Otherwise, tied off.
+    `AXI_TLP_STREAM_INSTANCE(to_fiu_tx_mrd_st);
 
     // synthesis translate_off
     `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_TX(ofs_plat_log_pkg::HOST_CHAN, to_fiu_tx_st)
@@ -152,6 +161,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         // TX (AFU -> host)
         .tx_from_pim(to_fiu_tx_st_skid),
+        // TX MRd stream (AFU -> host)
+        .tx_mrd_from_pim(to_fiu_tx_mrd_st),
 
         // RX (host -> AFU)
         .rx_to_pim(from_fiu_rx_st),
@@ -317,7 +328,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         // Tags of write fence responses (dataless completion TLP)
         .wr_fence_cpl,
 
-        // Interrupt completions from the FIU
+        // Interrupt completions from the FIM
         .irq_cpl(from_fiu_irq_cpl),
 
         .error()
@@ -360,7 +371,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         );
 
     assign arb_req[0] = tx_mmio_tlps.tvalid;
-    assign arb_req[1] = tx_rd_tlps.tvalid && allow_rd_tlps;
+    // For FIMs with a separate read stream, no read arbitration is required
+    assign arb_req[1] = (FIM_HAS_SEPARATE_READ_STREAM ? 1'b0 : tx_rd_tlps.tvalid && allow_rd_tlps);
     assign arb_req[2] = tx_wr_tlps.tvalid && allow_wr_tlps &&
                         // Block write traffic when reads are blocked due to TLP
                         // tag exhaustion. Writes lack back-pressure since they
@@ -382,14 +394,16 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         to_fiu_tx_st.tvalid = (arb_grant_mmio || arb_grant_rd || arb_grant_wr);
 
         tx_mmio_tlps.tready = arb_grant_mmio;
-        tx_rd_tlps.tready = arb_grant_rd;
         tx_wr_tlps.tready = arb_grant_wr;
+        // tx_rd_tlps.tready is set in a generate block below, only when
+        // FIM_HAS_SEPARATE_READ_STREAM is false. Otherwise, the tx_rd_tlps
+        // stream is forwarded without arbitration to the FIM.
 
         if (tx_mmio_tlps.tready)
         begin
             to_fiu_tx_st.t = tx_mmio_tlps.t;
         end
-        else if (tx_rd_tlps.tready)
+        else if ((FIM_HAS_SEPARATE_READ_STREAM == 0) && tx_rd_tlps.tready)
         begin
             to_fiu_tx_st.t = tx_rd_tlps.t;
         end
@@ -443,40 +457,64 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     //
 
 
-    //
-    // Learning algorithms for picking the probability of applying channel
-    // favoring. If you apply it every cycle, performance will be suboptimal.
-    // The learning algorithm measures bandwidth over intervals and adjusts
-    // the weights to maximize total bandwidth.
-    //
-    // Weights for reads and writes are computed separately.
-    //
-    ofs_plat_host_chan_tlp_learning_weight
-      #(
-        .BURST_CNT_WIDTH($bits(t_tlp_payload_line_count)),
-        .RD_TRAFFIC_CNT_SHIFT(1),
-        // Giving writes slightly less weight than reads seems to result in
-        // better decisions.
-        .WR_TRAFFIC_CNT_SHIFT(2)
-        )
-      fairness_weight
-       (
-        .clk,
-        .reset_n,
+    generate
+        if (FIM_HAS_SEPARATE_READ_STREAM)
+        begin : mrd_st
+            // Pass reads in a separate TLP stream, with arbitration handled by
+            // the FIM.
+            ofs_plat_axi_stream_if_connect conn_tx_mrd
+               (
+                .stream_source(tx_rd_tlps),
+                .stream_sink(to_fiu_tx_mrd_st)
+                );
 
-        .rd_valid(arb_grant_rd),
-        .rd_burstcount(dwordLenToLineCount(tx_rd_tlps.t.user[0].hdr.length)),
+            assign allow_rd_tlps = 1'b1;
+            assign allow_wr_tlps = 1'b1;
+        end
+        else
+        begin : shared_st
+            // Read/write arbitration is handled in this module.
+            assign to_fiu_tx_mrd_st.tvalid = 1'b0;
+            assign to_fiu_tx_mrd_st.t = '0;
 
-        // Track only the SOP beat of writes
-        .wr_valid(arb_grant_wr && (arb_state == ARB_NONE)),
-        .wr_burstcount(dwordLenToLineCount(tx_wr_tlps.t.user[0].hdr.length)),
+            assign tx_rd_tlps.tready = arb_grant_rd;
 
-        .update_favoring((tx_rd_tlps.tvalid || tx_wr_tlps.tvalid) &&
-                         (arb_state == ARB_NONE)),
+            //
+            // Learning algorithms for picking the probability of applying channel
+            // favoring. If you apply it every cycle, performance will be suboptimal.
+            // The learning algorithm measures bandwidth over intervals and adjusts
+            // the weights to maximize total bandwidth.
+            //
+            // Weights for reads and writes are computed separately.
+            //
+            ofs_plat_host_chan_tlp_learning_weight
+              #(
+                .BURST_CNT_WIDTH($bits(t_tlp_payload_line_count)),
+                .RD_TRAFFIC_CNT_SHIFT(1),
+                // Giving writes slightly less weight than reads seems to result in
+                // better decisions.
+                .WR_TRAFFIC_CNT_SHIFT(2)
+                )
+            fairness_weight
+               (
+                .clk,
+                .reset_n,
 
-        .rd_enable_favoring(allow_rd_tlps),
-        .wr_enable_favoring(allow_wr_tlps)
-        );
+                .rd_valid(arb_grant_rd),
+                .rd_burstcount(dwordLenToLineCount(tx_rd_tlps.t.user[0].hdr.length)),
+
+                // Track only the SOP beat of writes
+                .wr_valid(arb_grant_wr && (arb_state == ARB_NONE)),
+                .wr_burstcount(dwordLenToLineCount(tx_wr_tlps.t.user[0].hdr.length)),
+
+                .update_favoring((tx_rd_tlps.tvalid || tx_wr_tlps.tvalid) &&
+                                 (arb_state == ARB_NONE)),
+
+                .rd_enable_favoring(allow_rd_tlps),
+                .wr_enable_favoring(allow_wr_tlps)
+                );
+        end
+    endgenerate
 
 
     // synthesis translate_off
