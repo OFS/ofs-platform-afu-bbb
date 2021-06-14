@@ -53,9 +53,12 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
 
     ofs_plat_axi_stream_if_skid_source_clk rx_skid
        (
-        .stream_source(port.afu_rx_st),
+        .stream_source(port.afu_rx_a_st),
         .stream_sink(rx_st)
         );
+
+    assign port.afu_rx_b_st.tready = 1'b1;
+
 
     //
     // MMIO read responses (AFU -> FIM) also flow through a skid buffer
@@ -70,7 +73,7 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
     ofs_plat_axi_stream_if_skid_sink_clk tx_skid
        (
         .stream_source(tx_st),
-        .stream_sink(port.afu_tx_st)
+        .stream_sink(port.afu_tx_a_st)
         );
 
 
@@ -211,5 +214,8 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
         tx_st.t.keep = { '0, {4{(rx_hdr.length > 1)}}, {4{1'b1}}, {TX_CPL_HDR_BYTES{1'b1}} };
         tx_st.t.last = 1'b1;
     end
+
+    assign port.afu_tx_b_st.tvalid = 1'b0;
+    assign port.afu_tx_b_st.t = '0;
 
 endmodule // ofs_plat_host_chan_@group@_fim_gasket_tie_off
