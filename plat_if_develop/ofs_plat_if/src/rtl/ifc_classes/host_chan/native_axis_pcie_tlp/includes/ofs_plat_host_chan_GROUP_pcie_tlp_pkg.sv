@@ -72,6 +72,14 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     // MAX_OUTSTANDING_DMA_WR_FENCES will never be used for normal reads.
     localparam MAX_OUTSTANDING_DMA_WR_FENCES = 4;
 
+    // AFU's tag for a request, returned with responses. PCIe tags are a
+    // separate space, assigned internally in the modules here. The AFU tag width
+    // just has to be large enough to return whatever tags might reach this code.
+    // The maximum tag size reaching here is typically governed by other code inside
+    // the PIM, such as reorder buffers, clock crossings, etc.
+    localparam AFU_TAG_WIDTH = 16;
+    typedef logic [AFU_TAG_WIDTH-1:0] t_dma_afu_tag;
+
     localparam NUM_AFU_INTERRUPTS =
         ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_AFU_INTERRUPTS;
     typedef logic [$clog2(NUM_AFU_INTERRUPTS)-1 : 0] t_interrupt_idx;
@@ -109,7 +117,10 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     endfunction
 
     function automatic t_tlp_payload_line_count dwordLenToLineCount(logic [9:0] dwords);
-        return t_tlp_payload_line_count'(dwords >> $clog2(PAYLOAD_LINE_SIZE / 32));
+        // Round up to multiples of lines
+        logic [10:0] d = { 1'b0, dwords };
+        d = d + ((PAYLOAD_LINE_SIZE / 32) - 1);
+        return t_tlp_payload_line_count'(d >> $clog2(PAYLOAD_LINE_SIZE / 32));
     endfunction
 
 
@@ -138,6 +149,12 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
         t_ofs_plat_pcie_hdr hdr;
         logic eop;
         logic sop;
+
+        // Some TLP headers need the full AFU tag to be passed. The AFU tag
+        // is too large for the TLP header, but may be used for some local action.
+        // On the PCIe SS, it may be used for recording the commit points of
+        // DMA writes inside the FIM.
+        t_dma_afu_tag afu_tag;
 
         // Poison bit may be used to allow a message to flow through part
         // of the pipeline but squash it before reaching either the AFU or FIM.

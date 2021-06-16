@@ -409,14 +409,14 @@ module ofs_plat_afu
     generate
         for (p = 1; p < NUM_PORTS_G0; p = p + 1)
         begin : afu_g0
-            ofs_plat_avalon_mem_rdwr_mem_if
+            ofs_plat_avalon_mem_rdwr_if
               #(
                 `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
                 .BURST_CNT_WIDTH(3)
                 )
               dummy_host_mem_g1[1]();
 
-            ofs_plat_avalon_mem_rdwr_mem_if
+            ofs_plat_avalon_mem_rdwr_if
               #(
                 `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
                 .BURST_CNT_WIDTH(3)
