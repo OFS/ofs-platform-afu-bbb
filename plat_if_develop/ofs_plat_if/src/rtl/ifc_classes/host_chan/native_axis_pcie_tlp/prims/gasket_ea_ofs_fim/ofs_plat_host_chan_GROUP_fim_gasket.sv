@@ -49,11 +49,20 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // PIM encoding
     ofs_plat_axi_stream_if.to_sink rx_to_pim,
 
+    // Write completions (t_gen_tx_wr_cpl)
+    ofs_plat_axi_stream_if.to_sink wr_cpl_to_pim,
+
     // PIM encoding interrupt completions (t_ofs_plat_pcie_hdr_irq)
     ofs_plat_axi_stream_if.to_sink irq_cpl_to_pim
     );
 
     import ofs_plat_pcie_tlp_hdr_pkg::*;
+
+    logic clk;
+    assign clk = rx_to_pim.clk;
+    logic reset_n;
+    assign reset_n = rx_to_pim.reset_n;
+
 
     //
     // Build a vector of FIM encoded packets that equals the width of the PIM's
@@ -111,8 +120,8 @@ module ofs_plat_host_chan_@group@_fim_gasket
         );
 
 
-    assign tx_from_pim.tready = fim_enc_tx.tready;
-    assign fim_enc_tx.tvalid = tx_from_pim.tvalid;
+    assign tx_from_pim.tready = fim_enc_tx.tready && wr_cpl_to_pim.tready;
+    assign fim_enc_tx.tvalid = tx_from_pim.tvalid && tx_from_pim.tready;
 
     // Construct headers for all message types. Only one will actually be
     // used, depending on fmttype.
@@ -356,6 +365,68 @@ module ofs_plat_host_chan_@group@_fim_gasket
             $fatal(2, "Unexpected TLP RX header to PIM!");
     end
     // synthesis translate_on
+
+    //
+    // Write completions. The OFS EA FIM has only one TX stream, so writes are
+    // committed to TLP order already. Generate the write completion here as
+    // writes are passed to the FIM.
+    //
+    // Completion is sent on the EOP cycle.
+    //
+    logic wr_cpl_pending;
+    ofs_plat_host_chan_@group@_gen_tlps_pkg::t_gen_tx_wr_cpl wr_cpl_q;
+
+    // Short payload, fitting in a single beat?
+    logic wr_cpl_from_sop_eop;
+    assign wr_cpl_from_sop_eop = tx_from_pim.t.user[0].sop && tx_from_pim.t.user[0].eop &&
+                                 ofs_plat_pcie_func_is_mwr_req(tx_fmttype);
+
+    assign wr_cpl_to_pim.tvalid = tx_from_pim.tvalid && tx_from_pim.tready &&
+                                  ((wr_cpl_pending && tx_from_pim.t.user[0].eop) ||
+                                   wr_cpl_from_sop_eop);
+
+    always_comb
+    begin
+        wr_cpl_to_pim.t = '0;
+        if (wr_cpl_from_sop_eop)
+        begin
+            wr_cpl_to_pim.t.data.tag = tx_from_pim.t.user[0].afu_tag;
+            wr_cpl_to_pim.t.data.line_count =
+                ofs_plat_host_chan_@group@_pcie_tlp_pkg::dwordLenToLineCount(tx_from_pim.t.user[0].hdr.length);
+        end
+        else
+        begin
+            wr_cpl_to_pim.t.data = wr_cpl_q;
+        end
+
+        wr_cpl_to_pim.t.last = 1'b1;
+    end
+
+    // Record write completion, which will be sent on EOP
+    always_ff @(posedge clk)
+    begin
+        if (wr_cpl_to_pim.tvalid)
+        begin
+            wr_cpl_pending <= 1'b0;
+        end
+
+        // New write header and it isn't also EOP?
+        if (tx_from_pim.tvalid && tx_from_pim.tready &&
+            tx_from_pim.t.user[0].sop && !tx_from_pim.t.user[0].eop &&
+            ofs_plat_pcie_func_is_mwr_req(tx_fmttype))
+        begin
+            wr_cpl_pending <= 1'b1;
+            wr_cpl_q.tag <= tx_from_pim.t.user[0].afu_tag;
+            wr_cpl_q.line_count <=
+                ofs_plat_host_chan_@group@_pcie_tlp_pkg::dwordLenToLineCount(tx_from_pim.t.user[0].hdr.length);
+        end
+
+        if (!reset_n)
+        begin
+            wr_cpl_pending <= 1'b0;
+        end
+    end
+
 
     //
     // IRQ responses are out of band from the FIM

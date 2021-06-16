@@ -39,14 +39,6 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
 
-    // AFU's tag for a request, returned with responses. PCIe tags are a
-    // separate space, assigned internally in the modules here. The AFU tag width
-    // just has to be large enough to return whatever tags might reach this code.
-    // The maximum tag size reaching here is typically governed by other code inside
-    // the PIM, such as reorder buffers, clock crossings, etc.
-    localparam AFU_TAG_WIDTH = 16;
-
-
     //
     // MMIO
     //
@@ -82,7 +74,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     // AFU read requests
     typedef struct packed {
-        logic [AFU_TAG_WIDTH-1 : 0] tag;
+        t_dma_afu_tag tag;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
         logic [63:0] addr;
@@ -91,7 +83,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     // Read response to AFU
     typedef struct packed {
         logic [PAYLOAD_LINE_SIZE-1 : 0] payload;
-        logic [AFU_TAG_WIDTH-1 : 0] tag;
+        t_dma_afu_tag tag;
         // Line index in multi-line read
         t_tlp_payload_line_idx line_idx;
         // Done handling full request?
@@ -111,7 +103,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         // This group is expected only on the first beat
         logic is_fence;
         logic is_interrupt;	// Store the interrupt ID in the tag
-        logic [AFU_TAG_WIDTH-1 : 0] tag;
+        t_dma_afu_tag tag;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
         // Byte address, but the code assumes byte offset bits within a line are 0.
@@ -133,11 +125,20 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     // Write response to AFU
     typedef struct packed {
-        logic [AFU_TAG_WIDTH-1 : 0] tag;
+        t_dma_afu_tag tag;
         // Line index of last line in multi-line write (zero based)
         t_tlp_payload_line_idx line_idx;
         logic is_fence;
         logic is_interrupt;	// Store the interrupt ID in the tag
     } t_gen_tx_afu_wr_rsp;
+
+    // Write completion, passed between the FIM gasket and gen_wr_tlps.
+    // Write completions are synthesized by the PIM or the FIM to indicate
+    // the commit point of a write request into the ordered TLP stream.
+    typedef struct packed {
+        t_dma_afu_tag tag;
+        // Number of lines
+        t_tlp_payload_line_count line_count;
+    } t_gen_tx_wr_cpl;
 
 endpackage

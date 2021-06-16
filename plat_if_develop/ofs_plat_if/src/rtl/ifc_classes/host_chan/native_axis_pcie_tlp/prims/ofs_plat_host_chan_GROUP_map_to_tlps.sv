@@ -109,6 +109,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 `endif
 
     `AXI_TLP_STREAM_INSTANCE(from_fiu_rx_st);
+    `AXI_STREAM_INSTANCE(from_fiu_wr_cpl, t_gen_tx_wr_cpl);
     `AXI_STREAM_INSTANCE(from_fiu_irq_cpl, t_ofs_plat_pcie_hdr_irq);
 
     // synthesis translate_off
@@ -166,6 +167,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         // RX (host -> AFU)
         .rx_to_pim(from_fiu_rx_st),
+        // Write completions
+        .wr_cpl_to_pim(from_fiu_wr_cpl),
         // Interrupt responses (host -> AFU)
         .irq_cpl_to_pim(from_fiu_irq_cpl)
         );
@@ -324,6 +327,9 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         // Write responses to AFU (once the packet is completely sent)
         .afu_wr_rsp,
+
+        // Write commits from FIM gasket
+        .wr_cpl(from_fiu_wr_cpl),
 
         // Tags of write fence responses (dataless completion TLP)
         .wr_fence_cpl,
