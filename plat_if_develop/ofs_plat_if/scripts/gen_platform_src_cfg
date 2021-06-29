@@ -107,7 +107,8 @@ def gen_platform_addenda():
     # Simulator sources
     sim_src_cfg = emit_src_cfg(dirs=[rtl_dir,
                                      os.path.join(args.target, 'sim')],
-                               verbose=args.verbose)
+                               verbose=args.verbose,
+                               script_name='gen_platform_src_cfg')
     sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
                                   prefix + '_includes.txt',
                                   is_plat_if=is_plat_if)
@@ -118,7 +119,8 @@ def gen_platform_addenda():
     # Quartus sources
     qsf_src_cfg = emit_src_cfg(dirs=[rtl_dir,
                                      os.path.join(args.target, 'par')],
-                               verbose=args.verbose)
+                               verbose=args.verbose,
+                               script_name='gen_platform_src_cfg')
     qsf_src_cfg.emit_qsf_sources(os.path.join(args.target, 'par'),
                                  prefix + '_addenda' + suffix,
                                  is_plat_if=is_plat_if)

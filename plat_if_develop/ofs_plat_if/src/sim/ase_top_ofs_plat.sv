@@ -45,6 +45,9 @@ module ase_top_ofs_plat
     input  logic uClk_usrDiv2
     );
 
+    // Number of PCIe group 0 ports (VFs)
+    localparam NUM_PORTS_G0 = plat_ifc.host_chan.NUM_PORTS_;
+
     // Construct the simulated platform interface wrapper which will be passed
     // to the AFU.
     ofs_plat_if#(.ENABLE_LOG(1)) plat_ifc();
@@ -57,10 +60,13 @@ module ase_top_ofs_plat
     //
     // ====================================================================
 
-    ofs_plat_std_clocks_gen_resets_from_active_high clocks
+    ofs_plat_std_clocks_gen_port_resets clocks
        (
         .pClk,
-        .pClk_reset(softReset),
+        // When ASE supports more than one VF it will be necessary to revisit
+        // this replication of a single softReset. Per-VF softReset will be
+        // required.
+        .pClk_reset_n({NUM_PORTS_G0{~softReset}}),
         .pClkDiv2,
         .pClkDiv4,
         .uClk_usr,
@@ -68,6 +74,7 @@ module ase_top_ofs_plat
         .clocks(plat_ifc.clocks)
         );
 
+    // Legacy global softReset_n
     assign plat_ifc.softReset_n = plat_ifc.clocks.pClk.reset_n;
 
 

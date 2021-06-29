@@ -84,6 +84,10 @@ ofs_plat_if tree that is tailored to the target platform.
                 .ini file.""")
 
     parser.add_argument(
+        '--gen-prefix',
+        help="""Prefix before generated file names (default: platform_if).""")
+
+    parser.add_argument(
         '-f', '--force',
         action='store_true',
         help="""Overwrite target directory if it exists.""")
@@ -226,21 +230,26 @@ def gen_platform_addenda():
     if (args.verbose):
         print("\nGenerating files to import ofs_plat_if:")
 
+    if (args.gen_prefix):
+        prefix = args.gen_prefix
+    else:
+        prefix = 'platform_if'
+
     # Simulator sources
     sim_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
                                      os.path.join(args.target, 'sim')],
                                verbose=args.verbose)
     sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
-                                  'platform_if_includes.txt')
+                                  prefix + '_includes.txt')
     sim_src_cfg.emit_sim_sources(os.path.join(args.target, 'sim'),
-                                 'platform_if_addenda.txt')
+                                 prefix + '_addenda.txt')
 
     # Quartus sources
     qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),
                                      os.path.join(args.target, 'par')],
                                verbose=args.verbose)
     qsf_src_cfg.emit_qsf_sources(os.path.join(args.target, 'par'),
-                                 'platform_if_addenda.qsf')
+                                 prefix + '_addenda.qsf')
 
 
 def copy_tree(src, dst):
