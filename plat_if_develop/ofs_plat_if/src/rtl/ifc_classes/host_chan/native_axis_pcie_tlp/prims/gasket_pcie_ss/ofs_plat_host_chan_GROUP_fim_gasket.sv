@@ -442,7 +442,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
             if (rx_to_pim_invalid_cmd)
                 $fatal(2, "Unexpected TLP RX header to PIM!");
 
-            if (fim_enc_rx_sop && fim_enc_rx_hdr.t.user[0])
+            if (fim_enc_rx_sop && fim_enc_rx_hdr.t.user)
                 $fatal(2, "Data Mover encoded TLP RX headers not supported by PIM!");
         end
     end

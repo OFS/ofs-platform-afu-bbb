@@ -29,12 +29,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Emulate a primary CCI-P port and optionally some other host channel groups.
+// Emulate PCIe host channels
 //
 
 `include "ofs_plat_if.vh"
-
-`ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP
 
 module ase_emul_host_chan_native_axis_pcie_tlp
    (
@@ -72,5 +70,3 @@ module ase_emul_host_chan_native_axis_pcie_tlp
         );
 
 endmodule // ase_emul_host_chan_native_axis_pcie_tlp
-
-`endif

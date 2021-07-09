@@ -122,7 +122,7 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
         input t_ofs_fim_axis_pcie_tuser user
         );
 
-        int printed_msg = 0;
+        automatic int printed_msg = 0;
         for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
         begin
             if (keep[s * FIM_PCIE_SEG_BYTES])
