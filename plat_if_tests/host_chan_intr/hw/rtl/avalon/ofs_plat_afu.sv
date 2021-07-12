@@ -102,7 +102,11 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    afu afu
+    afu
+     #(
+       .NUM_INTR_IDS(`OFS_PLAT_PARAM_HOST_CHAN_NUM_INTR_VECS)
+       )
+     afu
       (
        .host_mem_if(host_mem_to_afu),
        .mmio64_if(mmio64_to_afu),

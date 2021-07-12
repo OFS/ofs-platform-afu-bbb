@@ -143,6 +143,8 @@ module ofs_plat_shim_ccip_rob_rd
     //
     // Read responses are sorted.  Allocate a reorder buffer.
     //
+    wire [2:0] c0_alloc_cnt = 3'(to_afu.sTx.c0.hdr.cl_len) + 3'd1;
+
     ofs_plat_prim_rob
       #(
         // MAX_ACTIVE_LINES is used here for clarity, since the ROB
@@ -159,7 +161,7 @@ module ofs_plat_shim_ccip_rob_rd
         .reset_n,
 
         .alloc_en(ccip_c0Tx_isReadReq(to_afu.sTx.c0)),
-        .allocCnt(3'(to_afu.sTx.c0.hdr.cl_len) + 3'(1)),
+        .allocCnt(c0_alloc_cnt),
         .allocMeta({ to_afu.sTx.c0.hdr.cl_len, to_afu.sTx.c0.hdr.mdata }),
         .notFull(rd_not_full),
         .allocIdx(rd_rob_allocIdx),

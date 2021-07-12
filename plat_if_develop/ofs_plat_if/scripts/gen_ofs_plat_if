@@ -242,7 +242,8 @@ def gen_platform_addenda():
     sim_src_cfg.emit_sim_includes(os.path.join(args.target, 'sim'),
                                   prefix + '_includes.txt')
     sim_src_cfg.emit_sim_sources(os.path.join(args.target, 'sim'),
-                                 prefix + '_addenda.txt')
+                                 prefix + '_addenda.txt',
+                                 prefix=prefix)
 
     # Quartus sources
     qsf_src_cfg = emit_src_cfg(dirs=[os.path.join(args.target, 'rtl'),

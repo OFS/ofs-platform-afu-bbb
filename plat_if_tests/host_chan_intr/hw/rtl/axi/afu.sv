@@ -31,6 +31,9 @@
 `include "ofs_plat_if.vh"
 
 module afu
+  #(
+    parameter NUM_INTR_IDS = 4
+    )
    (
     // Host memory (AXI)
     ofs_plat_axi_mem_if.to_sink host_mem_if,
@@ -53,7 +56,6 @@ module afu
     engine_csr_if eng_csr_glob();
     engine_csr_if eng_csr[NUM_ENGINES]();
 
-    localparam NUM_INTR_IDS = 4;
     typedef logic [$clog2(NUM_INTR_IDS)-1 : 0] t_intr_id;
 
 
@@ -107,7 +109,6 @@ module afu
 
     logic state_active;
     t_intr_id cur_intr_id;
-    t_intr_id max_intr_id;
 
     // Start on write to global CSR 0
     logic start_cmd;
@@ -118,16 +119,14 @@ module afu
         if (state_active && host_mem_if.awready && host_mem_if.wready)
         begin
             // Done?
-            state_active <= (cur_intr_id != max_intr_id);
-
-            cur_intr_id <= cur_intr_id + 1;
+            state_active <= (cur_intr_id != t_intr_id'(0));
+            cur_intr_id <= cur_intr_id - 1;
         end
 
         if (start_cmd)
         begin
             state_active <= 1'b1;
-            cur_intr_id <= '0;
-            max_intr_id <= t_intr_id'(eng_csr_glob.wr_data);
+            cur_intr_id <= t_intr_id'(eng_csr_glob.wr_data);
         end
 
         if (!reset_n)

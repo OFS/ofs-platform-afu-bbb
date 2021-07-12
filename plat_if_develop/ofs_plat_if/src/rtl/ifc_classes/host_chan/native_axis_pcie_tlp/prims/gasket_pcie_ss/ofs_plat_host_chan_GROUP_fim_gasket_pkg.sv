@@ -48,7 +48,7 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     localparam MAX_OUTSTANDING_MMIO_RD_REQS = ofs_pcie_ss_cfg_pkg::PCIE_RP_MAX_TAGS;
 
     // Number of interrupt vectors supported
-    localparam NUM_AFU_INTERRUPTS = 4; // XXX ofs_pcie_ss_cfg_pkg::NUM_AFU_INTERRUPTS;
+    localparam NUM_AFU_INTERRUPTS = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_NUM_INTR_VECS;
 
     localparam NUM_FIM_PCIE_TLP_CH = ofs_pcie_ss_cfg_pkg::NUM_OF_STREAMS;
 

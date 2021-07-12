@@ -59,27 +59,21 @@ static fpga_handle s_accel_handle;
 static t_csr_handle_p s_csr_handle;
 static bool s_is_ase;
 
+static fpga_event_handle *ehandles;
+
 
 //
 // Thread created by pthread -- one per interrupt vector.
 //
 static void* intr_wait_thread(void *args)
 {
+    fpga_result result;
+
     // Interrupt ID
     uint32_t id = (uintptr_t)args;
 
-    // Allocate a handle
-    fpga_event_handle ehandle;
-    fpga_result result = fpgaCreateEventHandle(&ehandle);
-    assert(FPGA_OK == result);
-
-    // Register user interrupt with event handle
-    result = fpgaRegisterEvent(s_accel_handle, FPGA_EVENT_INTERRUPT,
-                               ehandle, id);
-    assert(FPGA_OK == result);
-
     struct pollfd pfd;
-    result = fpgaGetOSObjectFromEventHandle(ehandle, &pfd.fd);
+    result = fpgaGetOSObjectFromEventHandle(ehandles[id], &pfd.fd);
     assert(FPGA_OK == result);
 
     // Wait until the HW signals an interrupt (up to 30 seconds)
@@ -113,6 +107,8 @@ static void* intr_wait_thread(void *args)
             fprintf(stderr, "%d count error: %ld\n", id, count);
             pthread_exit((void*)1);
         }
+
+        printf("Received ID %d\n", id);
     }
 
     // Success
@@ -128,7 +124,7 @@ testHostChanIntr(
     t_csr_handle_p csr_handle,
     bool is_ase)
 {
-    int result = 0;
+    fpga_result result = 0;
     int error_count = 0;
     s_accel_handle = accel_handle;
     s_csr_handle = csr_handle;
@@ -145,16 +141,29 @@ testHostChanIntr(
     uint32_t num_intr_ids = (uint8_t)(csrEngGlobRead(csr_handle, 2) >> 8);
     printf("Number of interrupt IDs: %d\n", num_intr_ids);
 
+    ehandles = malloc(sizeof(fpga_event_handle) * num_intr_ids);
+    assert(NULL != ehandles);
+
     pthread_t *threads = malloc(sizeof(pthread_t*) * num_intr_ids);
     assert(NULL != threads);
 
     // Create a thread for each vector
     for (uint32_t id = 0; id < num_intr_ids; id += 1)
     {
+        // Allocate a handle
+        result = fpgaCreateEventHandle(&ehandles[id]);
+        assert(FPGA_OK == result);
+
+        // Register user interrupt with event handle
+        result = fpgaRegisterEvent(s_accel_handle, FPGA_EVENT_INTERRUPT,
+                                   ehandles[id], id);
+        assert(FPGA_OK == result);
+
         pthread_create(&threads[id], NULL, &intr_wait_thread, (void*)(uintptr_t)id);
     }
 
     // Generate an interrupt for each vector
+    printf("Triggering interrupts...\n");
     csrEngGlobWrite(csr_handle, 0, num_intr_ids-1);
 
     // Wait for threads to terminate
@@ -172,6 +181,10 @@ testHostChanIntr(
         {
             printf("ID %d: pass\n", id);
         }
+
+        result = fpgaUnregisterEvent(s_accel_handle, FPGA_EVENT_INTERRUPT,
+                                     ehandles[id]);
+        assert(FPGA_OK == result);
     }
 
     // How many interrupt responses did the hardware get?

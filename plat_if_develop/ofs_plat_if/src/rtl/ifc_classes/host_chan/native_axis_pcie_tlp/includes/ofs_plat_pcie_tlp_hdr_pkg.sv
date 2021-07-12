@@ -63,7 +63,7 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     typedef logic [9:0] t_ofs_plat_pcie_hdr_length;
     typedef logic [11:0] t_ofs_plat_pcie_hdr_byte_count;
     typedef logic [6:0] t_ofs_plat_pcie_hdr_lower_addr;
-    typedef logic [7:0] t_ofs_plat_pcie_hdr_irq_id;
+    typedef logic [15:0] t_ofs_plat_pcie_hdr_irq_id;
 
 
     //
@@ -104,9 +104,9 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     typedef struct packed
     {
         t_ofs_plat_pcie_hdr_id requester_id;            // 16
-        t_ofs_plat_pcie_hdr_irq_id irq_id;              // 8
-                                                        // = 24
-        logic [76:0] pad; // All union entries must be the same size
+        t_ofs_plat_pcie_hdr_irq_id irq_id;              // 16
+                                                        // = 32
+        logic [68:0] pad; // All union entries must be the same size
     }
     t_ofs_plat_pcie_hdr_irq;
 

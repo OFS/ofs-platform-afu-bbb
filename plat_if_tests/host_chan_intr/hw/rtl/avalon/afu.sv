@@ -31,6 +31,9 @@
 `include "ofs_plat_if.vh"
 
 module afu
+  #(
+    parameter NUM_INTR_IDS = 4
+    )
    (
     // Host memory (Avalon)
     ofs_plat_avalon_mem_rdwr_if.to_slave host_mem_if,
@@ -53,7 +56,6 @@ module afu
     engine_csr_if eng_csr_glob();
     engine_csr_if eng_csr[NUM_ENGINES]();
 
-    localparam NUM_INTR_IDS = 4;
     typedef logic [$clog2(NUM_INTR_IDS)-1 : 0] t_intr_id;
 
 

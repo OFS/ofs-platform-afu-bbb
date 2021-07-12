@@ -23,6 +23,14 @@
 // MUX tree. Commits are forwarded to AFUs so they can track the point at
 // which the relative order of the A and B streams is guaranteed.
 //
+// The tag, length and metadata extension fields are looped back from
+// each write request into the generated completion.
+//
+// Responses are also generated for DM encoded interrupt requests.
+// Bit 0 of TC will always be set to one for a generated interrupt
+// completion and 0 for a normal write completion. The interrupt vector_num
+// is returned in metadata_l of the generated completion.
+//
 //-----------------------------------------------------------------------------
 
 module ase_emul_pcie_arb_local_commit #(
@@ -41,9 +49,12 @@ module ase_emul_pcie_arb_local_commit #(
 
    pcie_ss_axis_if commit_in(clk, rst_n);
    logic sink_sop;
+   logic rx_pending, rx_ready;
 
-   assign sink.tready = source.tready && commit_in.tready;
-   assign source.tvalid = sink.tvalid && commit_in.tready;
+   wire commit_in_ready = (commit_in.tready || !rx_pending);
+
+   assign sink.tready = source.tready && commit_in_ready;
+   assign source.tvalid = sink.tvalid && commit_in_ready;
    assign source.tdata = sink.tdata;
    assign source.tkeep = sink.tkeep;
    assign source.tlast = sink.tlast;
@@ -52,18 +63,20 @@ module ase_emul_pcie_arb_local_commit #(
    // TX data, viewed as either PU or DM headers
    PCIe_ReqHdr_t   tx_req_dm_hdr;
    PCIe_PUReqHdr_t tx_req_pu_hdr;
+   PCIe_IntrHdr_t  tx_req_dm_intr;
    assign tx_req_dm_hdr = PCIe_ReqHdr_t'(sink.tdata);
    assign tx_req_pu_hdr = PCIe_PUReqHdr_t'(sink.tdata);
+   assign tx_req_dm_intr = PCIe_IntrHdr_t'(sink.tdata);
 
    // Valid/ready bits are checked separately
-   logic tx_is_dm;
-   assign tx_is_dm = func_hdr_is_dm_mode(sink.tuser_vendor);
-   logic tx_is_wr_req;
-   assign tx_is_wr_req = sink_sop && func_is_mwr_req(tx_req_pu_hdr.fmt_type);
+   wire tx_is_dm = func_hdr_is_dm_mode(sink.tuser_vendor);
+   wire tx_is_wr_req = func_is_mwr_req(tx_req_dm_hdr.fmt_type);
+   wire tx_is_intr_req = tx_is_dm && func_is_interrupt_req(tx_req_dm_hdr.fmt_type);
+   wire tx_needs_cpl = sink_sop && (tx_is_wr_req || tx_is_intr_req);
 
    PCIe_CplHdr_t   rx_cmp_dm_hdr;
    PCIe_PUCplHdr_t rx_cmp_pu_hdr;
-   logic rx_pending, rx_ready;
+   PCIe_CplHdr_t   rx_cmp_dm_intr;
 
    // Generate local completion, mostly returning a copy of the input fields
    always_comb begin
@@ -95,12 +108,21 @@ module ase_emul_pcie_arb_local_commit #(
       rx_cmp_pu_hdr.tag_h      = tx_req_pu_hdr.tag_h;
       rx_cmp_pu_hdr.tag_m      = tx_req_pu_hdr.tag_m;
       rx_cmp_pu_hdr.tag_l      = tx_req_pu_hdr.tag_l;
+
+      // Completion (without data) in DM mode, to match a DM interrupt request
+      rx_cmp_dm_intr = '0;
+      rx_cmp_dm_intr.fmt_type   = ReqHdr_FmtType_e'({ '0, PCIE_FMTTYPE_CPL });
+      rx_cmp_dm_intr.metadata_l = { '0, tx_req_dm_intr.vector_num };
+      rx_cmp_dm_intr.vf_active  = tx_req_dm_intr.vf_active;
+      rx_cmp_dm_intr.vf_num     = tx_req_dm_intr.vf_num;
+      rx_cmp_dm_intr.pf_num     = tx_req_dm_intr.pf_num;
+      rx_cmp_dm_intr.FC         = 1'b1;
+      rx_cmp_dm_intr.TC[0]      = 1'b1;  // TC[0] set to 1 indicates interrupt
    end
 
    always_ff @(posedge clk)
    begin
-      // commit skid is known to be ready if the logic here sets it valid
-      if (commit_in.tvalid) begin
+      if (commit_in.tvalid && commit_in.tready) begin
          rx_pending <= 1'b0;
          rx_ready <= 1'b0;
       end
@@ -108,12 +130,15 @@ module ase_emul_pcie_arb_local_commit #(
       if (sink.tvalid && sink.tready) begin
          sink_sop <= sink.tlast;
 
-         if (tx_is_wr_req) begin
+         if (tx_needs_cpl) begin
             rx_pending <= 1'b1;
-            commit_in.tdata <= { '0, (tx_is_dm ? rx_cmp_dm_hdr : rx_cmp_pu_hdr) };
+            if (tx_is_wr_req)
+               commit_in.tdata <= { '0, (tx_is_dm ? rx_cmp_dm_hdr : rx_cmp_pu_hdr) };
+            else
+               commit_in.tdata <= { '0, rx_cmp_dm_intr };
             commit_in.tuser_vendor <= sink.tuser_vendor;
          end
-         if (sink.tlast && (tx_is_wr_req || rx_pending)) begin
+         if (sink.tlast && (tx_needs_cpl || rx_pending)) begin
             rx_ready <= 1'b1;
          end
       end
