@@ -47,6 +47,11 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // Largest tag value permitted in the FIM configuration for host->AFU MMIO reads
     localparam MAX_OUTSTANDING_MMIO_RD_REQS = ofs_fim_cfg_pkg::PCIE_RP_MAX_TAGS;
 
+    // Maximum read request bits (AFU reading host memory)
+    localparam MAX_RD_REQ_SIZE = ofs_fim_cfg_pkg::MAX_RD_REQ_SIZE * 32;
+    // Maximum write payload bits (AFU writing host memory)
+    localparam MAX_WR_PAYLOAD_SIZE = ofs_fim_cfg_pkg::MAX_PAYLOAD_SIZE * 32;
+
     // Number of interrupt vectors supported
     localparam NUM_AFU_INTERRUPTS = ofs_fim_cfg_pkg::NUM_AFU_INTERRUPTS;
 

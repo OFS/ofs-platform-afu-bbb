@@ -88,8 +88,14 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     typedef logic [$clog2(MAX_OUTSTANDING_DMA_RD_REQS)-1 : 0] t_dma_rd_tag;
     typedef logic [$clog2(MAX_OUTSTANDING_MMIO_RD_REQS)-1 : 0] t_mmio_rd_tag;
 
-    // Maximum packet size (bits)
-    localparam MAX_PAYLOAD_SIZE = 2048;
+    // Maximum packet size (bits). Read and write requests are forced to the same
+    // maximum to simplify fairness during arbitration.
+    localparam MAX_PAYLOAD_SIZE =
+        ((ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_RD_REQ_SIZE <
+          ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_WR_PAYLOAD_SIZE) ?
+            ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_RD_REQ_SIZE :
+            ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_WR_PAYLOAD_SIZE);
+
     localparam PAYLOAD_LINE_SIZE = ofs_plat_host_chan_@group@_pkg::DATA_WIDTH;
     // Maximum number of lines in a packet
     localparam MAX_PAYLOAD_LINES = MAX_PAYLOAD_SIZE / PAYLOAD_LINE_SIZE;

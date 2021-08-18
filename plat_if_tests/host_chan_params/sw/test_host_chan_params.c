@@ -1174,7 +1174,7 @@ testHostChanParams(
             else
             {
                 burst_size += 1;
-                if ((burst_size < s_eng_bufs[e].max_burst_size) && (burst_size == 5))
+                if ((burst_size < s_eng_bufs[e].max_burst_size) && (burst_size == 9))
                 {
                     burst_size = s_eng_bufs[e].max_burst_size;
                 }

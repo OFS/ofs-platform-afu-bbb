@@ -320,7 +320,7 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
             // crossing reset. We use it because it relaxes the timing on the
             // entire local memory domain here. Waitrequest will be asserted
             // during this reset, so the delay is safe.
-            ofs_plat_prim_clock_crossing_reset uClk_usr_reset
+            ofs_plat_prim_clock_crossing_reset local_reset
                (
                 .clk_src(afu_clk),
                 .clk_dst(afu_clk),

@@ -72,7 +72,11 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
     localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH_;
     localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH_;
-    typedef logic [SOURCE_BURST_WIDTH-1 : 0] t_source_burst_cnt;
+
+    // A "safe" source burst width is at least as large as the sink
+    localparam SAFE_SOURCE_BURST_WIDTH = (SOURCE_BURST_WIDTH >= SINK_BURST_WIDTH) ?
+                                         SOURCE_BURST_WIDTH : SINK_BURST_WIDTH;
+    typedef logic [SAFE_SOURCE_BURST_WIDTH-1 : 0] t_safe_source_burst_cnt;
 
     localparam USER_WIDTH = mem_sink.USER_WIDTH_;
     typedef logic [USER_WIDTH-1 : 0] t_user;
@@ -108,7 +112,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             ofs_plat_prim_burstcount1_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
-                .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
+                .SOURCE_BURST_WIDTH(SAFE_SOURCE_BURST_WIDTH),
                 .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
                 .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
                 // Map page size to lines
@@ -121,7 +125,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
                  .m_new_req(rd_next && mem_source.rd_read),
                  .m_addr(mem_source.rd_address),
-                 .m_burstcount(mem_source.rd_burstcount),
+                 .m_burstcount(t_safe_source_burst_cnt'(mem_source.rd_burstcount)),
 
                  .s_accept_req(mem_sink.rd_read && ! mem_sink.rd_waitrequest),
                  .s_req_complete(rd_complete),
@@ -170,7 +174,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
             ofs_plat_prim_burstcount1_mapping_gearbox
               #(
                 .ADDR_WIDTH(ADDR_WIDTH),
-                .SOURCE_BURST_WIDTH(SOURCE_BURST_WIDTH),
+                .SOURCE_BURST_WIDTH(SAFE_SOURCE_BURST_WIDTH),
                 .SINK_BURST_WIDTH(SINK_BURST_WIDTH),
                 .NATURAL_ALIGNMENT(NATURAL_ALIGNMENT),
                 // Map page size to lines
@@ -183,7 +187,7 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
                  .m_new_req(mem_source.wr_write && ! mem_sink.wr_waitrequest && m_wr_sop),
                  .m_addr(mem_source.wr_address),
-                 .m_burstcount(mem_source.wr_burstcount),
+                 .m_burstcount(t_safe_source_burst_cnt'(mem_source.wr_burstcount)),
 
                  .s_accept_req(mem_sink.wr_write && ! mem_sink.wr_waitrequest && s_wr_sop),
                  .s_req_complete(wr_complete),
