@@ -19,6 +19,8 @@ if (afu_cnt > 2) { set_size = 6 }
 
 # Does data for 3 line requests exist?
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
+# Does data for 8 line requests exist?
+mcl8_found = system("grep -c 'Burst size: 8' " . data_file) + 0
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 
@@ -52,12 +54,14 @@ set style data histograms
 
 set style line 1 lc rgb "red" lw 3
 set style line 2 lc rgb "red" lw 3 dashtype "-"
-set style line 3 lc rgb "blue" lw 3
-set style line 4 lc rgb "blue" lw 3 dashtype "-"
+set style line 3 lc rgb "dark-goldenrod" lw 3
+set style line 4 lc rgb "dark-goldenrod" lw 3 dashtype "-"
 set style line 5 lc rgb "green" lw 3
 set style line 6 lc rgb "green" lw 3 dashtype "-"
 set style line 7 lc rgb "magenta" lw 3
 set style line 8 lc rgb "magenta" lw 3 dashtype "-"
+set style line 9 lc rgb "blue" lw 3
+set style line 10 lc rgb "blue" lw 3 dashtype "-"
 
 prefix = ""
 if (afu_cnt > 1) { prefix = " All" }
@@ -66,7 +70,19 @@ set output "| ps2pdf - write_credit_vc.pdf"
 set title platform . prefix . " WRITE Varying Offered Load" offset 0,1 font ",18"
 set xrange [0:128]
 
-if (mcl3_found) {
+if (mcl8_found) {
+  plot data_file index (1             ) using ($6):($2) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
+       data_file index (1             ) using ($6):($9) axes x1y2 with lines smooth bezier ls 2 title "Latency (MCL=1)", \
+       data_file index (1 + set_size*1) using ($6):($2) with lines smooth bezier ls 3 title "Bandwidth (MCL=2)", \
+       data_file index (1 + set_size*1) using ($6):($9) axes x1y2 with lines smooth bezier ls 4 title "Latency (MCL=2)", \
+       data_file index (1 + set_size*2) using ($6):($2) with lines smooth bezier ls 5 title "Bandwidth (MCL=3)", \
+       data_file index (1 + set_size*2) using ($6):($9) axes x1y2 with lines smooth bezier ls 6 title "Latency (MCL=3)", \
+       data_file index (1 + set_size*3) using ($6):($2) with lines smooth bezier ls 7 title "Bandwidth (MCL=4)", \
+       data_file index (1 + set_size*3) using ($6):($9) axes x1y2 with lines smooth bezier ls 8 title "Latency (MCL=4)", \
+       data_file index (1 + set_size*7) using ($6):($2) with lines smooth bezier ls 9 title "Bandwidth (MCL=8)", \
+       data_file index (1 + set_size*7) using ($6):($9) axes x1y2 with lines smooth bezier ls 10 title "Latency (MCL=8)"
+}
+if (!mcl8_found && mcl3_found) {
   plot data_file index (1             ) using ($6):($2) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
        data_file index (1             ) using ($6):($9) axes x1y2 with lines smooth bezier ls 2 title "Latency (MCL=1)", \
        data_file index (1 + set_size*1) using ($6):($2) with lines smooth bezier ls 3 title "Bandwidth (MCL=2)", \
@@ -76,7 +92,7 @@ if (mcl3_found) {
        data_file index (1 + set_size*3) using ($6):($2) with lines smooth bezier ls 7 title "Bandwidth (MCL=4)", \
        data_file index (1 + set_size*3) using ($6):($9) axes x1y2 with lines smooth bezier ls 8 title "Latency (MCL=4)"
 }
-else {
+if (!mcl8_found && !mcl3_found) {
   plot data_file index (1             ) using ($6):($2) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
        data_file index (1             ) using ($6):($9) axes x1y2 with lines smooth bezier ls 2 title "Latency (MCL=1)", \
        data_file index (1 + set_size*1) using ($6):($2) with lines smooth bezier ls 3 title "Bandwidth (MCL=2)", \
@@ -93,7 +109,19 @@ set output "| ps2pdf - read_credit_vc.pdf"
 set title platform . prefix . " READ Varying Offered Load" offset 0,1 font ",18"
 set xrange [0:384]
 
-if (mcl3_found) {
+if (mcl8_found) {
+  plot data_file index (0             ) using ($3):($1) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
+       data_file index (0             ) using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Latency (MCL=1)", \
+       data_file index (0 + set_size*1) using ($3):($1) with lines smooth bezier ls 3 title "Bandwidth (MCL=2)", \
+       data_file index (0 + set_size*1) using ($3):($7) axes x1y2 with lines smooth bezier ls 4 title "Latency (MCL=2)", \
+       data_file index (0 + set_size*2) using ($3):($1) with lines smooth bezier ls 5 title "Bandwidth (MCL=3)", \
+       data_file index (0 + set_size*2) using ($3):($7) axes x1y2 with lines smooth bezier ls 6 title "Latency (MCL=3)", \
+       data_file index (0 + set_size*3) using ($3):($1) with lines smooth bezier ls 7 title "Bandwidth (MCL=4)", \
+       data_file index (0 + set_size*3) using ($3):($7) axes x1y2 with lines smooth bezier ls 8 title "Latency (MCL=4)", \
+       data_file index (0 + set_size*7) using ($3):($1) with lines smooth bezier ls 9 title "Bandwidth (MCL=8)", \
+       data_file index (0 + set_size*7) using ($3):($7) axes x1y2 with lines smooth bezier ls 10 title "Latency (MCL=8)"
+}
+if (!mcl8_found && mcl3_found) {
   plot data_file index (0             ) using ($3):($1) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
        data_file index (0             ) using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Latency (MCL=1)", \
        data_file index (0 + set_size*1) using ($3):($1) with lines smooth bezier ls 3 title "Bandwidth (MCL=2)", \
@@ -103,7 +131,7 @@ if (mcl3_found) {
        data_file index (0 + set_size*3) using ($3):($1) with lines smooth bezier ls 7 title "Bandwidth (MCL=4)", \
        data_file index (0 + set_size*3) using ($3):($7) axes x1y2 with lines smooth bezier ls 8 title "Latency (MCL=4)"
 }
-else {
+if (!mcl8_found && !mcl3_found) {
   plot data_file index (0             ) using ($3):($1) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
        data_file index (0             ) using ($3):($7) axes x1y2 with lines smooth bezier ls 2 title "Latency (MCL=1)", \
        data_file index (0 + set_size*1) using ($3):($1) with lines smooth bezier ls 3 title "Bandwidth (MCL=2)", \

@@ -1268,7 +1268,7 @@ testHostChanLatency(
     if (num_accels > 1) max_mode = 5;
     if (num_accels > 2) max_mode = 6;
 
-    while (burst_size <= 4)
+    while (burst_size <= 8)
     {
         for (int mode = 1; mode <= max_mode; mode += 1)
         {
@@ -1338,7 +1338,7 @@ testHostChanLatency(
         }
 
         // CCI-P requires naturally aligned sizes. Other protocols do not.
-        if (s_eng_bufs[0].eng_type)
+        if (s_eng_bufs[0].eng_type || (burst_size >= 4))
             burst_size += 1;
         else
             burst_size <<= 1;

@@ -19,6 +19,8 @@ if (afu_cnt > 2) { set_size = 6 }
 
 # Does data for 3 line requests exist?
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
+# Does data for 8 line requests exist?
+mcl8_found = system("grep -c 'Burst size: 8' " . data_file) + 0
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 
@@ -61,9 +63,14 @@ set style line 8 lc rgb "magenta" lw 3 dashtype "-"
 
 set xrange [0:512]
 
+mcl_limit = 4
+if (mcl8_found) {
+  mcl_limit = 8
+}
+
 mcl = 1
 table_idx = 2
-while (mcl <= 4) {
+while (mcl <= mcl_limit) {
   if ((mcl != 3) || mcl3_found) {
     set output "| ps2pdf - rw_credit_vc_mcl" . mcl . "_a.pdf"
 
