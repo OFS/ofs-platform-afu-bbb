@@ -87,6 +87,7 @@ class emit_src_cfg(object):
             '.sv':   'SYSTEMVERILOG_FILE',
             '.v':    'VERILOG_FILE',
             '.vh':   'SYSTEMVERILOG_FILE',
+            '.svh':  'SYSTEMVERILOG_FILE',
             '.vhd':  'VHDL_FILE',
             '.vhdl': 'VHDL_FILE'
             }
@@ -109,7 +110,9 @@ class emit_src_cfg(object):
 
     def __has_includes(self, fnames):
         for fn in fnames:
-            if fn.lower().endswith(".vh") or fn.lower().endswith(".h"):
+            if fn.lower().endswith(".vh") or \
+               fn.lower().endswith(".svh") or \
+               fn.lower().endswith(".h"):
                 return True
         return False
 
@@ -218,7 +221,8 @@ class emit_src_cfg(object):
         return [fn for fn in rtl
                 if not fn.lower().endswith("_pkg.sv") and
                 not fn.lower().endswith("_def.sv") and
-                not fn.lower().endswith(".vh")]
+                not fn.lower().endswith(".vh") and
+                not fn.lower().endswith(".svh")]
 
     def is_sim_only(self, fn):
         """Detect simulation-only sources by matching a directory named

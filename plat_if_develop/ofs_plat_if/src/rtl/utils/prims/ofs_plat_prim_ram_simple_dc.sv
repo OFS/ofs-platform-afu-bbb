@@ -263,7 +263,7 @@ module ofs_plat_prim_ram_simple_dc_base
         .rdcontrol_reg_b("CLOCK1"),
         .address_reg_b("CLOCK1"),
         .outdata_reg_b(OUTDATA_REGISTERED),
-        .read_during_write_mode_mixed_ports("OLD_DATA")
+        .read_during_write_mode_mixed_ports("DONT_CARE")
         )
       data
        (
