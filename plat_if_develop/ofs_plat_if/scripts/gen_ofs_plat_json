@@ -254,7 +254,16 @@ def gen_json_local_mem(jf):
         return
 
     local_mem_noun = plat_cfg.section_instance_noun(local_mem_sect)
+    # The old JSON schema expects that the max number of local memory banks
+    # is an integer. The PIM permits the number of banks to be passed as a
+    # Verilog parameter. We assume that nobody is using the old PIM JSON
+    # mechanism connected to a new platform, so simply force the max-entries
+    # field to a safe constant when it isn't a number.
     local_mem_banks = plat_cfg.get(local_mem_sect, 'num_' + local_mem_noun)
+    try:
+        local_mem_banks = int(local_mem_banks)
+    except ValueError:
+        local_mem_banks = 1
 
     if (not args.quiet):
         print('Found local memory')

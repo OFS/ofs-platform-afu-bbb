@@ -151,6 +151,9 @@ module ofs_plat_axi_mem_if_user_ext
     //
     // Connect source and sink and add response metadata.
     //
+    t_wid merged_wid;
+    t_rid merged_rid;
+
     always_comb
     begin
         // Most fields can just be wired together
@@ -166,9 +169,9 @@ module ofs_plat_axi_mem_if_user_ext
         mem_sink.bready = mem_source.bready;
         `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_source.b, =, mem_sink.b);
         mem_source.b.user = wr_fifo_user;
-        mem_source.b.user[FIM_USER_START +: FIM_USER_WIDTH] = mem_sink.b.user[FIM_USER_START +: FIM_USER_WIDTH];
-        mem_source.b.id = wr_fifo_wid;
-        mem_source.b.id[WID_COMMON_WIDTH-1 : 0] = mem_sink.b.id;
+        merged_wid = wr_fifo_wid;
+        merged_wid[WID_COMMON_WIDTH-1 : 0] = WID_COMMON_WIDTH'(mem_sink.b.id);
+        mem_source.b.id = merged_wid;
 
 
         mem_sink.arvalid = mem_source.arvalid;
@@ -179,9 +182,9 @@ module ofs_plat_axi_mem_if_user_ext
         mem_sink.rready = mem_source.rready;
         `OFS_PLAT_AXI_MEM_IF_COPY_R(mem_source.r, =, mem_sink.r);
         mem_source.r.user = rd_fifo_user;
-        mem_source.r.user[FIM_USER_START +: FIM_USER_WIDTH] = mem_sink.r.user[FIM_USER_START +: FIM_USER_WIDTH];
-        mem_source.r.id = rd_fifo_rid;
-        mem_source.r.id[RID_COMMON_WIDTH-1 : 0] = mem_sink.r.id;
+        merged_rid = rd_fifo_rid;
+        merged_rid[RID_COMMON_WIDTH-1 : 0] = RID_COMMON_WIDTH'(mem_sink.r.id);
+        mem_source.r.id = merged_rid;
     end
 
 endmodule // ofs_plat_axi_mem_if_user_ext
