@@ -80,6 +80,8 @@
 //
 //   3: Number of write lines sent
 //
+//   4: Number of write responses received
+//
 //   5: Read validation information
 //       [63: 0] - Hash of lines read (for ordered memory interfaces)
 //
@@ -131,7 +133,7 @@ module local_mem_engine_avalon
 
     logic [63:0] rd_data_hash;
     t_counter rd_bursts_req, rd_lines_req, rd_lines_resp;
-    t_counter wr_bursts_req, wr_lines_req;
+    t_counter wr_bursts_req, wr_lines_req, wr_bursts_resp;
 
     //
     // Write configuration registers
@@ -206,7 +208,7 @@ module local_mem_engine_avalon
         csrs.rd_data[1] = 64'(rd_bursts_req);
         csrs.rd_data[2] = 64'(rd_lines_resp);
         csrs.rd_data[3] = 64'(wr_lines_req);
-        csrs.rd_data[4] = 64'h0;
+        csrs.rd_data[4] = 64'(wr_bursts_resp);
         csrs.rd_data[5] = rd_data_hash;
 
         for (int e = 6; e < csrs.NUM_CSRS; e = e + 1)
@@ -562,7 +564,8 @@ module local_mem_engine_avalon
     begin
         csrs.status_active <= (state_run && ! (rd_done && wr_done)) ||
                               ! wr_sop ||
-                              (rd_lines_req != rd_lines_resp);
+                              (rd_lines_req != rd_lines_resp) ||
+                              (wr_bursts_req != wr_bursts_resp);
     end
 
 
@@ -579,6 +582,7 @@ module local_mem_engine_avalon
 
     logic incr_wr_req;
     logic incr_wr_req_lines;
+    logic incr_wr_resp;
 
     always_ff @(posedge clk)
     begin
@@ -590,6 +594,7 @@ module local_mem_engine_avalon
         incr_wr_req <= local_mem_if.write && ! local_mem_if.waitrequest &&
                        (local_mem_if.burstcount == wr_req_burst_len);
         incr_wr_req_lines <= local_mem_if.write && ! local_mem_if.waitrequest;
+        incr_wr_resp <= local_mem_if.writeresponsevalid;
     end
 
     counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) rd_req
@@ -630,6 +635,14 @@ module local_mem_engine_avalon
         .reset_n(reset_n && !state_reset),
         .incr_by(COUNTER_WIDTH'(incr_wr_req_lines)),
         .value(wr_lines_req)
+        );
+
+    counter_multicycle#(.NUM_BITS(COUNTER_WIDTH)) wr_resp
+       (
+        .clk,
+        .reset_n(reset_n && !state_reset),
+        .incr_by(COUNTER_WIDTH'(incr_wr_resp)),
+        .value(wr_bursts_resp)
         );
 
 endmodule // local_mem_engine_avalon

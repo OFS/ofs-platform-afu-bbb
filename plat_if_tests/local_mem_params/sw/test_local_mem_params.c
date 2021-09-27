@@ -101,9 +101,22 @@ testDumpEngineState(
     }
     printf("    read line responses: %ld\n", csrEngRead(s_csr_handle, e, 2));
     printf("    write line requests: %ld\n", csrEngRead(s_csr_handle, e, 3));
-    if (2 == s_eng_bufs[e].eng_type)
+    printf("    write burst responses: %ld\n", csrEngRead(s_csr_handle, e, 4));
+}
+
+
+static void
+testDumpMaskedEngineState(
+    uint64_t emask
+)
+{
+    uint32_t e = 0;
+    uint64_t m = emask;
+    while (m)
     {
-        printf("    write burst responses: %ld\n", csrEngRead(s_csr_handle, e, 4));
+        testDumpEngineState(e);
+        e += 1;
+        m >>= 1;
     }
 }
 
@@ -176,8 +189,8 @@ runEnginesTest(
     // the engine is enabled and the active flag goes low.
     struct timespec wait_time;
     // Poll less often in simulation
-    wait_time.tv_sec = (s_is_ase ? 2 : 0);
-    wait_time.tv_nsec = 1000000;
+    wait_time.tv_sec = (s_is_ase ? 4 : 0);
+    wait_time.tv_nsec = 10000000;
     int trips = 0;
     while (true)
     {
@@ -464,9 +477,9 @@ testSmallRegions(
                 configEngRead(e, mode & 2, burst_size, num_bursts, 0);
 
                 // Configure writes. Use address 0 for just a write and
-                // address 0xf00 for simultaneous read+write.
+                // address 0xf000 for simultaneous read+write.
                 uint64_t wr_seed = rand();
-                uint32_t wr_start_addr = ((mode == 3) ? 0xf00 : 0);
+                uint32_t wr_start_addr = ((mode == 3) ? 0xf000 : 0);
                 configEngWrite(e, mode & 1, false, burst_size, num_bursts,
                                wr_start_addr, wr_seed);
 
@@ -511,9 +524,9 @@ testSmallRegions(
 
 
             //
-            // Test the write from the final R+W, looking at start address 0xf00.
+            // Test the write from the final R+W, looking at start address 0xf000.
             //
-            configEngRead(e, true, burst_size, num_bursts, 0xf00);
+            configEngRead(e, true, burst_size, num_bursts, 0xf000);
             configEngWrite(e, false, false, 0, 0, 0, 0);
             if (runEnginesTest((uint64_t)1 << e))
             {
@@ -593,8 +606,8 @@ runBandwidth(
 
     // Wait for them to start
     struct timespec wait_time;
-    wait_time.tv_sec = (s_is_ase ? 1 : 0);
-    wait_time.tv_nsec = 1000000;
+    wait_time.tv_sec = (s_is_ase ? 4 : 0);
+    wait_time.tv_nsec = 100000000;
     while (csrGetEnginesEnabled(s_csr_handle) == 0)
     {
         nanosleep(&wait_time, NULL);
@@ -606,8 +619,23 @@ runBandwidth(
     csrDisableEngines(s_csr_handle, emask);
 
     // Wait for them to stop
-    while (csrGetEnginesActive(s_csr_handle))
+    int trips = 0;
+    while (true)
     {
+        uint64_t eng_active = csrGetEnginesActive(s_csr_handle);
+
+        // Done once no engine is active
+        if (! eng_active) break;
+
+        trips += 1;
+        if (trips == 10)
+        {
+            printf(" - HANG!\n\n");
+            printf("Aborting - active mask 0x%lx\n", eng_active);
+            testDumpMaskedEngineState(emask);
+            exit(1);
+        }
+
         nanosleep(&wait_time, NULL);
     }
 
