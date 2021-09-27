@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2021, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,6 +28,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
 // --------------------------------------
 // Avalon-MM clock crossing bridge
 //
@@ -40,7 +41,7 @@
 // --------------------------------------
 
 `timescale 1 ns / 1 ns
-module ofs_plat_utils_avalon_mm_clock_crossing_bridge
+module ofs_plat_utils_avalon_mm_clock_crossing_bridge 
 #(
     parameter DATA_WIDTH            = 32,
     parameter SYMBOL_WIDTH          = 8,
@@ -127,16 +128,17 @@ module ofs_plat_utils_avalon_mm_clock_crossing_bridge
     // --------------------------------------
     // Command FIFO
     // --------------------------------------
-    (* altera_attribute = "-name ALLOW_ANY_RAM_SIZE_FOR_RECOGNITION ON" *) ofs_plat_utils_avalon_dc_fifo
-    #(
+    (* altera_attribute = "-name ALLOW_ANY_RAM_SIZE_FOR_RECOGNITION ON" *)
+    ofs_plat_utils_avalon_dc_fifo #(
         .SYMBOLS_PER_BEAT (1),
         .BITS_PER_SYMBOL  (CMD_WIDTH),
         .FIFO_DEPTH       (COMMAND_FIFO_DEPTH),
         .WR_SYNC_DEPTH    (MASTER_SYNC_DEPTH),
         .RD_SYNC_DEPTH    (SLAVE_SYNC_DEPTH),
-        .BACKPRESSURE_DURING_RESET (1),
         // Added for OPAE to drive s0_space_avail_data
-        .USE_SPACE_AVAIL_IF (1)
+        .USE_SPACE_AVAIL_IF (1),
+        .BACKPRESSURE_DURING_RESET (1),
+        .SYNC_RESET         (SYNC_RESET)
     ) 
     cmd_fifo
     (
@@ -335,14 +337,15 @@ module ofs_plat_utils_avalon_mm_clock_crossing_bridge
     // --------------------------------------
     // Response FIFO
     // --------------------------------------
-    (* altera_attribute = "-name ALLOW_ANY_RAM_SIZE_FOR_RECOGNITION ON" *) ofs_plat_utils_avalon_dc_fifo
-    #(
+    (* altera_attribute = "-name ALLOW_ANY_RAM_SIZE_FOR_RECOGNITION ON" *)
+    ofs_plat_utils_avalon_dc_fifo #(
         .SYMBOLS_PER_BEAT   (1),
         .BITS_PER_SYMBOL    (RSP_WIDTH),
         .FIFO_DEPTH         (RESPONSE_FIFO_DEPTH),
         .WR_SYNC_DEPTH      (SLAVE_SYNC_DEPTH),
         .RD_SYNC_DEPTH      (MASTER_SYNC_DEPTH),
-        .USE_SPACE_AVAIL_IF (1)
+        .USE_SPACE_AVAIL_IF (1),
+        .SYNC_RESET         (SYNC_RESET)
     ) 
     rsp_fifo
     (

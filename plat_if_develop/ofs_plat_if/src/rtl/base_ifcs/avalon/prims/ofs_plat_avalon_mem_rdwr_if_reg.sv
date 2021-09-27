@@ -106,6 +106,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_impl
                     .s0_waitrequest(mem_pipe[s].rd_waitrequest),
                     .s0_readdata(mem_pipe[s].rd_readdata),
                     .s0_readdatavalid(mem_pipe[s].rd_readdatavalid),
+                    .s0_writeresponsevalid(),
                     .s0_response({ mem_pipe[s].rd_readresponseuser,
                                    mem_pipe[s].rd_response }),
                     .s0_burstcount(mem_pipe[s].rd_burstcount),
@@ -120,6 +121,7 @@ module ofs_plat_avalon_mem_rdwr_if_reg_impl
                     .m0_waitrequest(mem_pipe[s - 1].rd_waitrequest),
                     .m0_readdata(mem_pipe[s - 1].rd_readdata),
                     .m0_readdatavalid(mem_pipe[s - 1].rd_readdatavalid),
+                    .m0_writeresponsevalid(1'b0),
                     .m0_response({ mem_pipe[s - 1].rd_readresponseuser,
                                    mem_pipe[s - 1].rd_response }),
                     .m0_burstcount(mem_pipe[s - 1].rd_burstcount),
@@ -137,7 +139,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_impl
                     .DATA_WIDTH(DATA_WIDTH),
                     .HDL_ADDR_WIDTH(USER_WIDTH + ADDR_WIDTH),
                     .BURSTCOUNT_WIDTH(BURST_CNT_WIDTH),
-                    .RESPONSE_WIDTH(USER_WIDTH + RESPONSE_WIDTH)
+                    .RESPONSE_WIDTH(USER_WIDTH + RESPONSE_WIDTH),
+                    .USE_WRITERESPONSE(1)
                     )
                   bridge_wr
                    (
@@ -146,9 +149,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_impl
 
                     .s0_waitrequest(mem_pipe[s].wr_waitrequest),
                     .s0_readdata(),
-                    // Use readdatavalid/response to pass write response.
-                    // The bridge doesn't count reads or writes, so this works.
-                    .s0_readdatavalid(mem_pipe[s].wr_writeresponsevalid),
+                    .s0_readdatavalid(),
+                    .s0_writeresponsevalid(mem_pipe[s].wr_writeresponsevalid),
                     .s0_response({ mem_pipe[s].wr_writeresponseuser,
                                    mem_pipe[s].wr_response }),
                     .s0_burstcount(mem_pipe[s].wr_burstcount),
@@ -162,8 +164,8 @@ module ofs_plat_avalon_mem_rdwr_if_reg_impl
 
                     .m0_waitrequest(mem_pipe[s - 1].wr_waitrequest),
                     .m0_readdata('0),
-                    // See above -- readdatavalid is used for write responses
-                    .m0_readdatavalid(mem_pipe[s - 1].wr_writeresponsevalid),
+                    .m0_readdatavalid(1'b0),
+                    .m0_writeresponsevalid(mem_pipe[s - 1].wr_writeresponsevalid),
                     .m0_response({ mem_pipe[s - 1].wr_writeresponseuser,
                                    mem_pipe[s - 1].wr_response }),
                     .m0_burstcount(mem_pipe[s - 1].wr_burstcount),

@@ -40,19 +40,7 @@ module ofs_plat_prim_fifo_dc
   #(
     parameter N_DATA_BITS = 32,
     parameter N_ENTRIES = 2,
-    parameter THRESHOLD = 1,
-
-    // There are two implementations of dual clock FIFO available. One uses
-    // the DCFIFO megafunction and the other uses an Avalon primitive.
-    // The megafunction forces buffering in block RAM and may use more memory,
-    // especially for small FIFOs. However, the megafunction's buffer memory
-    // is registered and the Avalon version is not. The megafunction meets
-    // timing at higher deq_clk frequencies.
-    //
-    // The code here should be revisited. The Avalon implementation is heading
-    // toward forcing block RAM also, though still without the buffer. It is
-    // likely that the megafunction will always be a better choice.
-    parameter USE_REG_MEM = (`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ > 250) ? 1 : 0
+    parameter THRESHOLD = 1
     )
    (
     input  logic enq_clk,
@@ -69,8 +57,19 @@ module ofs_plat_prim_fifo_dc
     output logic notEmpty
     );
 
+    // There are two implementations of dual clock FIFO available. One uses
+    // the DCFIFO megafunction and the other uses an Avalon primitive.
+    // The megafunction closed timing more reliably on older versions of
+    // Quartus, used by the Xeon+FPGA integrated parts. The Avalon clock
+    // crossing FIFO is generally faster and smaller with recent tools.
+`ifdef PLATFORM_FPGA_INTG_XEON
+    localparam USE_DCFIFO_MF = 1;
+`else
+    localparam USE_DCFIFO_MF = 0;
+`endif
+
     generate
-        if (USE_REG_MEM != 0)
+        if (USE_DCFIFO_MF != 0)
         begin : mf
             ofs_plat_prim_fifo_dc_mf
               #(
@@ -257,7 +256,8 @@ module ofs_plat_prim_fifo_dc_af
       #(
         .SYMBOLS_PER_BEAT(1),
         .BITS_PER_SYMBOL(N_DATA_BITS),
-        .FIFO_DEPTH(N_ENTRIES),
+        // Round up FIFO_DEPTH to a power of 2. The Avalon FIFO expects it.
+        .FIFO_DEPTH(2 ** $clog2(N_ENTRIES)),
         .BACKPRESSURE_DURING_RESET(1),
         // Added for OPAE to drive s0_space_avail_data
         .USE_SPACE_AVAIL_IF (1)

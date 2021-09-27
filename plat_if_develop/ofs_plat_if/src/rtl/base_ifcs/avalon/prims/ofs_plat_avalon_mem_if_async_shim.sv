@@ -79,6 +79,12 @@ module ofs_plat_avalon_mem_if_async_shim
 
     logic [((USER_WIDTH + $bits(t_response) + mem_sink.DATA_WIDTH) / 8) - 1 : 0] m0_byteenable;
 
+    // Ensure that the response FIFO is deep enough for the burst count and
+    // full throughput
+    localparam MAX_BURST = 1 << (mem_sink.BURST_CNT_WIDTH-1);
+    localparam SAFE_RESPONSE_FIFO_DEPTH =
+        (RESPONSE_FIFO_DEPTH >= 4*MAX_BURST) ? RESPONSE_FIFO_DEPTH : 4*MAX_BURST;
+
     ofs_plat_utils_avalon_mm_clock_crossing_bridge
       #(
         // Leave room for passing "response" along with readdata
@@ -86,7 +92,7 @@ module ofs_plat_avalon_mem_if_async_shim
         .HDL_ADDR_WIDTH(USER_WIDTH + mem_sink.ADDR_WIDTH),
         .BURSTCOUNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
         .COMMAND_FIFO_DEPTH(COMMAND_FIFO_DEPTH),
-        .RESPONSE_FIFO_DEPTH(RESPONSE_FIFO_DEPTH)
+        .RESPONSE_FIFO_DEPTH(SAFE_RESPONSE_FIFO_DEPTH)
         )
       avmm_cross
        (

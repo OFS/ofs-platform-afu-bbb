@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019, Intel Corporation
+// Copyright (c) 2021, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,6 +28,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
 // --------------------------------------
 // Avalon-MM pipeline bridge
 //
@@ -46,6 +47,7 @@ module ofs_plat_utils_avalon_mm_bridge
     parameter PIPELINE_COMMAND     = 1,
     parameter PIPELINE_RESPONSE    = 1,
     parameter SYNC_RESET           = 1,
+    parameter USE_WRITERESPONSE    = 0,
 
     // --------------------------------------
     // Derived parameters
@@ -59,6 +61,7 @@ module ofs_plat_utils_avalon_mm_bridge
     output                        s0_waitrequest,
     output [DATA_WIDTH-1:0]       s0_readdata,
     output                        s0_readdatavalid,
+    output                        s0_writeresponsevalid,
     output [RESPONSE_WIDTH-1:0]   s0_response,
     input  [BURSTCOUNT_WIDTH-1:0] s0_burstcount,
     input  [DATA_WIDTH-1:0]       s0_writedata,
@@ -71,6 +74,7 @@ module ofs_plat_utils_avalon_mm_bridge
     input                         m0_waitrequest,
     input  [DATA_WIDTH-1:0]       m0_readdata,
     input                         m0_readdatavalid,
+    input                         m0_writeresponsevalid,
     input  [RESPONSE_WIDTH-1:0]   m0_response,
     output [BURSTCOUNT_WIDTH-1:0] m0_burstcount,
     output [DATA_WIDTH-1:0]       m0_writedata,
@@ -114,7 +118,19 @@ module ofs_plat_utils_avalon_mm_bridge
 
     reg [DATA_WIDTH-1:0]         rsp_readdata;
     reg                          rsp_readdatavalid;
-    reg [RESPONSE_WIDTH-1:0]     rsp_response;   
+    reg [RESPONSE_WIDTH-1:0]     rsp_response;
+    
+    reg                          rsp_writeresponsevalid; 
+    
+    wire [BURSTCOUNT_WIDTH-1:0] burst_reset_val;
+    
+    generate 
+    	if (BURSTCOUNT_WIDTH > 1) begin
+		assign burst_reset_val = {{(BURSTCOUNT_WIDTH-1){1'b0}}, 1'b1};
+	end else begin
+		assign burst_reset_val = 1'b1;
+	end
+    endgenerate
 
 
    // generating sync reset 
@@ -181,7 +197,7 @@ module ofs_plat_utils_avalon_mm_bridge
                     // next stage in this bridge.
                     // --------------------------------------
                     use_reg            <= 1'b1;
-                    wr_reg_burstcount <= 1'b1;
+                    wr_reg_burstcount <= burst_reset_val; //1'b1;
                     wr_reg_write      <= 1'b0;
                     wr_reg_read       <= 1'b0;
                     wr_reg_debugaccess <= 1'b0;
@@ -224,7 +240,7 @@ module ofs_plat_utils_avalon_mm_bridge
                       // --------------------------------------
                       use_reg            <= 1'b1;
 
-                      wr_reg_burstcount <= 1'b1;
+                      wr_reg_burstcount <= burst_reset_val; //1'b1;
                       wr_reg_write      <= 1'b0;
                       wr_reg_read       <= 1'b0;
                       wr_reg_debugaccess <= 1'b0;
@@ -297,7 +313,7 @@ module ofs_plat_utils_avalon_mm_bridge
        
           always @(posedge clk, posedge reset) begin
               if (reset) begin
-                  cmd_burstcount <= 1'b1;
+                  cmd_burstcount <= burst_reset_val; //1'b1;
                   cmd_write      <= 1'b0;
                   cmd_read       <= 1'b0;
                   cmd_debugaccess <= 1'b0;
@@ -316,7 +332,7 @@ module ofs_plat_utils_avalon_mm_bridge
 
           always @(posedge clk) begin //sync_reg1
               if (internal_sclr) begin
-                  cmd_burstcount <= 1'b1;
+                  cmd_burstcount <= burst_reset_val; //1'b1;
                   cmd_write      <= 1'b0;
                   cmd_read       <= 1'b0;
                   cmd_debugaccess <= 1'b0;
@@ -372,11 +388,13 @@ module ofs_plat_utils_avalon_mm_bridge
         always @(posedge clk, posedge reset) begin
             if (reset) begin
                 rsp_readdatavalid <= 1'b0;
-                rsp_response      <= 0;               
+                rsp_response      <= 2'b00; 
+		rsp_writeresponsevalid <= 1'b0;              
             end 
             else begin
                 rsp_readdatavalid <= m0_readdatavalid;
-                rsp_response      <= m0_response;               
+                rsp_response      <= m0_response;
+		rsp_writeresponsevalid <= m0_writeresponsevalid;               
             end
         end
        end //async_reg2
@@ -384,11 +402,13 @@ module ofs_plat_utils_avalon_mm_bridge
         always @(posedge clk) begin
             if (internal_sclr) begin
                 rsp_readdatavalid <= 1'b0;
-                rsp_response      <= 0;               
+                rsp_response      <= 2'b00; 
+		rsp_writeresponsevalid <= 1'b0;              
             end 
             else begin
                 rsp_readdatavalid <= m0_readdatavalid;
-                rsp_response      <= m0_response;               
+                rsp_response      <= m0_response;  
+		rsp_writeresponsevalid <= m0_writeresponsevalid;             
             end
         end  
        end // end  sync_reg2 
@@ -400,13 +420,30 @@ module ofs_plat_utils_avalon_mm_bridge
         always @* begin
             rsp_readdatavalid = m0_readdatavalid;
             rsp_readdata      = m0_readdata;
-            rsp_response      = m0_response;           
+            rsp_response      = m0_response;  
+	    rsp_writeresponsevalid = m0_writeresponsevalid;         
         end
     end
     endgenerate
 
     assign s0_readdatavalid = rsp_readdatavalid;
     assign s0_readdata      = rsp_readdata;
-    assign s0_response      = rsp_response;   
+    assign s0_response      = rsp_response;
+     
+    assign s0_writeresponsevalid = rsp_writeresponsevalid; //ensure port terminated responsibly in _hw.tcl, for this to work
+    
+    // --------------------------------------
+    // handle the writeresponsevalid o/p
+    // if USE_WRITERESPONSE is not enabled, drive o/p to 0
+    // to avoid "no driver" warning on o/p port
+    // in case port not terminated responsibly in _hw.tcl
+    // ---------------------------------------
+    //generate
+    //    if (USE_WRITERESPONSE) begin
+    //        assign s0_writeresponsevalid = rsp_writeresponsevalid;   
+    //    end else begin
+    //        assign s0_writeresponsevalid = 1'b0;
+    //    end
+    //endgenerate  
 
 endmodule

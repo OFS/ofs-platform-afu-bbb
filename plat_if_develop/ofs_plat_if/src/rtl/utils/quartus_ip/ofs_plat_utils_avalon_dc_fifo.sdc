@@ -1,6 +1,6 @@
-# $File: //acds/rel/20.2/ip/sopc/components/altera_avalon_dc_fifo/altera_avalon_dc_fifo.sdc $
+# $File: //acds/rel/21.3/ip/sopc/components/altera_avalon_dc_fifo/altera_avalon_dc_fifo.sdc $
 # $Revision: #1 $
-# $Date: 2020/04/03 $
+# $Date: 2021/07/29 $
 # $Author: psgswbuild $
 
 #-------------------------------------------------------------------------------
@@ -39,25 +39,6 @@ foreach dc_fifo_inst $all_dc_fifo {
 
 
 # add in timing constraints across asynchronous clock domain crossings for simple dual clock memory inference
-
-set mem_regs [get_registers -nowarn *|ofs_plat_utils_avalon_dc_fifo:*|mem*];
-if {![llength [query_collection -report -all $mem_regs]] > 0} {
-    set mem_regs [get_registers -nowarn ofs_plat_utils_avalon_dc_fifo:*|mem*];
-}
-
-set internal_out_payload_regs [get_registers -nowarn *|ofs_plat_utils_avalon_dc_fifo:*|internal_out_payload*];
-if {![llength [query_collection -report -all $internal_out_payload_regs]] > 0} {
-    set internal_out_payload_regs [get_registers -nowarn ofs_plat_utils_avalon_dc_fifo:*|internal_out_payload*];
-}
-
-if {[llength [query_collection -report -all $internal_out_payload_regs]] > 0 && [llength [query_collection -report -all $mem_regs]] > 0} {
-    set_max_delay -from $mem_regs -to $internal_out_payload_regs 200
-    set_min_delay -from $mem_regs -to $internal_out_payload_regs -200
-
-    set_net_delay -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8 -from $mem_regs -to $internal_out_payload_regs
-
-    #set_max_skew 2 -from $mem_regs -to $internal_out_payload_regs
-}
 
 # -----------------------------------------------------------------------------
 # This procedure constrains the skew between the pointer bits, and should

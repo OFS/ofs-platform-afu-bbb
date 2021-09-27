@@ -1,6 +1,6 @@
-// $File: //acds/rel/20.2/ip/sopc/components/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v $
+// $File: //acds/rel/21.3/ip/sopc/components/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v $
 // $Revision: #1 $
-// $Date: 2020/04/03 $
+// $Date: 2021/07/29 $
 // $Author: psgswbuild $
 //-------------------------------------------------------------------------------
 // Description: Dual clocked single channel FIFO with fill levels and status
@@ -232,6 +232,7 @@ module ofs_plat_utils_avalon_dc_fifo(
         else begin
             assign in_packet_signals = {in_startofpacket, in_endofpacket};
             assign {out_startofpacket, out_endofpacket} = out_packet_signals;
+            assign out_empty = 0;
         end
     endgenerate
 
@@ -245,9 +246,11 @@ module ofs_plat_utils_avalon_dc_fifo(
                 else begin
                     assign in_payload = {in_packet_signals, in_data, in_error};
                     assign {out_packet_signals, out_data, out_error} = out_payload;
+                    assign out_channel = 0;
                 end
             end
             else begin
+                assign out_error = 0;
                 if (CHANNEL_WIDTH > 0) begin
                     assign in_payload = {in_packet_signals, in_data, in_channel};
                     assign {out_packet_signals, out_data, out_channel} = out_payload;
@@ -255,10 +258,12 @@ module ofs_plat_utils_avalon_dc_fifo(
                 else begin
                     assign in_payload = {in_packet_signals, in_data};
                     assign {out_packet_signals, out_data} = out_payload;
+                    assign out_channel = 0;
                 end
             end
         end
         else begin
+            assign out_packet_signals = 'b0;
             if (ERROR_WIDTH > 0) begin
                 if (CHANNEL_WIDTH > 0) begin
                     assign in_payload = {in_data, in_error, in_channel};
@@ -267,9 +272,11 @@ module ofs_plat_utils_avalon_dc_fifo(
                 else begin
                     assign in_payload = {in_data, in_error};
                     assign {out_data, out_error} = out_payload;
+                    assign out_channel = 0;
                 end
             end
             else begin
+                assign out_error = 0;
                 if (CHANNEL_WIDTH > 0) begin
                     assign in_payload = {in_data, in_channel};
                     assign {out_data, out_channel} = out_payload;
@@ -277,9 +284,9 @@ module ofs_plat_utils_avalon_dc_fifo(
                 else begin
                     assign in_payload = in_data;
                     assign out_data = out_payload;
+                    assign out_channel = 0;
                 end
             end
-            assign out_packet_signals = 'b0;
         end
     endgenerate
 
@@ -288,18 +295,67 @@ module ofs_plat_utils_avalon_dc_fifo(
     //
     // Infers a simple dual clock memory with unregistered outputs
     // ---------------------------------------------------------------------
-    always @(posedge in_clk) begin
-        if (in_valid && in_ready_copyA)
-            mem[mem_wr_ptr] <= in_payload;
-    end
+    wire [PAYLOAD_WIDTH-1:0] fifo_out_payload;
 
-    always @(posedge out_clk) begin
-        internal_out_payload <= mem[mem_rd_ptr];
-    end
+	always @* begin
+            internal_out_payload = fifo_out_payload;
+        end
 
+
+   altera_syncram # (
+       // `endif
+          .address_aclr_b  ("NONE"),
+          .address_reg_b   ("CLOCK1"),
+          .clock_enable_input_a ("BYPASS"),
+          .clock_enable_input_b  ("BYPASS"),
+          .clock_enable_output_b  ("BYPASS"),
+          .enable_ecc  ("FALSE"),
+          .lpm_type   ("altera_syncram"),
+          .numwords_a   (FIFO_DEPTH),
+          .numwords_b  (FIFO_DEPTH),
+          .operation_mode ("DUAL_PORT"),
+          .outdata_aclr_b  ("NONE"),
+          .outdata_sclr_b  ("NONE"),
+          .outdata_reg_b  ("UNREGISTERED"),
+          .power_up_uninitialized ("TRUE"),
+          .ram_block_type  ("M20K"),
+          .widthad_a   (ADDR_WIDTH),
+          .widthad_b   (ADDR_WIDTH),
+          .width_a   (PAYLOAD_WIDTH),
+          .width_b   (PAYLOAD_WIDTH),
+          .width_byteena_a  (1)
+     ) altera_syncram_component (
+                  .address_a (mem_wr_ptr), // write address
+                  .address_b (mem_rd_ptr), // read address
+                  .clock0 (in_clk),
+		  .clock1 (out_clk),
+                  .data_a (in_payload), // in_data
+                  .wren_a (in_valid && in_ready_copyA), // wr ptr
+                  .q_b (fifo_out_payload),
+                  .aclr0 (1'b0),
+                  .aclr1 (1'b0),
+ 		  .address2_a (1'b1),
+                  .address2_b (1'b1),
+                  .addressstall_a (1'b0),
+                  .addressstall_b (1'b0),
+                  .byteena_a (1'b1),
+                  .byteena_b (1'b1),
+                  .clocken0 (1'b1),
+                  .clocken1 (1'b1),
+                  .clocken2 (1'b1),
+                  .clocken3 (1'b1),
+                  .data_b ({PAYLOAD_WIDTH{1'b1}}), // input - connect data width 
+                  .q_a (),
+		  .eccstatus (),
+	          .eccencbypass (1'b0),
+		  .eccencparity (8'b0),	
+                  .rden_a (1'b1),
+                  .rden_b (1'b1),
+		  .sclr (1'b0),
+                  .wren_b (1'b0));
+   
     assign mem_rd_ptr = next_out_rd_ptr[ADDR_WIDTH-1:0];
     assign mem_wr_ptr = in_wr_ptr[ADDR_WIDTH-1:0];
-
 
     // ---------------------------------------------------------------------
     // Pointer Management
@@ -757,6 +813,11 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
 
     end
+    else begin
+         always @ (posedge out_clk) begin
+            out_csr_readdata <= 0;
+         end
+    end
 
     if (STREAM_ALMOST_EMPTY) begin
          if(SYNC_RESET == 0) begin
@@ -784,6 +845,12 @@ module ofs_plat_utils_avalon_dc_fifo(
             end
          end
 
+    end
+    else begin
+         always @ (posedge out_clk) begin
+            almost_empty_valid <= 1'b0;
+            almost_empty_data <= 0;
+         end
     end
     endgenerate
     
@@ -940,6 +1007,11 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
 
     end
+    else begin
+       always @ (posedge in_clk) begin
+            in_csr_readdata <= 0;
+       end
+    end
 
     if (STREAM_ALMOST_FULL) begin
          if(SYNC_RESET == 0) begin
@@ -967,6 +1039,12 @@ module ofs_plat_utils_avalon_dc_fifo(
             end
          end
 
+    end
+    else begin
+      always @ (posedge in_clk) begin
+         almost_full_valid <= 0;
+         almost_full_data <= 0;
+      end
     end
 
     endgenerate

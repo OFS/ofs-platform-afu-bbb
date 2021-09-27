@@ -104,6 +104,8 @@ module ofs_plat_avalon_mem_if_reg_impl
                     .s0_waitrequest(mem_pipe[s].waitrequest),
                     .s0_readdata(mem_pipe[s].readdata),
                     .s0_readdatavalid(mem_pipe[s].readdatavalid),
+                    // Write response handled separately, below
+                    .s0_writeresponsevalid(),
                     .s0_response({ mem_pipe[s].readresponseuser,
                                    mem_pipe[s].response }),
                     .s0_burstcount(mem_pipe[s].burstcount),
@@ -118,6 +120,7 @@ module ofs_plat_avalon_mem_if_reg_impl
                     .m0_waitrequest(mem_pipe[s - 1].waitrequest),
                     .m0_readdata(mem_pipe[s - 1].readdata),
                     .m0_readdatavalid(mem_pipe[s - 1].readdatavalid),
+                    .m0_writeresponsevalid(1'b0),
                     .m0_response({ mem_pipe[s - 1].readresponseuser,
                                    mem_pipe[s - 1].response }),
                     .m0_burstcount(mem_pipe[s - 1].burstcount),
@@ -130,9 +133,7 @@ module ofs_plat_avalon_mem_if_reg_impl
                     .m0_debugaccess()
                     );
 
-                // The Avalon bridge doesn't handle write response, but
-                // it's simple since the ofs_plat_avalon_mem_if interface
-                // keeps write and read responses separate.
+                // The Avalon bridge doesn't handle a separate write response bus.
                 always_ff @(posedge mem_sink.clk)
                 begin
                     mem_pipe[s].writeresponsevalid <= mem_pipe[s - 1].writeresponsevalid;
