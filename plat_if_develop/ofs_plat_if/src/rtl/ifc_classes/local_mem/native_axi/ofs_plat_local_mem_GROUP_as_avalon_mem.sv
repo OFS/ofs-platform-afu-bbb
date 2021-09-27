@@ -71,35 +71,8 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     ofs_plat_avalon_mem_if.to_source_clk to_afu
     );
 
-    // Combine AFU soft reset with the FIU local memory reset
-    logic fiu_soft_reset_n = 1'b0;
-    logic afu_reset_n_in_fiu_clk;
-
-    ofs_plat_prim_clock_crossing_reset soft_reset
-       (
-        .clk_src(afu_clk),
-        .clk_dst(to_fiu.clk),
-        .reset_in(afu_reset_n),
-        .reset_out(afu_reset_n_in_fiu_clk)
-        );
-
-    always @(posedge to_fiu.clk)
-    begin
-        fiu_soft_reset_n <= to_fiu.reset_n && afu_reset_n_in_fiu_clk;
-    end
-
     logic clk;
-    assign clk = (ADD_CLOCK_CROSSING == 0) ? to_fiu.clk : afu_clk;
-
-    logic reset_n = 1'b0;
-    always @(posedge clk)
-    begin
-        reset_n <= (ADD_CLOCK_CROSSING == 0) ? fiu_soft_reset_n : afu_reset_n;
-    end
-
-    assign to_afu.clk = clk;
-    assign to_afu.reset_n = reset_n;
-    assign to_afu.instance_number = to_fiu.instance_number;
+    logic reset_n;
 
     // AXI addresses are byte indices. Avalon are lines. Pad the AXI low
     // address bits with zero.
@@ -108,6 +81,26 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     // AXI bursts are 0 based, so one bit smaller than Avalon.
     localparam AXI_BURST_CNT_WIDTH = to_afu.BURST_CNT_WIDTH_ - 1;
     typedef logic [AXI_BURST_CNT_WIDTH-1 : 0] t_axi_burst_cnt;
+
+
+    //
+    // Register incoming Avalon interface
+    //
+    ofs_plat_avalon_mem_if
+      #(
+        `OFS_PLAT_AVALON_MEM_IF_REPLICATE_PARAMS(to_afu)
+        )
+      to_afu_reg();
+
+    ofs_plat_avalon_mem_if_reg_sink_clk
+      #(
+        .N_REG_STAGES(1)
+        )
+      mem_reg
+       (
+        .mem_source(to_afu),
+        .mem_sink(to_afu_reg)
+        );
 
 
     //
@@ -128,8 +121,16 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
         )
       axi_afu_if();
 
+    assign clk = axi_afu_if.clk;
+    assign reset_n = axi_afu_if.reset_n;
+
+
     logic wr_is_sop;
     logic wr_is_eop;
+
+    // AXI stream ready for a write request? At least the data bus must be ready.
+    // The address bus must be available on SOP.
+    wire axi_wr_ready = axi_afu_if.wready && (!wr_is_sop || axi_afu_if.awready);
 
     ofs_plat_prim_burstcount1_sop_tracker
       #(
@@ -140,57 +141,60 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
         .clk,
         .reset_n,
 
-        .flit_valid(to_afu.write && !to_afu.waitrequest),
-        .burstcount(to_afu.burstcount),
+        .flit_valid(to_afu_reg.write && axi_wr_ready),
+        .burstcount(to_afu_reg.burstcount),
 
         .sop(wr_is_sop),
         .eop(wr_is_eop)
         );
 
+
+    assign to_afu_reg.clk = axi_afu_if.clk;
+    assign to_afu_reg.reset_n = axi_afu_if.reset_n;
+    assign to_afu_reg.instance_number = axi_afu_if.instance_number;
+
+    // Map AXI ready signals to Avalon, picking the appropriate channel(s) for the
+    // request type.
+    assign to_afu_reg.waitrequest = to_afu_reg.write ? !axi_wr_ready : !axi_afu_if.arready;
+
     always_comb
     begin
-        // Simplify waitrequest logic -- just block on any channel. The downstream PIM
-        // code keeps the ready signals independent of valid signals, making this safe.
-        to_afu.waitrequest = (wr_is_sop && !axi_afu_if.awready) ||
-                             !axi_afu_if.wready ||
-                             !axi_afu_if.arready;
-
         // Write address channel
-        axi_afu_if.awvalid = to_afu.write && !to_afu.waitrequest && wr_is_sop;
+        axi_afu_if.awvalid = to_afu_reg.write && axi_wr_ready && wr_is_sop;
         axi_afu_if.aw = '0;
-        axi_afu_if.aw.addr = { to_afu.address, ADDR_BYTE_IDX_WIDTH'(0) };
-        axi_afu_if.aw.len = t_axi_burst_cnt'(to_afu.burstcount - 1);
-        axi_afu_if.aw.size = $clog2(to_afu.DATA_N_BYTES);
-        axi_afu_if.aw.user = to_afu.user;
+        axi_afu_if.aw.addr = { to_afu_reg.address, ADDR_BYTE_IDX_WIDTH'(0) };
+        axi_afu_if.aw.len = t_axi_burst_cnt'(to_afu_reg.burstcount - 1);
+        axi_afu_if.aw.size = $clog2(to_afu_reg.DATA_N_BYTES);
+        axi_afu_if.aw.user = to_afu_reg.user;
 
         // Write data channel
-        axi_afu_if.wvalid = to_afu.write && !to_afu.waitrequest;
+        axi_afu_if.wvalid = to_afu_reg.write && axi_wr_ready;
         axi_afu_if.w = '0;
-        axi_afu_if.w.data = to_afu.writedata;
-        axi_afu_if.w.strb = to_afu.byteenable;
+        axi_afu_if.w.data = to_afu_reg.writedata;
+        axi_afu_if.w.strb = to_afu_reg.byteenable;
         axi_afu_if.w.last = wr_is_eop;
-        axi_afu_if.w.user = to_afu.user;
+        axi_afu_if.w.user = to_afu_reg.user;
 
         // Read address channel
-        axi_afu_if.arvalid = to_afu.read && !to_afu.waitrequest;
+        axi_afu_if.arvalid = to_afu_reg.read && axi_afu_if.arready;
         axi_afu_if.ar = '0;
-        axi_afu_if.ar.addr = { to_afu.address, ADDR_BYTE_IDX_WIDTH'(0) };
-        axi_afu_if.ar.len = t_axi_burst_cnt'(to_afu.burstcount - 1);
-        axi_afu_if.ar.size = $clog2(to_afu.DATA_N_BYTES);
-        axi_afu_if.ar.user = to_afu.user;
+        axi_afu_if.ar.addr = { to_afu_reg.address, ADDR_BYTE_IDX_WIDTH'(0) };
+        axi_afu_if.ar.len = t_axi_burst_cnt'(to_afu_reg.burstcount - 1);
+        axi_afu_if.ar.size = $clog2(to_afu_reg.DATA_N_BYTES);
+        axi_afu_if.ar.user = to_afu_reg.user;
 
         // Write response
         axi_afu_if.bready = 1'b1;
-        to_afu.writeresponsevalid = axi_afu_if.bvalid;
-        to_afu.writeresponse = '0;
-        to_afu.writeresponseuser = axi_afu_if.b.user;
+        to_afu_reg.writeresponsevalid = axi_afu_if.bvalid;
+        to_afu_reg.writeresponse = '0;
+        to_afu_reg.writeresponseuser = axi_afu_if.b.user;
 
         // Read response
         axi_afu_if.rready = 1'b1;
-        to_afu.readdatavalid = axi_afu_if.rvalid;
-        to_afu.readdata = axi_afu_if.r.data;
-        to_afu.response = '0;
-        to_afu.readresponseuser = axi_afu_if.r.user;
+        to_afu_reg.readdatavalid = axi_afu_if.rvalid;
+        to_afu_reg.readdata = axi_afu_if.r.data;
+        to_afu_reg.response = '0;
+        to_afu_reg.readresponseuser = axi_afu_if.r.user;
     end
 
 
@@ -204,7 +208,7 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
         .SORT_READ_RESPONSES(1),
         .SORT_WRITE_RESPONSES(1)
         )
-      param_mapping
+      axi_mapping
        (
         .to_afu(axi_afu_if),
         .to_fiu,
