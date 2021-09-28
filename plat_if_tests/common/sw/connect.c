@@ -44,6 +44,9 @@
         }                                    \
     }
 
+// Do we know already whether this is a run on HW or simulation with ASE?
+static bool ase_check_complete;
+static bool is_ase_sim;
 
 //
 // Print readable error message for fpga_results
@@ -150,13 +153,30 @@ connectToMatchingAccels(const char *accel_uuid,
     }
 
     // Open accelerators
+    uint32_t num_found = 0;
     for (uint32_t i = 0; i < *num_handles; i += 1)
     {
-        r = fpgaOpen(accel_tokens[i], &accel_handles[i], 0);
-        assert(FPGA_OK == r);
+        r = fpgaOpen(accel_tokens[i], &accel_handles[num_found], 0);
+        if (FPGA_OK == r)
+        {
+            num_found += 1;
+
+            // While the token is available, check whether it is for HW
+            // or for ASE simulation, recording it so probeForASE() below
+            // doesn't have to run through the device list again.
+            fpga_properties accel_props;
+            uint16_t vendor_id, dev_id;
+            fpgaGetProperties(accel_tokens[i], &accel_props);
+            fpgaPropertiesGetVendorID(accel_props, &vendor_id);
+            fpgaPropertiesGetDeviceID(accel_props, &dev_id);
+            ase_check_complete = true;
+            is_ase_sim = (vendor_id == 0x8086) && (dev_id == 0xa5e);
+        }
+
         fpgaDestroyToken(&accel_tokens[i]);
-        assert(FPGA_OK == r);
     }
+    *num_handles = num_found;
+    if (0 != num_found) r = FPGA_OK;
 
   out_destroy:
     fpgaDestroyProperties(&filter);
@@ -185,6 +205,8 @@ probeForASE(const t_target_bdf *bdf)
     uint32_t num_matches = 1;
     fpga_token fme_token;
 
+    if (ase_check_complete) return is_ase_sim;
+
     // Connect to the FPGA management engine
     fpgaGetProperties(NULL, &filter);
     fpgaPropertiesSetObjectType(filter, FPGA_DEVICE);
@@ -202,7 +224,9 @@ probeForASE(const t_target_bdf *bdf)
     fpgaDestroyProperties(&filter);
 
     // ASE's device ID is 0xa5e
-    return ((FPGA_OK == r) && (0xa5e == device_id));
+    is_ase_sim = (FPGA_OK == r) && (0xa5e == device_id);
+    ase_check_complete = true;
+    return is_ase_sim;
 
   out_destroy:
     fpgaDestroyProperties(&filter);
