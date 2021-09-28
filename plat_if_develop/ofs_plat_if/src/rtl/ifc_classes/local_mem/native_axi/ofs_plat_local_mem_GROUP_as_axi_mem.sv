@@ -195,7 +195,17 @@ module ofs_plat_local_mem_@group@_as_axi_mem
 
     ofs_plat_axi_mem_if_user_ext
       #(
-        .FIM_USER_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_USER_WIDTH)
+        .FIM_USER_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_@GROUP@_USER_WIDTH),
+        // Don't trust the memory subsystem to preserve user bits
+        .FORCE_USER_TO_ZERO(1),
+        // Set RD/WR IDs to zero in requests, which causes the memory subsystem
+        // to keep read and write channels ordered. The Intel AXI-MM interface
+        // to memory does not maintain relative order of read and write channels.
+        // It only guarantees order within the read or write channel when IDs match.
+        // The current memory subsystem implementation performance is identical
+        // with or without setting ID to zero, so we keep responses ordered.
+        .FORCE_RD_ID_TO_ZERO(1),
+        .FORCE_WR_ID_TO_ZERO(1)
         )
       map_user
        (

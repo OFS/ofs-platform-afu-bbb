@@ -51,6 +51,19 @@ module ofs_plat_axi_mem_if_user_ext
     // Width of the native device's FIM user flags
     parameter FIM_USER_WIDTH = 1,
 
+    // Force FIM-side user to zero? In some implementations, the user bits
+    // may indicate some property of the request. The FIM might also not
+    // return the original user bits with a response -- a semantic expected
+    // by PIM clients.
+    parameter FORCE_USER_TO_ZERO = 0,
+
+    // Preserve the ID bits in requests passed to the FIM or set them to zero?
+    // When set to zero, AXI memory subsystems are forced to keep transactions
+    // ordered. Even when enabled, IDs are recorded here and returned with
+    // responses to PIM clients.
+    parameter FORCE_RD_ID_TO_ZERO = 0,
+    parameter FORCE_WR_ID_TO_ZERO = 0,
+
     // Number of entries in the response trackers.
     parameter RD_RESP_USER_ENTRIES = 512,
     parameter WR_RESP_USER_ENTRIES = 512
@@ -160,30 +173,35 @@ module ofs_plat_axi_mem_if_user_ext
         mem_sink.awvalid = mem_source.awvalid;
         mem_source.awready = mem_sink.awready && wr_fifo_notFull;
         `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_sink.aw, =, mem_source.aw);
+        if (FORCE_USER_TO_ZERO) mem_sink.aw.user = '0;
+        if (FORCE_WR_ID_TO_ZERO) mem_sink.aw.id = '0;
 
         mem_sink.wvalid = mem_source.wvalid;
         mem_source.wready = mem_sink.wready;
         `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink.w, =, mem_source.w);
+        if (FORCE_USER_TO_ZERO) mem_sink.w.user = '0;
 
         mem_source.bvalid = mem_sink.bvalid;
         mem_sink.bready = mem_source.bready;
         `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_source.b, =, mem_sink.b);
         mem_source.b.user = wr_fifo_user;
         merged_wid = wr_fifo_wid;
-        merged_wid[WID_COMMON_WIDTH-1 : 0] = WID_COMMON_WIDTH'(mem_sink.b.id);
+        if (!FORCE_WR_ID_TO_ZERO) merged_wid[WID_COMMON_WIDTH-1 : 0] = WID_COMMON_WIDTH'(mem_sink.b.id);
         mem_source.b.id = merged_wid;
 
 
         mem_sink.arvalid = mem_source.arvalid;
         mem_source.arready = mem_sink.arready && rd_fifo_notFull;
         `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_sink.ar, =, mem_source.ar);
+        if (FORCE_USER_TO_ZERO) mem_sink.ar.user = '0;
+        if (FORCE_RD_ID_TO_ZERO) mem_sink.ar.id = '0;
 
         mem_source.rvalid = mem_sink.rvalid;
         mem_sink.rready = mem_source.rready;
         `OFS_PLAT_AXI_MEM_IF_COPY_R(mem_source.r, =, mem_sink.r);
         mem_source.r.user = rd_fifo_user;
         merged_rid = rd_fifo_rid;
-        merged_rid[RID_COMMON_WIDTH-1 : 0] = RID_COMMON_WIDTH'(mem_sink.r.id);
+        if (!FORCE_RD_ID_TO_ZERO) merged_rid[RID_COMMON_WIDTH-1 : 0] = RID_COMMON_WIDTH'(mem_sink.r.id);
         mem_source.r.id = merged_rid;
     end
 
