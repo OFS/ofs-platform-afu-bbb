@@ -224,12 +224,11 @@ runEnginesTest(
 //
 static int
 testByteMask(
-    uint32_t num_engines
+    uint32_t num_engines,
+    uint32_t test_engine
 )
 {
     int num_errors = 0;
-
-    printf("Testing byte masking:\n");
 
     // Turn off all engines. We will use engine 0 for the test.
     for (uint32_t e = 0; e < num_engines; e += 1)
@@ -239,12 +238,12 @@ testByteMask(
     }
 
     // Write zeros to a chunk of memory
-    configEngWrite(0, true, true, 4, 2, 0, 0);
+    configEngWrite(test_engine, true, true, 4, 2, 0, 0);
 
     // Start the engines
-    if (runEnginesTest(1))
+    if (runEnginesTest((uint64_t)1 << test_engine))
     {
-        testDumpEngineState(0);
+        testDumpEngineState(test_engine);
 
         num_errors += 1;
         goto fail;
@@ -252,45 +251,45 @@ testByteMask(
 
     // Set byte masks (up to 128 masked bytes)
     uint64_t mask_low = 0xcc4350e951224e48;
-    csrEngWrite(s_csr_handle, 0, 3, mask_low);
+    csrEngWrite(s_csr_handle, test_engine, 3, mask_low);
     uint64_t mask_high = 0x373b5905de904a9b;
-    csrEngWrite(s_csr_handle, 0, 4, mask_high);
+    csrEngWrite(s_csr_handle, test_engine, 4, mask_high);
 
     // Write a random, masked pattern. In addition to generating new data each
     // cycle, the hardware rotates { mask_high, mask_low } one bit for each
     // line written.
-    srand(1);
-    configEngWrite(0, true, false, 4, 2, 0, rand());
-    if (runEnginesTest(1))
+    srand(1 + test_engine);
+    configEngWrite(test_engine, true, false, 4, 2, 0, rand());
+    if (runEnginesTest((uint64_t)1 << test_engine))
     {
-        testDumpEngineState(0);
+        testDumpEngineState(test_engine);
 
         num_errors += 1;
         goto fail;
     }
 
     // Clear masks (set them to all ones)
-    csrEngWrite(s_csr_handle, 0, 3, ~0LL);
-    csrEngWrite(s_csr_handle, 0, 4, ~0LL);
+    csrEngWrite(s_csr_handle, test_engine, 3, ~0LL);
+    csrEngWrite(s_csr_handle, test_engine, 4, ~0LL);
 
     // Read the values back from local memory and confirm hashes
-    configEngRead(0, true, 4, 2, 0);
-    configEngWrite(0, false, false, 0, 0, 0, 0);
-    if (runEnginesTest(1))
+    configEngRead(test_engine, true, 4, 2, 0);
+    configEngWrite(test_engine, false, false, 0, 0, 0, 0);
+    if (runEnginesTest((uint64_t)1 << test_engine))
     {
-        testDumpEngineState(0);
+        testDumpEngineState(test_engine);
 
         num_errors += 1;
         goto fail;
     }
 
     // Hash computed in hardware
-    uint64_t hw_hash = csrEngRead(s_csr_handle, 0, 5);
+    uint64_t hw_hash = csrEngRead(s_csr_handle, test_engine, 5);
 
     // Compute the expected hash for the 8 lines written
-    srand(1);
+    srand(1 + test_engine);
     uint64_t seed = rand();
-    size_t byte_len = s_eng_bufs[0].data_byte_width;
+    size_t byte_len = s_eng_bufs[test_engine].data_byte_width;
     uint64_t *data = malloc(byte_len);
     uint8_t *masked_data = malloc(byte_len);
     uint64_t *hash_vec = malloc(byte_len);
@@ -330,7 +329,7 @@ testByteMask(
     free(masked_data);
     free(data);
 
-    printf("  Engine %d, addr 0x%x", 0, 0);
+    printf("  Engine %d, addr 0x%x", test_engine, 0);
     if (hw_hash == expected_hash)
     {
         printf(" - PASS (0x%016lx)\n", hw_hash);
@@ -342,7 +341,6 @@ testByteMask(
         printf("    0x%016lx, expected 0x%016lx\n", hw_hash, expected_hash);
     }
 
-    printf("\n");
   fail:
     return num_errors;
 }
@@ -737,12 +735,17 @@ testLocalMemParams(
         goto done;
     }
 
-    if (testByteMask(num_engines))
+    printf("Testing byte masking:\n");
+    for (uint32_t e = 0; e < num_engines; e += 1)
     {
-        // Quit on error
-        result = 1;
-        goto done;
+        if (testByteMask(num_engines, e))
+        {
+            // Quit on error
+            result = 1;
+            goto done;
+        }
     }
+    printf("\n");
 
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
