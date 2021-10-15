@@ -24,7 +24,7 @@ mcl8_found = system("grep -c 'Burst size: 8' " . data_file) + 0
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 
-set ylabel "Bandwidth (GiB/s)" offset 1,0 font ",15"
+set ylabel "Bandwidth (GB/s)" offset 1,0 font ",15"
 set y2label "Latency (ns)" offset -1.75,0 font ",15"
 set xlabel "Maximum Outstanding Lines" font ",15"
 if (afu_cnt > 1) { set xlabel "Maximum Outstanding Lines per VF" font ",15" }

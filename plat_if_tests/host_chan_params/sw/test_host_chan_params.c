@@ -939,15 +939,15 @@ printBandwidth(
 
     if (! write_lines)
     {
-        printf("  Read GiB/s:  %0.2f\n", read_bw);
+        printf("  Read GB/s:  %0.2f\n", read_bw);
     }
     else if (! read_lines)
     {
-        printf("  Write GiB/s: %0.2f\n", write_bw);
+        printf("  Write GB/s: %0.2f\n", write_bw);
     }
     else
     {
-        printf("  R+W GiB/s:   %0.2f (read %0.2f, write %0.2f)\n",
+        printf("  R+W GB/s:   %0.2f (read %0.2f, write %0.2f)\n",
                read_bw + write_bw, read_bw, write_bw);
     }
 
@@ -1066,7 +1066,7 @@ printLatencyAndBandwidth(
 
     if (print_header)
     {
-        printf("Read GiB/s, Write GiB/s, Read Inflight Lines Limit, Read Max Measured Inflight Lines, "
+        printf("Read GB/s, Write GB/s, Read Inflight Lines Limit, Read Max Measured Inflight Lines, "
                "FIM Read Max Measured Inflight Lines, Write Inflight Lines Limit, "
                "Read Avg Latency ns, FIM Read Avg Latency ns, Write Avg Latency ns\n");
     }
