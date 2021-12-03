@@ -53,13 +53,6 @@ module ase_emul_pcie_arb_local_commit #(
 
    wire commit_in_ready = (commit_in.tready || !rx_pending);
 
-   assign sink.tready = source.tready && commit_in_ready;
-   assign source.tvalid = sink.tvalid && commit_in_ready;
-   assign source.tdata = sink.tdata;
-   assign source.tkeep = sink.tkeep;
-   assign source.tlast = sink.tlast;
-   assign source.tuser_vendor = sink.tuser_vendor;
-
    // TX data, viewed as either PU or DM headers
    PCIe_ReqHdr_t   tx_req_dm_hdr;
    PCIe_PUReqHdr_t tx_req_pu_hdr;
@@ -73,6 +66,26 @@ module ase_emul_pcie_arb_local_commit #(
    wire tx_is_wr_req = func_is_mwr_req(tx_req_dm_hdr.fmt_type);
    wire tx_is_intr_req = tx_is_dm && func_is_interrupt_req(tx_req_dm_hdr.fmt_type);
    wire tx_needs_cpl = sink_sop && (tx_is_wr_req || tx_is_intr_req);
+
+   assign sink.tready = source.tready && commit_in_ready;
+   assign source.tvalid = sink.tvalid && commit_in_ready;
+   assign source.tkeep = sink.tkeep;
+   assign source.tlast = sink.tlast;
+   assign source.tuser_vendor = sink.tuser_vendor;
+   always_comb
+   begin
+      source.tdata = sink.tdata;
+      if (tx_needs_cpl && !tx_is_dm)
+      begin
+         // The PCIe SS declares bytes 24-31 of PU encoded requests as reserved.
+         // These correspond to the metadata fields of DM encoded requests. The
+         // FIM allows AFUs to pass state even in PU encoded write requests and
+         // will include the metadata values in the write ACK synthesized below.
+         // Force the metadata bits to 0 in the header being forwarded to the
+         // PCIe SS.
+         source.tdata[24*8 +: 64] = '0;
+      end
+   end
 
    PCIe_CplHdr_t   rx_cmp_dm_hdr;
    PCIe_PUCplHdr_t rx_cmp_pu_hdr;

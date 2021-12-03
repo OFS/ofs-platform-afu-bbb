@@ -21,7 +21,9 @@
 //
 // ***************************************************************************
 
-module ase_emul_fair_arbiter #(parameter NUM_INPUTS=2'h2, LNUM_INPUTS=$clog2(NUM_INPUTS))
+module ase_emul_fair_arbiter #(
+    parameter NUM_INPUTS=2'h2,
+    LNUM_INPUTS=(NUM_INPUTS == 1) ? 1 : $clog2(NUM_INPUTS))
 (
     input   logic                    clk,
     input   logic                    reset_n,
@@ -31,9 +33,23 @@ module ase_emul_fair_arbiter #(parameter NUM_INPUTS=2'h2, LNUM_INPUTS=$clog2(NUM
     output  logic [NUM_INPUTS-1:0]   out_select_1hot,
     output  logic                    out_valid
 );
-generate if(NUM_INPUTS<=4)  
+generate if(NUM_INPUTS==1)
+begin   : gen_1way_arbiter
+// Handle the simple degenerate case
+ase_emul_fair_arbiter_1way
+inst_fair_arbiter_1way
+(   .clk(clk),
+    .reset_n(reset_n),
+    .in_valid(in_valid),
+    .hold_priority(hold_priority),
+    .out_select(out_select),
+    .out_select_1hot(out_select_1hot),
+    .out_valid(out_valid)
+);
+end
+else if(NUM_INPUTS<=4)  
 begin   : gen_4way_arbiter
-fair_arbiter_4way #(.NUM_INPUTS(NUM_INPUTS), 
+ase_emul_fair_arbiter_4way #(.NUM_INPUTS(NUM_INPUTS), 
                     .LNUM_INPUTS(LNUM_INPUTS)
                     )
 inst_fair_arbiter_4way
@@ -48,7 +64,7 @@ inst_fair_arbiter_4way
 end
 else
 begin : gen_mask_arb
-fair_arbiter_w_mask #(.NUM_INPUTS(NUM_INPUTS),
+ase_emul_fair_arbiter_w_mask #(.NUM_INPUTS(NUM_INPUTS),
                       .LNUM_INPUTS(LNUM_INPUTS)
                     )
 inst_fair_arbiter_w_mask
@@ -64,7 +80,23 @@ end
 endgenerate
 endmodule
 
-module fair_arbiter_4way #(parameter NUM_INPUTS=2'h2, LNUM_INPUTS=$clog2(NUM_INPUTS))
+// For generality, implement the 1 way arbiter.
+module ase_emul_fair_arbiter_1way
+(
+    input   logic                    clk,
+    input   logic                    reset_n,
+    input   logic                    in_valid,
+    input   logic                    hold_priority,     // do not shift the priority
+    output  logic                    out_select,
+    output  logic                    out_select_1hot,
+    output  logic                    out_valid
+);
+    assign out_select = 1'b0;
+    assign out_select_1hot = 1'b1;
+    assign out_valid = in_valid;
+endmodule
+
+module ase_emul_fair_arbiter_4way #(parameter NUM_INPUTS=2'h2, LNUM_INPUTS=$clog2(NUM_INPUTS))
 (
     input   logic                    clk,
     input   logic                    reset_n,
@@ -154,7 +186,7 @@ end
 
 endmodule
 
-module fair_arbiter_w_mask #(parameter NUM_INPUTS=2'h2, LNUM_INPUTS=$clog2(NUM_INPUTS))
+module ase_emul_fair_arbiter_w_mask #(parameter NUM_INPUTS=2'h2, LNUM_INPUTS=$clog2(NUM_INPUTS))
 
 (
     input   logic                    clk,
