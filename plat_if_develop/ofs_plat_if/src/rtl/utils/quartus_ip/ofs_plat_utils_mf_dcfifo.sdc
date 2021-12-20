@@ -92,7 +92,7 @@ apply_sdc_dcfifo_mstable_delay $from_node_mstable_list $to_node_mstable_list
 
 proc apply_sdc_pre_dcfifo {entity_name} {
 
-set inst_list [get_entity_instances $entity_name]
+set inst_list [get_entity_instances -nowarn $entity_name]
 
 foreach each_inst $inst_list {
 
