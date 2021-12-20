@@ -1,0 +1,9 @@
+This is the HSSI interface used in OFS releases on Agilex. A vector of HSSI channels
+holds RX and TX AXI-S data interfaces. In addition to the data streams, each channel
+has a flow control interface on which pause requests are passed.
+
+Within a single channel, the RX, TX and pause interfaces share a clock. The clock
+is not guaranteed to be common across channels.
+
+The PIM provides only an AXI-S data option. Avalon is no longer an option directly
+from the PIM.

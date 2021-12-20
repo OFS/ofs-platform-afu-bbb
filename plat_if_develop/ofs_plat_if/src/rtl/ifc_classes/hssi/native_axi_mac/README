@@ -1,0 +1,9 @@
+This HSSI interface was used only by the early access OFS release on the d5005
+board. A vector of HSSI channels holds RX and TX AXI-S data interfaces. In addition
+to the data streams, each channel has a pair of sideband channels on which pause
+requests are passed.
+
+All channels are assumed to share a common clock.
+
+The EA FIM provided methods for mapping from the AXI-S data streams to an Avalon
+interfaces. The PIM makes both AXI-S and Avalon available.
