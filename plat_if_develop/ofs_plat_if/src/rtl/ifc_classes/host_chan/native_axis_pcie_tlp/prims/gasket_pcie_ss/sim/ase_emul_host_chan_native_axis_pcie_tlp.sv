@@ -50,9 +50,8 @@ module ase_emul_host_chan_native_axis_pcie_tlp
 
     localparam NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS;
 
-    logic clk;
-    assign clk = clocks.ports[0].pClk.clk;
-    assign rst_n = ~softReset;
+    wire clk = clocks.ports[0].pClk.clk;
+    wire rst_n = ~softReset;
 
     // The PF/VF MUX expects port ordering as [NUM_PORTS-1:0]
     logic port_clk[NUM_PORTS-1:0];
