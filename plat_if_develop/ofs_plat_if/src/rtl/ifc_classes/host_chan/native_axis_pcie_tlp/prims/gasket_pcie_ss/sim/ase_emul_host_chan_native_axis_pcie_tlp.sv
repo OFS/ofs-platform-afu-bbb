@@ -65,33 +65,32 @@ module ase_emul_host_chan_native_axis_pcie_tlp
     generate
         for (p = 0; p < NUM_PORTS; p = p + 1)
         begin
-            assign host_chan_ports[p].clk = clocks.ports[p].pClk.clk;
-            assign host_chan_ports[p].reset_n = clocks.ports[p].pClk.reset_n;
-            assign host_chan_ports[p].instance_number = p;
-
-            assign port_clk[p] = host_chan_ports[p].clk;
-            assign port_rst_n[p] = host_chan_ports[p].reset_n;
-
-            // For now, pick an arbitrary VF encoding
-            assign host_chan_ports[p].pf_num = 0;
-            assign host_chan_ports[p].vf_num = p;
-            assign host_chan_ports[p].vf_active = 1'b1;
-
-
             // Map the PIM's host_chan interface to the FIM's PCIe SS interface using
             // the same module as on HW.
-            map_fim_pcie_ss_to_host_chan map_host_chan
+            map_fim_pcie_ss_to_pim_host_chan
+              #(
+                .INSTANCE_NUMBER(p),
+
+                // For now, pick an arbitrary VF encoding
+                .PF_NUM(0),
+                .VF_NUM(p),
+                .VF_ACTIVE(1)
+                )
+             map_host_chan
                (
+                .clk(clocks.ports[p].pClk.clk),
+                .reset_n(clocks.ports[p].pClk.reset_n),
+
                 .pcie_ss_tx_a_st(afu_axi_tx_a_if[p]),
                 .pcie_ss_tx_b_st(afu_axi_tx_b_if[p]),
                 .pcie_ss_rx_a_st(afu_axi_rx_a_if[p]),
                 .pcie_ss_rx_b_st(afu_axi_rx_b_if[p]),
 
-                .pim_tx_a_st(host_chan_ports[p].afu_tx_a_st),
-                .pim_tx_b_st(host_chan_ports[p].afu_tx_b_st),
-                .pim_rx_a_st(host_chan_ports[p].afu_rx_a_st),
-                .pim_rx_b_st(host_chan_ports[p].afu_rx_b_st)
+                .port(host_chan_ports[p])
                 );
+
+            assign port_clk[p] = host_chan_ports[p].clk;
+            assign port_rst_n[p] = host_chan_ports[p].reset_n;
         end
     endgenerate
 

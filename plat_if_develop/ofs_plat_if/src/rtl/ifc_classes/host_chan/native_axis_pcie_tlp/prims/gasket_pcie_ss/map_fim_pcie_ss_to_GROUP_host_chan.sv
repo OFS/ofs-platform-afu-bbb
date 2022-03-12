@@ -43,6 +43,65 @@
 
 `include "ofs_plat_if.vh"
 
+//
+// Primary wrapper for mapping a collection of four FIM TLP streams into a
+// logical PIM port. There are two streams in each direction, with the "B"
+// ports intended for transmitting reads that may flow around writes.
+//
+module map_fim_pcie_ss_to_pim_@group@_host_chan
+  #(
+    // Instance number is just used for debugging as a tag
+    parameter INSTANCE_NUMBER = 0,
+
+    // PCIe PF/VF details
+    parameter pcie_ss_hdr_pkg::ReqHdr_pf_num_t PF_NUM,
+    parameter pcie_ss_hdr_pkg::ReqHdr_vf_num_t VF_NUM,
+    parameter VF_ACTIVE
+    )
+   (
+    // All streams are expected to share the same clock and reset
+    input  logic clk,
+    input  logic reset_n,
+
+    // FIM interfaces
+    pcie_ss_axis_if.source pcie_ss_tx_a_st,
+    pcie_ss_axis_if.source pcie_ss_tx_b_st,
+    pcie_ss_axis_if.sink pcie_ss_rx_a_st,
+    pcie_ss_axis_if.sink pcie_ss_rx_b_st,
+
+    // PIM wrapper for the FIM interfaces
+    ofs_plat_host_chan_axis_pcie_tlp_if port
+    );
+
+    assign port.clk = clk;
+    assign port.reset_n = reset_n;
+
+    assign port.instance_number = INSTANCE_NUMBER;
+    assign port.pf_num = PF_NUM;
+    assign port.vf_num = VF_NUM;
+    assign port.vf_active = VF_ACTIVE;
+
+    map_fim_pcie_ss_to_host_chan map
+       (
+        .pcie_ss_tx_a_st,
+        .pcie_ss_tx_b_st,
+        .pcie_ss_rx_a_st,
+        .pcie_ss_rx_b_st,
+
+        .pim_tx_a_st(port.afu_tx_a_st),
+        .pim_tx_b_st(port.afu_tx_b_st),
+        .pim_rx_a_st(port.afu_rx_a_st),
+        .pim_rx_b_st(port.afu_rx_b_st)
+        );
+
+endmodule // map_fim_pcie_ss_to_pim_@group@_host_chan
+
+
+//
+// Mapping of individual FIM to PIM ports. Older code outside the PIM may
+// also use this interface, so it is preserved here instead of being merged
+// into the module above.
+//
 module map_fim_pcie_ss_to_@group@_host_chan
    (
     // FIM interfaces
