@@ -107,7 +107,7 @@ if (!mcl8_found && !mcl3_found) {
 
 set output "| ps2pdf - read_credit_vc.pdf"
 set title platform . prefix . " READ Varying Offered Load" offset 0,1 font ",18"
-set xrange [0:384]
+set xrange [0:450]
 
 if (mcl8_found) {
   plot data_file index (0             ) using ($3):($1) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \

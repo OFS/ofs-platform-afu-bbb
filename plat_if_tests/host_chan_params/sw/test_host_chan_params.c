@@ -899,6 +899,8 @@ runBandwidth(
     {
         s_afu_mhz = csrGetClockMHz(s_eng_bufs[0].csr_handle);
     }
+
+    return 0;
 }
 
 

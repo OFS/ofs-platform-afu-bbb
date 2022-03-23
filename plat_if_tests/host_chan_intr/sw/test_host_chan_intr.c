@@ -187,6 +187,8 @@ testHostChanIntr(
         assert(FPGA_OK == result);
     }
 
+    free(threads);
+
     // How many interrupt responses did the hardware get?
     uint64_t r;
     uint8_t num_resp;
