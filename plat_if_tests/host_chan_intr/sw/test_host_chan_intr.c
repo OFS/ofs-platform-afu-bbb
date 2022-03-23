@@ -144,7 +144,7 @@ testHostChanIntr(
     ehandles = malloc(sizeof(fpga_event_handle) * num_intr_ids);
     assert(NULL != ehandles);
 
-    pthread_t *threads = malloc(sizeof(pthread_t*) * num_intr_ids);
+    pthread_t *threads = malloc(sizeof(pthread_t) * num_intr_ids);
     assert(NULL != threads);
 
     // Create a thread for each vector
