@@ -1,7 +1,7 @@
 #!/bin/sh
 
-##
-##
+SCRIPTNAME="$(basename -- "$0")"
+SCRIPT_DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd -P)"
 
 set -e
 
@@ -27,8 +27,8 @@ fi
 
 rm -f read_*.pdf write_*.pdf rw_*.pdf
 
-gnuplot -e "platform='${platform}'; data_file='${data_file}'" scripts/plot_bw_lat.gp
-gnuplot -e "platform='${platform}'; data_file='${data_file}'" scripts/plot_bw_lat_rw.gp
+gnuplot -e "platform='${platform}'; data_file='${data_file}'" ${SCRIPT_DIR}/plot_bw_lat.gp
+gnuplot -e "platform='${platform}'; data_file='${data_file}'" ${SCRIPT_DIR}/plot_bw_lat_rw.gp
 
 # Crop whitespace
 for fn in read_*.pdf write_*.pdf rw_*.pdf
