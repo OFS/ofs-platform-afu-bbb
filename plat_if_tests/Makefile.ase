@@ -1,0 +1,56 @@
+##
+## Simulate all tests in GROUPS (defined below) with ASE.
+## Results are written to the LOGS_DIR.
+##
+
+# Test groups (top-level directories)
+GROUPS := host_chan_mmio host_chan_intr host_chan_params \
+          local_mem_params
+
+# Set SIM to modelsim, questa or vcs. If SIM is empty, use ASE's default.
+SIM :=
+SIM_ARG := $(if $(SIM),-s $(SIM),)
+
+# Tests within each group (hw/rtl/test_*.txt within a group's tree)
+TEST_PATHS := $(foreach group,$(GROUPS),$(wildcard $(group)/hw/rtl/test_*.txt))
+# Rewrite test name as just a group__test.txt
+TESTS := $(subst /hw/rtl/,__,$(TEST_PATHS))
+
+# SW binaries
+TESTS_SW := $(foreach group,$(GROUPS),$(group)/sw/$(group))
+
+# Map test names to result file names within the logs directory
+LOGS_DIR := logs
+RESULT_FILES := $(TESTS:%.txt=$(LOGS_DIR)/%.result)
+
+all: $(RESULT_FILES)
+	cat $(RESULT_FILES)
+
+# Even $(TESTS_SW) software binaries are declared phony so that make will
+# be run for each of them. The source dependence isn't tracked in this Makefile,
+# so it doesn't know whether binaries have to be rebuilt due to source changes.
+.PHONY: clean $(LOGS_DIR) $(TESTS_SW)
+
+clean:
+	rm -rf $(LOGS_DIR)
+
+# The logs directory is rebuilt each time tests are run. Having old log results
+# is confusing.
+$(LOGS_DIR):
+	rm -rf $(LOGS_DIR)
+	mkdir -p $(LOGS_DIR)
+
+# Ensure that SW images are built before regressions start to avoid races where
+# each individual test might try to build the same image.
+$(TESTS_SW):
+	(cd `dirname "$@"`; $(MAKE))
+
+%.result: $(LOGS_DIR) $(TESTS_SW)
+	@+tgt="$@"; \
+	leaf="$${tgt##$(LOGS_DIR)/}"; \
+	group="$${leaf%%__*}"; \
+	test="$${leaf##*__}"; test="$${test%%.result}"; \
+	echo ./common/scripts/sim/regress.sh -v "$${test}.txt" $(SIM_ARG) -a "$${group}" -r /tmp/build_sim.$$$$ -l $(LOGS_DIR); \
+	./common/scripts/sim/regress.sh -v "$${test}.txt" $(SIM_ARG) -a "$${group}" -r /tmp/build_sim.$$$$ -l $(LOGS_DIR) 2>&1 > $(LOGS_DIR)/"$${group}__$${test}".regress; \
+	echo "$${group} $${test}:" $$? > "$@"; \
+	rm -rf /tmp/build_sim.$$$$

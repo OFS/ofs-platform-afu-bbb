@@ -271,11 +271,11 @@ build_app() {
    if [[ $opae_install ]]; then
       # non-RPM flow
       echo "Non-RPM Flow"
-      make prefix=$opae_install USE_ASE=1
+      make prefix=$opae_install
    else
       # RPM flow
       echo "RPM Flow"
-      make USE_ASE=1
+      make
    fi
 
    popd
@@ -285,16 +285,16 @@ exec_app() {
    pushd $app_base
 
    # Find the executable and run.  First look for an application with the suffix "_ase".
-   app=`find . -maxdepth 1 -type f -executable -name '*_ase'`
-   if [ "${app}" == "" ]; then
-      # No "_ase".  Find any executable.
-      app=`find . -maxdepth 1 -type f -executable`
-   fi
-
-   # Run $app if found.  This doesn't yet handle multiple executables in a single
-   # directory.
+   app=$(find . -maxdepth 1 -type f -executable -name '*_ase')
    if [ "${app}" != "" ]; then
+       # Run *_ase app if found
        "${app}"
+   else
+      # No "_ase".  Find any executable.
+      app=$(find . -maxdepth 1 -type f -executable)
+      if [ "${app}" != "" ]; then
+         with_ase "${app}"
+      fi
    fi
 
    popd
