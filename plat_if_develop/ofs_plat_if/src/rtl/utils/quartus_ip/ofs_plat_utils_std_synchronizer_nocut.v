@@ -91,7 +91,7 @@ module ofs_plat_utils_std_synchronizer_nocut (
          $display("%m: Error: synchronizer length: %0d less than 2.", depth);
       end
    end
-   `endif
+   `endif 
 
    // the first synchronizer register is either a simple D flop for synthesis
    // and non-metastable simulation or a D flop with a method to inject random
