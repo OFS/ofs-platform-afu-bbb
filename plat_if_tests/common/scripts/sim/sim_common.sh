@@ -126,6 +126,11 @@ popd () {
   command popd "$@" > /dev/null
 }
 
+# Set a return value without having to use exit/return at the end of a script
+set_return() {
+  return $1
+}
+
 setup_sim_dir() {
    echo "Configuring ASE in ${rtl_sim_dir}"
    afu_sim_setup --source "${rtl_filelist}" --platform ${platform} --tool ${sim} --force \
@@ -297,7 +302,10 @@ exec_app() {
       fi
    fi
 
+   status=$?
+
    popd
+   return $status
 }
 
 run_app() {

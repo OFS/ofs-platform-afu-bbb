@@ -32,6 +32,7 @@
 ##
 
 set -e
+set -o pipefail
 
 # Get exact script path
 SCRIPT_PATH=`readlink -f ${BASH_SOURCE[0]}`
@@ -54,9 +55,11 @@ ${SCRIPT_DIR_PATH}/setup_sim.sh ${sim_args}
 # Run ASE in the background
 run_sim 2>&1 | tee "${log_dir}/${test_name}.hw.log" &
 # Run the connected software in the foreground
-${SCRIPT_DIR_PATH}/run_app.sh "$@" 2>&1 | tee "${log_dir}/${test_name}.sw.log"
-echo $? > "${log_dir}/${test_name}.sw.status"
+result=0
+(${SCRIPT_DIR_PATH}/run_app.sh "$@" 2>&1 | tee "${log_dir}/${test_name}.sw.log") || result=$?
+echo $result > "${log_dir}/${test_name}.sw.status"
 
 # Done.  Force ASE to exit.
 kill_sim
 wait
+set_return $result

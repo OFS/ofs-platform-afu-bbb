@@ -4,7 +4,7 @@
 ##
 
 # Test groups (top-level directories)
-GROUPS := host_chan_mmio host_chan_intr host_chan_params \
+GROUPS := host_chan_mmio host_chan_intr host_chan_params host_chan_atomic \
           local_mem_params
 
 # Set SIM to modelsim, questa or vcs. If SIM is empty, use ASE's default.
