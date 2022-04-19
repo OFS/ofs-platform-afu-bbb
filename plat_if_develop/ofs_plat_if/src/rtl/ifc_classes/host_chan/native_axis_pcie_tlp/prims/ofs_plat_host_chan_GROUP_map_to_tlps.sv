@@ -275,6 +275,11 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     assign rx_cpl_tlps.t.data = from_fiu_rx_st.t.data;
     assign rx_cpl_tlps.t.user = from_fiu_rx_st.t.user;
 
+    // Atomic completion tags are allocated by sending a dummy read through the
+    // read pipeline. Response tags are attached to the atomic write request
+    // through this stream.
+    `AXI_STREAM_INSTANCE(atomic_cpl_tag, t_dma_rd_tag);
+
     // Write fence completions
     `AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
 
@@ -296,6 +301,10 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         // Read responses to AFU
         .afu_rd_rsp,
+
+        // Tags for atomic completions allocated by the read engine but
+        // forwarded to the write engine.
+        .atomic_cpl_tag,
 
         // Tags of write fence responses (dataless completion TLP)
         .wr_fence_cpl,
@@ -330,6 +339,10 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
         // Write commits from FIM gasket
         .wr_cpl(from_fiu_wr_cpl),
+
+        // Tags for atomic completions allocated by the read engine but
+        // forwarded to the write engine.
+        .atomic_cpl_tag,
 
         // Tags of write fence responses (dataless completion TLP)
         .wr_fence_cpl,

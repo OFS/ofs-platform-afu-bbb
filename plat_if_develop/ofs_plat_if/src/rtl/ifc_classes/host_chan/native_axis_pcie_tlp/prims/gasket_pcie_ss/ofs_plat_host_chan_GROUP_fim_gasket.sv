@@ -154,7 +154,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
         // for reads, the commit point of writes has not yet been reached. Pass
         // the AFU's completion tag to the FIM. It will be returned in a dataless
         // completion by the FIM once each write is committed to an ordered stream.
-        if (pcie_ss_hdr_pkg::func_is_mwr_req(tx_fmttype))
+        if (pcie_ss_hdr_pkg::func_is_mem_req(tx_fmttype))
         begin
             tx_mem_req_hdr.metadata_l = { '0, tx_from_pim.t.user[0].afu_tag };
         end
@@ -367,13 +367,6 @@ module ofs_plat_host_chan_@group@_fim_gasket
 
 
     //
-    // Payload (data only)
-    //
-    assign rx_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
-    assign rx_to_pim.t.keep = fim_enc_rx_data.t.keep;
-
-
-    //
     // Header
     //
 
@@ -447,6 +440,38 @@ module ofs_plat_host_chan_@group@_fim_gasket
         end
     end
     // synthesis translate_on
+
+    //
+    // Payload (data only)
+    //
+    always_comb
+    begin
+        rx_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
+        rx_to_pim.t.keep = ~'0;
+
+        // The PIM will only generate a short read for atomic requests. The
+        // response will arrive in the low bits of the payload, but the PIM's
+        // memory mapped interfaces expect the data shifted to the position
+        // in the data bus corresponding to the request address. We can simply
+        // replicate the data unconditionally.
+        if (fim_enc_rx_sop && pcie_ss_hdr_pkg::func_is_completion(rx_fmttype))
+        begin
+            if (rx_cpl_hdr.length == 1)
+            begin
+                for (int i = 1; i < $bits(rx_to_pim.t.data[0]) / 32; i = i + 1)
+                begin
+                    rx_to_pim.t.data[0][i*32 +: 32] = fim_enc_rx_data.t.data.payload[31:0];
+                end
+            end
+            else if (rx_cpl_hdr.length == 2)
+            begin
+                for (int i = 1; i < $bits(rx_to_pim.t.data[0]) / 64; i = i + 1)
+                begin
+                    rx_to_pim.t.data[0][i*64 +: 64] = fim_enc_rx_data.t.data.payload[63:0];
+                end
+            end
+        end
+    end
 
 
     // Write and interrupt completions arrive on RX B

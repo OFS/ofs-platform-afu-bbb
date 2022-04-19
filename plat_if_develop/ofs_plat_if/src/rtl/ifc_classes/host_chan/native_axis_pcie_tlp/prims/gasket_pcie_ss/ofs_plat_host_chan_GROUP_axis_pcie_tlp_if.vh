@@ -34,6 +34,12 @@
 // Macro indicates which gasket is active
 `define OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_GASKET_PCIE_SS 1
 
+// Atomic requests are supported on all platforms except the S10 systems,
+// such as d5005, that emulate the PCIe SS.
+`ifndef PLATFORM_FPGA_FAMILY_S10
+  `define OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_ATOMICS 1
+`endif
+
 //
 // Macros for emitting type-specific debug logs for PCIe TLP streams.
 // We use these macros instead of logging in the AXI stream because the

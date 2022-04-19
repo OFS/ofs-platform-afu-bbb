@@ -354,6 +354,8 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     assign afu_rd_req.t.data.tag = { '0, robIdxFromUser(mem_if.rd_user) };
     assign afu_rd_req.t.data.line_count = t_tlp_payload_line_count'(mem_if.rd_burstcount);
     assign afu_rd_req.t.data.addr = { '0, mem_if.rd_address, t_line_addr_idx'(0) };
+    // Atomics are not currently supported in the Avalon-MM interface.
+    assign afu_rd_req.t.data.is_atomic = 1'b0;
 
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
     `AXI_STREAM_INSTANCE(afu_rd_rsp, t_gen_tx_afu_rd_rsp);

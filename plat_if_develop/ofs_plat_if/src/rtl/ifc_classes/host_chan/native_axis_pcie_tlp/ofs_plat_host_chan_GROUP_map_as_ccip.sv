@@ -227,6 +227,8 @@ module ofs_plat_host_chan_@group@_map_as_ccip
     assign afu_rd_req.t.data.tag = afu_c0Tx.hdr.mdata;
     assign afu_rd_req.t.data.line_count = count_from_cl_len(afu_c0Tx.hdr.cl_len);
     assign afu_rd_req.t.data.addr = { '0, afu_c0Tx.hdr.address, 6'b0 };
+    // Atomics not supported in CCI-P
+    assign afu_rd_req.t.data.is_atomic = 1'b0;
 
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
     `AXI_STREAM_INSTANCE(afu_rd_rsp, t_gen_tx_afu_rd_rsp);
@@ -321,6 +323,10 @@ module ofs_plat_host_chan_@group@_map_as_ccip
                                                { '0, c1Tx_intr_hdr.id };
     assign afu_wr_req.t.data.line_count = count_from_cl_len(afu_c1Tx.hdr.cl_len);
     assign afu_wr_req.t.data.addr = { '0, afu_c1Tx.hdr.address, 6'b0 };
+
+    // Atomics not supported in CCI-P
+    assign afu_wr_req.t.data.is_atomic = 1'b0;
+    assign afu_wr_req.t.data.atomic_op = TLP_NOT_ATOMIC;
 
     assign afu_wr_req.t.data.enable_byte_range = (afu_c1Tx.hdr.mode == eMOD_BYTE);
     assign afu_wr_req.t.data.byte_start_idx = afu_c1Tx.hdr.byte_start;

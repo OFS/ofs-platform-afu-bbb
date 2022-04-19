@@ -349,6 +349,12 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     assign afu_rd_req.t.data.tag = { '0, mem_if.ar.id };
     assign afu_rd_req.t.data.line_count = t_tlp_payload_line_count'(mem_if.ar.len) + 1;
     assign afu_rd_req.t.data.addr = { '0, mem_if.ar.addr };
+    // Atomic reads are generated inside the PIM to match an atomic write.
+    // They allocate IDs in the read pipeline so that the response appears
+    // to target a normal read request.
+    assign afu_rd_req.t.data.is_atomic =
+               mem_if.ar.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_ATOMIC];
+
 
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
     `AXI_STREAM_INSTANCE(afu_rd_rsp, t_gen_tx_afu_rd_rsp);
@@ -467,6 +473,17 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
                 (mem_if.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT) &&
                 mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT];
 
+            afu_wr_req.t.data.is_atomic =
+                mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_ATOMIC];
+            if (mem_if.aw.atop == ofs_plat_axi_mem_pkg::ATOMIC_ADD)
+                afu_wr_req.t.data.atomic_op = TLP_ATOMIC_FADD;
+            else if (mem_if.aw.atop == ofs_plat_axi_mem_pkg::ATOMIC_SWAP)
+                afu_wr_req.t.data.atomic_op = TLP_ATOMIC_SWAP;
+            else if (mem_if.aw.atop == ofs_plat_axi_mem_pkg::ATOMIC_CAS)
+                afu_wr_req.t.data.atomic_op = TLP_ATOMIC_CAS;
+            else
+                afu_wr_req.t.data.atomic_op = TLP_NOT_ATOMIC;
+
             // If either the first or the last mask bit is 0 then write only
             // a portion of the line. This is supported only for simple line requests.
             if ((!mem_if.w.strb[0] || !mem_if.w.strb[DATA_WIDTH/8-1]) &&
@@ -493,6 +510,31 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
         afu_wr_req.t.data.payload = mem_if.w.data;
     end
+
+    // synthesis translate_off
+    always_ff @(negedge clk)
+    begin
+        if (reset_n && afu_wr_req.tvalid && afu_wr_req.tready && afu_wr_req.t.data.is_atomic)
+        begin
+`ifndef OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_ATOMICS
+            $fatal(2, "** ERROR ** %m: Platform does not support atomic requests!");
+`endif
+            assert (afu_wr_req.t.data.atomic_op != TLP_NOT_ATOMIC) else
+              $fatal(2, "** ERROR ** %m: Atomic op 0x%h not supported!", mem_if.aw.atop);
+
+            if (afu_wr_req.t.data.atomic_op == TLP_ATOMIC_CAS)
+            begin
+                assert ((afu_wr_req.t.data.byte_len == 8) || (afu_wr_req.t.data.byte_len == 16)) else
+                  $fatal(2, "** ERROR ** %m: Atomic CAS must be either 8 or 16 bytes, not %0d!", afu_wr_req.t.data.byte_len);
+            end
+            else
+            begin
+                assert ((afu_wr_req.t.data.byte_len == 4) || (afu_wr_req.t.data.byte_len == 8)) else
+                  $fatal(2, "** ERROR ** %m: Atomic op must be either 4 or 8 bytes, not %0d!", afu_wr_req.t.data.byte_len);
+            end
+        end
+    end
+    // synthesis translate_on
 
     // Preserve AWID from interrupt requests so responses can be tagged properly
     // on return to the AFU. (Interrupts use the same AWID space is normal writes

@@ -96,8 +96,8 @@ package ofs_plat_axi_mem_pkg;
     // Atomic requests (AXI5 only)
     //   AWATOP[5:0] Description
     //   0b000000    Non-atomic operation
-    //   0b01exxx    AtomicStore
-    //   0b10exxx    AtomicLoad
+    //   0b010xxx    AtomicStore
+    //   0b100xxx    AtomicLoad
     //   0b110000    AtomicSwap
     //   0b110001    AtomicCompare
     //
@@ -112,5 +112,10 @@ package ofs_plat_axi_mem_pkg;
     //   0b110       UMAX      Unsigned maximum
     //   0b111       UMIN      Unsigned minimum
     typedef logic [5:0] t_axi_atomic;
+
+    // Some convenience values, matching PCIe atomics
+    localparam t_axi_atomic ATOMIC_ADD   = 6'b100000;
+    localparam t_axi_atomic ATOMIC_SWAP  = 6'b110000;
+    localparam t_axi_atomic ATOMIC_CAS   = 6'b110001;
 
 endpackage // ofs_plat_axi_mem_pkg

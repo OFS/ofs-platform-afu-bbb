@@ -47,10 +47,10 @@ parse_args() {
             r=${OPTARG}
             ;;
          s)
-            s=${OPTARG}            
+            s=${OPTARG,,}
             ;;
          b)
-            b=${OPTARG}            
+            b=${OPTARG}
             ;;
          p)
             p=${OPTARG}
