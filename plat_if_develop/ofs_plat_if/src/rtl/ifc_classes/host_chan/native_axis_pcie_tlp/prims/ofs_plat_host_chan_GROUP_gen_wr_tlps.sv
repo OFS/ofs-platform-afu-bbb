@@ -54,6 +54,11 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     // by the FIM gasket or by the FIM (t_gen_tx_wr_cpl).
     ofs_plat_axi_stream_if.to_source wr_cpl,
 
+    // Atomic completion tags are allocated by sending a dummy read through the
+    // read pipeline. Response tags are attached to the atomic write request
+    // through this stream. (t_dma_rd_tag)
+    ofs_plat_axi_stream_if.to_source atomic_cpl_tag,
+
     // Fence completions, processed first by the read response pipeline.
     // (t_dma_rd_tag)
     ofs_plat_axi_stream_if.to_source wr_fence_cpl,
@@ -319,6 +324,14 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     begin
         wr_req_addr = wr_req.addr;
         wr_req_addr[$bits(t_tlp_payload_line_byte_idx)-1 : 2] = dw_idx(wr_req.byte_start_idx);
+
+        // Special case for atomic compare and swap to point to the address
+        // to update after rearranging the relative order of compare and swap
+        // operands.
+        if (wr_req.atomic_op == TLP_ATOMIC_CAS)
+        begin
+            wr_req_addr[3:2] = wr_req.addr[3:2];
+        end
     end
 
 
@@ -330,9 +343,12 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
 
     logic fake_fence_rsp_notFull;
 
-    assign wr_req_ready = wr_req_notEmpty && req_fence_tlp_tag_ready;
+    assign wr_req_ready = wr_req_notEmpty && req_fence_tlp_tag_ready &&
+                          (!wr_req.is_atomic || atomic_cpl_tag.tvalid);
     assign wr_req_deq = wr_req_ready && fake_fence_rsp_notFull &&
                         (tx_wr_tlps.tready || !tx_wr_tlps.tvalid);
+
+    assign atomic_cpl_tag.tready = wr_req_deq && wr_req.is_atomic;
 
     t_ofs_plat_pcie_hdr tlp_mem_hdr;
 
@@ -358,16 +374,34 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         end
         else
         begin
-            // Normal write
-            tlp_mem_hdr.fmttype = wr_req_is_addr64 ? OFS_PLAT_PCIE_FMTTYPE_MEM_WRITE64 :
-                                                     OFS_PLAT_PCIE_FMTTYPE_MEM_WRITE32;
+            // Normal write or atomic - start with 32 bit addresses and compute that next
+            unique case (wr_req.atomic_op)
+                TLP_ATOMIC_FADD: tlp_mem_hdr.fmttype = OFS_PLAT_PCIE_FMTTYPE_FETCH_ADD32;
+                TLP_ATOMIC_SWAP: tlp_mem_hdr.fmttype = OFS_PLAT_PCIE_FMTTYPE_SWAP32;
+                TLP_ATOMIC_CAS:  tlp_mem_hdr.fmttype = OFS_PLAT_PCIE_FMTTYPE_CAS32;
+                default:         tlp_mem_hdr.fmttype = OFS_PLAT_PCIE_FMTTYPE_MEM_WRITE32;
+            endcase
+
+            // 32 vs. 64 bit address encoding differs by 1 bit in all cases above
+            if (wr_req_is_addr64)
+            begin
+                tlp_mem_hdr.fmttype[5] = 1'b1;
+            end
+
             tlp_mem_hdr.length =
                 (wr_req.enable_byte_range ? br_req.dword_len :
                                             lineCountToDwordLen(wr_req.line_count));
             tlp_mem_hdr.u.mem_req.addr = wr_req_addr;
-            tlp_mem_hdr.u.mem_req.tag = wr_req.tag;
-            tlp_mem_hdr.u.mem_req.last_be = (wr_req.enable_byte_range ? br_req_hdr_last_be : 4'b1111);
-            tlp_mem_hdr.u.mem_req.first_be = (wr_req.enable_byte_range ? br_req_hdr_first_be : 4'b1111);
+            // For atomic requests, get the tag from the read pipeline so read data
+            // flows properly back to the AFU. The write response tag is passed
+            // along in user.afu_tag below.
+            tlp_mem_hdr.u.mem_req.tag = (wr_req.is_atomic ? atomic_cpl_tag.t.data : wr_req.tag);
+
+            if (!wr_req.is_atomic)
+            begin
+                tlp_mem_hdr.u.mem_req.last_be = (wr_req.enable_byte_range ? br_req_hdr_last_be : 4'b1111);
+                tlp_mem_hdr.u.mem_req.first_be = (wr_req.enable_byte_range ? br_req_hdr_first_be : 4'b1111);
+            end
         end
     end
 
@@ -407,6 +441,9 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     assign tx_wr_is_eop = wr_req_notEmpty &&
                           (wr_req.is_fence || wr_req.is_interrupt || wr_req.eop);
 
+    logic [PAYLOAD_LINE_SIZE-1 : 0] tx_wr_tlps_data;
+    logic tx_wr_tlps_need_swap32, tx_wr_tlps_need_swap64;
+
     always_ff @(posedge clk)
     begin
         if (tx_wr_tlps.tready || !tx_wr_tlps.tvalid)
@@ -425,7 +462,16 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             // It is always safe to use the shifted payload since byte_start_idx
             // is guaranteed by the canonicalization step above to be 0 when in
             // full-line mode. Using the value from the shifter avoids an extra MUX.
-            tx_wr_tlps.t.data <= { '0, wr_req_shifted_payload };
+            // The payload is registered separately because there may be one more
+            // swap required to put atomic compare and exchange data in the right
+            // place. Since wr_reg_shifted_payload already has a complex shifter,
+            // the swap is moved to the next cycle for timing.
+            tx_wr_tlps_data <= wr_req_shifted_payload;
+            tx_wr_tlps_need_swap32 <=
+                (wr_req.atomic_op == TLP_ATOMIC_CAS) && (wr_req.byte_len == 8) && wr_req.addr[2];
+            tx_wr_tlps_need_swap64 <=
+                (wr_req.atomic_op == TLP_ATOMIC_CAS) && (wr_req.byte_len == 16) && wr_req.addr[3];
+
             // If the cycle isn't SOP, then keep covers the whole line because
             // of PIM rules. Partial line writes are permitted only for
             // short, single-line requests .
@@ -440,6 +486,18 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             tx_wr_tlps.tvalid <= 1'b0;
         end
     end
+
+    always_comb
+    begin
+        tx_wr_tlps.t.data[0] = { '0, tx_wr_tlps_data };
+
+        // Swap the low 32 or 64 bit values for atomic CAS?
+        if (tx_wr_tlps_need_swap32)
+            tx_wr_tlps.t.data[0][63:0] = { tx_wr_tlps_data[31:0], tx_wr_tlps_data[63:32] };
+        else if (tx_wr_tlps_need_swap64)
+            tx_wr_tlps.t.data[0][127:0] = { tx_wr_tlps_data[63:0], tx_wr_tlps_data[127:64] };
+    end
+
 
     // Failed fence response queue. When there has been no write, fences are pointless
     // and there is no address available. The write response is returned, but no

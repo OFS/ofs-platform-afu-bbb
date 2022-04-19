@@ -1,0 +1,2 @@
+# Common sources used by all tests
+C:../../../common/hw/rtl/sources.txt

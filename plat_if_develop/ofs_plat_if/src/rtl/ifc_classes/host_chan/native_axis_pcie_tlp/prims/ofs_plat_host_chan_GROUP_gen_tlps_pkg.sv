@@ -74,6 +74,11 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     // AFU read requests
     typedef struct packed {
+        // Set for synthetic read requests, generated to allocate read response
+        // space for atomic requests on the write channel. Atomic read requests
+        // will arrive in the same order as writes.
+        logic is_atomic;
+
         t_dma_afu_tag tag;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
@@ -95,6 +100,13 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     // AFU writes
     //
 
+    typedef enum logic [1:0] {
+        TLP_NOT_ATOMIC,
+        TLP_ATOMIC_FADD,
+        TLP_ATOMIC_SWAP,
+        TLP_ATOMIC_CAS
+    } e_atomic_op;
+
     // AFU write requests
     typedef struct packed {
         logic sop;
@@ -103,10 +115,17 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         // This group is expected only on the first beat
         logic is_fence;
         logic is_interrupt;	// Store the interrupt ID in the tag
+
+        logic is_atomic;
+        e_atomic_op atomic_op;
+
         t_dma_afu_tag tag;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
         // Byte address, but the code assumes byte offset bits within a line are 0.
+        // The only exception is atomic updates, where the byte offset must be
+        // read in order to determine the relative order of compare and exchange
+        // data.
         logic [63:0] addr;
 
         // Write only a subset of the line? The write handler allows subsets

@@ -57,6 +57,11 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
     ofs_plat_axi_stream_if.to_sink afu_rd_rsp,
 
+    // Atomic completion tags are allocated by sending a dummy read through the
+    // read pipeline. Response tags are attached to the atomic write request
+    // through this stream. (t_dma_rd_tag)
+    ofs_plat_axi_stream_if.to_sink atomic_cpl_tag,
+
     // Dataless write fence completions are received by the read pipeline
     // The tag value is forwarded to the write pipeline, which will
     // generate the AFU response. The tag is released for reuse in the
@@ -202,9 +207,16 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     //
     // ====================================================================
 
+    // If the request is a normal read it will be forwarded to the
+    // tx_rd_tlps stream. If the request is a dummy atomic read request
+    // then its job is complete -- a completion tag has been allocated.
+    // The tag will be forwarded out atomic_cpl_tag and the dummy read
+    // dropped here.
+
     assign rd_req_deq = rd_req_notEmpty &&
                         req_tlp_tag_ready &&
-                        (tx_rd_tlps.tready || !tx_rd_tlps.tvalid);
+                        ((!rd_req.is_atomic && (tx_rd_tlps.tready || !tx_rd_tlps.tvalid)) ||
+                         (rd_req.is_atomic && (atomic_cpl_tag.tready || !atomic_cpl_tag.tvalid)));
     assign tx_rd_tlps.t.data = '0;
     assign tx_rd_tlps.t.keep = '0;
 
@@ -226,7 +238,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     begin
         if (tx_rd_tlps.tready || !tx_rd_tlps.tvalid)
         begin
-            tx_rd_tlps.tvalid <= rd_req_notEmpty && req_tlp_tag_ready;
+            tx_rd_tlps.tvalid <= rd_req_notEmpty && req_tlp_tag_ready && !rd_req.is_atomic;
 
             tx_rd_tlps.t.user <= '0;
             tx_rd_tlps.t.last <= 1'b1;
@@ -240,6 +252,20 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         if (!reset_n)
         begin
             tx_rd_tlps.tvalid <= 1'b0;
+        end
+    end
+
+    always_ff @(posedge clk)
+    begin
+        if (atomic_cpl_tag.tready || !atomic_cpl_tag.tvalid)
+        begin
+            atomic_cpl_tag.tvalid <= rd_req_notEmpty && req_tlp_tag_ready && rd_req.is_atomic;
+            atomic_cpl_tag.t.data <= req_tlp_tag;
+        end
+
+        if (!reset_n)
+        begin
+            atomic_cpl_tag.tvalid <= 1'b0;
         end
     end
 

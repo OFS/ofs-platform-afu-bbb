@@ -52,11 +52,19 @@ package ofs_plat_host_chan_axi_mem_pkg;
         // AW stream only. Trigger an interrupt. The vector is indicated by
         // low bits of the AWADDR. AWLEN must be 0 and the source must still
         // generate a W packet.
-        HC_AXI_UFLAG_INTERRUPT = 2
+        HC_AXI_UFLAG_INTERRUPT = 2,
+
+        // The atomic flag is mainly internal to the PIM, used to associate
+        // atomic requests on AW with read responses. AFUs should always set
+        // the flag to 0. The PIM guarantees that the atomic flag will be set
+        // on the R and B channels in response to atomic requests.
+        // AFUs are permitted to depend on the flag, though using the AXI-MM
+        // ID tags is the AXI standard conforming mechanism.
+        HC_AXI_UFLAG_ATOMIC = 3
     } t_hc_axi_user_flags_enum;
 
     // Maximum value of a HC_AXI_UFLAG
-    localparam HC_AXI_UFLAG_MAX = HC_AXI_UFLAG_INTERRUPT;
+    localparam HC_AXI_UFLAG_MAX = HC_AXI_UFLAG_ATOMIC;
 
     localparam HC_AXI_UFLAG_WIDTH = HC_AXI_UFLAG_MAX + 1;
     typedef logic [HC_AXI_UFLAG_WIDTH-1 : 0] t_hc_axi_user_flags;

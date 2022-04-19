@@ -35,8 +35,8 @@
 //
 // Write control registers:
 //
-//   0: Base address of read buffer, assumed to aligned to the address mask in
-//      register 2. Addresses will be construct using OR of a small page-level
+//   0: Base address of read buffer, assumed to be aligned to the address mask in
+//      register 4. Addresses will be construct using OR of a small page-level
 //      counter in order to avoid large addition -- hence the alignment
 //      requirement.
 //

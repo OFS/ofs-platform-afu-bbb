@@ -68,6 +68,30 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     );
 
     //
+    // Fork atomic update requests into two requests: the original on the write
+    // request channel and a copy on the read request channel. The read request
+    // copy is just a placeholder, used to allocate ROB slots and tags internal
+    // to the PIM. These slots will be used when passing the read response from
+    // the atomic update back to the AFU.
+    //
+    ofs_plat_axi_mem_if
+      #(
+        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_source)
+        )
+      axi_fiu_atomic_if();
+
+    assign axi_fiu_atomic_if.clk = mem_source.clk;
+    assign axi_fiu_atomic_if.reset_n = mem_source.reset_n;
+    assign axi_fiu_atomic_if.instance_number = mem_sink.instance_number;
+
+    ofs_plat_axi_mem_if_fork_atomics fork_atomics
+       (
+        .mem_source,
+        .mem_sink(axi_fiu_atomic_if)
+        );
+
+
+    //
     // Map AFU-sized bursts to FIU-sized bursts. (The AFU may generate larger
     // bursts than the FIU will accept.)
     //
@@ -93,7 +117,7 @@ module ofs_plat_map_axi_mem_if_to_host_mem
         )
       map_bursts
        (
-        .mem_source,
+        .mem_source(axi_fiu_atomic_if),
         .mem_sink(axi_fiu_burst_if)
         );
 
