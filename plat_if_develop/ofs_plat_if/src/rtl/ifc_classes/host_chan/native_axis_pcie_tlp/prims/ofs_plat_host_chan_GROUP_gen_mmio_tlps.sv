@@ -76,15 +76,15 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     // Meta-data for an AFU response (original request details)
     t_gen_tx_mmio_host_req host_mmio_rsp_meta;
 
-    ofs_plat_prim_lutram
+    ofs_plat_prim_ram_simple
       #(
         .N_ENTRIES(MAX_OUTSTANDING_MMIO_RD_REQS),
-        .N_DATA_BITS($bits(t_gen_tx_mmio_host_req))
+        .N_DATA_BITS($bits(t_gen_tx_mmio_host_req)),
+        .N_OUTPUT_REG_STAGES(1)
         )
       active_reads
        (
         .clk,
-        .reset_n,
 
         .raddr(host_mmio_rsp.t.data.tag),
         .rdata(host_mmio_rsp_meta),
@@ -94,6 +94,13 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
         .wdata(rx_mmio_q)
         );
 
+    // Response metadata is available from the RAM 2 cycles after the read.
+    logic rsp_meta_rd_q, rsp_meta_rd_qq;
+    always_ff @(posedge clk)
+    begin
+        rsp_meta_rd_q <= host_mmio_rsp.tvalid && host_mmio_rsp.tready;
+        rsp_meta_rd_qq <= rsp_meta_rd_q;
+    end
 
     //
     // Read responses from AFU. Combine the data from the AFU with the size
@@ -104,20 +111,48 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     logic mmio_rsp_deq;
     logic mmio_rsp_notEmpty;
 
+    //
+    // The response and its associated metadata are available at different times
+    // due to the latency of the active_reads RAM above. Maintain two FIFOs.
+    // Once afu_rsp_fifo_meta is not empty it is guaranteed that afu_rsp_fifo
+    // is also not empty. Also, afu_rsp_fifo will always fill before the metadata
+    // FIFO.
+    //
+    // The pair of FIFOs here can't produce a result every cycle, but that's
+    // unimportant given the bandwidth of MMIO traffic.
+    //
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS($bits(t_gen_tx_mmio_afu_rsp) + $bits(t_gen_tx_mmio_host_req))
+        .N_DATA_BITS($bits(t_gen_tx_mmio_afu_rsp))
         )
       afu_rsp_fifo
        (
         .clk,
         .reset_n,
 
-        .enq_data({ host_mmio_rsp.t.data, host_mmio_rsp_meta }),
+        .enq_data(host_mmio_rsp.t.data),
         .enq_en(host_mmio_rsp.tvalid && host_mmio_rsp.tready),
         .notFull(host_mmio_rsp.tready),
 
-        .first({ mmio_rsp, mmio_rsp_meta }),
+        .first(mmio_rsp),
+        .deq_en(mmio_rsp_deq),
+        .notEmpty()
+        );
+
+    ofs_plat_prim_fifo2
+      #(
+        .N_DATA_BITS($bits(t_gen_tx_mmio_host_req))
+        )
+      afu_rsp_fifo_meta
+       (
+        .clk,
+        .reset_n,
+
+        .enq_data(host_mmio_rsp_meta),
+        .enq_en(rsp_meta_rd_qq),
+        .notFull(),
+
+        .first(mmio_rsp_meta),
         .deq_en(mmio_rsp_deq),
         .notEmpty(mmio_rsp_notEmpty)
         );

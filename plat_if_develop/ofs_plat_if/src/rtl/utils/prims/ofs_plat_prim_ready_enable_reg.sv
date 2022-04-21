@@ -52,13 +52,11 @@ module ofs_plat_prim_ready_enable_reg
     input  logic ready_from_dst
     );
 
-    // This primitive can only implement a systolic pipeline. The ready
-    // signal controls the entire pipeline.
-    assign ready_to_src = ready_from_dst;
+    assign ready_to_src = ready_from_dst || !enable_to_dst;
 
     always_ff @(posedge clk)
     begin
-        if (ready_from_dst)
+        if (ready_to_src)
         begin
             enable_to_dst <= enable_from_src;
             data_to_dst <= data_from_src;

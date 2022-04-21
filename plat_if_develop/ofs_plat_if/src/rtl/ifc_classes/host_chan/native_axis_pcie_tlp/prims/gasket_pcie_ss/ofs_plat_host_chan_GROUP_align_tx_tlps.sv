@@ -69,7 +69,7 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
 
     // ====================================================================
     //
-    //  Add a skid buffer on input for timing
+    //  Register input for timing
     //
     // ====================================================================
 
@@ -78,25 +78,25 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
         .TDATA_TYPE(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t),
         .TUSER_TYPE(logic)    // pu mode (0) / dm mode (1)
         )
-      hdr_source_skid();
+      hdr_source();
 
     ofs_plat_axi_stream_if
       #(
         .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
         .TUSER_TYPE(logic)    // Not used
         )
-      data_source_skid();
+      data_source();
 
-    ofs_plat_axi_stream_if_skid_source_clk hdr_entry_skid
+    ofs_plat_axi_stream_if_reg_source_clk hdr_entry_reg
        (
         .stream_source(hdr_stream_source),
-        .stream_sink(hdr_source_skid)
+        .stream_sink(hdr_source)
         );
 
-    ofs_plat_axi_stream_if_skid_source_clk data_entry_skid
+    ofs_plat_axi_stream_if_reg_source_clk data_entry_reg
        (
         .stream_source(data_stream_source),
-        .stream_sink(data_source_skid)
+        .stream_sink(data_source)
         );
 
 
@@ -121,9 +121,9 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
 
     always_ff @(posedge clk)
     begin
-        if (data_source_skid.tready && data_source_skid.tvalid)
+        if (data_source.tready && data_source.tvalid)
         begin
-            source_is_sop <= data_source_skid.t.last;
+            source_is_sop <= data_source.t.last;
         end
 
         if (!reset_n)
@@ -149,14 +149,14 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
 
             logic source_is_single_beat;
             assign source_is_single_beat =
-                !pcie_ss_hdr_pkg::func_has_data(hdr_source_skid.t.data.fmt_type) ||
-                (hdr_source_skid.t.data.length <= (HALF_TDATA_WIDTH / 32));
+                !pcie_ss_hdr_pkg::func_has_data(hdr_source.t.data.fmt_type) ||
+                (hdr_source.t.data.length <= (HALF_TDATA_WIDTH / 32));
 
             always_ff @(posedge clk)
             begin
                 if (sink_skid.tvalid && sink_skid.tready)
                 begin
-                    if (data_source_skid.tready)
+                    if (data_source.tready)
                     begin
                         // Does the current cycle's source data fit completely in the
                         // sink data vector? If this isn't the SOP beat, then
@@ -170,7 +170,7 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                     begin
                         // Must have written out prev_data to sink_skid this cycle, since
                         // a message was passed to sink_skid but nothing was consumed
-                        // from data_source_skid.
+                        // from data_source.
                         prev_data_valid <= 1'b0;
                     end
                 end
@@ -192,8 +192,8 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                 begin
                     // Stored data is always shifted by the same amount: the size
                     // of the TLP header.
-                    prev_data.payload <= { '0, data_source_skid.t.data.payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH] };
-                    prev_data_keep <= { '0, data_source_skid.t.keep[HALF_TDATA_WIDTH/8 +: HALF_TDATA_WIDTH/8] };
+                    prev_data.payload <= { '0, data_source.t.data.payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH] };
+                    prev_data_keep <= { '0, data_source.t.keep[HALF_TDATA_WIDTH/8 +: HALF_TDATA_WIDTH/8] };
                 end
             end
 
@@ -201,23 +201,23 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
             // Consume incoming header? If the previous partial data is not yet
             // emitted, then no. Otherwise, yes if header and data are valid and the
             // outbound stream is ready.
-            assign hdr_source_skid.tready = hdr_source_skid.tvalid &&
-                                            data_source_skid.tvalid &&
-                                            sink_skid.tready &&
-                                            source_is_sop &&
-                                            !prev_data_valid;
+            assign hdr_source.tready = hdr_source.tvalid &&
+                                       data_source.tvalid &&
+                                       sink_skid.tready &&
+                                       source_is_sop &&
+                                       !prev_data_valid;
 
             // Consume incoming data? If SOP, then only if the header is ready and
             // all previous data has been emitted. If not SOP, then yes as long
             // as the outbound stream is ready.
-            assign data_source_skid.tready = (!source_is_sop || hdr_source_skid.tvalid) &&
-                                             data_source_skid.tvalid &&
-                                             sink_skid.tready &&
-                                             (!source_is_sop || !prev_data_valid);
+            assign data_source.tready = (!source_is_sop || hdr_source.tvalid) &&
+                                        data_source.tvalid &&
+                                        sink_skid.tready &&
+                                        (!source_is_sop || !prev_data_valid);
 
             // Write outbound TLP traffic? Yes if consuming incoming data or if
             // the previous packet is complete and data from it remains.
-            assign sink_skid.tvalid = data_source_skid.tready ||
+            assign sink_skid.tvalid = data_source.tready ||
                                       (source_is_sop && prev_data_valid);
 
             // Generate the outbound payload
@@ -225,24 +225,24 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
             begin
                 sink_skid.t = '0;
 
-                if (hdr_source_skid.tready)
+                if (hdr_source.tready)
                 begin
                     // SOP: payload is first portion of data + header
-                    sink_skid.t.data.payload = { data_source_skid.t.data.payload[0 +: HALF_TDATA_WIDTH],
-                                                 hdr_source_skid.t.data };
-                    sink_skid.t.keep = { data_source_skid.t.keep[0 +: HALF_TDATA_WIDTH/8],
+                    sink_skid.t.data.payload = { data_source.t.data.payload[0 +: HALF_TDATA_WIDTH],
+                                                 hdr_source.t.data };
+                    sink_skid.t.keep = { data_source.t.keep[0 +: HALF_TDATA_WIDTH/8],
                                          {(HALF_TDATA_WIDTH/8){1'b1}} };
                     sink_skid.t.last = source_is_single_beat;
-                    sink_skid.t.user[0].dm_mode = hdr_source_skid.t.user;
+                    sink_skid.t.user[0].dm_mode = hdr_source.t.user;
                     sink_skid.t.user[0].sop = 1'b1;
                     sink_skid.t.user[0].eop = sink_skid.t.last;
                 end
                 else
                 begin
-                    sink_skid.t.data.payload = { data_source_skid.t.data.payload[0 +: HALF_TDATA_WIDTH],
+                    sink_skid.t.data.payload = { data_source.t.data.payload[0 +: HALF_TDATA_WIDTH],
                                                  prev_data.payload[0 +: HALF_TDATA_WIDTH] };
 
-                    sink_skid.t.keep = { data_source_skid.t.keep[0 +: HALF_TDATA_WIDTH/8],
+                    sink_skid.t.keep = { data_source.t.keep[0 +: HALF_TDATA_WIDTH/8],
                                          prev_data_keep[0 +: HALF_TDATA_WIDTH/8] };
                     if (source_is_sop)
                     begin

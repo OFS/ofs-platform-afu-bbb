@@ -1,0 +1,139 @@
+//
+// Copyright (c) 2022, Intel Corporation
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// Redistributions of source code must retain the above copyright notice, this
+// list of conditions and the following disclaimer.
+//
+// Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// Neither the name of the Intel Corporation nor the names of its contributors
+// may be used to endorse or promote products derived from this software
+// without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+//
+// Connect a pair of AXI stream interfaces with a register for the payload.
+//
+
+`include "ofs_plat_if.vh"
+
+module ofs_plat_axi_stream_if_reg
+   (
+    ofs_plat_axi_stream_if.to_sink stream_sink,
+    ofs_plat_axi_stream_if.to_source stream_source
+    );
+
+    // synthesis translate_off
+    `OFS_PLAT_AXI_STREAM_IF_CHECK_PARAMS_MATCH(stream_sink, stream_source)
+    // synthesis translate_on
+
+    ofs_plat_prim_ready_enable_reg
+      #(
+        .N_DATA_BITS(stream_source.T_PAYLOAD_WIDTH)
+        )
+      r
+       (
+        .clk(stream_source.clk),
+        .reset_n(stream_source.reset_n),
+
+        .enable_from_src(stream_source.tvalid),
+        .data_from_src(stream_source.t),
+        .ready_to_src(stream_source.tready),
+
+        .enable_to_dst(stream_sink.tvalid),
+        .data_to_dst(stream_sink.t),
+        .ready_from_dst(stream_sink.tready)
+        );
+
+endmodule // ofs_plat_axi_stream_if_reg
+
+
+// Pass clock from sink to source
+module ofs_plat_axi_stream_if_reg_sink_clk
+   (
+    ofs_plat_axi_stream_if.to_sink stream_sink,
+    ofs_plat_axi_stream_if.to_source_clk stream_source
+    );
+
+    // synthesis translate_off
+    `OFS_PLAT_AXI_STREAM_IF_CHECK_PARAMS_MATCH(stream_sink, stream_source)
+    // synthesis translate_on
+
+    assign stream_source.clk = stream_sink.clk;
+    assign stream_source.reset_n = stream_sink.reset_n;
+    // Debugging signal
+    assign stream_source.instance_number = stream_sink.instance_number;
+
+    ofs_plat_prim_ready_enable_reg
+      #(
+        .N_DATA_BITS(stream_source.T_PAYLOAD_WIDTH)
+        )
+      r
+       (
+        .clk(stream_source.clk),
+        .reset_n(stream_source.reset_n),
+
+        .enable_from_src(stream_source.tvalid),
+        .data_from_src(stream_source.t),
+        .ready_to_src(stream_source.tready),
+
+        .enable_to_dst(stream_sink.tvalid),
+        .data_to_dst(stream_sink.t),
+        .ready_from_dst(stream_sink.tready)
+        );
+
+endmodule // ofs_plat_axi_stream_if_reg_sink_clk
+
+
+// Pass clock from source to sink
+module ofs_plat_axi_stream_if_reg_source_clk
+   (
+    ofs_plat_axi_stream_if.to_sink_clk stream_sink,
+    ofs_plat_axi_stream_if.to_source stream_source
+    );
+
+    // synthesis translate_off
+    `OFS_PLAT_AXI_STREAM_IF_CHECK_PARAMS_MATCH(stream_sink, stream_source)
+    // synthesis translate_on
+
+    assign stream_sink.clk = stream_source.clk;
+    assign stream_sink.reset_n = stream_source.reset_n;
+    // Debugging signal
+    assign stream_sink.instance_number = stream_source.instance_number;
+
+    ofs_plat_prim_ready_enable_reg
+      #(
+        .N_DATA_BITS(stream_source.T_PAYLOAD_WIDTH)
+        )
+      r
+       (
+        .clk(stream_source.clk),
+        .reset_n(stream_source.reset_n),
+
+        .enable_from_src(stream_source.tvalid),
+        .data_from_src(stream_source.t),
+        .ready_to_src(stream_source.tready),
+
+        .enable_to_dst(stream_sink.tvalid),
+        .data_to_dst(stream_sink.t),
+        .ready_from_dst(stream_sink.tready)
+        );
+
+endmodule // ofs_plat_axi_stream_if_reg_source_clk

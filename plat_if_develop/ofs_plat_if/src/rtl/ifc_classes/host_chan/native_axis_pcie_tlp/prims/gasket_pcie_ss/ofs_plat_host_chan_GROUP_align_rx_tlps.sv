@@ -105,21 +105,21 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
         .TDATA_TYPE(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t),
         .TUSER_TYPE(logic)    // pu mode (0) / dm mode (1)
         )
-      hdr_to_skid();
+      hdr_stream();
 
     ofs_plat_axi_stream_if
       #(
         .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
         .TUSER_TYPE(logic)    // Not used
         )
-      data_to_skid();
+      data_stream();
 
     // New message available and there is somewhere to put it?
     logic process_msg;
-    assign process_msg = hdr_to_skid.tready && data_to_skid.tready &&
+    assign process_msg = hdr_stream.tready && data_stream.tready &&
                          source_skid.tvalid;
 
-    assign source_skid.tready = hdr_to_skid.tready && data_to_skid.tready;
+    assign source_skid.tready = hdr_stream.tready && data_stream.tready;
 
     generate
         if (ofs_pcie_ss_cfg_pkg::NUM_OF_SEG == 1)
@@ -138,13 +138,13 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
             //
 
             // Header - only when SOP in the incoming stream
-            assign hdr_to_skid.tvalid = process_msg && source_skid.t.user[0].sop;
+            assign hdr_stream.tvalid = process_msg && source_skid.t.user[0].sop;
             always_comb
             begin
-                hdr_to_skid.t = '0;
-                hdr_to_skid.t.data = pcie_ss_hdr_pkg::PCIe_PUReqHdr_t'(source_skid.t.data.payload);
-                hdr_to_skid.t.user = source_skid.t.user[0].dm_mode;
-                hdr_to_skid.t.last = 1'b1;
+                hdr_stream.t = '0;
+                hdr_stream.t.data = pcie_ss_hdr_pkg::PCIe_PUReqHdr_t'(source_skid.t.data.payload);
+                hdr_stream.t.user = source_skid.t.user[0].dm_mode;
+                hdr_stream.t.last = 1'b1;
             end
 
 
@@ -172,25 +172,25 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
             logic payload_is_short;
             assign payload_is_short = source_skid.t.user[0].sop && source_skid.t.last;
 
-            assign data_to_skid.tvalid = process_msg &&
-                                         (payload_is_pure_data || payload_is_short);
+            assign data_stream.tvalid = process_msg &&
+                                        (payload_is_pure_data || payload_is_short);
             always_comb
             begin
-                data_to_skid.t = '0;
-                data_to_skid.t.last = source_skid.t.last;
+                data_stream.t = '0;
+                data_stream.t.last = source_skid.t.last;
                 // The PIM doesn't care about tkeep
-                data_to_skid.t.keep = ~'0;
+                data_stream.t.keep = ~'0;
 
                 if (payload_is_short)
                 begin
                     // Short data - header low half, payload high half
-                    data_to_skid.t.data[0 +: HALF_TDATA_WIDTH-1] =
+                    data_stream.t.data[0 +: HALF_TDATA_WIDTH-1] =
                         source_skid.t.data.payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH];
                 end
                 else
                 begin
                     // Long data - low half from previous flit, high half from current
-                    data_to_skid.t.data =
+                    data_stream.t.data =
                         { source_skid.t.data.payload[0 +: HALF_TDATA_WIDTH],
                           prev_payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH] };
                 end
@@ -236,19 +236,22 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
 
     // ====================================================================
     //
-    //  Outbound skid buffers
+    //  Outbound buffers
     //
     // ====================================================================
 
+    // Header must be a skid buffer to avoid deadlocks, as headers may arrive
+    // before the payload.
     ofs_plat_axi_stream_if_skid_sink_clk exit_hdr_skid
        (
-        .stream_source(hdr_to_skid),
+        .stream_source(hdr_stream),
         .stream_sink(hdr_stream_sink)
         );
 
-    ofs_plat_axi_stream_if_skid_sink_clk exit_data_skid
+    // Just a register for data to save space.
+    ofs_plat_axi_stream_if_reg_sink_clk exit_data_reg
        (
-        .stream_source(data_to_skid),
+        .stream_source(data_stream),
         .stream_sink(data_stream_sink)
         );
 

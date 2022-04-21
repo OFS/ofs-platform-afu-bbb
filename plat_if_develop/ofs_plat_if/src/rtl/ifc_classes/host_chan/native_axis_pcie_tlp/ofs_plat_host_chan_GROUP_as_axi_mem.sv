@@ -541,7 +541,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         // Don't allow packets to cross 4KB pages due to PCIe requirement.
         .PAGE_SIZE(4096)
         )
-      rob
+      hc
        (
         .mem_source(axi_afu_clk_if),
         .mem_sink(axi_fiu_clk_if)

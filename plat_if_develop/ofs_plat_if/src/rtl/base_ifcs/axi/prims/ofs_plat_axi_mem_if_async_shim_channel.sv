@@ -128,23 +128,23 @@ module ofs_plat_axi_mem_if_async_shim_channel
         );
 
 
-    // Outbound FIFO to relax timing pressure
-    ofs_plat_prim_fifo2
+    // Register outbound data to relax timing pressure
+    ofs_plat_prim_ready_enable_reg
       #(
         .N_DATA_BITS(DATA_WIDTH)
         )
-      fifo2
+      reg_out
        (
         .clk(clk_out),
         .reset_n(reset_n_out),
 
-        .enq_data(crossed_data),
-        .enq_en(crossed_notEmpty && crossed_notFull),
-        .notFull(crossed_notFull),
+        .data_from_src(crossed_data),
+        .enable_from_src(crossed_notEmpty),
+        .ready_to_src(crossed_notFull),
 
-        .first(data_out),
-        .deq_en(ready_out && valid_out),
-        .notEmpty(valid_out)
+        .data_to_dst(data_out),
+        .enable_to_dst(valid_out),
+        .ready_from_dst(ready_out)
         );
 
 endmodule // ofs_plat_axi_mem_if_async_shim_channel
