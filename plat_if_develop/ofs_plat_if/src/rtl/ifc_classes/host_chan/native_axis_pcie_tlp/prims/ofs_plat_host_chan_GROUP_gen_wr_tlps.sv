@@ -126,7 +126,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     assign br_req_in.byte_end_idx =
         afu_wr_req.t.data.byte_len + afu_wr_req.t.data.byte_start_idx - 1;
 
-    ofs_plat_prim_fifo2
+    ofs_plat_prim_ready_enable_reg
       #(
         .N_DATA_BITS(1 + $bits(t_byte_range_req) + $bits(t_gen_tx_afu_wr_req))
         )
@@ -135,13 +135,13 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .clk,
         .reset_n,
 
-        .enq_data({ afu_wr_req_is_addr64, br_req_in, afu_wr_req_c }),
-        .enq_en(afu_wr_req.tvalid && afu_wr_req.tready),
-        .notFull(afu_wr_req.tready),
+        .data_from_src({ afu_wr_req_is_addr64, br_req_in, afu_wr_req_c }),
+        .enable_from_src(afu_wr_req.tvalid),
+        .ready_to_src(afu_wr_req.tready),
 
-        .first({ wr_req_is_addr64, br_req, wr_req }),
-        .deq_en(wr_req_deq),
-        .notEmpty(wr_req_notEmpty)
+        .data_to_dst({ wr_req_is_addr64, br_req, wr_req }),
+        .ready_from_dst(wr_req_deq),
+        .enable_to_dst(wr_req_notEmpty)
         );
 
 
