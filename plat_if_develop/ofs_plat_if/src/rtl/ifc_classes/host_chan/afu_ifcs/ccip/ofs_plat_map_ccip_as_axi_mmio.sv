@@ -338,7 +338,7 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
     always_comb
     begin
         mmio_to_afu.ar = '0;
-        mmio_to_afu.ar.id = { t_dword_idx'(mmio_hdr.address), mmio_hdr.tid };
+        mmio_to_afu.ar.id = { mmio_hdr.tid, t_dword_idx'(mmio_hdr.address) };
         mmio_to_afu.ar.addr = mmio_req_addr;
         mmio_to_afu.ar.size = mmio_req_size;
     end
@@ -434,7 +434,7 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
         begin : c2_nc
             // No clock crossing required
             assign mmio_rd_valid_fclk = mmio_to_afu.rvalid;
-            assign { mmio_rd_dword_idx_fclk, mmio_rd_tid_fclk } = mmio_to_afu.r.id;
+            assign { mmio_rd_tid_fclk, mmio_rd_dword_idx_fclk } = { '0, mmio_to_afu.r.id };
             assign mmio_rd_data_fclk = mmio_to_afu.r.data;
         end
         else
@@ -452,13 +452,13 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
               (
                .enq_clk(mmio_to_afu.clk),
                .enq_reset_n(mmio_to_afu.reset_n),
-               .enq_data({ mmio_to_afu.r.id, mmio_to_afu.r.data }),
+               .enq_data({ '0, mmio_to_afu.r.id, mmio_to_afu.r.data }),
                .enq_en(mmio_to_afu.rvalid),
                .notFull(),
                .almostFull(),
                .deq_clk(fclk),
                .deq_reset_n(freset_n),
-               .first({ {mmio_rd_dword_idx_fclk, mmio_rd_tid_fclk}, mmio_rd_data_fclk }),
+               .first({ {mmio_rd_tid_fclk, mmio_rd_dword_idx_fclk}, mmio_rd_data_fclk }),
                .deq_en(rsp_out_notEmpty_fclk),
                .notEmpty(rsp_out_notEmpty_fclk)
                );
