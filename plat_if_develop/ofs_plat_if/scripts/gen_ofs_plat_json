@@ -192,6 +192,27 @@ def gen_json_module_ports_required(jf):
       }''')
 
 
+def gen_json_afu_main(jf):
+    """Define a pseudo-port for platform-specific afu_main if available."""
+
+    # afu_main is the PR wrapper on some systems. An implementation may offer
+    # an ASE wrapper that emulates this platform-specific afu_main().
+    # This is indicated by setting afu_main_if_offered in the "define"
+    # section.
+    if (not plat_cfg.config.has_option('define', 'ase_afu_main_if_offered')):
+        return
+
+    if (not args.quiet):
+        print('Found afu_main')
+
+    jf.write(''',
+
+      {
+        "class": "afu_main",
+        "interface": "if"
+      }''')
+
+
 def gen_json_ccip(jf):
     """Define a CCI-P port if available."""
 
@@ -373,6 +394,7 @@ def gen_json():
 
     # "module-ports-offered" initial required portion
     gen_json_module_ports_required(jf)
+    gen_json_afu_main(jf)
     gen_json_ccip(jf)
     gen_json_local_mem(jf)
     gen_json_hssi(jf)

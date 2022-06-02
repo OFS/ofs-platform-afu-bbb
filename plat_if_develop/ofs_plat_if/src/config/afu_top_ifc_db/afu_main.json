@@ -1,0 +1,14 @@
+{
+   "version": 1,
+   "module-name": "afu_main",
+   "platform-shim-module-name": "afu_main",
+   "description": "OFS platform-dependent afu_main module",
+
+   "module-ports" :
+      [
+         {
+            "class": "afu_main",
+            "interface": "if"
+         }
+      ]
+}

@@ -29,13 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Emulate PCIe host channels
-//
-// ASE emulates the PCIe SS interface, simulating only a single physical TX/RX
-// port pair. Just like the FIM, the virtual interfaces exposed to an AFU must
-// be multiplexed into a single stream before being passed to ASE. The multiplexing
-// is implemented here using modules taken from the FIM. They are renamed to
-// avoid module name conflicts.
+// Emulate PCIe host channels where the channels are PCIe SS TLP streams.
 //
 
 `include "ofs_plat_if.vh"
@@ -60,6 +54,23 @@ module ase_emul_host_chan_native_axis_pcie_tlp
     pcie_ss_axis_if afu_axi_tx_b_if[NUM_PORTS-1:0](port_clk, port_rst_n);
     pcie_ss_axis_if afu_axi_rx_a_if[NUM_PORTS-1:0](port_clk, port_rst_n);
     pcie_ss_axis_if afu_axi_rx_b_if[NUM_PORTS-1:0](port_clk, port_rst_n);
+
+    // Emulate the PCIe SS
+    ase_emul_pcie_ss_axis_tlp
+      #(
+        .NUM_PORTS(NUM_PORTS)
+        )
+      pcie_ss_axis_tlp
+       (
+        .clk,
+        .rst_n,
+        .afu_axi_tx_a_if,
+        .afu_axi_tx_b_if,
+        .afu_axi_rx_a_if,
+        .afu_axi_rx_b_if,
+        .softReset,
+        .pwrState
+        );
 
     genvar p;
     generate
@@ -93,102 +104,5 @@ module ase_emul_host_chan_native_axis_pcie_tlp
             assign port_rst_n[p] = host_chan_ports[p].reset_n;
         end
     endgenerate
-
-
-    //
-    // The ASE PCIe SS DPI-C emulator is a single TX/RX TLP pair. Use variants of the
-    // FIM's PF/VF MUX and A/B port arbitration to reduce the AFU TLP interface to
-    // the emulated physical device.
-    //
-
-    pcie_ss_axis_if fim_axi_tx_ab_if[2](clk, rst_n);
-    pcie_ss_axis_if fim_axi_rx_a_if(clk, rst_n);
-    pcie_ss_axis_if fim_axi_rx_b_if(clk, rst_n);
-
-    ase_emul_pf_vf_mux_top
-      #(
-        .MUX_NAME("A"),
-        .N(NUM_PORTS)
-        )
-      pf_vf_mux_a
-       (
-        .clk,
-        .rst_n,
-
-        .ho2mx_rx_port(fim_axi_rx_a_if),
-        .mx2ho_tx_port(fim_axi_tx_ab_if[0]),
-        .mx2fn_rx_port(afu_axi_rx_a_if),
-        .fn2mx_tx_port(afu_axi_tx_a_if),
-
-        .out_fifo_err(),
-        .out_fifo_perr()
-        );
-
-    ase_emul_pf_vf_mux_top
-      #(
-        .MUX_NAME("B"),
-        .N(NUM_PORTS)
-        )
-      pf_vf_mux_b
-       (
-        .clk,
-        .rst_n,
-
-        .ho2mx_rx_port(fim_axi_rx_b_if),
-        .mx2ho_tx_port(fim_axi_tx_ab_if[1]),
-        .mx2fn_rx_port(afu_axi_rx_b_if),
-        .fn2mx_tx_port(afu_axi_tx_b_if),
-
-        .out_fifo_err(),
-        .out_fifo_perr()
-        );
-
-
-    //
-    // Merge the A/B TX ports into a single port.
-    //
-    pcie_ss_axis_if fim_axi_tx_arb_if(clk, rst_n);
-
-    ase_emul_pcie_ss_axis_mux
-      #(
-        .NUM_CH(2)
-        )
-      tx_ab_mux
-       (
-        .clk,
-        .rst_n,
-        .sink(fim_axi_tx_ab_if),
-        .source(fim_axi_tx_arb_if)
-        );
-
-
-    //
-    // Generate local commit messages for write requests now that A/B arbitration
-    // is complete. Commits are on RX B.
-    //
-    pcie_ss_axis_if fim_axi_tx_if(clk, rst_n);
-
-    ase_emul_pcie_arb_local_commit local_commit
-       (
-        .clk,
-        .rst_n,
-
-        .sink(fim_axi_tx_arb_if),
-        // Final merged TX stream, passed to ASE for emulation
-        .source(fim_axi_tx_if),
-        // Synthesized write completions
-        .commit(fim_axi_rx_b_if)
-        );
-
-    ase_pcie_ss_emulator pcie_ss_emulator
-       (
-        .pClk(clocks.pClk.clk),
-        .pck_cp2af_softReset(softReset),
-        .pck_cp2af_pwrState(pwrState),
-        .pck_cp2af_error(),
-
-        .pcie_rx_if(fim_axi_rx_a_if),
-        .pcie_tx_if(fim_axi_tx_if)
-        );
 
 endmodule // ase_emul_host_chan_native_axis_pcie_tlp

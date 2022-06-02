@@ -88,6 +88,12 @@
 // construct a platform-specific simulated top-level environment.
 // The macro specifies the module name that ASE's root module should
 // instantiate.
-`define OFS_PLAT_PROVIDES_ASE_TOP ase_top_ofs_plat
+`ifdef AFU_TOP_REQUIRES_AFU_MAIN_IF
+  // Platform-specific afu_main() top-level emulation
+  `define OFS_PLAT_PROVIDES_ASE_TOP ase_top_afu_main
+`else
+  // PIM ofs_plat_afu() top-level emulation
+  `define OFS_PLAT_PROVIDES_ASE_TOP ase_top_ofs_plat
+`endif
 
 `endif // __OFS_PLAT_IF_TOP_CONFIG_VH__

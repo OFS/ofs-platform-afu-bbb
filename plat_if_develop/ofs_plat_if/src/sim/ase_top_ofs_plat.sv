@@ -29,9 +29,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Platform-specific device simulation. ASE's core library provides clocks
-// and this module instantiates device models and constructs an OFS
-// platform interface that wraps the simulated devices.
+// Instantiate the PIM top-level interface wrapping simulated devices and
+// pass them to a PIM-based AFU.
 //
 
 `include "ofs_plat_if.vh"

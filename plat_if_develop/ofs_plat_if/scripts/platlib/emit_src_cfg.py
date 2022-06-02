@@ -261,6 +261,7 @@ class emit_src_cfg(object):
 ##
 
 +define+RTL_SIMULATION
++define+SIM_MODE
 """
 
         if (is_plat_if):
