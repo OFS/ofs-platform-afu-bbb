@@ -87,8 +87,8 @@ def copy_class(src=None, tgt=None, template_class=None,
     tgt_gasket = None
     if 'gasket' in params:
         tgt_gasket = params['gasket']
-    __prune_gasket_trees(os.path.join(tgt, tgt_subdir),
-                         tgt_gasket=tgt_gasket, verbose=verbose)
+    __mark_gasket_trees(os.path.join(tgt, tgt_subdir),
+                        tgt_gasket=tgt_gasket, verbose=verbose)
 
     # Is there also an afu_ifcs tree? If yes, merge it into the target
     src_afu_ifc_subdir = os.path.join('rtl', 'ifc_classes',
@@ -102,10 +102,11 @@ def copy_class(src=None, tgt=None, template_class=None,
                            os.path.join(tgt, tgt_afu_ifc_subdir))
 
 
-def __prune_gasket_trees(tgt_tree, tgt_gasket, verbose=False):
+def __mark_gasket_trees(tgt_tree, tgt_gasket, verbose=False):
     """A class implementation may have more than one gasket for mapping
     the PIM's state to the FIM's interface. Keep only the gasket used
-    by this instance by deleting all others."""
+    by this instance by marking it "keep". Unused gasket trees will be
+    deleted in a later pass."""
 
     # Walk the tree for the current class that was copied to the target
     # directory.
@@ -115,11 +116,12 @@ def __prune_gasket_trees(tgt_tree, tgt_gasket, verbose=False):
             gp = os.path.join(dirpath, d)
             if (d[7:] != tgt_gasket):
                 if (verbose):
-                    print('    Removing unused gasket {0} '
+                    print('    Gasket {0} not used '
                           '(looking for gasket_{1})'.format(gp, tgt_gasket))
-                shutil.rmtree(gp)
             else:
                 print('    Preserving {0} '.format(gp))
+                with open(os.path.join(gp, 'keep'), 'a'):
+                    None
 
 
 def use_class_templates(tgt=None, base_class=None, group_num=0,

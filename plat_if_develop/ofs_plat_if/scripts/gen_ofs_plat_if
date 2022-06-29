@@ -35,6 +35,7 @@ import os
 import sys
 import fnmatch
 from distutils import dir_util, file_util, text_file
+import shutil
 
 from platlib.ofs_plat_cfg import ofs_plat_cfg
 from platlib.emit_src_cfg import emit_src_cfg
@@ -217,10 +218,22 @@ def process_template_files():
 def clean_target():
     """Clean up target tree after everything is copied to it."""
 
-    # Remove backup files
     for dirpath, dirnames, filenames in os.walk(args.target):
+        # Remove backup files
         for fn in fnmatch.filter(filenames, '*~'):
             os.remove(os.path.join(dirpath, fn))
+
+        # Remove unused gaskets
+        for dn in [d for d in dirnames if d[:7] == 'gasket_']:
+            gdir = os.path.join(dirpath, dn)
+            keepfile = os.path.join(gdir, 'keep')
+            if os.path.exists(keepfile):
+                print('    Keep preserved {0} '.format(gdir))
+                os.remove(keepfile)
+            else:
+                print('    Remove unused {0} '.format(gdir))
+                shutil.rmtree(gdir)
+                dirnames.remove(dn)
 
 
 def gen_platform_addenda():
