@@ -35,7 +35,7 @@
 
 `include "ofs_plat_if.vh"
 
-module map_fim_emif_avmm_to_@group@_local_mem
+module map_fim_emif_avmm_to_local_mem
   #(
     // Instance number is just used for debugging as a tag
     parameter INSTANCE_NUMBER = 0
@@ -76,4 +76,4 @@ module map_fim_emif_avmm_to_@group@_local_mem
     assign afu_mem_bank.writeresponse = '0;
     assign afu_mem_bank.writeresponseuser = '0;
 
-endmodule // map_fim_emif_avmm_to_@group@_local_mem
+endmodule // map_fim_emif_avmm_to_local_mem

@@ -35,7 +35,7 @@
 
 `include "ofs_plat_if.vh"
 
-module map_fim_emif_axi_mm_to_@group@_local_mem
+module map_fim_emif_axi_mm_to_local_mem
   #(
     // Instance number is just used for debugging as a tag
     parameter INSTANCE_NUMBER = 0
@@ -113,7 +113,7 @@ module map_fim_emif_axi_mm_to_@group@_local_mem
         afu_mem_bank.r.user = fim_mem_bank.ruser;
     end
 
-endmodule // map_fim_emif_axi_mm_to_@group@_local_mem
+endmodule // map_fim_emif_axi_mm_to_local_mem
 
 
 //
@@ -122,7 +122,7 @@ endmodule // map_fim_emif_axi_mm_to_@group@_local_mem
 // AXI-MM interface and this module transforms it to the FIM's equivalent,
 // which may be required when emulating in afu_main mode.
 //
-module map_local_mem_to_@group@_fim_emif_axi_mm
+module map_local_mem_to_fim_emif_axi_mm
   #(
     // Instance number is just used for debugging as a tag
     parameter INSTANCE_NUMBER = 0
@@ -204,4 +204,4 @@ module map_local_mem_to_@group@_fim_emif_axi_mm
     assign fim_mem_bank.rlast = pim_mem_bank.r.last;
     assign fim_mem_bank.ruser = pim_mem_bank.r.user;
 
-endmodule // map_local_mem_to_@group@_fim_emif_axi_mm
+endmodule // map_local_mem_to_fim_emif_axi_mm
