@@ -77,12 +77,18 @@
 `define LOCAL_MEM_@GROUP@_AXI_MEM_PARAMS_DEFAULT \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_DATA_WIDTH), \
-    .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH-1)
+    .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH-1), \
+    .USER_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_USER_WIDTH), \
+    .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH), \
+    .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH)
 
 `define LOCAL_MEM_@GROUP@_AXI_MEM_PARAMS_FULL_BUS_DEFAULT \
     .ADDR_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BYTE_ADDR_WIDTH), \
     .DATA_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_FULL_BUS_WIDTH), \
     .MASKED_SYMBOL_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_MASKED_FULL_SYMBOL_WIDTH), \
-    .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH-1)
+    .BURST_CNT_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_BURST_CNT_WIDTH-1), \
+    .USER_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_USER_WIDTH), \
+    .RID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_RID_WIDTH), \
+    .WID_WIDTH(local_mem_@group@_cfg_pkg::LOCAL_MEM_WID_WIDTH)
 
 `endif // __OFS_PLAT_LOCAL_MEM_@GROUP@_AXI_MEM_VH__
