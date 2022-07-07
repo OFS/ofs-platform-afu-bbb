@@ -144,6 +144,19 @@ class ofs_plat_cfg(object):
         else:
             return None
 
+    def section_import_dir(self, section):
+        """Return the path of an import if present in a section. If the
+        path is relative to the .ini file then translate it."""
+
+        if self.config.has_option(section, 'import'):
+            import_path = self.config.get(section, 'import')
+            if os.path.isabs(import_path):
+                return import_path
+            return os.path.abspath(
+                os.path.join(os.path.dirname(self.ini_file), import_path))
+        else:
+            return None
+
     def section_instance_noun(self, section):
         """The "instance noun" for a section is the noun used to name
         multiple instances of the class, such as "ports", "banks" or

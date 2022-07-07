@@ -297,6 +297,23 @@ module ase_top_ofs_plat
 
     // ====================================================================
     //
+    //  Extension (other) interface. Set a value on the field all
+    //  examples are supposed to provide.
+    //
+    // ====================================================================
+
+`ifdef OFS_PLAT_PARAM_OTHER_NUM_PORTS
+    generate
+        for (genvar p = 0; p < `OFS_PLAT_PARAM_OTHER_NUM_PORTS; p = p + 1)
+        begin : other
+            assign plat_ifc.other.ports[p].sample_state = 32'hcafef00d;
+        end
+    endgenerate
+`endif
+
+
+    // ====================================================================
+    //
     //  Instantiate the AFU
     //
     // ====================================================================

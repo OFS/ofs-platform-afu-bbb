@@ -42,8 +42,8 @@ from distutils import dir_util, file_util
 import shutil
 
 
-def copy_class(src=None, tgt=None, template_class=None,
-               base_class=None, native_class=None,
+def copy_class(src=None, tgt=None, import_dir=None,
+               template_class=None, base_class=None, native_class=None,
                params=dict(), group_num=0, verbose=False):
     """Copy the implementation of a single interface class to the target.
     template_class is the source directory from which files are copied.
@@ -78,8 +78,17 @@ def copy_class(src=None, tgt=None, template_class=None,
     if (verbose):
         print('  Copying source {0} to {1}'.format(
             src_subdir, os.path.join(tgt, tgt_subdir)))
-    files_tgt = dir_util.copy_tree(os.path.join(src, src_subdir),
-                                   os.path.join(tgt, tgt_subdir))
+        dir_util.copy_tree(os.path.join(src, src_subdir),
+                           os.path.join(tgt, tgt_subdir))
+
+    # Are there sources to import into the PIM from the platform?
+    if import_dir:
+        import_tgt = os.path.join(tgt, tgt_subdir,
+                                  os.path.basename(import_dir))
+        if (verbose):
+            print('  Importing source {0} to {1}'.format(
+                import_dir, import_tgt))
+        dir_util.copy_tree(import_dir, import_tgt)
 
     # A class implementation may have more than one gasket for mapping
     # the PIM's state to the FIM's interface. Keep only the gasket used

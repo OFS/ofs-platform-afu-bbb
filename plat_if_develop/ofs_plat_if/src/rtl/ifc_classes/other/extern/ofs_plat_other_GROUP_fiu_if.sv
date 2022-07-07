@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018, Intel Corporation
+// Copyright (c) 2022, Intel Corporation
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,52 +28,33 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+`include "ofs_plat_if.vh"
+
 //
-// Manage logging to shared files. A collection of global file handles is
-// maintained, allowing multiple modules to log to the same file.
+// Definition of the "other" extension interface, intended to make it easier
+// for an individual platform to add new AFU interfaces that are defined
+// outside of the PIM.
 //
+// The platform must provide the definition of ofs_plat_other_@group@_extern_if.
+//=
+//= _@group@ is replaced with the group number by the gen_ofs_plat_if script
+//= as it generates a platform-specific build/platform/ofs_plat_if tree.
+//
+interface ofs_plat_other_@group@_fiu_if
+  #(
+    parameter ENABLE_LOG = 0,
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_OTHER_@GROUP@_NUM_PORTS
+    );
 
-package ofs_plat_log_pkg;
+    // A hack to work around compilers complaining of circular dependence
+    // incorrectly when trying to make a new ofs_plat_other_if from an
+    // existing one's parameters.
+    localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
 
-    typedef enum
-    {
-        NONE = 0,        // Don't log
-        HOST_CHAN = 1,
-        LOCAL_MEM = 2,
-        HSSI = 3,
-        OTHER = 4
-    }
-    t_log_class;
+    ofs_plat_other_@group@_extern_if
+      #(
+        .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::OTHER : ofs_plat_log_pkg::NONE)
+        )
+        ports[NUM_PORTS]();
 
-    // What is the name for an instance of the class?
-    localparam string instance_name[5] = {
-        "",
-        "port",    // HOST_CHAN
-        "bank",    // LOCAL_MEM
-        "chan",    // HSSI
-        "port"     // OTHER
-        };
-
-    int log_fds[5] = '{5{-1}};
-    localparam string log_names[5] = {
-        "",
-        "log_ofs_plat_host_chan.tsv",
-        "log_ofs_plat_local_mem.tsv",
-        "log_ofs_plat_hssi.tsv",
-        "log_ofs_plat_other.tsv"
-        };
-
-    // Get the file descriptor for a group
-    function automatic int get_fd(t_log_class g);
-        if (g == NONE) return -1;
-
-        // Open the file if necessary
-        if (log_fds[g] == -1)
-        begin
-            log_fds[g] = $fopen(log_names[g], "w");
-        end
-
-        return log_fds[g];
-    endfunction
-
-endpackage // ofs_plat_log_pkg
+endinterface // ofs_plat_other_@group@_fiu_if
