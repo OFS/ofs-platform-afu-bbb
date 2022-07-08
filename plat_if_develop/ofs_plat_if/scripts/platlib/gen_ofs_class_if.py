@@ -78,8 +78,8 @@ def copy_class(src=None, tgt=None, import_dir=None,
     if (verbose):
         print('  Copying source {0} to {1}'.format(
             src_subdir, os.path.join(tgt, tgt_subdir)))
-        dir_util.copy_tree(os.path.join(src, src_subdir),
-                           os.path.join(tgt, tgt_subdir))
+    dir_util.copy_tree(os.path.join(src, src_subdir),
+                       os.path.join(tgt, tgt_subdir))
 
     # Are there sources to import into the PIM from the platform?
     if import_dir:
