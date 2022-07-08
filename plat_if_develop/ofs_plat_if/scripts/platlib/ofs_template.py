@@ -216,7 +216,7 @@ class ofs_template(object):
 
                 # Should the value be quoted?
                 if (val[0] != '"'):
-                    if (opt == 'native_class'):
+                    if (opt in ['import', 'native_class']):
                         val = '"{0}"'.format(val)
 
                 str = str + '`define OFS_PLAT_PARAM_{0}_{1} {2}\n'.format(
