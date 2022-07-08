@@ -1,25 +1,11 @@
 # Board Vendors: Configuring a Release #
 
-Like many OFS components, the Platform Interface Manager (PIM) and release tree are optional. The components serve as a template for portable AFU development across multiple platforms. For platform vendors, standardized release structures and APIs also makes a large number of tests available. Vendors building single-purpose systems may not benefit from the PIM and could choose to build without it.
+The Platform Interface Manager (PIM) is two separable components that, together, enable portable AFU development:
 
-A release tree holds databases that describe a platform's available devices, a Quartus project pre-configured as a generic template for building AFUs, and a collection of scripts for configuring, simulating and synthesizing AFUs. Most releases will instantiate AFUs in partially reconfigured regions of an FPGA, keeping the FIM in a fixed region, though PR is not a requirement. Templates for building fixed AFU/FIM pairs are supported as well.
+1. A collection of shims with well-known names that map native FIM interfaces to consistent AFU interfaces. For example, on OFS boards with PCIe SS TLP streams a PIM module maps TLP streams to AXI-MM.
+2. A top-level module name and single interface wrapper around all incoming devices.
 
-AFU developers set the environment variable OPAE\_PLATFORM\_ROOT to the top of a release in order to build with it. Tools such as afu\_sim\_setup and afu\_synth\_setup from the OPAE SDK require, at a minimum, the following structure within a release:
-
-```
-bin/
-  afu_synth                  <- Platform-specific script to synthesize an AFU with Quartus
-hw/
-  lib/
-    build/                   <- The FIM and PIM RTL and Quartus project template
-      platform/              <- Location of green_bs() and root of the PIM
-        ofs_plat_if/         <- PIM sources, generated from ../../plat_if_develop
-    fme-ifc-id.txt           <- The UUID of the FIM
-    fme-platform-class.txt   <- The PIM's unique tag for the platform
-    platform/
-      platform_db/
-        <platform>.json      <- The name must match the value in fme-platform-class.txt
-```
+The PIM is instantiated in all OFS FIM and PR build environments. PIM configuration is driven by a single .ini file that describes the FIM's native interfaces.
 
 ## Platform Interface Classes ##
 
@@ -27,7 +13,7 @@ The portability of PIM interfaces relies on mapping physical ports to bus-indepe
 
 ### Host Channels ###
 
-A host channel is a port offering DMA to host memory and, optionally, an MMIO space mastered by the AFU. Typical boards provide PCIe as the primary host channel, with the OPAE SDK and driver depending on PCIe MMIO to implement the CSRs used by OPAE to manage the FIM and AFU. Boards may have more than one host channel, often of different types. Both CXL and UPI are considered host channels.
+A host channel is a port offering DMA to host memory and, optionally, a CSR space managed by the AFU. Typical boards provide PCIe as the primary host channel, with the OPAE SDK and driver depending on PCIe MMIO to implement the CSRs used by OPAE to manage the FIM and AFU. Boards may have more than one host channel, often of different types. Both CXL and UPI are considered host channels.
 
 ### Local Memory ###
 
@@ -43,13 +29,13 @@ Board vendors may define non-standard classes. The PIM provides templates for wr
 
 ## Native Interface Types ##
 
-A physical interface exposed by the FIM to an AFU is called a *native type*. Every FIM interface declares a native type. This type defines the physical wires. The PIM may provide a collection of shims on top of the native type that map to one or more type abstractions offered to AFUs. This is the primary PIM portability mechanism. For example, the PIM can expose both native CCI-P and native AXI streams of PCIe TLPs. In both cases, AFUs instantiate a shim named *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr* as a wrapper around the native interface instance. The implementations are quite different and the PIM source tree has several implementations of *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr*. The PIM generation scripts pick the shims appropriate to a particular platform when generating a platform's ofs\_plat\_if tree.
+A physical interface exposed by the FIM to an AFU is called a *native type*. Every FIM interface declares a native type. This type defines the physical wires. The PIM may provide a collection of shims on top of the native type that map to one or more type abstractions offered to AFUs. This is the primary PIM portability mechanism. For example, the PIM can import both native CCI-P and native PCIe TLP AXI streams. In both cases, AFUs may instantiate a shim named *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr* as a wrapper around the native interface instance. The implementations are quite different but both provide a mapping from the native interface to Avalon memory interfaces. The PIM source tree has several implementations of *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr*. The PIM generation scripts pick the shims appropriate to a particular platform when generating a platform's ofs\_plat\_if tree.
 
 The PIM may offer several shims on top of the same native type, thus offering different AFU interfaces to the same device. For example, an AFU may select either AXI memory, Avalon memory or CCI-P connections to the same FIM PCIe host channel.
 
 ## Defining a Platform Interface ##
 
-The PIM is instantiated in a release tree from the following:
+The PIM is instantiated in a build environment from the following:
 
 * An .ini file describing the platform
 * A collection of [RTL interfaces and modules](../src)
@@ -59,6 +45,8 @@ The PIM is instantiated in a release tree from the following:
 $ mkdir -p <release tree root>/hw/lib/build/platform/ofs_plat_if
 $ gen_ofs_plat_if -c <.ini file path> -t <release tree root>/hw/lib/build/platform/ofs_plat_if
 ```
+
+This script is run automatically by the standard OFS FIM build flow as long as a board compilation environment specifies the .ini file. The generated PIM sources are included in both FIM and PR build trees.
 
 ### Platform .ini Files ###
 
@@ -72,13 +60,13 @@ Some sections are required in order to guarantee AFU portability across platform
 
 Sections typically represent vectors of ports or banks, all of the same type. The values *num\_ports* and *num\_banks* within a section cause gen\_ofs\_plat\_if to name vectors as *ports* or *banks*.
 
-All properties in a platform's .ini file are exported as preprocessor macros in the generated PIM in:
+All properties in a platform's .ini file are exported as preprocessor macros in the generated PIM. In out-of-tree partial reconfiguration (PR) build environments, macros are in:
 
 ```
 $OPAE_PLATFORM_ROOT/hw/lib/build/platform/ofs_plat_if/rtl/ofs_plat_if_top_config.vh
 ```
 
-The naming convention is a straight mapping of sections and properties to macros, e.g.:
+Within the FIM build itself, a file of the same name is stored and loaded from the build tree. The naming convention is a straight mapping of sections and properties to macros, e.g.:
 
 ```SystemVerilog
 `define OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS 2
@@ -89,7 +77,7 @@ The naming convention is a straight mapping of sections and properties to macros
 
 ### Defaults ###
 
-Within a section, some properties are mandatory. For example, local memories must define address and data widths. The [defaults.ini](../../../plat_if_develop/ofs_plat_if/src/config/defaults.ini) file holds the required values for all standard section classes. It also documents the semantics of each property. Sections in defaults.ini may be universal across all native interfaces, such as **[host\_chan]** for all host channels, or specific to a particular native interface, e.g. **[host\_chan.native\_avalon]**.
+Within a section, some properties are mandatory. For example, local memories must define address and data widths. The [defaults.ini](../../../plat_if_develop/ofs_plat_if/src/config/defaults.ini) file holds the required values for all standard section classes. It also documents the semantics of each property. Sections in defaults.ini may be universal across all native interfaces, such as **[host\_chan]** for all host channels, or specific to a particular native interface, e.g. **[host\_chan.native\_axis\_pcie\_tlp]**.
 
 Platform-specific .ini files may override properties from defaults.ini and may add new properties. All properties are written to the generated ofs\_plat\_if\_top\_config.vh.
 
@@ -102,13 +90,40 @@ The defaults.ini has a section for each OFS PIM standard class:
 
 ### Multiple Instances of a Class ###
 
-Complex platforms may have multiple devices that are similar, but not identical. A board could have a PCIe host channel and a collection of CXL ports. These can be represented as multiple sections in an .ini file, the primary port with MMIO named **[host\_chan]** and the secondary group named **[host\_chan.1]**. As noted earlier, **[host\_chan]** and **[host\_chan.0]** are synonymous. The pair of channels, **[host\_chan]** and **[host\_chan.1]**, are logically separate. In addition to having different address or data widths, they may even have different native types.
+Complex platforms may have multiple devices that are similar, but not identical. A board could have a host channel to an embedded SoC CPU and an external PCIe connection to a host. These can be represented as multiple sections in an .ini file, the primary port named **[host\_chan]** and the secondary group named **[host\_chan.1]**. As noted earlier, **[host\_chan]** and **[host\_chan.0]** are synonymous. The pair of channels, **[host\_chan]** and **[host\_chan.1]**, are logically separate. In addition to having different address or data widths, they may even have different native types.
 
 The PIM tree has some emulated test platforms as examples. [d5005\_pac\_ias\_v2\_0\_1\_em\_hc1cx2a.ini](../src/config/emulation/d5005_pac_ias_v2_0_1_em_hc1cx2a.ini) describes a FIM with two host channel groups, with group one using native CCI-P and group two using a pair of native Avalon memory interfaces.
 
-### Platform-Specific Classes ###
+### Native Interface ###
 
-Platforms may extend the PIM with new interface classes by specifying a non-standard section name. The same dot notation applies for multiple variations of the same class. The PIM provides generic templates as starting points for adding non-standard native interfaces. They will be copied to the generated *ofs\_plat\_if* and must be completed by platform implementers. The source templates are in [ifc\_classes/generic\_templates](../../../plat_if_develop/ofs_plat_if/src/rtl/ifc_classes/generic_templates/), one for collections of ports and another for collections of banks.
+Within a class, the *native_class* keyword specifies the FIM's interface. For example:
+
+```ini
+[host_chan]
+num_ports=2
+native_class=native_axis_pcie_tlp
+gasket=pcie_ss
+```
+
+The native class maps to a directory during PIM construction. In this case, [host\_chan/native\_axis\_pcie\_tlp](../src/rtl/ifc_classes/host_chan/native_axis_pcie_tlp/). The PIM construction script will instantiate the specified native class and ignore all other native class implementations.
+
+The *gasket* keyword further refines the FIM interface. Platforms may have subtle implementation variations for the same basic native class. When *gasket* is specified, the PIM setup script looks for directories within the class named *gasket\_\** and keeps only those matching the gasket name, e.g. *gasket\_pcie\_ss*.
+
+### Platform-Specific Extensions ###
+
+FIM developers may require non-standard AFU interfaces such as power management, extra clocks or HSSI sideband flow control. OFS FIM builds include a class named *other* in the top-level PIM interface wrapper. The type of *other* is defined by platform-specific FIM modules and passed through the PIM. Find the ofs\_plat\_other\_extern\_if.sv and ofs\_plat\_other\_fiu\_if\_tie\_off.sv in the FIM sources for your target platform and add types to the interface wrapper as needed. Then update afu\_main\(\) to map the FIM ports to plat\_ifc.other.ports\[0\]. See the FIM's README file in the directory with ofs\_plat\_other\_extern\_if.sv for more details.
+
+Within .ini files, the *other* interface is instantiated with:
+
+```.ini
+[other]
+native_class=extern
+import=<relative path from .ini file to a source directory>
+```
+
+Files in the source directory must define the platform-specific type of *other*. The *import* keyword within any section causes the PIM setup script to copy the sources into the build environment. The standard group and class template substitution rules described in the PIM implementation below apply to these files. The tutorials written for AFU developers demonstrate the use of the *other* extension.
+
+Another more complicated though more flexible mechanism allows FIM developers to specify a non-standard section name. The usual dot notation applies for multiple variations of the same class. The PIM provides generic templates as starting points for adding non-standard native interfaces. They will be copied to the generated *ofs\_plat\_if* and must be completed by platform implementers. The source templates are in [ifc\_classes/generic\_templates](../../../plat_if_develop/ofs_plat_if/src/rtl/ifc_classes/generic_templates/), one for collections of ports and another for collections of banks.
 
 A platform-specific section in the .ini file takes the form:
 
@@ -127,7 +142,7 @@ Collections of banks are indicated by replacing *num\_ports* with *num\_banks*.
 
 ## PIM Implementation ##
 
-The gen\_ofs\_plat\_if script, which composes a platform-specific PIM given an .ini file, uses the [ofs\_plat\_if/src/rtl/](../src/rtl/) tree as a template. The script copies sources into the target ofs\_plat\_if tree within a release, generates some top-level wrapper files and emits rules that import the generated tree for simulation or synthesis.
+The gen\_ofs\_plat\_if script, which composes a platform-specific PIM given an .ini file, uses the [ofs\_plat\_if/src/rtl/](../src/rtl/) tree as a template. The script copies sources into the target ofs\_plat\_if tree within a release, generates some top-level wrapper files and emits rules that import the generated tree for simulation or synthesis. SystemVerilog requires that packages be loaded in dependence order. A simple parser reads all generated source files during setup, looking for regular expressions that look like package imports, and emits source file lists in the required order.
 
 Some directories within the rtl tree are imported unchanged:
 
@@ -166,7 +181,7 @@ module ofs_plat_host_chan_g1_as_ccip()
 
 The implementation of a shim is independent of platform-specific group numbering. As a platform developer, it would be tedious to replicate equivalent sources that differ only by group name. The gen\_ofs\_plat\_if script treats source files as templates, with replacement rules:
 
-* Files names containing *\_GROUP\_* are renamed with the group number. *local\_mem\_GROUP\_cfg\_pkg.sv* becomes *local\_mem\_g1\_cfg\_pkg.sv*. The tag is eliminated for group 0: *local\_mem\_cfg\_pkg.sv*.
+* File names containing *\_GROUP\_* are renamed with the group number. *local\_mem\_GROUP\_cfg\_pkg.sv* becomes *local\_mem\_g1\_cfg\_pkg.sv*. The tag is eliminated for group 0: *local\_mem\_cfg\_pkg.sv*.
 * There are also substitution rules for the contents of files with names containing *\_GROUP\_*. The pattern *@GROUP@* becomes *G1* and *@group@* becomes *g1*. The pattern is simply eliminated for group 0.
 * *\_CLASS\_* in file names and *@CLASS@* or *@class@* inside these files are replaced with the interface class name — the name of the section in the .ini file.
 * Comments of the form *//=* are eliminated. This makes it possible to have a comment in a template file about the template itself that is not replicated to the platform's release.
