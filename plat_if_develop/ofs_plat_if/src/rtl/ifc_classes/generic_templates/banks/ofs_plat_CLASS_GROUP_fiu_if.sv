@@ -52,6 +52,12 @@ interface ofs_plat_@class@_@group@_fiu_if
     // existing one's parameters.
     localparam NUM_BANKS_ = $bits(logic [NUM_BANKS:0]) - 1;
 
+`ifdef OFS_PLAT_PARAM_@CLASS@_TYPE
+    // @class@ in .ini file specified a type
+    `OFS_PLAT_PARAM_@CLASS@_TYPE banks[NUM_BANKS]();
+`else
+    // No type specified for @class@ in .ini. Use a standard naming scheme.
     @class@_@group@_if banks[NUM_BANKS]();
+`endif
 
 endinterface // ofs_plat_@class@_@group@_fiu_if

@@ -52,6 +52,12 @@ interface ofs_plat_@class@_@group@_fiu_if
     // existing one's parameters.
     localparam NUM_PORTS_ = $bits(logic [NUM_PORTS:0]) - 1;
 
+`ifdef OFS_PLAT_PARAM_@CLASS@_TYPE
+    // @class@ in .ini file specified a type
+    `OFS_PLAT_PARAM_@CLASS@_TYPE ports[NUM_PORTS]();
+`else
+    // No type specified for @class@ in .ini. Use a standard naming scheme.
     @class@_@group@_if ports[NUM_PORTS]();
+`endif
 
 endinterface // ofs_plat_@class@_@group@_fiu_if

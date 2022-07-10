@@ -99,6 +99,9 @@ class ofs_plat_cfg(object):
         # Drop sections we've been told to disable
         self.__drop_disabled_sections(disable)
 
+        # Rewrite state from old .ini files for backward compatibility
+        self.__backward_compat_rewrite()
+
         # Generate final section dictionaries by including defaults
         self.__merge_config_and_defaults()
 
@@ -217,6 +220,34 @@ class ofs_plat_cfg(object):
 
         for s in disable:
             self.config.remove_section(s)
+
+    def __backward_compat_rewrite(self):
+        """Rewrite the incoming .ini file for backward compatibility."""
+
+        # For a brief time there was an ifc_classes tree for other/extern
+        # that duplicated the functionality of generic/ports. The
+        # ifc_classes/other tree has been removed. Map old .ini files with:
+        #
+        #   [other]
+        #   native_class=extern
+        #
+        # to:
+        #
+        #   [other]
+        #   native_class=ports
+        #   template_class=generic_templates
+        #   type=ofs_plat_other_extern_if
+        #
+        if self.config.has_section('other'):
+            if self.section_native_class('other') == 'extern':
+                if not self.quiet:
+                    print("  Mapping [other] from other/extern to "
+                          "generate_templates/ports")
+                self.config.set('other', 'native_class', 'ports')
+                self.config.set('other', 'template_class', 'generic_templates')
+                self.config.set('other', 'type', 'ofs_plat_other_extern_if')
+                if not self.config.has_option('other', 'num_ports'):
+                    self.config.set('other', 'num_ports', '1')
 
     def __merge_config_and_defaults(self):
         """Generate new dictionaries for each section, incorporating default

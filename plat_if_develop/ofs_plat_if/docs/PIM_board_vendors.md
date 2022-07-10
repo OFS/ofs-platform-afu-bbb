@@ -205,7 +205,7 @@ The keyword *@OFS\_PLAT\_IF\_TEMPLATE@* skips sections with no ports or banks, s
 
 With these rules, a template such as [ofs\_plat\_if\_tie\_off\_unused.template.sv](../src/rtl/ofs_plat_if_tie_off_unused.template.sv):
 
-```
+```SystemVerilog
 module ofs_plat_if_tie_off_unused
   #(
     // Masks are bit masks, with bit 0 corresponding to port/bank zero.
