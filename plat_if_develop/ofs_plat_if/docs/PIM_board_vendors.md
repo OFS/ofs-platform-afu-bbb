@@ -111,34 +111,34 @@ The *gasket* keyword further refines the FIM interface. Platforms may have subtl
 
 ### Platform-Specific Extensions ###
 
-FIM developers may require non-standard AFU interfaces such as power management, extra clocks or HSSI sideband flow control. OFS FIM builds include a class named *other* in the top-level PIM interface wrapper. The type of *other* is defined by platform-specific FIM modules and passed through the PIM. Find the ofs\_plat\_other\_extern\_if.sv and ofs\_plat\_other\_fiu\_if\_tie\_off.sv in the FIM sources for your target platform and add types to the interface wrapper as needed. Then update afu\_main\(\) to map the FIM ports to plat\_ifc.other.ports\[0\]. See the FIM's README file in the directory with ofs\_plat\_other\_extern\_if.sv for more details.
+FIM developers may require non-standard AFU interfaces such as power management, extra clocks or HSSI sideband flow control. The PIM provides a mechanism for extending a platform's *ofs\_plat\_if* top-level interface without having to modify the core PIM sources.
 
-Within .ini files, the *other* interface is instantiated with:
+Extending the interface begins by creating a new named section in the PIM .ini file. As shown in the example below, set *template\_class* to *generic\_templates* and *native\_class* to one of *banks*, *ports* or *channels*. The PIM provides generic templates as starting points for adding non-standard native interfaces. They will be copied to the generated *ofs\_plat\_if* and must be completed by platform implementers. The source templates are in [ifc\_classes/generic\_templates](../../../plat_if_develop/ofs_plat_if/src/rtl/ifc_classes/generic_templates/), one for collections of ports and others for collections of banks and channels.
 
-```.ini
+The section name becomes the wrapper's name in the PIM's top-level interface. The following settings, which are present in OFS FIM builds by default as an example, create a top-level name *other* as *plat\_ifc.other.ports\[0\]:*
+
+```ini
 [other]
-native_class=extern
-import=<relative path from .ini file to a source directory>
-```
-
-Files in the source directory must define the platform-specific type of *other*. The *import* keyword within any section causes the PIM setup script to copy the sources into the build environment. The standard group and class template substitution rules described in the PIM implementation below apply to these files. The tutorials written for AFU developers demonstrate the use of the *other* extension.
-
-Another more complicated though more flexible mechanism allows FIM developers to specify a non-standard section name. The usual dot notation applies for multiple variations of the same class. The PIM provides generic templates as starting points for adding non-standard native interfaces. They will be copied to the generated *ofs\_plat\_if* and must be completed by platform implementers. The source templates are in [ifc\_classes/generic\_templates](../../../plat_if_develop/ofs_plat_if/src/rtl/ifc_classes/generic_templates/), one for collections of ports and another for collections of banks.
-
-A platform-specific section in the .ini file takes the form:
-
-```.ini
-[power_ctrl]
+;; Generic wrapper around a vector of ports
 template_class=generic_templates
 native_class=ports
 num_ports=1
+;; Type of the interface (provided by import)
+type=ofs_plat_fim_other_if
+;; Sources to import into the PIM that define the type and tie-off module
+import=<relative path from .ini file to this extend_pim directory>
+;; Other values, which become macros in the generated PIM
 req_width=8
 rsp_width=16
 ```
 
-and generates an implementation in the target named *ofs\_plat\_if/rtl/ifc\_classes/power\_ctrl/*. Platform implementers must then follow the comments in the files within *power\_ctrl/* to complete the code. The properties within [power\_ctrl] are all written to *ofs\_plat\_if\_top\_config.vh*.
+A variation of the above configuration is present, including sample data types, and compiled into base OFS FIM platforms.
 
-Collections of banks are indicated by replacing *num\_ports* with *num\_banks*.
+Files in the imported directory must define the named platform-specific type, *ofs\_plat\_fim\_other\_if*. The *import* keyword within any section causes the PIM setup script to copy the sources into the build environment. The standard group and class template substitution rules described in the PIM implementation below apply to these files. The usual dot notation applies for multiple variations of the same class. Adding *\[other.1\]* and filling out all the required values would instantiate a second top-level name, *plat\_ifc.other_g1.ports\[0\]*.
+
+Any values may be set within the .ini file's extension section. In the case above, *OFS\_PLAT\_PARAM\_OTHER_REQ\_WIDTH* and *OFS\_PLAT\_PARAM\_OTHER_RSP\_WIDTH* are defined as macros in the generated PIM. So are all the other fields, such as *OFS\_PLAT\_PARAM\_OTHER\_TYPE*.
+
+The tutorials written for AFU developers demonstrate the use of the *other* extension.
 
 ## PIM Implementation ##
 
