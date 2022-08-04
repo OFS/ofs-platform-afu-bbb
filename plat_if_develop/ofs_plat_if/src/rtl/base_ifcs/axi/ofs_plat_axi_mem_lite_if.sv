@@ -85,6 +85,7 @@ interface ofs_plat_axi_mem_lite_if
 
     // Number of bytes in a data line
     localparam DATA_N_BYTES = (DATA_WIDTH + 7) / 8;
+    localparam ADDR_BYTE_IDX_WIDTH = $clog2(DATA_N_BYTES);
 
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
     typedef logic [DATA_WIDTH-1 : 0] t_data;

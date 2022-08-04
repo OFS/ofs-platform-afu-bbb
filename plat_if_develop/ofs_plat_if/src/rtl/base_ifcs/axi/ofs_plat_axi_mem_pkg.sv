@@ -45,6 +45,22 @@ package ofs_plat_axi_mem_pkg;
     //   0b111: 128
     typedef logic [2:0] t_axi_log2_beat_size;
 
+    function automatic logic [15:0] beat_size_to_byte_mask(t_axi_log2_beat_size size);
+        logic [15:0] mask;
+        case (size)
+          3'b000: mask = 'h1;
+          3'b001: mask = 'h3;
+          3'b010: mask = 'hf;
+          3'b011: mask = 'hff;
+          3'b100: mask = 'hffff;
+          3'b101: mask = 'hffffffff;
+          3'b110: mask = 'hffffffffffffffff;
+          3'b111: mask = 'hffffffffffffffffffffffffffffffff;
+        endcase
+
+        return mask;
+    endfunction // beat_size_to_byte_mask
+
     // Burst type:
     //   0b00: FIXED
     //   0b01: INCR

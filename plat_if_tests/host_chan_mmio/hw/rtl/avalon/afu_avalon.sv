@@ -183,11 +183,13 @@ module afu
     //
     logic read_req_q;
     t_csr_idx read_idx_q;
+    logic [mmio64_if.USER_WIDTH-1 : 0] read_req_user_q;
 
     always_ff @(posedge clk)
     begin : r_addr
         read_req_q <= mmio64_if.read && ! mmio64_if.waitrequest;
         read_idx_q <= t_csr_idx'(mmio64_if.address);
+        read_req_user_q <= mmio64_if.user;
 
         if (!reset_n)
         begin
@@ -249,6 +251,7 @@ module afu
     always_ff @(posedge clk)
     begin
         mmio64_if.readdatavalid <= read_req_q;
+        mmio64_if.readresponseuser <= read_req_user_q;
 
         casez (read_idx_q)
             // AFU DFH (device feature header) and AFU ID
@@ -278,5 +281,6 @@ module afu
     assign mmio512_if.readdata = '0;
     assign mmio512_if.readdatavalid = '0;
     assign mmio512_if.response = '0;
+    assign mmio512_if.readresponseuser = '0;
 
 endmodule // afu
