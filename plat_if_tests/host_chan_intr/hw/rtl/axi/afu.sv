@@ -135,15 +135,6 @@ module afu
         end
     end
 
-    // Generate an interrupt request
-    t_ccip_c1_ReqIntrHdr c1_req_intr_hdr;
-    always_comb
-    begin
-        c1_req_intr_hdr = '0;
-        c1_req_intr_hdr.req_type = eREQ_INTR;
-        c1_req_intr_hdr.id = cur_intr_id;
-    end
-
     always_comb
     begin
         host_mem_if.awvalid = state_active && host_mem_if.awready && host_mem_if.wready;
