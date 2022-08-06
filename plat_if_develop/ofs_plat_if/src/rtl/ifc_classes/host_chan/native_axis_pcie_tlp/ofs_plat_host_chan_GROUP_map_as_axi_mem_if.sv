@@ -60,7 +60,10 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // A second, write-only MMIO sink. If used, an AFU will likely use
     // this interface to receive wide MMIO writes without also having to
     // build wide MMIO read channels.
-    ofs_plat_axi_mem_lite_if.to_sink mmio_wo_sink
+    ofs_plat_axi_mem_lite_if.to_sink mmio_wo_sink,
+
+    // Allow Data Mover TLP encoding?
+    input  logic allow_dm_enc
     );
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
@@ -578,6 +581,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     ofs_plat_host_chan_@group@_map_to_tlps tlp_mapper
        (
         .to_fiu_tlp,
+        .allow_dm_enc,
 
         .host_mmio_req,
         .host_mmio_rsp,

@@ -536,6 +536,7 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     ofs_plat_host_chan_@group@_map_to_tlps tlp_mapper
        (
         .to_fiu_tlp,
+        .allow_dm_enc(1'b1),
 
         .host_mmio_req,
         .host_mmio_rsp,

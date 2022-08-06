@@ -39,6 +39,8 @@ module ofs_plat_host_chan_@group@_fim_gasket
    (
     // Interface to FIM
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
+    // Allow Data Mover encoding? (Not used in EA)
+    input  logic allow_dm_enc,
 
     // PIM encoding
     ofs_plat_axi_stream_if.to_source tx_from_pim,
@@ -351,6 +353,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
             rx_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_hdr.completer_id;
             rx_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_hdr.byte_count;
             rx_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_hdr.lower_addr;
+            // The PIM only generates dword aligned reads, so the check for
+            // the last packet is easy.
+            rx_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_hdr.byte_count[11:2] == rx_dw0.length);
         end
         else
         begin

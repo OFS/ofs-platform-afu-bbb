@@ -95,8 +95,16 @@ package ofs_plat_pcie_tlp_hdr_pkg;
         t_ofs_plat_pcie_hdr_id completer_id;            // 16
         t_ofs_plat_pcie_hdr_byte_count byte_count;      // 12
         t_ofs_plat_pcie_hdr_lower_addr lower_addr;      // 7
-                                                        // = 64
-        logic [36:0] pad; // All union entries must be the same size
+        // Final completion. For DM encoded reads, the completion has
+        // no byte_count. Instead, the FC bit is set.
+        logic fc;                                       // 1
+        // DM encoding provides no byte count. Instead, it has more
+        // lower address bits. Store more lower address bits here in
+        // order to compute the completions offset from the start address.
+        logic [4:0] lower_addr_h;                       // 5
+        logic dm_encoded;                               // 1
+                                                        // = 71
+        logic [29:0] pad; // All union entries must be the same size
     }
     t_ofs_plat_pcie_hdr_cpl;
 
@@ -233,10 +241,13 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     endfunction
 
     function automatic string ofs_plat_pcie_func_cpl_to_string(input t_ofs_plat_pcie_hdr hdr);
-        return $sformatf("%s cpl_id 0x%h bytes 0x%h req_id 0x%h tag 0x%h low_addr 0x%h",
+        return $sformatf("%s %s cpl_id 0x%h bytes 0x%h req_id 0x%h tag 0x%h low_addr 0x%h fc 0x%h",
                          ofs_plat_pcie_func_base_to_string(hdr),
+                         (hdr.u.cpl.dm_encoded ? "DM" : "PU"),
                          hdr.u.cpl.completer_id, hdr.u.cpl.byte_count,
-                         hdr.u.cpl.requester_id, hdr.u.cpl.tag, hdr.u.cpl.lower_addr);
+                         hdr.u.cpl.requester_id, hdr.u.cpl.tag,
+                         { hdr.u.cpl.lower_addr_h, hdr.u.cpl.lower_addr_h },
+                         hdr.u.cpl.fc);
     endfunction
 
     function automatic string ofs_plat_pcie_func_msg_to_string(input t_ofs_plat_pcie_hdr hdr);

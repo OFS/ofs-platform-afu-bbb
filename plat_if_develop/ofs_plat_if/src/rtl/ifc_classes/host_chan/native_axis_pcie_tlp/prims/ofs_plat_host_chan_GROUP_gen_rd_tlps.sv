@@ -200,6 +200,31 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         .rdata(rd_rsp_meta)
         );
 
+    logic rd_rsp_track_ready;
+    logic rd_rsp_track_wen;
+    t_dma_rd_tag rd_rsp_track_wtag;
+    t_tlp_payload_line_count rd_rsp_track_wdata;
+    t_tlp_payload_line_count rd_rsp_track_idx;
+
+    ofs_plat_prim_lutram_init
+      #(
+        .N_ENTRIES(MAX_OUTSTANDING_DMA_RD_REQS),
+        .N_DATA_BITS($bits(t_tlp_payload_line_count))
+        )
+      rd_rsp_tracker
+       (
+        .clk,
+        .reset_n,
+        .rdy(rd_rsp_track_ready),
+
+        .wen(rd_rsp_track_wen),
+        .waddr(rd_rsp_track_wtag),
+        .wdata(rd_rsp_track_wdata),
+
+        .raddr(rd_rsp_tlp_tag),
+        .rdata(rd_rsp_track_idx)
+        );
+
 
     // ====================================================================
     //
@@ -214,7 +239,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     // dropped here.
 
     assign rd_req_deq = rd_req_notEmpty &&
-                        req_tlp_tag_ready &&
+                        req_tlp_tag_ready && rd_rsp_track_ready &&
                         ((!rd_req.is_atomic && (tx_rd_tlps.tready || !tx_rd_tlps.tvalid)) ||
                          (rd_req.is_atomic && (atomic_cpl_tag.tready || !atomic_cpl_tag.tvalid)));
     assign tx_rd_tlps.t.data = '0;
@@ -319,13 +344,22 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             // The last response packet if the remaining bytes matches the length
             // of this packet. This still is not necessarily the last beat. Check EOP
             // for the last beat.
-            afu_rd_rsp_is_last = (tlp_cpl_hdr.u.cpl.byte_count[11:2] == tlp_cpl_hdr.length);
+            afu_rd_rsp_is_last = tlp_cpl_hdr.u.cpl.fc;
             afu_rd_rsp_tag = rd_rsp_meta.afu_tag;
-            // byte_count is the number of bytes still remaining. We can use it
-            // to compute the line index relative to the entire repsonse, even
-            // if the response is broken into multiple packets.
-            afu_rd_rsp_line_idx = rd_rsp_meta.line_count -
-                                  dwordLenToLineCount(tlp_cpl_hdr.u.cpl.byte_count[11:2]);
+
+            if (! tlp_cpl_hdr.u.cpl.dm_encoded)
+            begin
+                // byte_count is the number of bytes still remaining. We can use it
+                // to compute the line index relative to the entire response, even
+                // if the response is broken into multiple packets.
+                afu_rd_rsp_line_idx = rd_rsp_meta.line_count -
+                                      dwordLenToLineCount(tlp_cpl_hdr.u.cpl.byte_count[11:2]);
+            end
+            else
+            begin
+                // DM encoding doesn't provide byte count. Instead, we count responses.
+                afu_rd_rsp_line_idx = rd_rsp_track_idx;
+            end
         end
         else
         begin
@@ -341,6 +375,23 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             // Nothing this cycle (may still be in the middle of a mult-cycle response)
             afu_rd_rsp_active = 1'b0;
         end
+    end
+
+    // Update the response line index tracker, used for tracking DM encoded completions
+    always_comb
+    begin
+        // Is SOP of an active completion
+        rd_rsp_track_wen = rx_cpl_tlps.tready && rx_cpl_tlps.tvalid &&
+                           afu_rd_rsp_active && rx_cpl_tlps.t.user[0].sop;
+        rd_rsp_track_wtag = rd_rsp_tlp_tag;
+
+        // If done with the whole read, reset the counter for the next time the
+        // tag is used. This passes for initialization in order to avoid needing
+        // another write port. Otherwise, increment to the end of this completion.
+        if (afu_rd_rsp_is_last)
+            rd_rsp_track_wdata = '0;
+        else
+            rd_rsp_track_wdata = rd_rsp_track_idx + dwordLenToLineCount(tlp_cpl_hdr.length);
     end
 
     logic rx_cpl_tlps_eop;

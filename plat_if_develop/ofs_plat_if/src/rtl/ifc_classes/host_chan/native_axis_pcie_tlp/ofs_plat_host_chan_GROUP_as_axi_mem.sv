@@ -60,7 +60,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Read responses are ordered by default because a single
+    // request may be broken into multiple PCIe unordered transactions,
+    // which would violate AXI response ordering rules for a single request.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -71,6 +78,63 @@ module ofs_plat_host_chan_@group@_as_axi_mem
     // is non-zero.
     input  logic afu_clk,
     input  logic afu_reset_n
+    );
+
+    ofs_plat_host_chan_@group@_as_axi_mem_enc
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
+        .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        )
+      e
+       (
+        .to_fiu,
+        .host_mem_to_afu,
+        .afu_clk,
+        .afu_reset_n,
+        .allow_dm_enc(1'b1)
+        );
+
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem
+
+
+//
+// Host memory as AXI memory (no MMIO). Adds an input to control data mover
+// vs. power user encoding.
+//
+module ofs_plat_host_chan_@group@_as_axi_mem_enc
+  #(
+    // When non-zero, add a clock crossing to move the AFU
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
+    parameter ADD_CLOCK_CROSSING = 0,
+
+    // Add extra pipeline stages to the FIU side, typically for timing.
+    // Note that these stages contribute to the latency of receiving
+    // almost full and requests in these registers continue to flow
+    // when almost full is asserted. Beware of adding too many stages
+    // and losing requests on transitions to almost full.
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Read responses are ordered by default because a single
+    // request may be broken into multiple PCIe unordered transactions,
+    // which would violate AXI response ordering rules for a single request.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 0
+    )
+   (
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
+
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
+
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
+    // is non-zero.
+    input  logic afu_clk,
+    input  logic afu_reset_n,
+
+    // Allow Data Mover encoding?
+    input  logic allow_dm_enc
     );
 
     // Internal dummy MMIO AXI interfaces. They are required by the
@@ -96,10 +160,12 @@ module ofs_plat_host_chan_@group@_as_axi_mem
     assign axi_wo_mmio.instance_number = to_fiu.instance_number;
 
     ofs_plat_host_chan_@group@_as_axi_mem_impl
-     #(
-       .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-       .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
-       )
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
+        .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        )
      impl
        (
         .to_fiu,
@@ -107,7 +173,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem
         .axi_mmio,
         .axi_wo_mmio,
         .afu_clk,
-        .afu_reset_n
+        .afu_reset_n,
+        .allow_dm_enc
         );
 
     // Tie off MMIO
@@ -126,7 +193,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem
         axi_wo_mmio.rvalid = 1'b0;
     end
 
-endmodule // ofs_plat_host_chan_@group@_as_axi_mem
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem_enc
 
 
 //
@@ -144,7 +211,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Read responses are ordered by default because a single
+    // request may be broken into multiple PCIe unordered transactions,
+    // which would violate AXI response ordering rules for a single request.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -156,6 +230,68 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
     // is non-zero.
     input  logic afu_clk,
     input  logic afu_reset_n
+    );
+
+
+    ofs_plat_host_chan_@group@_as_axi_mem_with_mmio_enc
+      #(
+        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
+        .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        )
+      e
+       (
+        .to_fiu,
+        .host_mem_to_afu,
+        .mmio_to_afu,
+        .afu_clk,
+        .afu_reset_n,
+        .allow_dm_enc(1'b1)
+        );
+
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
+
+
+//
+// Host memory and FPGA MMIO source as AXI. The width of the MMIO
+// port is determined by the parameters bound to mmio_to_afu.
+//
+// Adds an input to control data mover vs. power user encoding.
+//
+module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio_enc
+  #(
+    // When non-zero, add a clock crossing to move the AFU
+    // interface to the clock/reset_n pair passed in afu_clk/afu_reset_n.
+    parameter ADD_CLOCK_CROSSING = 0,
+
+    // Add extra pipeline stages to the FIU side, typically for timing.
+    // Note that these stages contribute to the latency of receiving
+    // almost full and requests in these registers continue to flow
+    // when almost full is asserted. Beware of adding too many stages
+    // and losing requests on transitions to almost full.
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Read responses are ordered by default because a single
+    // request may be broken into multiple PCIe unordered transactions,
+    // which would violate AXI response ordering rules for a single request.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 0
+    )
+   (
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
+
+    ofs_plat_axi_mem_if.to_source_clk host_mem_to_afu,
+    ofs_plat_axi_mem_lite_if.to_sink_clk mmio_to_afu,
+
+    // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
+    // is non-zero.
+    input  logic afu_clk,
+    input  logic afu_reset_n,
+
+    // Allow Data Mover encoding?
+    input  logic allow_dm_enc
     );
 
     // Internal MMIO AXI interface
@@ -184,7 +320,9 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
     ofs_plat_host_chan_@group@_as_axi_mem_impl
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
+        .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
         )
       impl
        (
@@ -193,7 +331,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
         .axi_mmio,
         .axi_wo_mmio,
         .afu_clk,
-        .afu_reset_n
+        .afu_reset_n,
+        .allow_dm_enc
         );
 
     // Add clock crossing or register stages, as requested.
@@ -254,7 +393,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
         axi_wo_mmio.rvalid = 1'b0;
     end
 
-endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
+endmodule // ofs_plat_host_chan_@group@_as_axi_mem_with_mmio_enc
 
 
 //
@@ -273,7 +412,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Read responses are ordered by default because a single
+    // request may be broken into multiple PCIe unordered transactions,
+    // which would violate AXI response ordering rules for a single request.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -313,7 +459,9 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
     ofs_plat_host_chan_@group@_as_axi_mem_impl
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES)
+        .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
+        .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
         )
       impl
        (
@@ -322,7 +470,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
         .axi_mmio,
         .axi_wo_mmio,
         .afu_clk,
-        .afu_reset_n
+        .afu_reset_n,
+        .allow_dm_enc(1'b1)
         );
 
     // Add clock crossing or register stages, as requested.
@@ -434,7 +583,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Should read or write responses be returned in the order they were
+    // requested? Read responses are ordered by default because a single
+    // request may be broken into multiple PCIe unordered transactions,
+    // which would violate AXI response ordering rules for a single request.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -451,7 +607,10 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     // AFU clock, used only when the ADD_CLOCK_CROSSING parameter
     // is non-zero.
     input  logic afu_clk,
-    input  logic afu_reset_n
+    input  logic afu_reset_n,
+
+    // Allow Data Mover TLP encoding?
+    input  logic allow_dm_enc
     );
 
     localparam int MAX_BW_ACTIVE_RD_LINES =
@@ -561,7 +720,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         .mem_source(axi_fiu_clk_if),
         .mmio_sink(axi_mmio),
         .mmio_wo_sink(axi_wo_mmio),
-        .to_fiu_tlp(to_fiu)
+        .to_fiu_tlp(to_fiu),
+        .allow_dm_enc
         );
 
 endmodule // ofs_plat_host_chan_@group@_as_axi_mem

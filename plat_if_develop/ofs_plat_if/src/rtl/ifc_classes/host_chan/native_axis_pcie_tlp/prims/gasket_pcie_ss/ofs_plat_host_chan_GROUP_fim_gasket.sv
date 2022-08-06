@@ -39,6 +39,8 @@ module ofs_plat_host_chan_@group@_fim_gasket
    (
     // Interface to FIM
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
+    // Allow Data Mover encoding?
+    input  logic allow_dm_enc,
 
     // PIM encoding (FPGA->host)
     ofs_plat_axi_stream_if.to_source tx_from_pim,
@@ -63,6 +65,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
     logic reset_n;
     assign reset_n = to_fiu_tlp.reset_n;
 
+    // Delay the allow_dm_enc flag for timing
+    logic [7:0] allow_dm_enc_reg;
+    wire allow_dm_enc_q = allow_dm_enc_reg[7];
+    always_ff @(posedge clk)
+    begin
+        allow_dm_enc_reg <= { allow_dm_enc_reg[6:0], allow_dm_enc };
+    end
+
 
     // ====================================================================
     //
@@ -72,7 +82,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t),
+        // The type of the stream doesn't matter as long as it is the
+        // size of a PCIe SS header. All headers are the same size.
+        .TDATA_TYPE(pcie_ss_hdr_pkg::PCIe_ReqHdr_t),
         .TUSER_TYPE(logic)    // pu mode (0) / dm mode (1)
         )
       fim_enc_tx_hdr();
@@ -118,37 +130,46 @@ module ofs_plat_host_chan_@group@_fim_gasket
 
     // Construct headers for all message types. Only one will actually be
     // used, depending on fmttype.
-    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_mem_req_hdr;
+    pcie_ss_hdr_pkg::PCIe_ReqHdr_t tx_mem_req_dm_hdr;
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_mem_req_pu_hdr;
     pcie_ss_hdr_pkg::PCIe_PUCplHdr_t tx_cpl_hdr;
     pcie_ss_hdr_pkg::PCIe_IntrHdr_t tx_irq_hdr;
 
     pcie_ss_hdr_pkg::ReqHdr_FmtType_e tx_fmttype;
     assign tx_fmttype = pcie_ss_hdr_pkg::ReqHdr_FmtType_e'(tx_from_pim.t.user[0].hdr.fmttype);
 
-    // Memory request
+    // Use DM encoding for most write requests. Short writes not aligned to dwords
+    // use PU encoding since DM would require a data shift.
+    wire tx_req_hdr_use_dm =
+        allow_dm_enc_q &&
+        ((tx_fmttype == pcie_ss_hdr_pkg::M_WR) || (tx_fmttype == pcie_ss_hdr_pkg::DM_WR)) &&
+        &(tx_from_pim.t.user[0].hdr.u.mem_req.last_be) &&
+        &(tx_from_pim.t.user[0].hdr.u.mem_req.first_be);
+
+    // Memory request - DM encoding
     always_comb
     begin
-        tx_mem_req_hdr = '0;
-        tx_mem_req_hdr.fmt_type = tx_fmttype;
-        tx_mem_req_hdr.length = tx_from_pim.t.user[0].hdr.length;
-        tx_mem_req_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
-        tx_mem_req_hdr.TC = tx_from_pim.t.user[0].hdr.u.mem_req.tc;
-        { tx_mem_req_hdr.tag_h, tx_mem_req_hdr.tag_m, tx_mem_req_hdr.tag_l } =
-            { '0, tx_from_pim.t.user[0].hdr.u.mem_req.tag };
-        tx_mem_req_hdr.last_dw_be = tx_from_pim.t.user[0].hdr.u.mem_req.last_be;
-        tx_mem_req_hdr.first_dw_be = tx_from_pim.t.user[0].hdr.u.mem_req.first_be;
-        if (pcie_ss_hdr_pkg::func_is_addr64(tx_fmttype))
-        begin
-            tx_mem_req_hdr.host_addr_h = tx_from_pim.t.user[0].hdr.u.mem_req.addr[63:32];
-            tx_mem_req_hdr.host_addr_l = tx_from_pim.t.user[0].hdr.u.mem_req.addr[31:2];
-        end
+        tx_mem_req_dm_hdr = '0;
+
+        if (tx_fmttype == pcie_ss_hdr_pkg::M_WR)
+            tx_mem_req_dm_hdr.fmt_type = pcie_ss_hdr_pkg::DM_WR;
+        else if (tx_fmttype == pcie_ss_hdr_pkg::M_RD)
+            tx_mem_req_dm_hdr.fmt_type = pcie_ss_hdr_pkg::DM_RD;
         else
-        begin
-            tx_mem_req_hdr.host_addr_h = tx_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
-        end
-        tx_mem_req_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_mem_req_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_mem_req_hdr.vf_active = to_fiu_tlp.vf_active;
+            tx_mem_req_dm_hdr.fmt_type = tx_fmttype;
+
+        { tx_mem_req_dm_hdr.length_h, tx_mem_req_dm_hdr.length_m, tx_mem_req_dm_hdr.length_l } =
+            { '0, tx_from_pim.t.user[0].hdr.length, 2'b0 };
+        tx_mem_req_dm_hdr.TC = tx_from_pim.t.user[0].hdr.u.mem_req.tc;
+        { tx_mem_req_dm_hdr.tag_h, tx_mem_req_dm_hdr.tag_m, tx_mem_req_dm_hdr.tag_l } =
+            { '0, tx_from_pim.t.user[0].hdr.u.mem_req.tag };
+
+        { tx_mem_req_dm_hdr.host_addr_h, tx_mem_req_dm_hdr.host_addr_m, tx_mem_req_dm_hdr.host_addr_l } =
+            tx_from_pim.t.user[0].hdr.u.mem_req.addr;
+
+        tx_mem_req_dm_hdr.pf_num = to_fiu_tlp.pf_num;
+        tx_mem_req_dm_hdr.vf_num = to_fiu_tlp.vf_num;
+        tx_mem_req_dm_hdr.vf_active = to_fiu_tlp.vf_active;
 
         // Because there are two TX pipelines in the FIM, TX A for writes and TX B
         // for reads, the commit point of writes has not yet been reached. Pass
@@ -156,7 +177,42 @@ module ofs_plat_host_chan_@group@_fim_gasket
         // completion by the FIM once each write is committed to an ordered stream.
         if (pcie_ss_hdr_pkg::func_is_mem_req(tx_fmttype))
         begin
-            tx_mem_req_hdr.metadata_l = { '0, tx_from_pim.t.user[0].afu_tag };
+            tx_mem_req_dm_hdr.metadata_l = { '0, tx_from_pim.t.user[0].afu_tag };
+        end
+    end
+
+    // Memory request - PU encoding
+    always_comb
+    begin
+        tx_mem_req_pu_hdr = '0;
+        tx_mem_req_pu_hdr.fmt_type = tx_fmttype;
+        tx_mem_req_pu_hdr.length = tx_from_pim.t.user[0].hdr.length;
+        tx_mem_req_pu_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
+        tx_mem_req_pu_hdr.TC = tx_from_pim.t.user[0].hdr.u.mem_req.tc;
+        { tx_mem_req_pu_hdr.tag_h, tx_mem_req_pu_hdr.tag_m, tx_mem_req_pu_hdr.tag_l } =
+            { '0, tx_from_pim.t.user[0].hdr.u.mem_req.tag };
+        tx_mem_req_pu_hdr.last_dw_be = tx_from_pim.t.user[0].hdr.u.mem_req.last_be;
+        tx_mem_req_pu_hdr.first_dw_be = tx_from_pim.t.user[0].hdr.u.mem_req.first_be;
+        if (pcie_ss_hdr_pkg::func_is_addr64(tx_fmttype))
+        begin
+            tx_mem_req_pu_hdr.host_addr_h = tx_from_pim.t.user[0].hdr.u.mem_req.addr[63:32];
+            tx_mem_req_pu_hdr.host_addr_l = tx_from_pim.t.user[0].hdr.u.mem_req.addr[31:2];
+        end
+        else
+        begin
+            tx_mem_req_pu_hdr.host_addr_h = tx_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
+        end
+        tx_mem_req_pu_hdr.pf_num = to_fiu_tlp.pf_num;
+        tx_mem_req_pu_hdr.vf_num = to_fiu_tlp.vf_num;
+        tx_mem_req_pu_hdr.vf_active = to_fiu_tlp.vf_active;
+
+        // Because there are two TX pipelines in the FIM, TX A for writes and TX B
+        // for reads, the commit point of writes has not yet been reached. Pass
+        // the AFU's completion tag to the FIM. It will be returned in a dataless
+        // completion by the FIM once each write is committed to an ordered stream.
+        if (pcie_ss_hdr_pkg::func_is_mem_req(tx_fmttype))
+        begin
+            tx_mem_req_pu_hdr.metadata_l = { '0, tx_from_pim.t.user[0].afu_tag };
         end
     end
 
@@ -202,9 +258,16 @@ module ofs_plat_host_chan_@group@_fim_gasket
             fim_enc_tx_hdr.t.data = tx_irq_hdr;
             fim_enc_tx_hdr.t.user = 1'b1;	// Interrupt uses Data Mover encoding
         end
+        else if (tx_req_hdr_use_dm)
+        begin
+            fim_enc_tx_hdr.t.data = tx_mem_req_dm_hdr;
+            fim_enc_tx_hdr.t.user = 1'b1;
+        end
         else if (pcie_ss_hdr_pkg::func_is_mem_req(tx_fmttype))
         begin
-            fim_enc_tx_hdr.t.data = tx_mem_req_hdr;
+            // Any memory request that isn't a write is PU encoded. These are
+            // atomic updates and fences.
+            fim_enc_tx_hdr.t.data = tx_mem_req_pu_hdr;
         end
         else if (pcie_ss_hdr_pkg::func_is_completion(tx_fmttype))
         begin
@@ -241,35 +304,70 @@ module ofs_plat_host_chan_@group@_fim_gasket
     assign tx_mrd_from_pim.tready = fim_enc_tx_mrd.tready;
 
     // Construct a read request header
-    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_mrd_req_hdr;
+    pcie_ss_hdr_pkg::PCIe_ReqHdr_t tx_mrd_req_dm_hdr;
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t tx_mrd_req_pu_hdr;
 
     pcie_ss_hdr_pkg::ReqHdr_FmtType_e tx_mrd_fmttype;
     assign tx_mrd_fmttype = pcie_ss_hdr_pkg::ReqHdr_FmtType_e'(tx_mrd_from_pim.t.user[0].hdr.fmttype);
 
-    // Memory request
+    // Use DM encoding for most read requests. Short reads not aligned to dwords
+    // use PU encoding since DM would require a data shift.
+    wire tx_mrd_req_hdr_use_dm =
+        allow_dm_enc_q &&
+        ((tx_mrd_fmttype == pcie_ss_hdr_pkg::M_RD) || (tx_mrd_fmttype == pcie_ss_hdr_pkg::DM_RD)) &&
+        &(tx_mrd_from_pim.t.user[0].hdr.u.mem_req.last_be) &&
+        &(tx_mrd_from_pim.t.user[0].hdr.u.mem_req.first_be);
+
+    // Memory request - DM encoding
     always_comb
     begin
-        tx_mrd_req_hdr = '0;
-        tx_mrd_req_hdr.fmt_type = tx_mrd_fmttype;
-        tx_mrd_req_hdr.length = tx_mrd_from_pim.t.user[0].hdr.length;
-        tx_mrd_req_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
-        tx_mrd_req_hdr.TC = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tc;
-        { tx_mrd_req_hdr.tag_h, tx_mrd_req_hdr.tag_m, tx_mrd_req_hdr.tag_l } =
+        tx_mrd_req_dm_hdr = '0;
+
+        if (tx_mrd_fmttype == pcie_ss_hdr_pkg::M_WR)
+            tx_mrd_req_dm_hdr.fmt_type = pcie_ss_hdr_pkg::DM_WR;
+        else if (tx_mrd_fmttype == pcie_ss_hdr_pkg::M_RD)
+            tx_mrd_req_dm_hdr.fmt_type = pcie_ss_hdr_pkg::DM_RD;
+        else
+            tx_mrd_req_dm_hdr.fmt_type = tx_mrd_fmttype;
+
+        { tx_mrd_req_dm_hdr.length_h, tx_mrd_req_dm_hdr.length_m, tx_mrd_req_dm_hdr.length_l } =
+            { '0, tx_mrd_from_pim.t.user[0].hdr.length, 2'b0 };
+        tx_mrd_req_dm_hdr.TC = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tc;
+        { tx_mrd_req_dm_hdr.tag_h, tx_mrd_req_dm_hdr.tag_m, tx_mrd_req_dm_hdr.tag_l } =
             { '0, tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tag };
-        tx_mrd_req_hdr.last_dw_be = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.last_be;
-        tx_mrd_req_hdr.first_dw_be = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.first_be;
+
+        { tx_mrd_req_dm_hdr.host_addr_h, tx_mrd_req_dm_hdr.host_addr_m, tx_mrd_req_dm_hdr.host_addr_l } =
+            tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr;
+
+        tx_mrd_req_dm_hdr.pf_num = to_fiu_tlp.pf_num;
+        tx_mrd_req_dm_hdr.vf_num = to_fiu_tlp.vf_num;
+        tx_mrd_req_dm_hdr.vf_active = to_fiu_tlp.vf_active;
+    end
+
+    // Memory request - PU encoding
+    always_comb
+    begin
+        tx_mrd_req_pu_hdr = '0;
+        tx_mrd_req_pu_hdr.fmt_type = tx_mrd_fmttype;
+        tx_mrd_req_pu_hdr.length = tx_mrd_from_pim.t.user[0].hdr.length;
+        tx_mrd_req_pu_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
+        tx_mrd_req_pu_hdr.TC = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tc;
+        { tx_mrd_req_pu_hdr.tag_h, tx_mrd_req_pu_hdr.tag_m, tx_mrd_req_pu_hdr.tag_l } =
+            { '0, tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tag };
+        tx_mrd_req_pu_hdr.last_dw_be = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.last_be;
+        tx_mrd_req_pu_hdr.first_dw_be = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.first_be;
         if (pcie_ss_hdr_pkg::func_is_addr64(tx_mrd_fmttype))
         begin
-            tx_mrd_req_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[63:32];
-            tx_mrd_req_hdr.host_addr_l = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:2];
+            tx_mrd_req_pu_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[63:32];
+            tx_mrd_req_pu_hdr.host_addr_l = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:2];
         end
         else
         begin
-            tx_mrd_req_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
+            tx_mrd_req_pu_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
         end
-        tx_mrd_req_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_mrd_req_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_mrd_req_hdr.vf_active = to_fiu_tlp.vf_active;
+        tx_mrd_req_pu_hdr.pf_num = to_fiu_tlp.pf_num;
+        tx_mrd_req_pu_hdr.vf_num = to_fiu_tlp.vf_num;
+        tx_mrd_req_pu_hdr.vf_active = to_fiu_tlp.vf_active;
     end
 
     assign fim_enc_tx_mrd.tvalid = tx_mrd_from_pim.tvalid;
@@ -277,10 +375,10 @@ module ofs_plat_host_chan_@group@_fim_gasket
     always_comb
     begin
         fim_enc_tx_mrd.t = '0;
-        fim_enc_tx_mrd.t.data = { '0, tx_mrd_req_hdr };
-        fim_enc_tx_mrd.t.keep = { '0, {($bits(tx_mrd_req_hdr)/8){1'b1}} };
+        fim_enc_tx_mrd.t.data = { '0, (tx_mrd_req_hdr_use_dm ? tx_mrd_req_dm_hdr : tx_mrd_req_pu_hdr) };
+        fim_enc_tx_mrd.t.keep = { '0, {($bits(tx_mrd_req_dm_hdr)/8){1'b1}} };
         fim_enc_tx_mrd.t.last = tx_mrd_from_pim.t.user[0].eop;
-        fim_enc_tx_mrd.t.user[0].dm_mode = 1'b0;
+        fim_enc_tx_mrd.t.user[0].dm_mode = tx_mrd_req_hdr_use_dm;
         fim_enc_tx_mrd.t.user[0].sop = tx_mrd_from_pim.t.user[0].sop;
         fim_enc_tx_mrd.t.user[0].eop = tx_mrd_from_pim.t.user[0].eop;
     end
@@ -371,16 +469,18 @@ module ofs_plat_host_chan_@group@_fim_gasket
     //
 
     // Next header, cast to a memory request
-    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t rx_mem_req_hdr;
-    assign rx_mem_req_hdr = fim_enc_rx_hdr.t.data;
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t rx_mem_req_pu_hdr;
+    assign rx_mem_req_pu_hdr = fim_enc_rx_hdr.t.data;
 
     // Next header, cast to a completion response
-    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_cpl_hdr;
-    assign rx_cpl_hdr = fim_enc_rx_hdr.t.data;
+    pcie_ss_hdr_pkg::PCIe_CplHdr_t rx_cpl_dm_hdr;
+    assign rx_cpl_dm_hdr = fim_enc_rx_hdr.t.data;
+    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_cpl_pu_hdr;
+    assign rx_cpl_pu_hdr = fim_enc_rx_hdr.t.data;
 
     // Format type of header (same position in any message)
     pcie_ss_hdr_pkg::ReqHdr_FmtType_e rx_fmttype;
-    assign rx_fmttype = rx_cpl_hdr.fmt_type;
+    assign rx_fmttype = rx_cpl_pu_hdr.fmt_type;
 
     logic rx_to_pim_invalid_cmd;
 
@@ -395,30 +495,49 @@ module ofs_plat_host_chan_@group@_fim_gasket
         if (fim_enc_rx_sop)
         begin
             rx_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
-            rx_to_pim.t.user[0].hdr.length = rx_cpl_hdr.length;
 
             if (pcie_ss_hdr_pkg::func_is_mem_req(rx_fmttype))
             begin
-                rx_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_hdr.req_id;
-                rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_mem_req_hdr.TC;
+                rx_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
+                rx_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_pu_hdr.req_id;
+                rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_mem_req_pu_hdr.TC;
                 rx_to_pim.t.user[0].hdr.u.mem_req.tag =
-                    { rx_mem_req_hdr.tag_h, rx_mem_req_hdr.tag_m, rx_mem_req_hdr.tag_l };
-                rx_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_hdr.last_dw_be;
-                rx_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_hdr.first_dw_be;
+                    { rx_mem_req_pu_hdr.tag_h, rx_mem_req_pu_hdr.tag_m, rx_mem_req_pu_hdr.tag_l };
+                rx_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_pu_hdr.last_dw_be;
+                rx_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_pu_hdr.first_dw_be;
                 rx_to_pim.t.user[0].hdr.u.mem_req.addr =
                     pcie_ss_hdr_pkg::func_is_addr64(rx_fmttype) ?
-                        { rx_mem_req_hdr.host_addr_h, rx_mem_req_hdr.host_addr_l, 2'b0 } :
-                        { '0, rx_mem_req_hdr.host_addr_h };
+                        { rx_mem_req_pu_hdr.host_addr_h, rx_mem_req_pu_hdr.host_addr_l, 2'b0 } :
+                        { '0, rx_mem_req_pu_hdr.host_addr_h };
             end
             else if (pcie_ss_hdr_pkg::func_is_completion(rx_fmttype))
             begin
-                rx_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_hdr.req_id;
-                rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_hdr.TC;
-                rx_to_pim.t.user[0].hdr.u.cpl.tag =
-                    { rx_cpl_hdr.tag_h, rx_cpl_hdr.tag_m, rx_cpl_hdr.tag_l };
-                rx_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_hdr.comp_id;
-                rx_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_hdr.byte_count;
-                rx_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_hdr.low_addr;
+                if (fim_enc_rx_hdr.t.user)
+                begin
+                    // DM encoded
+                    rx_to_pim.t.user[0].hdr.length = { '0, rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m };
+                    rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_dm_hdr.TC;
+                    rx_to_pim.t.user[0].hdr.u.cpl.tag = rx_cpl_dm_hdr.tag;
+                    { rx_to_pim.t.user[0].hdr.u.cpl.lower_addr_h, rx_to_pim.t.user[0].hdr.u.cpl.lower_addr } =
+                        { '0, rx_cpl_dm_hdr.low_addr_h, rx_cpl_dm_hdr.low_addr_l };
+                    rx_to_pim.t.user[0].hdr.u.cpl.fc = rx_cpl_dm_hdr.FC;
+                    rx_to_pim.t.user[0].hdr.u.cpl.dm_encoded = 1'b1;
+                end
+                else
+                begin
+                    // PU encoded
+                    rx_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
+                    rx_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_pu_hdr.req_id;
+                    rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_pu_hdr.TC;
+                    rx_to_pim.t.user[0].hdr.u.cpl.tag =
+                        { rx_cpl_pu_hdr.tag_h, rx_cpl_pu_hdr.tag_m, rx_cpl_pu_hdr.tag_l };
+                    rx_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_pu_hdr.comp_id;
+                    rx_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_pu_hdr.byte_count;
+                    rx_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_pu_hdr.low_addr;
+                    // The PIM only generates dword aligned reads, so the check for
+                    // the last packet is easy.
+                    rx_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_pu_hdr.byte_count[11:2] == rx_cpl_pu_hdr.length);
+                end
             end
             else
             begin
@@ -428,6 +547,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
     end
 
     // synthesis translate_off
+    wire [13:0] rx_cpl_dm_hdr_length =
+        { rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m, rx_cpl_dm_hdr.length_l };
+
     always_ff @(posedge rx_to_pim.clk)
     begin
         if (rx_to_pim.reset_n && rx_to_pim.tvalid && rx_to_pim.tready)
@@ -435,8 +557,12 @@ module ofs_plat_host_chan_@group@_fim_gasket
             if (rx_to_pim_invalid_cmd)
                 $fatal(2, "Unexpected TLP RX header to PIM!");
 
-            if (fim_enc_rx_sop && fim_enc_rx_hdr.t.user)
-                $fatal(2, "Data Mover encoded TLP RX headers not supported by PIM!");
+            if (fim_enc_rx_sop && fim_enc_rx_hdr.t.user &&
+                pcie_ss_hdr_pkg::func_is_completion(rx_fmttype) &&
+                (rx_cpl_dm_hdr_length <= 8))
+            begin
+                $fatal(2, "Data Mover encoded TLP RX headers for short reads not supported by PIM!");
+            end
         end
     end
     // synthesis translate_on
@@ -456,14 +582,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
         // replicate the data unconditionally.
         if (fim_enc_rx_sop && pcie_ss_hdr_pkg::func_is_completion(rx_fmttype))
         begin
-            if (rx_cpl_hdr.length == 1)
+            if (rx_cpl_pu_hdr.length == 1)
             begin
                 for (int i = 1; i < $bits(rx_to_pim.t.data[0]) / 32; i = i + 1)
                 begin
                     rx_to_pim.t.data[0][i*32 +: 32] = fim_enc_rx_data.t.data.payload[31:0];
                 end
             end
-            else if (rx_cpl_hdr.length == 2)
+            else if (rx_cpl_pu_hdr.length == 2)
             begin
                 for (int i = 1; i < $bits(rx_to_pim.t.data[0]) / 64; i = i + 1)
                 begin
@@ -481,6 +607,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // Forward write completions generated by the FIM back to the AFU. Write completions
     // indicate the serialized commit point of writes on TX A relative to reads on TX B.
     //
+
+    // DM and PU fields needed in the write completion are in the same place. Either
+    // header type will work.
     pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_wr_cpl_pu_hdr;
     assign rx_wr_cpl_pu_hdr = to_fiu_tlp.afu_rx_b_st.t.data;
 

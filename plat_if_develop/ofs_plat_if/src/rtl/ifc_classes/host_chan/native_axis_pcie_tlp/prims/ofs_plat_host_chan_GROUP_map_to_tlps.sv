@@ -76,6 +76,8 @@
 module ofs_plat_host_chan_@group@_map_to_tlps
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu_tlp,
+    // Allow Data Mover encoding?
+    input  logic allow_dm_enc,
 
     // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
     ofs_plat_axi_stream_if.to_sink host_mmio_req,
@@ -159,6 +161,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     ofs_plat_host_chan_@group@_fim_gasket fim_gasket
        (
         .to_fiu_tlp,
+        .allow_dm_enc,
 
         // TX (AFU -> host)
         .tx_from_pim(to_fiu_tx_st_skid),
