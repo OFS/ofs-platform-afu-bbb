@@ -174,7 +174,7 @@ class ofs_template(object):
                 t = t.replace('@CONFIG_DEFS@',
                               self.__config_defs(s, c.upper() + g.upper()))
 
-            str = str + t
+            str += t
 
         return str
 
@@ -198,7 +198,7 @@ class ofs_template(object):
 '''.format(section, native_class_str)
 
         if (native_class_str != '' and section_prefix != 'DEFINE'):
-            str = str + '`define OFS_PLAT_PARAM_{0}_IS_{1} 1\n'.format(
+            str += '`define OFS_PLAT_PARAM_{0}_IS_{1} 1\n'.format(
                 section_prefix, native_class.upper())
 
         for opt in self.plat_cfg.options(section):
@@ -208,7 +208,7 @@ class ofs_template(object):
             elif (section_prefix == 'DEFINE'):
                 # Special case the macro definintion section.
                 # Don't apply the OFS_PLAT_PARAM prefix.
-                str = str + '`define {0} {1}\n'.format(
+                str += '`define {0} {1}\n'.format(
                     opt.upper(), self.plat_cfg.get(section, opt))
             else:
                 # Normal case
@@ -219,9 +219,15 @@ class ofs_template(object):
                     if (opt in ['import', 'native_class']):
                         val = '"{0}"'.format(val)
 
-                str = str + '`define OFS_PLAT_PARAM_{0}_{1} {2}\n'.format(
+                str += '`define OFS_PLAT_PARAM_{0}_{1} {2}\n'.format(
                     section_prefix,
                     opt.upper(), val)
+
+                # Expose gaskets as macros that can be tested with ifdef
+                if (opt == 'gasket'):
+                    str += '`define OFS_PLAT_PARAM_{0}_{1}_IS_{2}\n'.format(
+                        section_prefix,
+                        opt.upper(), val.upper())
 
         return str
 
