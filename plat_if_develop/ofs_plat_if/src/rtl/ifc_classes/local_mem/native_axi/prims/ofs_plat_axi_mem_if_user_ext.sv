@@ -170,7 +170,7 @@ module ofs_plat_axi_mem_if_user_ext
     always_comb
     begin
         // Most fields can just be wired together
-        mem_sink.awvalid = mem_source.awvalid;
+        mem_sink.awvalid = mem_source.awvalid && wr_fifo_notFull;
         mem_source.awready = mem_sink.awready && wr_fifo_notFull;
         `OFS_PLAT_AXI_MEM_IF_COPY_AW(mem_sink.aw, =, mem_source.aw);
         if (FORCE_USER_TO_ZERO) mem_sink.aw.user = '0;
@@ -190,7 +190,7 @@ module ofs_plat_axi_mem_if_user_ext
         mem_source.b.id = merged_wid;
 
 
-        mem_sink.arvalid = mem_source.arvalid;
+        mem_sink.arvalid = mem_source.arvalid && rd_fifo_notFull;
         mem_source.arready = mem_sink.arready && rd_fifo_notFull;
         `OFS_PLAT_AXI_MEM_IF_COPY_AR(mem_sink.ar, =, mem_source.ar);
         if (FORCE_USER_TO_ZERO) mem_sink.ar.user = '0;
