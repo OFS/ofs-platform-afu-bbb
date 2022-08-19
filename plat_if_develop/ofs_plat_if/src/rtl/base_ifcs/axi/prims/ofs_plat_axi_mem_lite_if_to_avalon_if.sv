@@ -73,6 +73,13 @@ module ofs_plat_axi_mem_lite_if_to_avalon_rdwr_if
     localparam BYTE_ENABLE_WIDTH = avmm_sink.DATA_N_BYTES;
     typedef logic [BYTE_ENABLE_WIDTH-1 : 0] t_byteenable;
 
+    // AXI interface used internally as a convenient way to recreate
+    // the data structures.
+    ofs_plat_axi_mem_lite_if
+      #(
+        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(axi_source)
+        )
+      axi_reg();
 
     // ====================================================================
     //
@@ -80,25 +87,48 @@ module ofs_plat_axi_mem_lite_if_to_avalon_rdwr_if
     //
     // ====================================================================
 
+    // Pass read requests through a FIFO. This is done because the AW
+    // pipeline has a FIFO and imposing the same delay on reads helps
+    // keep them ordered. (Not well, but at least not worse.)
+    localparam T_AR_WIDTH = axi_source.T_AR_WIDTH;
+
     // One read at a time to avoid dealing with flow control. We assume that
     // AXI lite is low bandwidth, such as a CSR bus.
     logic rd_not_busy;
     localparam METADATA_WIDTH = axi_source.USER_WIDTH + axi_source.RID_WIDTH;
     logic [METADATA_WIDTH-1 : 0] rd_preserved_metadata;
 
+    wire fwd_rd_req = !avmm_sink.rd_waitrequest && axi_reg.arvalid && rd_not_busy;
+
+    // Read address
+    ofs_plat_prim_fifo2
+      #(
+        .N_DATA_BITS(T_AR_WIDTH)
+        )
+      ar_fifo
+       (
+        .clk,
+        .reset_n,
+        .enq_data(axi_source.ar),
+        .enq_en(axi_source.arready && axi_source.arvalid),
+        .notFull(axi_source.arready),
+        .first(axi_reg.ar),
+        .deq_en(fwd_rd_req),
+        .notEmpty(axi_reg.arvalid)
+        );
+
     always_comb
     begin
         // Read request
-        axi_source.arready = !avmm_sink.rd_waitrequest && rd_not_busy;
-        avmm_sink.rd_read = axi_source.arvalid && rd_not_busy;
-        avmm_sink.rd_address = axi_source.ar.addr[AXI_ADDR_START_BIT +: ADDR_WIDTH];
+        avmm_sink.rd_read = axi_reg.arvalid && rd_not_busy;
+        avmm_sink.rd_address = axi_reg.ar.addr[AXI_ADDR_START_BIT +: ADDR_WIDTH];
         avmm_sink.rd_burstcount = 1;
         // Map AXI size and low address bits to an Avalon byte mask
         avmm_sink.rd_byteenable =
             BYTE_ENABLE_WIDTH'(
-                ofs_plat_axi_mem_pkg::beat_size_to_byte_mask(axi_source.ar.size) <<
-                axi_source.ar.addr[AXI_ADDR_START_BIT-1 : 0]);
-        avmm_sink.rd_user = { axi_source.ar.user, axi_source.ar.id };
+                ofs_plat_axi_mem_pkg::beat_size_to_byte_mask(axi_reg.ar.size) <<
+                axi_reg.ar.addr[AXI_ADDR_START_BIT-1 : 0]);
+        avmm_sink.rd_user = { axi_reg.ar.user, axi_reg.ar.id };
     end
 
     always_ff @(posedge clk)
@@ -109,11 +139,11 @@ module ofs_plat_axi_mem_lite_if_to_avalon_rdwr_if
             rd_not_busy <= 1'b1;
             axi_source.rvalid <= 1'b0;
         end
-        else if (axi_source.arvalid && axi_source.arready)
+        else if (axi_reg.arvalid && axi_reg.arready)
         begin
             // New read request
             rd_not_busy <= 1'b0;
-            rd_preserved_metadata <= { axi_source.ar.user, axi_source.ar.id };
+            rd_preserved_metadata <= { axi_reg.ar.user, axi_reg.ar.id };
         end
 
         // Read response. Register the response and wait for axi_source.rready.
@@ -161,27 +191,17 @@ module ofs_plat_axi_mem_lite_if_to_avalon_rdwr_if
     localparam T_W_WIDTH = axi_source.T_W_WIDTH;
     localparam AVMM_USER_WIDTH = avmm_sink.USER_WIDTH;
 
-    // AXI interface used internally as a convenient way to recreate
-    // the data structures.
-    ofs_plat_axi_mem_lite_if
-      #(
-        `OFS_PLAT_AXI_MEM_LITE_IF_REPLICATE_PARAMS(axi_source)
-        )
-      axi_reg();
-
     // Protocol components mostly not used -- just using as a container
     assign axi_reg.awready = 1'b0;
     assign axi_reg.wready = 1'b0;
     assign axi_reg.bvalid = 1'b0;
     assign axi_reg.bready = 1'b0;
-    assign axi_reg.arvalid = 1'b0;
     assign axi_reg.arready = 1'b0;
     assign axi_reg.rvalid = 1'b0;
     assign axi_reg.rready = 1'b0;
 
-    logic fwd_wr_req;
-    assign fwd_wr_req = !avmm_sink.wr_waitrequest &&
-                        axi_reg.awvalid && axi_reg.wvalid;
+    wire fwd_wr_req = !avmm_sink.wr_waitrequest &&
+                      axi_reg.awvalid && axi_reg.wvalid;
 
     // Write address
     ofs_plat_prim_fifo2
