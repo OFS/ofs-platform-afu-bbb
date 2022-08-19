@@ -48,7 +48,7 @@ module map_fim_emif_axi_mm_to_local_mem
     ofs_plat_axi_mem_if.to_source_clk afu_mem_bank
     );
 
-    logic mb_rst_n = 1'b0;
+    bit mb_rst_n = 1'b0;
     always @(posedge fim_mem_bank.clk)
     begin
       mb_rst_n <= fim_mem_bank.rst_n;

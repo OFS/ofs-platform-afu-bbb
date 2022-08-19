@@ -61,7 +61,8 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
    (
     // All streams are expected to share the same clock and reset
     input  logic clk,
-    input  logic reset_n,
+    // Force 'x to 0
+    input  bit   reset_n,
 
     // FIM interfaces
     pcie_ss_axis_if.source pcie_ss_tx_a_st,
