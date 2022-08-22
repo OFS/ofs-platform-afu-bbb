@@ -37,9 +37,6 @@ import fnmatch
 from distutils import dir_util, file_util, text_file
 
 from platlib.ofs_plat_cfg import ofs_plat_cfg
-from platlib.emit_src_cfg import emit_src_cfg
-from platlib.ofs_template import ofs_template
-import platlib.gen_ofs_class_if as ofsc
 
 
 def errorExit(msg):
@@ -51,8 +48,17 @@ def parse_args():
     """Parse command line arguments."""
 
     msg = """
-Given an input .ini configuration file, gen_ofs_plat_if constructs an
-ofs_plat_if tree that is tailored to the target platform.
+Given an input .ini configuration file, gen_ofs_plat_json constructs a
+JSON file that describes the PIM interfaces available on a specific
+platform. The generated JSON file describing the platform was more important
+in older versions of the PIM, in which an AFU's JSON file described exactly
+which interfaces are required and the afu_platform_config script from the
+OPAE SDK generated RTL. The current PIM simply expects a single ofs_plat_afu
+class in the platform-description JSON, leaving interface mapping to RTL
+macros and parameters.
+
+This leaves the majority of the tables emitted by this module important
+only for legacy support.
 """
 
     import argparse
