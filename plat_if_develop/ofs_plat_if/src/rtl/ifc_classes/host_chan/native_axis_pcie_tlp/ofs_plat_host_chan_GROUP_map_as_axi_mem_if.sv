@@ -62,7 +62,8 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // build wide MMIO read channels.
     ofs_plat_axi_mem_lite_if.to_sink mmio_wo_sink,
 
-    // Allow Data Mover TLP encoding?
+    // Allow Data Mover TLP encoding? This must be in the to_fiu_tlp
+    // clock domain.
     input  logic allow_dm_enc
     );
 

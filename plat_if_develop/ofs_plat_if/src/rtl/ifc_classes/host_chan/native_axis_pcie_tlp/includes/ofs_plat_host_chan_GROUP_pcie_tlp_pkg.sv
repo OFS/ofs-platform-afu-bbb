@@ -84,6 +84,16 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
         ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_AFU_INTERRUPTS;
     typedef logic [$clog2(NUM_AFU_INTERRUPTS)-1 : 0] t_interrupt_idx;
 
+    // Does the platform support PCIe atomics? The way this is computed isn't
+    // ideal and should be improved. For now, we know that atomics don't work
+    // on S10 and assume the PCIe SS supports them everywhere else.
+    localparam ATOMICS_SUPPORTED =
+`ifdef PLATFORM_FPGA_FAMILY_S10
+        0;
+`else
+        1;
+`endif
+
     // Tags, reduced from the TLP's maximum size to the FIM-enforced maximum
     typedef logic [$clog2(MAX_OUTSTANDING_DMA_RD_REQS)-1 : 0] t_dma_rd_tag;
     typedef logic [$clog2(MAX_OUTSTANDING_MMIO_RD_REQS)-1 : 0] t_mmio_rd_tag;
