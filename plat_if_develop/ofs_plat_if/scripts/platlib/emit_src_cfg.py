@@ -44,6 +44,7 @@ scripts."""
 import os
 import sys
 import re
+import hashlib
 
 
 class emit_src_cfg(object):
@@ -94,10 +95,18 @@ class emit_src_cfg(object):
 
         # Generate a list of all files in the tree
         self.all_files = []
+        f_hashes = set()
         # Each e[0] is a directory and e[2] a list of files in the directory
         for e in self.tree:
             for fn in e[2]:
-                self.all_files.append(os.path.join(e[0], fn))
+                # Sometimes the same file appears twice, for example from
+                # Platform Designer. This can cause simulators to raise errors.
+                # Compute the hash of every file to eliminate duplicates.
+                fp = os.path.join(e[0], fn)
+                sha256 = self.__get_file_sha256(fp)
+                if sha256 not in f_hashes:
+                    f_hashes.add(sha256)
+                    self.all_files.append(fp)
 
         # Sort packages in dependence order. Simulators and Quartus expect
         # to encounter packages in order.
@@ -107,6 +116,18 @@ class emit_src_cfg(object):
         """Return a list of directories that contain header files."""
 
         return [e[0] for e in self.tree if self.__has_includes(e[2])]
+
+    def __get_file_sha256(self, fpath):
+        """Return the SHA-256 of the file at fpath."""
+        h = hashlib.sha256()
+        with open(fpath, 'rb') as file:
+            while True:
+                c = file.read(h.block_size)
+                if not c:
+                    break
+                h.update(c)
+
+        return h.hexdigest()
 
     def __has_includes(self, fnames):
         for fn in fnames:
