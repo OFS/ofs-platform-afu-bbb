@@ -64,7 +64,11 @@ module ofs_plat_host_chan_mmio_wr_data_comb
         if (n_bytes <= 4)
             d_out = {16{d_in[31:0]}};
         else if (n_bytes <= 8)
-            d_out = {8{d_in[63:0]}};
+            // Special case for an 8 byte write to an address that is aligned
+            // only to 4 bytes. Technically, this is not supported, but there
+            // are some errant tests that do this. We don't waste area
+            // on any sizes larger than 8 bytes -- just this case.
+            d_out = byte_addr[2] ? {16{d_in[31:0]}} : {8{d_in[63:0]}};
         else if (n_bytes <= 16)
             d_out = {4{d_in[127:0]}};
         else if (n_bytes <= 32)
