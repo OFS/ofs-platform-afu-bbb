@@ -101,7 +101,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_axi_lite
     // Writes send the commit on B immediately. There is no response to the host
     // anyway, so delaying the B response has no semantic value.
     wire pending_wr_req = axi_mmio_if.awvalid && axi_mmio_if.wvalid && axi_mmio_if.bready;
-    logic arb_grant_wr, arb_grand_rd;
+    logic arb_grant_wr, arb_grant_rd;
 
     ofs_plat_prim_arb_rr
       #(
