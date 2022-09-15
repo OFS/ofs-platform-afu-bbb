@@ -107,7 +107,13 @@ module afu
         if (mmio512_if.wvalid && mmio512_if.wready)
         begin
             mmio512_reg.wvalid <= 1'b1;
-            mmio512_reg.w <= mmio512_if.w;
+            mmio512_reg.w.user <= mmio512_if.w.user;
+            mmio512_reg.w.strb <= mmio512_if.w.strb;
+            for (int i = 0; i < 64; i = i + 1)
+            begin
+                if (mmio512_if.w.strb[i])
+                    mmio512_reg.w.data[i*8 +: 8] <= mmio512_if.w.data[i*8 +: 8];
+            end
         end
 
         // Clear valid bits to indicate write complete and ready to
@@ -194,7 +200,9 @@ module afu
         { 32'h0,  // reserved
           16'(`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ),
           2'h3,   // 512 bit read/write bus
-          10'h0,  // reserved
+          9'h0,  // reserved
+          // Will the AFU consume a 512 bit MMIO write?
+          1'(ofs_plat_host_chan_pkg::MMIO_512_WRITE_SUPPORTED),
           4'h1    // AXI MMIO interfaces
           };
 
@@ -213,7 +221,7 @@ module afu
             12'h010: mmio512_if.r.data <= 512'(afu_status_reg);
 
             // 64 bit write state. (Behave as though the interace is 64 bit data.)
-            12'h020: mmio512_if.r.data <= mmio512_reg.w.data;
+            12'h020: mmio512_if.r.data <= mmio512_reg.w.data[64 * mmio512_reg.aw.addr[5:3] +: 64];
             12'h03?: mmio512_if.r.data <= { '0,
                                             64'(mmio512_reg.w.strb[8 * mmio512_reg.aw.addr[5:3] +: 8]),
                                             64'(mmio512_reg.aw.addr) };

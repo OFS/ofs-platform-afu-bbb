@@ -55,6 +55,45 @@ module ase_emul_host_chan_native_axis_pcie_tlp
     pcie_ss_axis_if afu_axi_rx_a_if[NUM_PORTS-1:0](port_clk, port_rst_n);
     pcie_ss_axis_if afu_axi_rx_b_if[NUM_PORTS-1:0](port_clk, port_rst_n);
 
+
+    // CSR clock, used when MMIO is mapped to an AXI-Lite bus by the PCIe SS,
+    // is slow.
+    localparam CSR_CLK_DELAY = 4527;   // Avoid clean alignment with pClk
+    logic csr_clk = 1'b0;
+    initial
+    begin : csr_clk_proc
+        forever
+        begin
+            #(CSR_CLK_DELAY);
+            csr_clk = ~csr_clk;
+        end
+    end
+
+    // Only power on reset is expected. Function-level reset comes on pClk.
+    logic csr_rst_n = 1'b0;
+    initial
+    begin : csr_rst_proc
+        forever
+        begin
+            #(CSR_CLK_DELAY * 20);
+            csr_rst_n = 1'b1;
+        end
+    end
+
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+    // Per-port AXI-Lite interface for CSRs. Emulated for FIMs that enable
+    // the feature in the PCIe SS.
+    ofs_fim_axi_lite_if
+      #(
+        .AWADDR_WIDTH(ofs_fim_cfg_pkg::MMIO_ADDR_WIDTH),
+        .ARADDR_WIDTH(ofs_fim_cfg_pkg::MMIO_ADDR_WIDTH),
+        .WDATA_WIDTH(ofs_fim_cfg_pkg::MMIO_DATA_WIDTH),
+        .RDATA_WIDTH(ofs_fim_cfg_pkg::MMIO_DATA_WIDTH)
+        )
+      afu_csr_axi_lite_if[NUM_PORTS-1:0](csr_clk, csr_rst_n);
+`endif
+
+
     // Emulate the PCIe SS
     ase_emul_pcie_ss_axis_tlp
       #(
@@ -64,6 +103,10 @@ module ase_emul_host_chan_native_axis_pcie_tlp
        (
         .clk,
         .rst_n,
+
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+        .afu_csr_axi_lite_if,
+`endif
         .afu_axi_tx_a_if,
         .afu_axi_tx_b_if,
         .afu_axi_rx_a_if,
@@ -92,6 +135,9 @@ module ase_emul_host_chan_native_axis_pcie_tlp
                 .clk(clocks.ports[p].pClk.clk),
                 .reset_n(clocks.ports[p].pClk.reset_n),
 
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+                .afu_csr_axi_lite_if(afu_csr_axi_lite_if[p]),
+`endif
                 .pcie_ss_tx_a_st(afu_axi_tx_a_if[p]),
                 .pcie_ss_tx_b_st(afu_axi_tx_b_if[p]),
                 .pcie_ss_rx_a_st(afu_axi_rx_a_if[p]),

@@ -56,6 +56,7 @@ module ofs_plat_host_chan_mmio_wr_data_comb
     // just truncate the result and synthesis will drop the unused part.
     function automatic logic [511:0] replicate_chunks(
         logic [11:0] n_bytes,
+        logic [63:0] byte_addr,
         logic [511:0] d_in
         );
 
@@ -80,7 +81,7 @@ module ofs_plat_host_chan_mmio_wr_data_comb
     endfunction // mmio_replicate_chunks
 
     // Replicate small write data across the entire data width
-    assign payload_out = t_payload'(replicate_chunks(byte_count,
+    assign payload_out = t_payload'(replicate_chunks(byte_count, byte_addr,
                                                      { '0, payload_in }));
 
     // First stage of byte mask generation: generate a DWORD-level mask

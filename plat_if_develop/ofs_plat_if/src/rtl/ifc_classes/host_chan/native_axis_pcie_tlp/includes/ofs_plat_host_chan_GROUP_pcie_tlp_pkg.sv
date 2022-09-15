@@ -94,6 +94,13 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
         1;
 `endif
 
+    // PCIe SS maps MMIO CSR traffic to AXI-Lite?
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+    localparam MMIO_ON_AXI_L_FROM_FIM = 1;
+`else
+    localparam MMIO_ON_AXI_L_FROM_FIM = 0;
+`endif
+
     // Tags, reduced from the TLP's maximum size to the FIM-enforced maximum
     typedef logic [$clog2(MAX_OUTSTANDING_DMA_RD_REQS)-1 : 0] t_dma_rd_tag;
     typedef logic [$clog2(MAX_OUTSTANDING_MMIO_RD_REQS)-1 : 0] t_mmio_rd_tag;

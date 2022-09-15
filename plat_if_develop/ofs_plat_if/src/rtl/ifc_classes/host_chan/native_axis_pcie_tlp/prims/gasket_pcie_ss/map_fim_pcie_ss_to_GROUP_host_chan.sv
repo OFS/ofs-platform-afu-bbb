@@ -65,6 +65,10 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     input  bit   reset_n,
 
     // FIM interfaces
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+    // CSRs, when mapped to AXI-Lite by the PCIe SS
+    ofs_fim_axi_lite_if.sink afu_csr_axi_lite_if,
+`endif
     pcie_ss_axis_if.source pcie_ss_tx_a_st,
     pcie_ss_axis_if.source pcie_ss_tx_b_st,
     pcie_ss_axis_if.sink pcie_ss_rx_a_st,
@@ -82,6 +86,7 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     assign port.vf_num = VF_NUM;
     assign port.vf_active = VF_ACTIVE;
 
+    // Use the legacy module to map the streaming channels
     map_fim_pcie_ss_to_host_chan map
        (
         .pcie_ss_tx_a_st,
@@ -95,6 +100,83 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
         .pim_rx_b_st(port.afu_rx_b_st)
         );
 
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+
+    //
+    // CSR AXI-Lite interface is provided by the PCIe SS. Map the FIM's version
+    // of the interface to the PIM's generic AXI-Lite interface.
+    //
+
+    wire csr_clk = afu_csr_axi_lite_if.clk;
+    logic csr_rst_n = 1'b0;
+
+    // Apply soft reset to the CSR interface
+    logic csr_flr_rst_n;
+    ofs_plat_prim_clock_crossing_reset flr_to_csr
+       (
+        .clk_src(clk),
+        .clk_dst(csr_clk),
+        .reset_in(reset_n),
+        .reset_out(csr_flr_rst_n)
+        );
+
+    always @(posedge csr_clk)
+    begin
+        csr_rst_n <= afu_csr_axi_lite_if.rst_n && csr_flr_rst_n;
+    end
+
+    assign port.afu_csr_if.clk = csr_clk;
+    assign port.afu_csr_if.reset_n = csr_rst_n;
+
+    assign port.afu_csr_if.awvalid = afu_csr_axi_lite_if.awvalid;
+    assign afu_csr_axi_lite_if.awready = port.afu_csr_if.awready;
+    always_comb
+    begin
+        port.afu_csr_if.aw = '0;
+        port.afu_csr_if.aw.addr = afu_csr_axi_lite_if.awaddr;
+        port.afu_csr_if.aw.prot = afu_csr_axi_lite_if.awprot;
+    end
+
+    assign port.afu_csr_if.wvalid = afu_csr_axi_lite_if.wvalid;
+    assign afu_csr_axi_lite_if.wready = port.afu_csr_if.wready;
+    always_comb
+    begin
+        port.afu_csr_if.w = '0;
+        port.afu_csr_if.w.data = afu_csr_axi_lite_if.wdata;
+        port.afu_csr_if.w.strb = afu_csr_axi_lite_if.wstrb;
+    end
+
+    assign port.afu_csr_if.bready = afu_csr_axi_lite_if.bready;
+    assign afu_csr_axi_lite_if.bvalid = port.afu_csr_if.bvalid;
+    assign afu_csr_axi_lite_if.bresp = port.afu_csr_if.b.resp;
+
+    assign port.afu_csr_if.arvalid = afu_csr_axi_lite_if.arvalid;
+    assign afu_csr_axi_lite_if.arready = port.afu_csr_if.arready;
+    always_comb
+    begin
+        port.afu_csr_if.ar = '0;
+        port.afu_csr_if.ar.addr = afu_csr_axi_lite_if.araddr;
+        port.afu_csr_if.ar.prot = afu_csr_axi_lite_if.arprot;
+    end
+
+    assign port.afu_csr_if.rready = afu_csr_axi_lite_if.rready;
+    assign afu_csr_axi_lite_if.rvalid = port.afu_csr_if.rvalid;
+    assign afu_csr_axi_lite_if.rdata = port.afu_csr_if.r.data;
+    assign afu_csr_axi_lite_if.rresp = port.afu_csr_if.r.resp;
+
+`else
+
+    // The platform doesn't split MMIO traffic into a separate interface.
+    assign port.afu_csr_if.clk = 1'b0;
+    assign port.afu_csr_if.reset_n = 1'b0;
+    assign port.afu_csr_if.awvalid = 1'b0;
+    assign port.afu_csr_if.wvalid = 1'b0;
+    assign port.afu_csr_if.bready = 1'b1;
+    assign port.afu_csr_if.arvalid = 1'b0;
+    assign port.afu_csr_if.rready = 1'b1;
+
+`endif
+
 endmodule // map_fim_pcie_ss_to_pim_@group@_host_chan
 
 
@@ -102,6 +184,8 @@ endmodule // map_fim_pcie_ss_to_pim_@group@_host_chan
 // Mapping of individual FIM to PIM ports. Older code outside the PIM may
 // also use this interface, so it is preserved here instead of being merged
 // into the module above.
+//
+// Only the streaming ports are managed by this legacy interface.
 //
 module map_fim_pcie_ss_to_@group@_host_chan
    (

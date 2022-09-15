@@ -177,7 +177,8 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         );
 
     logic rx_cpl_handler_ready;
-    assign from_fiu_rx_st.tready = rx_cpl_handler_ready && host_mmio_req.tready;
+    logic rx_mmio_handler_ready;
+    assign from_fiu_rx_st.tready = rx_cpl_handler_ready && rx_mmio_handler_ready;
 
 
     // ====================================================================
@@ -186,80 +187,58 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     //
     // ====================================================================
 
-    // PCIe message type
-    ofs_plat_pcie_tlp_hdr_pkg::t_ofs_plat_pcie_hdr rx_mem_req_hdr, rx_mem_req_hdr_q;
-    assign rx_mem_req_hdr = from_fiu_rx_st.t.user[0].hdr;
-
-    assign host_mmio_req.tvalid =
-        from_fiu_rx_st.tvalid && from_fiu_rx_st.tready &&
-        !from_fiu_rx_st.t.user[0].poison &&
-        from_fiu_rx_st.t.user[0].sop &&
-        ofs_plat_pcie_func_is_mem_req(rx_mem_req_hdr.fmttype);
-
-    // Incoming MMIO read request from host?
-    logic rx_st_is_mmio_rd_req, rx_st_is_mmio_rd_req_q;
-    assign rx_st_is_mmio_rd_req =
-        from_fiu_rx_st.tvalid && from_fiu_rx_st.tready &&
-        !from_fiu_rx_st.t.user[0].poison &&
-        from_fiu_rx_st.t.user[0].sop &&
-        ofs_plat_pcie_func_is_mrd_req(rx_mem_req_hdr.fmttype);
-
-    always_comb
-    begin
-        host_mmio_req.t.data.tag = t_mmio_rd_tag'(rx_mem_req_hdr.u.mem_req.tag);
-        host_mmio_req.t.data.addr = rx_mem_req_hdr.u.mem_req.addr;
-        host_mmio_req.t.data.byte_count = { rx_mem_req_hdr.length, 2'b0 };
-        host_mmio_req.t.data.is_write = ofs_plat_pcie_func_is_mwr_req(rx_mem_req_hdr.fmttype);
-
-        host_mmio_req.t.data.payload = from_fiu_rx_st.t.data;
-    end
-
-    always_ff @(posedge clk)
-    begin
-        rx_mem_req_hdr_q <= rx_mem_req_hdr;
-        rx_st_is_mmio_rd_req_q <= rx_st_is_mmio_rd_req;
-    end
-
-    // Internal tracking of read requests from the host that arrive as a
-    // TLP stream. This is extra metadata that isn't forwarded to the AFU,
-    // indexed by the original tag, that will be needed in order to generate
-    // the TLP completion.
-    //
-    // rx_mmio_from_host.tready is always true.
-    `AXI_STREAM_INSTANCE(rx_mmio_from_host, t_gen_tx_mmio_host_req);
-
-    assign rx_mmio_from_host.tvalid = rx_st_is_mmio_rd_req_q;
-    assign rx_mmio_from_host.t.data.tag = rx_mem_req_hdr_q.u.mem_req.tag;
-    assign rx_mmio_from_host.t.data.lower_addr = rx_mem_req_hdr_q.u.mem_req.addr[6:0];
-    assign rx_mmio_from_host.t.data.byte_count = { rx_mem_req_hdr_q.length, 2'b0 };
-    assign rx_mmio_from_host.t.data.requester_id = rx_mem_req_hdr_q.u.mem_req.requester_id;
-    assign rx_mmio_from_host.t.data.tc = rx_mem_req_hdr_q.u.mem_req.tc;
-
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TLP_STREAM_INSTANCE(tx_mmio_tlps);
 
-    ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_rsp_to_tlps
-       (
-        .clk,
-        .reset_n,
+    // MMIO (CSRs) may be connected either to an AXI-Lite interface from
+    // the FIM or they might use normal TLP encoding. Pick one.
+    generate
+        if (ofs_plat_host_chan_@group@_pcie_tlp_pkg::MMIO_ON_AXI_L_FROM_FIM)
+        begin : mmio_axi
+            // MMIO uses a separate AXI-Lite interface
+            ofs_plat_host_chan_@group@_gen_mmio_axi_lite mmio_to_axi
+               (
+                .clk,
+                .reset_n,
 
-        .rx_mmio(rx_mmio_from_host),
-        .host_mmio_rsp,
-        .tx_mmio(tx_mmio_tlps),
+                .fiu_mmio_if(to_fiu_tlp.afu_csr_if),
+                .host_mmio_req,
+                .host_mmio_rsp,
 
-        .error()
-        );
+                .error()
+                );
 
-    // synthesis translate_off
-    always_ff @(negedge clk)
-    begin
-        if (reset_n)
-        begin
-            assert(rx_mmio_from_host.tready) else
-                $fatal(2, " ** ERROR ** %m: rx_mmio_from_host.tready expected always ready!");
+            // TLP interface not used for MMIO in this configuration
+            assign tx_mmio_tlps.tvalid = 1'b0;
+            assign tx_mmio_tlps.t = '0;
+
+            assign rx_mmio_handler_ready = 1'b1;
         end
-    end
-    // synthesis translate_on
+        else
+        begin : mmio_tlp
+            // MMIO uses the main TLP stream
+
+            // TLP RX stream from host, copied for forwarding to the MMIO handler.
+            // port for read requests. Otherwise, tied off.
+            `AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_rx_st);
+            assign from_fiu_mmio_rx_st.tvalid = from_fiu_rx_st.tvalid && from_fiu_rx_st.tready;
+            assign rx_mmio_handler_ready = from_fiu_mmio_rx_st.tready;
+            assign from_fiu_mmio_rx_st.t = from_fiu_rx_st.t;
+
+            ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_to_tlps
+               (
+                .clk,
+                .reset_n,
+
+                .from_fiu_rx_st(from_fiu_mmio_rx_st),
+                .host_mmio_req,
+                .host_mmio_rsp,
+                .tx_mmio(tx_mmio_tlps),
+
+                .error()
+                );
+        end
+    endgenerate
 
 
     // ====================================================================

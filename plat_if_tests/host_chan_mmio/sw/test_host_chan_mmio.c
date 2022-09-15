@@ -60,6 +60,9 @@ static char *mmio_if_type[] =
     NULL
 };
 
+static bool mmio512_wr_supported;
+
+
 // ========================================================================
 //
 //  MMIO access functions. The "word_idx" address space is always relative
@@ -113,8 +116,19 @@ mmio_write512(fpga_handle accel_handle, uint64_t word_idx, const uint64_t *data)
 {
     fpga_result r;
 
-    r = fpgaWriteMMIO512(accel_handle, 0, 8 * sizeof(data) * word_idx, data);
-    assert(FPGA_OK == r);
+    if (mmio512_wr_supported)
+    {
+        r = fpgaWriteMMIO512(accel_handle, 0, 8 * sizeof(data) * word_idx, data);
+        assert(FPGA_OK == r);
+    }
+    else
+    {
+        // Emulate 512 bit writes with multiple 64 bit writes.
+        for (int i = 7; i >= 0; i -= 1)
+        {
+            mmio_write64(accel_handle, 8 * word_idx + i, data[i]);
+        }
+    }
 }
 
 
@@ -132,11 +146,13 @@ testHostChanMMIO(
     // Read the AFU status
     uint64_t afu_status = mmio_read64(accel_handle, 0x10);
     uint32_t rd_bus_width = ((afu_status >> 14) & 3) ? 512 : 64;
+    mmio512_wr_supported = (afu_status >> 4) & 1;
     if ((afu_status & 0xf) < 2)
         printf("AFU MMIO interface: %s\n", mmio_if_type[afu_status & 0xf]);
     else
         printf("AFU MMIO interface: unknown\n");
     printf("AFU MMIO read bus width: %d bits\n", rd_bus_width);
+    printf("512 bit MMIO write supported: %s\n", (mmio512_wr_supported ? "yes" : "no"));
     printf("AFU pClk frequency: %ld MHz\n", (afu_status >> 16) & 0xffff);
 
     // Simple test of 32 bit reads, making sure the proper half of 64 bit
@@ -176,15 +192,7 @@ testHostChanMMIO(
         goto error;
     }
 
-    // High half of 64 bit register 7 as a 32 bit request
-    idx32 = mmio_read32(accel_handle, 15);
-    if (idx32 != (7 << 3) + 4)
-    {
-        printf("  FAIL idx 7: expected 0x%x, found 0x%x\n", (7 << 3) + 4, idx32);
-        goto error;
-    }
-
-    printf("  PASS - 5 tests\n");
+    printf("  PASS - 4 tests\n");
 
     // Values to write
     uint64_t data[8];
@@ -380,8 +388,8 @@ testHostChanMMIO(
     mmio_write512(accel_handle, idx, data);
 
     // Read back the result recorded by the hardware's 64 bit MMIO space.
-    // It should not change.
-    if ((rd_bus_width <= 64) &&
+    // It should not change, unless 512 bit writes are emulated using 64 bit writes.
+    if (mmio512_wr_supported && (rd_bus_width <= 64) &&
         ((prev_rd_v != mmio_read64(accel_handle, 0x20)) ||
          (prev_rd_idx != mmio_read64(accel_handle, 0x30)) ||
          (prev_rd_mask != mmio_read64(accel_handle, 0x31))))
@@ -413,8 +421,8 @@ testHostChanMMIO(
         goto error;
     }
 
-    // Is the mask correct?
-    if (m512_mask != ~(uint64_t)0)
+    // Is the mask correct? Skip if 512 bit writes are unavailable
+    if (mmio512_wr_supported && (m512_mask != ~(uint64_t)0))
     {
         printf("  FAIL - idx 0x%lx, 512-bit space, incorrect mask: 0x%lx\n",
                idx, m512_mask);

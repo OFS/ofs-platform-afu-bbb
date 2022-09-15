@@ -100,7 +100,10 @@ module afu
     //
     // ====================================================================
 
+    logic [511:0] wr_data_bits_512;
     t_mmio_value wr_data_512;
+    assign wr_data_512 = wr_data_bits_512;
+
     logic [63:0] wr_mask_512;
     logic [mmio512_if.ADDR_WIDTH_-1 : 0] wr_addr_512;
     // Byte offset within the 512 bit entry
@@ -110,7 +113,11 @@ module afu
     begin
         if (mmio512_if.write && ! mmio512_if.waitrequest)
         begin
-            wr_data_512 <= mmio512_if.writedata;
+            for (int i = 0; i < 64; i = i + 1)
+            begin
+                if (mmio512_if.byteenable[i])
+                    wr_data_bits_512[i*8 +: 8] <= mmio512_if.writedata[i*8 +: 8];
+            end
             wr_mask_512 <= mmio512_if.byteenable;
             wr_addr_512 <= mmio512_if.address;
             wr_byte_idx_512 <= mask_to_idx(64, mmio512_if.byteenable);
@@ -118,7 +125,7 @@ module afu
 
         if (!reset_n)
         begin
-            wr_data_512 <= ~'0;
+            wr_data_bits_512 <= ~'0;
             wr_mask_512 <= ~'0;
             wr_addr_512 <= ~'0;
             wr_byte_idx_512 <= ~'0;
@@ -181,7 +188,9 @@ module afu
         { 32'h0,  // reserved
           16'(`OFS_PLAT_PARAM_CLOCKS_PCLK_FREQ),
           2'h3,   // 512 bit read/write bus
-          10'h0,  // reserved
+          9'h0,  // reserved
+          // Will the AFU consume a 512 bit MMIO write?
+          1'(ofs_plat_host_chan_pkg::MMIO_512_WRITE_SUPPORTED),
           4'h0    // Avalon MMIO interfaces
           };
 
@@ -198,7 +207,7 @@ module afu
             9'h002: mmio512_if.readdata <= 512'(afu_status_reg);
 
             // 64 bit write state. (Behave as though the interace is 64 bit data.)
-            9'h004: mmio512_if.readdata <= wr_data_512;
+            9'h004: mmio512_if.readdata <= wr_data_512[wr_byte_idx_512[5:3]];
             9'h006: mmio512_if.readdata <= { '0,
                                              64'(wr_mask_512[8 * wr_byte_idx_512[5:3] +: 8]),
                                              64'({ wr_addr_512, wr_byte_idx_512 }) };

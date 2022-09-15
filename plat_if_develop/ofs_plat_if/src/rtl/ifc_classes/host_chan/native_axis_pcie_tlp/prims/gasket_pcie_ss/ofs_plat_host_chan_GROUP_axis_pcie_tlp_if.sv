@@ -54,6 +54,22 @@ interface ofs_plat_host_chan_@group@_axis_pcie_tlp_if
     pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num;
     logic vf_active;
 
+    // AXI-Lite CSR interface. On some platforms, the PCIe SS is configured to
+    // map MMIO reads and writes to an AXI-Lite interface that is separate from
+    // the TLP stream. The afu_csr_if is defined on all platforms to simplify
+    // conditional compilation, but is tied off on platforms where MMIO remains
+    // on the TLP streams.
+    ofs_plat_axi_mem_lite_if
+      #(
+        .LOG_CLASS(LOG_CLASS),
+        `HOST_CHAN_@GROUP@_AXI_MMIO_PARAMS_DEFAULT
+        )
+      afu_csr_if();
+
+    // Only set the instance_number for afu_csr_if. The clock may be different
+    // and will be set when initialized.
+    assign afu_csr_if.instance_number = instance_number;
+
     // AFU -> FIM TLP TX stream
     ofs_plat_axi_stream_if
       #(

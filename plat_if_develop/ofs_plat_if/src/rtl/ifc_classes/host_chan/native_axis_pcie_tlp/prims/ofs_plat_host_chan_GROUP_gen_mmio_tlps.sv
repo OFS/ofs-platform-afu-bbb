@@ -41,8 +41,11 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     input  logic clk,
     input  logic reset_n,
 
-    // Track requests from host (always ready) (t_gen_tx_mmio_host_req)
-    ofs_plat_axi_stream_if.to_source rx_mmio,
+    // Input RX TLP stream from host
+    ofs_plat_axi_stream_if.to_source from_fiu_rx_st,
+
+    // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
+    ofs_plat_axi_stream_if.to_sink host_mmio_req,
 
     // AFU responses (t_gen_tx_mmio_afu_rsp)
     ofs_plat_axi_stream_if.to_source host_mmio_rsp,
@@ -57,20 +60,68 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
     import ofs_plat_pcie_tlp_hdr_pkg::*;
 
-    assign rx_mmio.tready = 1'b1;
     assign error = 1'b0;
 
     //
-    // Record active read requests. Some details will be needed when
-    // generating the response.
+    // Translation incoming TLP requests to requests for the AFU on host_mmio_req
     //
+    ofs_plat_pcie_tlp_hdr_pkg::t_ofs_plat_pcie_hdr rx_mem_req_hdr, rx_mem_req_hdr_q;
+    assign rx_mem_req_hdr = from_fiu_rx_st.t.user[0].hdr;
+
+    assign from_fiu_rx_st.tready = host_mmio_req.tready;
+    assign host_mmio_req.tvalid =
+        from_fiu_rx_st.tvalid &&
+        !from_fiu_rx_st.t.user[0].poison &&
+        from_fiu_rx_st.t.user[0].sop &&
+        ofs_plat_pcie_func_is_mem_req(rx_mem_req_hdr.fmttype);
+
+    // Incoming MMIO read request from host?
+    logic rx_st_is_mmio_rd_req, rx_st_is_mmio_rd_req_q;
+    assign rx_st_is_mmio_rd_req =
+        from_fiu_rx_st.tvalid &&
+        !from_fiu_rx_st.t.user[0].poison &&
+        from_fiu_rx_st.t.user[0].sop &&
+        ofs_plat_pcie_func_is_mrd_req(rx_mem_req_hdr.fmttype);
+
+    always_comb
+    begin
+        host_mmio_req.t.data.tag = t_mmio_rd_tag'(rx_mem_req_hdr.u.mem_req.tag);
+        host_mmio_req.t.data.addr = rx_mem_req_hdr.u.mem_req.addr;
+        host_mmio_req.t.data.byte_count = { rx_mem_req_hdr.length, 2'b0 };
+        host_mmio_req.t.data.is_write = ofs_plat_pcie_func_is_mwr_req(rx_mem_req_hdr.fmttype);
+
+        host_mmio_req.t.data.payload = from_fiu_rx_st.t.data;
+    end
+
+    always_ff @(posedge clk)
+    begin
+        rx_mem_req_hdr_q <= rx_mem_req_hdr;
+        rx_st_is_mmio_rd_req_q <= rx_st_is_mmio_rd_req;
+    end
+
+    // Internal tracking of read requests from the host that arrive as a
+    // TLP stream. This is extra metadata that isn't forwarded to the AFU,
+    // indexed by the original tag, that will be needed in order to generate
+    // the TLP completion.
+    //
+
+    logic rx_mmio_valid;
+    t_gen_tx_mmio_host_req rx_mmio;
+
+    assign rx_mmio_valid = rx_st_is_mmio_rd_req_q;
+    assign rx_mmio.tag = rx_mem_req_hdr_q.u.mem_req.tag;
+    assign rx_mmio.lower_addr = rx_mem_req_hdr_q.u.mem_req.addr[6:0];
+    assign rx_mmio.byte_count = { rx_mem_req_hdr_q.length, 2'b0 };
+    assign rx_mmio.requester_id = rx_mem_req_hdr_q.u.mem_req.requester_id;
+    assign rx_mmio.tc = rx_mem_req_hdr_q.u.mem_req.tc;
+
     logic rx_mmio_valid_q;
     t_gen_tx_mmio_host_req rx_mmio_q;
 
     always_ff @(posedge clk)
     begin
-        rx_mmio_valid_q <= rx_mmio.tvalid;
-        rx_mmio_q <= rx_mmio.t.data;
+        rx_mmio_valid_q <= rx_mmio_valid;
+        rx_mmio_q <= rx_mmio;
     end
 
     // Meta-data for an AFU response (original request details)
@@ -208,11 +259,11 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
 
     always_ff @(posedge clk)
     begin
-        if (rx_mmio.tvalid)
+        if (rx_mmio_valid)
         begin
-            tag_is_active[rx_mmio.t.data.tag] <= 1'b1;
-            assert (tag_is_active[rx_mmio.t.data.tag] == 1'b0) else
-                $fatal(2, "** ERROR ** %m: Duplicate MMIO read tag 0x%x", rx_mmio.t.data.tag);
+            tag_is_active[rx_mmio.tag] <= 1'b1;
+            assert (tag_is_active[rx_mmio.tag] == 1'b0) else
+                $fatal(2, "** ERROR ** %m: Duplicate MMIO read tag 0x%x", rx_mmio.tag);
         end
 
         if (host_mmio_rsp.tvalid && host_mmio_rsp.tready)

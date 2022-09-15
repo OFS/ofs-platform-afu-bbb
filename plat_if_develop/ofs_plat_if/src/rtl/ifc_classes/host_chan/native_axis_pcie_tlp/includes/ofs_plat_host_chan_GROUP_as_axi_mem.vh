@@ -55,4 +55,7 @@
     .DATA_WIDTH(BUSWIDTH), \
     .RID_WIDTH($clog2(BUSWIDTH / 32) + $bits(ofs_plat_host_chan_@group@_pcie_tlp_pkg::t_mmio_rd_tag))
 
+`define HOST_CHAN_@GROUP@_AXI_MMIO_PARAMS_DEFAULT \
+    `HOST_CHAN_@GROUP@_AXI_MMIO_PARAMS(ofs_plat_host_chan_@group@_pkg::MMIO_DATA_WIDTH)
+
 `endif // __OFS_PLAT_HOST_CHAN_@GROUP@_AS_AXI_MEM_RDWR__

@@ -31,6 +31,8 @@
 `ifndef __OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_IF__
 `define __OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_IF__
 
+`include "ofs_pcie_ss_cfg.vh"
+
 // Macro indicates which gasket is active
 `define OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_GASKET_PCIE_SS 1
 
