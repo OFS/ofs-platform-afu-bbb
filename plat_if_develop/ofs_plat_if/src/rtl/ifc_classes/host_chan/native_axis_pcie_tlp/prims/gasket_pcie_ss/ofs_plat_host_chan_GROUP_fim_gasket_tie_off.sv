@@ -39,6 +39,152 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if port
     );
 
+    //
+    // Pick the appropriate tie off, either MMIO on AXI-Lite or on the TLP stream.
+    //
+    generate
+        if (ofs_plat_host_chan_@group@_pcie_tlp_pkg::MMIO_ON_AXI_L_FROM_FIM)
+        begin : mmio_axi
+            ofs_plat_host_chan_@group@_fim_gasket_tie_off_axi tieoff
+               (
+                .port
+                );
+        end
+        else
+        begin : mmio_tlp
+            ofs_plat_host_chan_@group@_fim_gasket_tie_off_tlp tieoff
+               (
+                .port
+                );
+        end
+    endgenerate
+
+endmodule // ofs_plat_host_chan_@group@_fim_gasket_tie_off
+
+
+//
+// Tie off implementation when CSRs are on AXI-Lite. This version is trivial.
+//
+module ofs_plat_host_chan_@group@_fim_gasket_tie_off_axi
+   (
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if port
+    );
+
+    wire csr_clk = port.afu_csr_if.clk;
+    wire csr_reset_n = port.afu_csr_if.reset_n;
+
+
+    // Generate read response.
+    logic arvalid;
+    logic [6:0] araddr_low;
+
+    assign port.afu_csr_if.arready = !arvalid;
+    assign port.afu_csr_if.rvalid = arvalid;
+
+    always_ff @(posedge csr_clk)
+    begin
+        if (port.afu_csr_if.rvalid && port.afu_csr_if.rready)
+        begin
+            arvalid <= 1'b0;
+        end
+
+        if (port.afu_csr_if.arvalid && port.afu_csr_if.arready)
+        begin
+            arvalid <= 1'b1;
+            araddr_low <= port.afu_csr_if.ar.addr[6:0];
+        end
+
+        if (!csr_reset_n)
+        begin
+            arvalid <= 1'b0;
+        end
+    end
+
+    // Read response data
+    always_comb
+    begin
+        port.afu_csr_if.r = '0;
+
+        case (araddr_low[6:3])
+            // AFU DFH
+            4'h0:
+                begin
+                    port.afu_csr_if.r.data[63:0] = '0;
+                    // Feature type is AFU
+                    port.afu_csr_if.r.data[63:60] = 4'h1;
+                    // End of list
+                    port.afu_csr_if.r.data[40] = 1'b1;
+                end
+
+            // AFU_ID_L
+            4'h1:
+                begin
+                    port.afu_csr_if.r.data[63:0] = '0;
+                    port.afu_csr_if.r.data[63:56] = { '0, port.vf_num };
+                    port.afu_csr_if.r.data[52] = port.vf_active;
+                    port.afu_csr_if.r.data[51:48] = { '0, port.pf_num };
+                end
+
+            // AFU_ID_H
+            4'h2: port.afu_csr_if.r.data[63:0] = 64'hd15ab1ed00000000;
+
+            default: port.afu_csr_if.r.data[63:0] = '0;
+        endcase
+    end
+
+
+    // Generate write response. Write data is dropped.
+    logic awvalid, wvalid;
+    assign port.afu_csr_if.awready = !awvalid;
+    assign port.afu_csr_if.wready = !wvalid;
+
+    assign port.afu_csr_if.bvalid = awvalid && wvalid;
+    assign port.afu_csr_if.b = '0;
+
+    always_ff @(posedge csr_clk)
+    begin
+        if (port.afu_csr_if.bvalid && port.afu_csr_if.bready)
+        begin
+            awvalid <= 1'b0;
+            wvalid <= 1'b0;
+        end
+
+        if (port.afu_csr_if.awvalid && port.afu_csr_if.awready)
+        begin
+            awvalid <= 1'b1;
+        end
+
+        if (port.afu_csr_if.wvalid && port.afu_csr_if.wready)
+        begin
+            wvalid <= 1'b1;
+        end
+
+        if (!csr_reset_n)
+        begin
+            awvalid <= 1'b0;
+            wvalid <= 1'b0;
+        end
+    end
+
+    // Unused inerfaces
+    assign port.afu_rx_a_st.tready = 1'b1;
+    assign port.afu_rx_b_st.tready = 1'b1;
+    assign port.afu_tx_a_st.tvalid = 1'b0;
+    assign port.afu_tx_a_st.t = '0;
+    assign port.afu_tx_b_st.tvalid = 1'b0;
+    assign port.afu_tx_b_st.t = '0;
+
+endmodule // ofs_plat_host_chan_@group@_fim_gasket_tie_off_tlp
+
+
+//
+// Tie off implementation when CSRs are on the PCIe TLP stream.
+//
+module ofs_plat_host_chan_@group@_fim_gasket_tie_off_tlp
+   (
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if port
+    );
+
     import ofs_plat_host_chan_@group@_fim_gasket_pkg::*;
 
     //
@@ -217,5 +363,12 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
 
     assign port.afu_tx_b_st.tvalid = 1'b0;
     assign port.afu_tx_b_st.t = '0;
+    assign port.afu_csr_if.awready = 1'b1;
+    assign port.afu_csr_if.wready = 1'b1;
+    assign port.afu_csr_if.bvalid = 1'b0;
+    assign port.afu_csr_if.b = '0;
+    assign port.afu_csr_if.arready = 1'b1;
+    assign port.afu_csr_if.rvalid = 1'b0;
+    assign port.afu_csr_if.r = '0;
 
-endmodule // ofs_plat_host_chan_@group@_fim_gasket_tie_off
+endmodule // ofs_plat_host_chan_@group@_fim_gasket_tie_off_tlp

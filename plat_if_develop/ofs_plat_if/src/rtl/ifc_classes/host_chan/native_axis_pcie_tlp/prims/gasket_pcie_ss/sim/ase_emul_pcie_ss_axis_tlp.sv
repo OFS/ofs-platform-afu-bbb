@@ -48,6 +48,10 @@ module ase_emul_pcie_ss_axis_tlp
     input  logic clk,
     input  logic rst_n,
 
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+    ofs_fim_axi_lite_if.source afu_csr_axi_lite_if[NUM_PORTS-1:0],
+`endif
+
     pcie_ss_axis_if.sink afu_axi_tx_a_if[NUM_PORTS-1:0],
     pcie_ss_axis_if.sink afu_axi_tx_b_if[NUM_PORTS-1:0],
     pcie_ss_axis_if.source afu_axi_rx_a_if[NUM_PORTS-1:0],
@@ -55,6 +59,74 @@ module ase_emul_pcie_ss_axis_tlp
     output logic softReset,
     output t_ofs_plat_power_state pwrState
     );
+
+    pcie_ss_axis_if tlp_tx_a_if[NUM_PORTS-1:0](clk, rst_n);;
+    pcie_ss_axis_if tlp_rx_a_if[NUM_PORTS-1:0](clk, rst_n);;
+
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+    static int log_fd = $fopen("log_ase_mmio_axi_lite.tsv", "w");
+    initial
+    begin : log
+        afu_csr_axi_lite_if[0].debug_header(log_fd);
+        $fwrite(log_fd, "\n");
+    end
+`endif
+
+    //
+    // Is the PCIe SS configured to separate MMIO (CSR) traffic into a separate
+    // AXI-Lite interface? If so, emulate that separation here. It isn't the
+    // place the FIM would separate the traffic, since we are on the AFU side
+    // of the PF/VF MUX. AFUs can't tell the difference.
+    //
+    generate
+        for (genvar p = 0; p < NUM_PORTS; p = p + 1)
+        begin : mmio
+`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
+            ase_emul_pcie_ss_split_mmio
+              #(
+                // For now, pick an arbitrary VF encoding
+                .PF_NUM(0),
+                .VF_NUM(p),
+                .VF_ACTIVE(1)
+                )
+              split_mmio
+               (
+                .afu_csr_axi_lite_if(afu_csr_axi_lite_if[p]),
+                .afu_tlp_tx_if(afu_axi_tx_a_if[p]),
+                .fim_tlp_tx_if(tlp_tx_a_if[p]),
+                .afu_tlp_rx_if(afu_axi_rx_a_if[p]),
+                .fim_tlp_rx_if(tlp_rx_a_if[p])
+                );
+
+            always @(posedge afu_csr_axi_lite_if[p].clk)
+            begin
+                if (afu_csr_axi_lite_if[p].rst_n)
+                begin
+                    afu_csr_axi_lite_if[p].debug_log(log_fd, $sformatf("afu_csr_axi_lite_if[%0d]: ", p));
+                end
+            end
+`else
+            // Keep MMIO in the TLP stream
+            always_comb
+            begin
+                afu_axi_tx_a_if[p].tready = tlp_tx_a_if[p].tready;
+                tlp_tx_a_if[p].tvalid = afu_axi_tx_a_if[p].tvalid;
+                tlp_tx_a_if[p].tlast = afu_axi_tx_a_if[p].tlast;
+                tlp_tx_a_if[p].tuser_vendor = afu_axi_tx_a_if[p].tuser_vendor;
+                tlp_tx_a_if[p].tdata = afu_axi_tx_a_if[p].tdata;
+                tlp_tx_a_if[p].tkeep = afu_axi_tx_a_if[p].tkeep;
+
+                tlp_rx_a_if[p].tready = afu_axi_rx_a_if[p].tready;
+                afu_axi_rx_a_if[p].tvalid = tlp_rx_a_if[p].tvalid;
+                afu_axi_rx_a_if[p].tlast = tlp_rx_a_if[p].tlast;
+                afu_axi_rx_a_if[p].tuser_vendor = tlp_rx_a_if[p].tuser_vendor;
+                afu_axi_rx_a_if[p].tdata = tlp_rx_a_if[p].tdata;
+                afu_axi_rx_a_if[p].tkeep = tlp_rx_a_if[p].tkeep;
+            end
+`endif
+        end
+    endgenerate
+
 
     //
     // The ASE PCIe SS DPI-C emulator is a single TX/RX TLP pair. Use variants of the
@@ -78,8 +150,8 @@ module ase_emul_pcie_ss_axis_tlp
 
         .ho2mx_rx_port(fim_axi_rx_a_if),
         .mx2ho_tx_port(fim_axi_tx_ab_if[0]),
-        .mx2fn_rx_port(afu_axi_rx_a_if),
-        .fn2mx_tx_port(afu_axi_tx_a_if),
+        .mx2fn_rx_port(tlp_rx_a_if),
+        .fn2mx_tx_port(tlp_tx_a_if),
 
         .out_fifo_err(),
         .out_fifo_perr()
