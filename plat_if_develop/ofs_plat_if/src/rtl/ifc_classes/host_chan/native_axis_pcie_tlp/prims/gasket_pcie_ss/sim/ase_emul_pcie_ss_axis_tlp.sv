@@ -138,43 +138,81 @@ module ase_emul_pcie_ss_axis_tlp
     pcie_ss_axis_if fim_axi_rx_a_if(clk, rst_n);
     pcie_ss_axis_if fim_axi_rx_b_if(clk, rst_n);
 
-    ase_emul_pf_vf_mux_top
-      #(
-        .MUX_NAME("A"),
-        .N(NUM_PORTS)
-        )
-      pf_vf_mux_a
-       (
-        .clk,
-        .rst_n,
+    generate
+        if (NUM_PORTS > 1) begin : mux
+            ase_emul_pf_vf_mux_top
+              #(
+                .MUX_NAME("A"),
+                .N(NUM_PORTS)
+                )
+              pf_vf_mux_a
+               (
+                .clk,
+                .rst_n,
 
-        .ho2mx_rx_port(fim_axi_rx_a_if),
-        .mx2ho_tx_port(fim_axi_tx_ab_if[0]),
-        .mx2fn_rx_port(tlp_rx_a_if),
-        .fn2mx_tx_port(tlp_tx_a_if),
+                .ho2mx_rx_port(fim_axi_rx_a_if),
+                .mx2ho_tx_port(fim_axi_tx_ab_if[0]),
+                .mx2fn_rx_port(tlp_rx_a_if),
+                .fn2mx_tx_port(tlp_tx_a_if),
 
-        .out_fifo_err(),
-        .out_fifo_perr()
-        );
+                .out_fifo_err(),
+                .out_fifo_perr()
+                );
 
-    ase_emul_pf_vf_mux_top
-      #(
-        .MUX_NAME("B"),
-        .N(NUM_PORTS)
-        )
-      pf_vf_mux_b
-       (
-        .clk,
-        .rst_n,
+            ase_emul_pf_vf_mux_top
+              #(
+                .MUX_NAME("B"),
+                .N(NUM_PORTS)
+                )
+              pf_vf_mux_b
+               (
+                .clk,
+                .rst_n,
 
-        .ho2mx_rx_port(fim_axi_rx_b_if),
-        .mx2ho_tx_port(fim_axi_tx_ab_if[1]),
-        .mx2fn_rx_port(afu_axi_rx_b_if),
-        .fn2mx_tx_port(afu_axi_tx_b_if),
+                .ho2mx_rx_port(fim_axi_rx_b_if),
+                .mx2ho_tx_port(fim_axi_tx_ab_if[1]),
+                .mx2fn_rx_port(afu_axi_rx_b_if),
+                .fn2mx_tx_port(afu_axi_tx_b_if),
 
-        .out_fifo_err(),
-        .out_fifo_perr()
-        );
+                .out_fifo_err(),
+                .out_fifo_perr()
+                );
+        end
+        else
+        begin : nm
+            // No MUX needed when there is just one port
+            always_comb
+            begin
+                tlp_tx_a_if[0].tready = fim_axi_tx_ab_if[0].tready;
+                fim_axi_tx_ab_if[0].tvalid = tlp_tx_a_if[0].tvalid;
+                fim_axi_tx_ab_if[0].tlast = tlp_tx_a_if[0].tlast;
+                fim_axi_tx_ab_if[0].tuser_vendor = tlp_tx_a_if[0].tuser_vendor;
+                fim_axi_tx_ab_if[0].tdata = tlp_tx_a_if[0].tdata;
+                fim_axi_tx_ab_if[0].tkeep = tlp_tx_a_if[0].tkeep;
+
+                fim_axi_rx_a_if.tready = tlp_rx_a_if[0].tready;
+                tlp_rx_a_if[0].tvalid = fim_axi_rx_a_if.tvalid;
+                tlp_rx_a_if[0].tlast = fim_axi_rx_a_if.tlast;
+                tlp_rx_a_if[0].tuser_vendor = fim_axi_rx_a_if.tuser_vendor;
+                tlp_rx_a_if[0].tdata = fim_axi_rx_a_if.tdata;
+                tlp_rx_a_if[0].tkeep = fim_axi_rx_a_if.tkeep;
+
+                afu_axi_tx_b_if[0].tready = fim_axi_tx_ab_if[1].tready;
+                fim_axi_tx_ab_if[1].tvalid = afu_axi_tx_b_if[0].tvalid;
+                fim_axi_tx_ab_if[1].tlast = afu_axi_tx_b_if[0].tlast;
+                fim_axi_tx_ab_if[1].tuser_vendor = afu_axi_tx_b_if[0].tuser_vendor;
+                fim_axi_tx_ab_if[1].tdata = afu_axi_tx_b_if[0].tdata;
+                fim_axi_tx_ab_if[1].tkeep = afu_axi_tx_b_if[0].tkeep;
+
+                fim_axi_rx_b_if.tready = afu_axi_rx_b_if[0].tready;
+                afu_axi_rx_b_if[0].tvalid = fim_axi_rx_b_if.tvalid;
+                afu_axi_rx_b_if[0].tlast = fim_axi_rx_b_if.tlast;
+                afu_axi_rx_b_if[0].tuser_vendor = fim_axi_rx_b_if.tuser_vendor;
+                afu_axi_rx_b_if[0].tdata = fim_axi_rx_b_if.tdata;
+                afu_axi_rx_b_if[0].tkeep = fim_axi_rx_b_if.tkeep;
+            end
+        end
+    endgenerate
 
 
     //
@@ -213,6 +251,43 @@ module ase_emul_pcie_ss_axis_tlp
         .commit(fim_axi_rx_b_if)
         );
 
+
+    // Force virtual active flag in RX stream from host. ASE supports only one function,
+    // currently setting PF0. Transform it to VF0 here in order to support the standard
+    // afu_main() collection.
+    pcie_ss_axis_if fim_axi_rx_a_va(clk, rst_n);
+    logic fim_axi_rx_a_va_sop;
+    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t fim_axi_rx_a_va_hdr;
+
+    // Force VF active
+    always_comb
+    begin
+        fim_axi_rx_a_va.tready = fim_axi_rx_a_if.tready;
+        fim_axi_rx_a_if.tvalid = fim_axi_rx_a_va.tvalid;
+        fim_axi_rx_a_if.tlast = fim_axi_rx_a_va.tlast;
+        fim_axi_rx_a_if.tuser_vendor = fim_axi_rx_a_va.tuser_vendor;
+        fim_axi_rx_a_if.tkeep = fim_axi_rx_a_va.tkeep;
+
+        fim_axi_rx_a_va_hdr = pcie_ss_hdr_pkg::PCIe_PUCplHdr_t'(fim_axi_rx_a_va.tdata);
+        fim_axi_rx_a_va_hdr.vf_active = 1'b1;
+
+        fim_axi_rx_a_if.tdata = fim_axi_rx_a_va.tdata;
+        if (fim_axi_rx_a_va_sop)
+        begin
+            fim_axi_rx_a_if.tdata[0 +: $bits(fim_axi_rx_a_va_hdr)] = fim_axi_rx_a_va_hdr;
+        end
+    end
+
+    // Track SOP to find RX A headers
+    always_ff @(posedge clk)
+    begin
+        if (fim_axi_rx_a_va.tvalid && fim_axi_rx_a_va.tready)
+            fim_axi_rx_a_va_sop <= fim_axi_rx_a_va.tlast;
+        if (!rst_n)
+            fim_axi_rx_a_va_sop <= 1'b1;
+    end
+
+    // Instantiate the core ASE PCIe SS emulator
     ase_pcie_ss_emulator pcie_ss_emulator
        (
         .pClk(clk),
@@ -220,7 +295,7 @@ module ase_emul_pcie_ss_axis_tlp
         .pck_cp2af_pwrState(pwrState),
         .pck_cp2af_error(),
 
-        .pcie_rx_if(fim_axi_rx_a_if),
+        .pcie_rx_if(fim_axi_rx_a_va),
         .pcie_tx_if(fim_axi_tx_if)
         );
 
