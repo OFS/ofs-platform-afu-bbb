@@ -38,6 +38,7 @@
 // avoid module name conflicts.
 //
 
+`include "platform.vh"
 `include "ofs_plat_if.vh"
 
 module ase_emul_pcie_ss_axis_tlp
@@ -63,12 +64,22 @@ module ase_emul_pcie_ss_axis_tlp
     pcie_ss_axis_if tlp_tx_a_if[NUM_PORTS-1:0](clk, rst_n);;
     pcie_ss_axis_if tlp_rx_a_if[NUM_PORTS-1:0](clk, rst_n);;
 
+`ifdef ASE_MAJOR_VERSION
+    localparam ASE_VERSION = `ASE_MAJOR_VERSION;
+`else
+    localparam ASE_VERSION = 1;
+`endif
+
 `ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
     static int log_fd = $fopen("log_ase_mmio_axi_lite.tsv", "w");
     initial
     begin : log
         afu_csr_axi_lite_if[0].debug_header(log_fd);
         $fwrite(log_fd, "\n");
+
+        assert (ASE_VERSION >= 2) else
+          $fatal(2, "ASE version %0d is too old to support AXI-Lite CSRs and ordered completions. Please update opae-sim.",
+                 ASE_VERSION);
     end
 `endif
 
@@ -252,41 +263,6 @@ module ase_emul_pcie_ss_axis_tlp
         );
 
 
-    // Force virtual active flag in RX stream from host. ASE supports only one function,
-    // currently setting PF0. Transform it to VF0 here in order to support the standard
-    // afu_main() collection.
-    pcie_ss_axis_if fim_axi_rx_a_va(clk, rst_n);
-    logic fim_axi_rx_a_va_sop;
-    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t fim_axi_rx_a_va_hdr;
-
-    // Force VF active
-    always_comb
-    begin
-        fim_axi_rx_a_va.tready = fim_axi_rx_a_if.tready;
-        fim_axi_rx_a_if.tvalid = fim_axi_rx_a_va.tvalid;
-        fim_axi_rx_a_if.tlast = fim_axi_rx_a_va.tlast;
-        fim_axi_rx_a_if.tuser_vendor = fim_axi_rx_a_va.tuser_vendor;
-        fim_axi_rx_a_if.tkeep = fim_axi_rx_a_va.tkeep;
-
-        fim_axi_rx_a_va_hdr = pcie_ss_hdr_pkg::PCIe_PUCplHdr_t'(fim_axi_rx_a_va.tdata);
-        fim_axi_rx_a_va_hdr.vf_active = 1'b1;
-
-        fim_axi_rx_a_if.tdata = fim_axi_rx_a_va.tdata;
-        if (fim_axi_rx_a_va_sop)
-        begin
-            fim_axi_rx_a_if.tdata[0 +: $bits(fim_axi_rx_a_va_hdr)] = fim_axi_rx_a_va_hdr;
-        end
-    end
-
-    // Track SOP to find RX A headers
-    always_ff @(posedge clk)
-    begin
-        if (fim_axi_rx_a_va.tvalid && fim_axi_rx_a_va.tready)
-            fim_axi_rx_a_va_sop <= fim_axi_rx_a_va.tlast;
-        if (!rst_n)
-            fim_axi_rx_a_va_sop <= 1'b1;
-    end
-
     // Instantiate the core ASE PCIe SS emulator
     ase_pcie_ss_emulator pcie_ss_emulator
        (
@@ -295,7 +271,7 @@ module ase_emul_pcie_ss_axis_tlp
         .pck_cp2af_pwrState(pwrState),
         .pck_cp2af_error(),
 
-        .pcie_rx_if(fim_axi_rx_a_va),
+        .pcie_rx_if(fim_axi_rx_a_if),
         .pcie_tx_if(fim_axi_tx_if)
         );
 
