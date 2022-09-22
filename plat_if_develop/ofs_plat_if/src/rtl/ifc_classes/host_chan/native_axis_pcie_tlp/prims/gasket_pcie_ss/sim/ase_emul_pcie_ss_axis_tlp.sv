@@ -38,7 +38,6 @@
 // avoid module name conflicts.
 //
 
-`include "platform.vh"
 `include "ofs_plat_if.vh"
 
 module ase_emul_pcie_ss_axis_tlp
