@@ -39,11 +39,11 @@
 // separate clock.
 //
 
+`include "ofs_plat_if.vh"
+
 // Only compile when OFS_PCIE_SS_PLAT_AXI_L_MMIO is defined, since older
 // platforms may not have ofs_fim_axi_lite_if defined.
 `ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
-
-`include "ofs_plat_if.vh"
 
 module ase_emul_pcie_ss_split_mmio
   #(
