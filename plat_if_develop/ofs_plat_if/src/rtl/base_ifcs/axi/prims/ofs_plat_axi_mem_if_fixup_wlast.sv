@@ -65,15 +65,6 @@ module ofs_plat_axi_mem_if_fixup_wlast
         mem_sink.bready = mem_source.bready;
     end
 
-    // Instantiate an interface to use the properly sized internal structs
-    // as registers.
-    ofs_plat_axi_mem_if
-      #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_source),
-        .DISABLE_CHECKER(1)
-        )
-        mem_source_reg();
-
     logic aw_avail, w_avail;
     logic w_sop, w_eop;
     logic [mem_source.T_W_WIDTH-1 : 0] w;
@@ -90,41 +81,41 @@ module ofs_plat_axi_mem_if_fixup_wlast
                               (!w_sop || (aw_avail && mem_sink.awready));
 
     // Write address
-    ofs_plat_prim_fifo2
+    ofs_plat_prim_ready_enable_reg
       #(
         .N_DATA_BITS(mem_source.T_AW_WIDTH)
         )
-      aw_fifo
+      aw_reg
        (
         .clk,
         .reset_n,
 
-        .enq_data(mem_source.aw),
-        .enq_en(mem_source.awvalid && mem_source.awready),
-        .notFull(mem_source.awready),
+        .data_from_src(mem_source.aw),
+        .enable_from_src(mem_source.awvalid && mem_source.awready),
+        .ready_to_src(mem_source.awready),
 
-        .first(mem_sink.aw),
-        .deq_en(mem_sink.awvalid),
-        .notEmpty(aw_avail)
+        .data_to_dst(mem_sink.aw),
+        .ready_from_dst(mem_sink.awvalid),
+        .enable_to_dst(aw_avail)
         );
 
     // Write data
-    ofs_plat_prim_fifo2
+    ofs_plat_prim_ready_enable_reg
       #(
         .N_DATA_BITS(mem_source.T_W_WIDTH)
         )
-      w_fifo
+      w_reg
        (
         .clk,
         .reset_n,
 
-        .enq_data(mem_source.w),
-        .enq_en(mem_source.wvalid && mem_source.wready),
-        .notFull(mem_source.wready),
+        .data_from_src(mem_source.w),
+        .enable_from_src(mem_source.wvalid && mem_source.wready),
+        .ready_to_src(mem_source.wready),
 
-        .first(w),
-        .deq_en(mem_sink.wvalid),
-        .notEmpty(w_avail)
+        .data_to_dst(w),
+        .ready_from_dst(mem_sink.wvalid),
+        .enable_to_dst(w_avail)
         );
 
 

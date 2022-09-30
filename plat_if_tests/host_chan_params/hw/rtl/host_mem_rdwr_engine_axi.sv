@@ -748,10 +748,12 @@ module host_mem_rdwr_engine_axi
 
     // New lines requested this cycle
     t_burst_cnt rd_new_req_lines;
-    assign rd_new_req_lines = (host_mem_if.arvalid && host_mem_if.arready) ?
+    wire rd_new_req_valid = host_mem_if.arvalid && host_mem_if.arready;
+    assign rd_new_req_lines = rd_new_req_valid ?
                               rd_req_burst_len : t_burst_cnt'(0);
     t_burst_cnt wr_new_req_lines;
-    assign wr_new_req_lines = (host_mem_if.awvalid && host_mem_if.awready) ?
+    wire wr_new_req_valid = host_mem_if.awvalid && host_mem_if.awready;
+    assign wr_new_req_lines = wr_new_req_valid ?
                               wr_req_burst_len : t_burst_cnt'(0);
     t_burst_cnt wr_new_resp_lines;
     assign wr_new_resp_lines = (host_mem_if.bvalid && host_mem_if.bready) ?
@@ -775,10 +777,21 @@ module host_mem_rdwr_engine_axi
     always_ff @(posedge clk)
     begin
         rd_cur_active_lines <= rd_cur_active_lines + rd_new_req_lines - incr_rd_resp_lines;
-        rd_line_quota_exceeded <= ((rd_cur_active_lines + rd_new_req_lines) > rd_max_active_lines);
+        // The following could be:
+        //   rd_line_quota_exceeded <= ((rd_cur_active_lines + rd_new_req_lines) > rd_max_active_lines);
+        // but that winds up on the critical timing path. Restructuring the comparison
+        // avoids the timing problem.
+        rd_line_quota_exceeded <=
+            rd_new_req_valid ? ((rd_cur_active_lines + rd_req_burst_len) > rd_max_active_lines) :
+                               (rd_cur_active_lines > rd_max_active_lines);
 
         wr_cur_active_lines <= wr_cur_active_lines + wr_new_req_lines - wr_new_resp_lines;
-        wr_line_quota_exceeded <= ((wr_cur_active_lines + wr_new_req_lines) > wr_max_active_lines);
+        // Like rd_line_quota_exceeded above, the following could be:
+        //   wr_line_quota_exceeded <= ((wr_cur_active_lines + wr_new_req_lines) > wr_max_active_lines);
+        // but is arranged for timing.
+        wr_line_quota_exceeded <=
+            wr_new_req_valid ? ((wr_cur_active_lines + wr_req_burst_len) > wr_max_active_lines) :
+                               (wr_cur_active_lines > wr_max_active_lines);
 
         if (rd_cur_active_lines > rd_measured_max_active_lines)
         begin

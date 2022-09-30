@@ -327,42 +327,23 @@ module ofs_plat_axi_mem_if_map_bursts_impl
 
     // Write data
     assign mem_source.wready = mem_sink.wready;
-
-    always_ff @(posedge clk)
+    assign mem_sink.wvalid = mem_source.wvalid;
+    always_comb
     begin
-        if (mem_sink.wready)
-        begin
-            mem_sink.wvalid <= mem_source.wvalid;
-            // Field-by-field copy (sizes changed)
-            `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink.w, <=, mem_source.w);
-        end
-
-        if (!reset_n)
-        begin
-            mem_sink.wvalid <= 1'b0;
-        end
+        // Field-by-field copy (sizes changed)
+        `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink.w, =, mem_source.w);
     end
 
     // Write responses
     assign mem_sink.bready = mem_source.bready;
-
-    always_ff @(posedge clk)
+    // Don't forward bursts generated here
+    assign mem_source.bvalid = mem_sink.bvalid && !mem_sink.b.user[UFLAG_NO_REPLY];
+    always_comb
     begin
-        if (mem_source.bready)
-        begin
-            // Don't forward bursts generated here
-            mem_source.bvalid <= mem_sink.bvalid &&
-                                 !mem_sink.b.user[UFLAG_NO_REPLY];
-
-            // Field-by-field copy (sizes changed)
-            `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_source.b, <=, mem_sink.b);
-        end
-
-        if (!reset_n)
-        begin
-            mem_source.bvalid <= 1'b0;
-        end
+        // Field-by-field copy (sizes changed)
+        `OFS_PLAT_AXI_MEM_IF_COPY_B(mem_source.b, =, mem_sink.b);
     end
+
 
     // synthesis translate_off
 

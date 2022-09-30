@@ -665,7 +665,8 @@ module host_mem_rdwr_engine_avalon
 
     // New lines requested this cycle
     t_burst_cnt rd_new_req_lines;
-    assign rd_new_req_lines = (host_mem_if.rd_read && !host_mem_if.rd_waitrequest) ?
+    wire rd_new_req_valid = host_mem_if.rd_read && !host_mem_if.rd_waitrequest;
+    assign rd_new_req_lines = rd_new_req_valid ?
                               rd_req_burst_len : t_burst_cnt'(0);
     t_burst_cnt wr_new_req_lines;
     assign wr_new_req_lines = t_burst_cnt'(host_mem_if.wr_write && !host_mem_if.wr_waitrequest);
@@ -691,10 +692,21 @@ module host_mem_rdwr_engine_avalon
     always_ff @(posedge clk)
     begin
         rd_cur_active_lines <= rd_cur_active_lines + rd_new_req_lines - host_mem_if.rd_readdatavalid;
-        rd_line_quota_exceeded <= ((rd_cur_active_lines + rd_new_req_lines) > rd_max_active_lines);
+        // The following could be:
+        //   rd_line_quota_exceeded <= ((rd_cur_active_lines + rd_new_req_lines) > rd_max_active_lines);
+        // but that winds up on the critical timing path. Restructuring the comparison
+        // avoids the timing problem.
+        rd_line_quota_exceeded <=
+            rd_new_req_valid ? ((rd_cur_active_lines + rd_req_burst_len) > rd_max_active_lines) :
+                               (rd_cur_active_lines > rd_max_active_lines);
 
         wr_cur_active_lines <= wr_cur_active_lines + wr_new_req_lines - wr_new_resp_lines;
-        wr_line_quota_exceeded <= ((wr_cur_active_lines + wr_new_req_lines) > wr_max_active_lines);
+        // Like rd_line_quota_exceeded above, the following could be:
+        //   wr_line_quota_exceeded <= ((wr_cur_active_lines + wr_new_req_lines) > wr_max_active_lines);
+        // but is arranged for timing. Note that wr_new_req_lines is limited to 0 or 1.
+        wr_line_quota_exceeded <=
+            wr_new_req_lines[0] ? ((wr_cur_active_lines + 1) > wr_max_active_lines) :
+                                  (wr_cur_active_lines > wr_max_active_lines);
 
         if (rd_cur_active_lines > rd_measured_max_active_lines)
         begin
