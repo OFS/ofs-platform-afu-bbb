@@ -160,7 +160,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_axi_lite
         .ADD_TIMING_REG_STAGES(0),
         .ADD_TIMING_READY_STAGES(0),
         .READY_FROM_ALMOST_FULL(0),
-        .N_ENTRIES(2),
+        .N_ENTRIES(4),
         .DATA_WIDTH($bits(host_mmio_req.t))
         )
       from_csr_clk
@@ -200,7 +200,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_axi_lite
         .ADD_TIMING_REG_STAGES(0),
         .ADD_TIMING_READY_STAGES(0),
         .READY_FROM_ALMOST_FULL(0),
-        .N_ENTRIES(2),
+        .N_ENTRIES(4),
         .DATA_WIDTH($bits(host_mmio_rsp.t))
         )
       to_csr_clk

@@ -58,6 +58,9 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // Number of channels in the FIM TLP interface
     localparam NUM_FIM_PCIE_TLP_CH = ofs_fim_if_pkg::FIM_PCIE_TLP_CH;
 
+    // The EA FIM does not reorder completions
+    localparam CPL_REORDER_EN = 0;
+
     // Data types in the FIM's AXI streams
     typedef ofs_fim_if_pkg::t_axis_pcie_tdata [NUM_FIM_PCIE_TLP_CH-1:0] t_ofs_fim_axis_pcie_tdata_vec;
     typedef ofs_fim_if_pkg::t_axis_pcie_tx_tuser [NUM_FIM_PCIE_TLP_CH-1:0] t_ofs_fim_axis_pcie_tx_tuser_vec;

@@ -102,6 +102,10 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
     // Cross to the FIU clock and add sort responses. The two are combined
     // because the clock crossing buffer can also be used for sorting.
     //
+    // Unlike the AXI variant, ROB insertion is unconditional. Even if
+    // responses are already sorted, Avalon has no back pressure on responses
+    // so requires full buffering when there is a clock crossing.
+    // 
     ofs_plat_avalon_mem_rdwr_if_async_rob
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),

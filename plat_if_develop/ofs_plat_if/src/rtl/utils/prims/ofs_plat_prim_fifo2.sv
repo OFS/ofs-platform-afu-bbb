@@ -35,7 +35,9 @@
 
 module ofs_plat_prim_fifo2
   #(
-    parameter N_DATA_BITS = 32
+    parameter N_DATA_BITS = 32,
+    // Wire enq directly to deq if FIFO is empty?
+    parameter BYPASS_FIFO = 0
     )
    (
     input  logic clk,
@@ -50,6 +52,46 @@ module ofs_plat_prim_fifo2
     output logic notEmpty
     );
 
+    logic f_enq_en;
+    logic f_deq_en;
+    logic f_notEmpty;
+    logic [N_DATA_BITS-1 : 0] f_first;
+
+    generate
+        if (BYPASS_FIFO == 0)
+        begin : nb
+            // Normal mode: no bypass
+            assign f_enq_en = enq_en;
+            assign f_deq_en = deq_en;
+            assign notEmpty = f_notEmpty;
+            assign first = f_first;
+        end
+        else
+        begin : b
+            // Bypass mode
+            always_comb
+            begin
+                if (f_notEmpty)
+                begin
+                    // FIFO already has data. No bypass.
+                    f_enq_en = enq_en;
+                    f_deq_en = deq_en;
+                    notEmpty = f_notEmpty;
+                    first = f_first;
+                end
+                else
+                begin
+                    // FIFO is empty. Forward enq_data to first and push new
+                    // data to the FIFO only if it isn't consumed immediately.
+                    f_enq_en = enq_en && !deq_en;
+                    f_deq_en = 1'b0;
+                    first = enq_data;
+                    notEmpty = enq_en;
+                end
+            end
+        end
+    endgenerate
+
     ofs_plat_prim_fifo2_peek
       #(
         .N_DATA_BITS(N_DATA_BITS)
@@ -60,12 +102,12 @@ module ofs_plat_prim_fifo2
         .reset_n,
 
         .enq_data,
-        .enq_en,
+        .enq_en(f_enq_en),
         .notFull,
 
-        .first,
-        .deq_en,
-        .notEmpty,
+        .first(f_first),
+        .deq_en(f_deq_en),
+        .notEmpty(f_notEmpty),
 
         .peek_valid(),
         .peek_value()

@@ -41,6 +41,13 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     // When non-zero the source and sink use different clocks.
     parameter ADD_CLOCK_CROSSING = 0,
 
+    // Sort responses? This is enabled by default because packets
+    // may be split due to alignment. Responses from split packets must
+    // be recombined in order to avoid violating AXI ordering rules.
+    // Some PCIe subsystems sort responses internally, making reordering
+    // here unnecessary.
+    parameter SORT_RESPONSES = 1,
+
     // Does the host memory port require natural alignment?
     parameter NATURAL_ALIGNMENT = 0,
 
@@ -123,47 +130,111 @@ module ofs_plat_map_axi_mem_if_to_host_mem
 
 
     //
-    // Protect the read and write response buffers from overflow by tracking
-    // buffer credits. The memory driver in the FIM has no flow control.
+    // If responses are already sorted then no reorder buffer is needed here.
     //
-    ofs_plat_axi_mem_if
-      #(
-        `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(axi_fiu_burst_if)
-        )
-      axi_fiu_credit_if();
+    generate
+        if (SORT_RESPONSES)
+        begin : s
+            //
+            // Protect the read and write response buffers from overflow by tracking
+            // buffer credits. The memory driver in the FIM has no flow control.
+            //
+            ofs_plat_axi_mem_if
+              #(
+                `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(axi_fiu_burst_if)
+                )
+              axi_fiu_credit_if();
 
-    assign axi_fiu_credit_if.clk = mem_source.clk;
-    assign axi_fiu_credit_if.reset_n = mem_source.reset_n;
-    assign axi_fiu_credit_if.instance_number = mem_sink.instance_number;
+            assign axi_fiu_credit_if.clk = mem_source.clk;
+            assign axi_fiu_credit_if.reset_n = mem_source.reset_n;
+            assign axi_fiu_credit_if.instance_number = mem_sink.instance_number;
 
-    ofs_plat_axi_mem_if_rsp_credits
-      #(
-        .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES),
-        .BLOCK_WRITE_WITH_READ(BLOCK_WRITE_WITH_READ)
-        )
-      rsp_credits
-       (
-        .mem_source(axi_fiu_burst_if),
-        .mem_sink(axi_fiu_credit_if)
-        );
+            ofs_plat_axi_mem_if_rsp_credits
+              #(
+                .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
+                .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES),
+                .BLOCK_WRITE_WITH_READ(BLOCK_WRITE_WITH_READ)
+                )
+              rsp_credits
+               (
+                .mem_source(axi_fiu_burst_if),
+                .mem_sink(axi_fiu_credit_if)
+                );
 
+            //
+            // Cross to the FIU clock and add sort responses. The two are combined
+            // because the clock crossing buffer can also be used for sorting.
+            //
+            ofs_plat_axi_mem_if_async_rob
+              #(
+                .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+                .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
+                .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
+                )
+              rob
+               (
+                .mem_source(axi_fiu_credit_if),
+                .mem_sink
+                );
+        end
+        else
+        begin : ns
+            //
+            // No sorting is required, but a clock crossing may be needed.
+            // In addition, AFU-side user fields and parts of the ID field not
+            // returned by the FIM must also be preserved.
+            //
+            ofs_plat_axi_mem_if
+              #(
+                `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(axi_fiu_burst_if)
+                )
+              axi_fiu_clk_if();
 
-    //
-    // Cross to the FIU clock and add sort responses. The two are combined
-    // because the clock crossing buffer can also be used for sorting.
-    //
-    ofs_plat_axi_mem_if_async_rob
-      #(
-        .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
-        .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-        .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
-        )
-      rob
-       (
-        .mem_source(axi_fiu_credit_if),
-        .mem_sink
-        );
+            assign axi_fiu_clk_if.clk = mem_sink.clk;
+            assign axi_fiu_clk_if.reset_n = mem_sink.reset_n;
+            assign axi_fiu_clk_if.instance_number = mem_sink.instance_number;
+
+            if (ADD_CLOCK_CROSSING)
+            begin
+                ofs_plat_axi_mem_if_async_shim
+                  #(
+                    .ADD_TIMING_REG_STAGES(1),
+                    .NUM_READ_CREDITS(16),
+                    .NUM_WRITE_CREDITS(16)
+                    )
+                  to_fiu_clk
+                   (
+                    .mem_source(axi_fiu_burst_if),
+                    .mem_sink(axi_fiu_clk_if)
+                    );
+            end
+            else
+            begin
+                ofs_plat_axi_mem_if_connect conn
+                   (
+                    .mem_source(axi_fiu_burst_if),
+                    .mem_sink(axi_fiu_clk_if)
+                    );
+            end
+
+            //
+            // Responses are already sorted. Just record the metadata (full ID
+            // and USER fields) that may not be preserved in completions.
+            //
+            ofs_plat_axi_mem_if_preserve_meta
+              #(
+                // There is one entry per packet, not per line, so limit
+                // the size of the tracking logic.
+                .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES > 512 ? 512 : MAX_ACTIVE_RD_LINES),
+                .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES > 512 ? 512 : MAX_ACTIVE_WR_LINES)
+                )
+              preserve_meta
+               (
+                .mem_source(axi_fiu_clk_if),
+                .mem_sink
+                );
+        end
+    endgenerate
 
 
     // synthesis translate_off

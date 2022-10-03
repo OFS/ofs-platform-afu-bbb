@@ -695,6 +695,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     ofs_plat_map_axi_mem_if_to_host_mem
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+        // Add a reorder buffer if the responses aren't already sorted.
+        .SORT_RESPONSES(ofs_plat_host_chan_@group@_fim_gasket_pkg::CPL_REORDER_EN == 0),
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
         // Don't allow packets to cross 4KB pages due to PCIe requirement.

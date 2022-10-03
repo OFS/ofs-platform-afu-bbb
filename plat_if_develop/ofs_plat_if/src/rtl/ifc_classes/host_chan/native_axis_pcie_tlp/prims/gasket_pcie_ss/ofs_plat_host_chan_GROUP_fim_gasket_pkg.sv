@@ -57,6 +57,13 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
 
     localparam NUM_FIM_PCIE_TLP_CH = ofs_pcie_ss_cfg_pkg::NUM_OF_STREAMS;
 
+`ifdef OFS_PCIE_SS_PLAT_CFG_FLAG_CPL_REORDER
+    // Are completions reordered by the PCIe SS?
+    localparam CPL_REORDER_EN = ofs_pcie_ss_cfg_pkg::CPL_REORDER_EN;
+`else
+    localparam CPL_REORDER_EN = 0;
+`endif
+
     //
     // Data types in the FIM's AXI streams
     //

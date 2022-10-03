@@ -39,7 +39,7 @@
 module ofs_plat_prim_fifo_dc
   #(
     parameter N_DATA_BITS = 32,
-    parameter N_ENTRIES = 2,
+    parameter N_ENTRIES = 4,
     parameter THRESHOLD = 1
     )
    (
@@ -250,6 +250,7 @@ module ofs_plat_prim_fifo_dc_af
 
     typedef logic [$clog2(N_ENTRIES) : 0] t_entry_cnt;
     t_entry_cnt space_avail_cnt;
+    logic in_ready;
 
     // Clock crossing FIFO
     (* altera_attribute = "-name ALLOW_ANY_RAM_SIZE_FOR_RECOGNITION ON" *) ofs_plat_utils_avalon_dc_fifo
@@ -271,7 +272,7 @@ module ofs_plat_prim_fifo_dc_af
 
         .in_data(enq_data),
         .in_valid(enq_en),
-        .in_ready(notFull),
+        .in_ready(in_ready),
 
         .out_data(first),
         .out_valid(notEmpty),
@@ -305,13 +306,23 @@ module ofs_plat_prim_fifo_dc_af
         .space_avail_data(space_avail_cnt)
         );
 
-    logic space_avail;
+
+    localparam SAFE_THRESHOLD = 1 + (THRESHOLD > 2 ? THRESHOLD : 2);
+    logic cnt_notFull;
+    logic cnt_almostFull;
+
     always_ff @(posedge enq_clk)
     begin
-        space_avail <= (t_entry_cnt'(space_avail_cnt) > THRESHOLD);
+        // Using the in_ready signal directly as notFull ought to work, but
+        // sometimes fails in simulation when the internal buffer read and write
+        // pointers are equal. Setting notFull to avoid pointer overlap solves
+        // the problem and shouldn't affect throughput.
+        cnt_notFull <= (t_entry_cnt'(space_avail_cnt) > 2);
+        cnt_almostFull <= ~(t_entry_cnt'(space_avail_cnt) > SAFE_THRESHOLD);
     end
 
-    assign almostFull = !notFull || !space_avail;
+    assign notFull = cnt_notFull && in_ready;
+    assign almostFull = cnt_almostFull || !in_ready;
 
 
     //
@@ -319,6 +330,12 @@ module ofs_plat_prim_fifo_dc_af
     //
 
     // synthesis translate_off
+    initial
+    begin
+        assert (N_ENTRIES > 2) else
+            $fatal(2, "** ERROR ** %m: FIFO is too small");
+    end
+
     always_ff @(negedge enq_clk)
     begin
         if (enq_reset_n)
