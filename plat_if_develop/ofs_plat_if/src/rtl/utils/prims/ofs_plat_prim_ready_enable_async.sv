@@ -30,9 +30,9 @@
 
 
 //
-// Single AXI channel clock crossing FIFO.
+// Single ready/enable channel clock crossing FIFO.
 //
-module ofs_plat_axi_mem_if_async_shim_channel
+module ofs_plat_prim_ready_enable_async
   #(
     parameter ADD_TIMING_REG_STAGES = 2,
     parameter ADD_TIMING_READY_STAGES = 2,
@@ -147,4 +147,4 @@ module ofs_plat_axi_mem_if_async_shim_channel
         .ready_from_dst(ready_out)
         );
 
-endmodule // ofs_plat_axi_mem_if_async_shim_channel
+endmodule // ofs_plat_prim_ready_enable_async

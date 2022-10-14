@@ -72,7 +72,7 @@ module ofs_plat_axi_mem_lite_if_async_shim
         .reset_out(sink_reset_n)
         );
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
@@ -95,7 +95,7 @@ module ofs_plat_axi_mem_lite_if_async_shim
         .data_out(mem_sink.aw)
         );
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
@@ -122,7 +122,7 @@ module ofs_plat_axi_mem_lite_if_async_shim
     logic sink_bready;
     assign mem_sink.bready = (SINK_RESPONSES_ALWAYS_READY ? 1'b1 : sink_bready);
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(SINK_RESPONSES_ALWAYS_READY ? ADD_TIMING_REG_STAGES : 0),
         .ADD_TIMING_READY_STAGES(0),
@@ -148,7 +148,7 @@ module ofs_plat_axi_mem_lite_if_async_shim
         );
 
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
@@ -174,7 +174,7 @@ module ofs_plat_axi_mem_lite_if_async_shim
     logic sink_rready;
     assign mem_sink.rready = (SINK_RESPONSES_ALWAYS_READY ? 1'b1 : sink_rready);
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(SINK_RESPONSES_ALWAYS_READY ? ADD_TIMING_REG_STAGES : 0),
         .ADD_TIMING_READY_STAGES(0),

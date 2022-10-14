@@ -159,7 +159,7 @@ module ofs_plat_axi_mem_if_async_rob
         mem_sink_local.aw.id = wr_next_allocIdx;
     end
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
@@ -189,7 +189,7 @@ module ofs_plat_axi_mem_if_async_rob
         `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink_local.w, =, mem_source.w);
     end
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),
@@ -311,7 +311,7 @@ module ofs_plat_axi_mem_if_async_rob
         mem_sink_local.ar.id = rd_next_allocIdx;
     end
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .N_ENTRIES(16),

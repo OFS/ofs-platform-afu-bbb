@@ -155,7 +155,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_axi_lite
     //
     // Cross requests to the primary clock
     //
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(0),
         .ADD_TIMING_READY_STAGES(0),
@@ -195,7 +195,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_axi_lite
     assign afu_to_host_rsp.reset_n = csr_reset_n;
     assign afu_to_host_rsp.instance_number = fiu_mmio_if.instance_number;
 
-    ofs_plat_axi_mem_if_async_shim_channel
+    ofs_plat_prim_ready_enable_async
       #(
         .ADD_TIMING_REG_STAGES(0),
         .ADD_TIMING_READY_STAGES(0),
