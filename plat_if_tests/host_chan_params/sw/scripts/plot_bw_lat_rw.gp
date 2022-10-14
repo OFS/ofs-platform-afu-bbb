@@ -40,7 +40,7 @@ set y2tics out font ",12"
 set yrange [0:]
 set y2range [0:]
 #set size square
-set bmargin 0.5
+set bmargin 3.0
 set tmargin 0.5
 set lmargin 3.0
 set rmargin 6.25

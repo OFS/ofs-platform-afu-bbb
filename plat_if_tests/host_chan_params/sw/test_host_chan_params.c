@@ -983,6 +983,10 @@ printLatencyAndBandwidth(
     uint64_t max_reads_in_flight = 0;
     uint64_t fim_max_reads_in_flight = 0;
 
+    uint64_t eng_read_lines[32];
+    uint64_t eng_write_lines[32];
+    assert(num_engines < 32);
+
     // How many engines are being sampled in this test?
     uint32_t n_sampled_engines = 0;
     for (uint32_t e = 0; e < num_engines; e += 1)
@@ -1012,8 +1016,10 @@ printLatencyAndBandwidth(
 
             // Count of lines read and written by the engine
             uint64_t read_lines = csrEngRead(csr_handle, e, 2);
+            eng_read_lines[glob_e] = read_lines;
             total_read_lines += read_lines;
             uint64_t write_lines = csrEngRead(csr_handle, e, 3);
+            eng_write_lines[glob_e] = write_lines;
             total_write_lines += write_lines;
 
             // Total active lines across all cycles, from the AFU
@@ -1070,13 +1076,35 @@ printLatencyAndBandwidth(
     {
         printf("Read GB/s, Write GB/s, Read Inflight Lines Limit, Read Max Measured Inflight Lines, "
                "FIM Read Max Measured Inflight Lines, Write Inflight Lines Limit, "
-               "Read Avg Latency ns, FIM Read Avg Latency ns, Write Avg Latency ns\n");
+               "Read Avg Latency ns, FIM Read Avg Latency ns, Write Avg Latency ns");
+
+        if (num_engines > 1)
+        {
+            for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
+            {
+                printf(", Eng%d Read GB/s, Eng%d Write GB/s", glob_e, glob_e);
+            }
+        }
+
+        printf("\n");
     }
 
-    printf("%0.2f %0.2f %d %ld %ld %d %0.0f %0.0f %0.0f\n",
+    printf("%0.2f %0.2f %d %ld %ld %d %0.0f %0.0f %0.0f",
            read_bw, write_bw,
            max_active_reqs, max_reads_in_flight, fim_max_reads_in_flight, max_active_reqs,
            read_avg_lat, fim_read_avg_lat, write_avg_lat);
+
+    if (num_engines > 1)
+    {
+        for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
+        {
+            double eng_read_bw = 64 * eng_read_lines[glob_e] * s_afu_mhz / (1000.0 * cycles);
+            double eng_write_bw = 64 * eng_write_lines[glob_e] * s_afu_mhz / (1000.0 * cycles);
+            printf(" %0.2f %0.2f", eng_read_bw, eng_write_bw);
+        }
+    }
+
+    printf("\n");
 
     return 0;
 }
