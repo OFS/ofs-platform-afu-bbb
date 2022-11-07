@@ -43,18 +43,7 @@ module ase_afu_main_pcie_ss
     input  logic uClk_usrDiv2
     );
 
-    localparam PG_NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS;
-
-    // afu_main() either takes a single multiplexed PCIe port or it
-    // takes a vector of ports, one per VF. This change happened at the
-    // same time that MMIO CSRs were moved to an AXI-Lite interface.
-    // We assume here they are correlated.
-`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
-    localparam NUM_PORTS = 1;
-`else
-    localparam NUM_PORTS = PG_NUM_PORTS;
-`endif
-
+    localparam NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS;
 
     logic softReset;
     t_ofs_plat_power_state pwrState;
@@ -66,38 +55,6 @@ module ase_afu_main_pcie_ss
     pcie_ss_axis_if afu_axi_rx_a_if[NUM_PORTS-1:0](pClk, rst_n);
     pcie_ss_axis_if afu_axi_rx_b_if[NUM_PORTS-1:0](pClk, rst_n);
 
-
-    // CSR clock, used when MMIO is mapped to an AXI-Lite bus by the PCIe SS,
-    // is slow.
-    localparam CSR_CLK_DELAY = 4527;   // Avoid clean alignment with pClk
-    logic csr_clk = 1'b0;
-    initial
-    begin : csr_clk_proc
-        forever
-        begin
-            #(CSR_CLK_DELAY);
-            csr_clk = ~csr_clk;
-        end
-    end
-
-    // Only power on reset is expected. Function-level reset comes on pClk.
-    logic csr_rst_n = 1'b0;
-    initial
-    begin : csr_rst_proc
-        forever
-        begin
-            #(CSR_CLK_DELAY * 20);
-            csr_rst_n = 1'b1;
-        end
-    end
-
-`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
-    // AXI-Lite CSR interface. Coming into afu_main() the parameters are
-    // the interface's default value.
-    ofs_fim_axi_lite_if pcie_csr_axi_lite_if[NUM_PORTS-1:0](csr_clk, csr_rst_n);
-`endif
-
-
     // Emulate the PCIe SS
     ase_emul_pcie_ss_axis_tlp
       #(
@@ -107,9 +64,7 @@ module ase_afu_main_pcie_ss
        (
         .clk(pClk),
         .rst_n,
-`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
-        .afu_csr_axi_lite_if(pcie_csr_axi_lite_if),
-`endif
+
         .afu_axi_tx_a_if,
         .afu_axi_tx_b_if,
         .afu_axi_rx_a_if,
@@ -122,18 +77,10 @@ module ase_afu_main_pcie_ss
     // OFS sources specific to a given board.
     ase_afu_main_emul
       #(
-        .PG_NUM_PORTS(PG_NUM_PORTS)
+        .PG_NUM_PORTS(NUM_PORTS)
         )
       ase_afu_main_emul
        (
-`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
-        // afu_main() has a PF/VF MUX. It doesn't expect vectors of interfaces.
-        .pcie_csr_axi_lite_if(pcie_csr_axi_lite_if[0]),
-        .afu_axi_tx_a_if(afu_axi_tx_a_if[0]),
-        .afu_axi_rx_a_if(afu_axi_rx_a_if[0]),
-        .afu_axi_tx_b_if(afu_axi_tx_b_if[0]),
-        .afu_axi_rx_b_if(afu_axi_rx_b_if[0]),
-`endif
         .*
         );
 

@@ -52,12 +52,7 @@ package ofs_plat_host_chan_@group@_pkg;
     localparam MMIO_ADDR_WIDTH_BYTES = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MMIO_ADDR_WIDTH;
     localparam MMIO_DATA_WIDTH = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_MMIO_DATA_WIDTH;
 
-    // Work out whether the MMIO interface supports 512 bit writes
-`ifdef OFS_PCIE_SS_PLAT_AXI_L_MMIO
-    // The PCIe SS AXI-Lite CSR does not support 512 bit MMIO writes
-    localparam MMIO_512_WRITE_SUPPORTED = 0;
-`else
+    // Non-zero when 512 bit MMIO writes are supported
     localparam MMIO_512_WRITE_SUPPORTED = 1;
-`endif
 
 endpackage

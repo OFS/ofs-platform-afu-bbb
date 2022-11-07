@@ -190,55 +190,25 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TLP_STREAM_INSTANCE(tx_mmio_tlps);
 
-    // MMIO (CSRs) may be connected either to an AXI-Lite interface from
-    // the FIM or they might use normal TLP encoding. Pick one.
-    generate
-        if (ofs_plat_host_chan_@group@_pcie_tlp_pkg::MMIO_ON_AXI_L_FROM_FIM)
-        begin : mmio_axi
-            // MMIO uses a separate AXI-Lite interface
-            ofs_plat_host_chan_@group@_gen_mmio_axi_lite mmio_to_axi
-               (
-                .clk,
-                .reset_n,
+    // TLP RX stream from host, copied for forwarding to the MMIO handler.
+    // port for read requests. Otherwise, tied off.
+    `AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_rx_st);
+    assign from_fiu_mmio_rx_st.tvalid = from_fiu_rx_st.tvalid && from_fiu_rx_st.tready;
+    assign rx_mmio_handler_ready = from_fiu_mmio_rx_st.tready;
+    assign from_fiu_mmio_rx_st.t = from_fiu_rx_st.t;
 
-                .fiu_mmio_if(to_fiu_tlp.afu_csr_if),
-                .host_mmio_req,
-                .host_mmio_rsp,
+    ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_to_tlps
+       (
+        .clk,
+        .reset_n,
 
-                .error()
-                );
+        .from_fiu_rx_st(from_fiu_mmio_rx_st),
+        .host_mmio_req,
+        .host_mmio_rsp,
+        .tx_mmio(tx_mmio_tlps),
 
-            // TLP interface not used for MMIO in this configuration
-            assign tx_mmio_tlps.tvalid = 1'b0;
-            assign tx_mmio_tlps.t = '0;
-
-            assign rx_mmio_handler_ready = 1'b1;
-        end
-        else
-        begin : mmio_tlp
-            // MMIO uses the main TLP stream
-
-            // TLP RX stream from host, copied for forwarding to the MMIO handler.
-            // port for read requests. Otherwise, tied off.
-            `AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_rx_st);
-            assign from_fiu_mmio_rx_st.tvalid = from_fiu_rx_st.tvalid && from_fiu_rx_st.tready;
-            assign rx_mmio_handler_ready = from_fiu_mmio_rx_st.tready;
-            assign from_fiu_mmio_rx_st.t = from_fiu_rx_st.t;
-
-            ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_to_tlps
-               (
-                .clk,
-                .reset_n,
-
-                .from_fiu_rx_st(from_fiu_mmio_rx_st),
-                .host_mmio_req,
-                .host_mmio_rsp,
-                .tx_mmio(tx_mmio_tlps),
-
-                .error()
-                );
-        end
-    endgenerate
+        .error()
+        );
 
 
     // ====================================================================
