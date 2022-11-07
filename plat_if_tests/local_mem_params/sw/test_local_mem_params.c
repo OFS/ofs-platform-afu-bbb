@@ -747,7 +747,14 @@ testLocalMemParams(
     }
     printf("\n");
 
-    for (uint32_t e = 0; e < num_engines; e += 1)
+    // Save time in ASE mode. Only test one engine.
+    uint32_t num_test_engines = num_engines;
+    if (s_is_ase)
+    {
+        num_test_engines = 1;
+    }
+
+    for (uint32_t e = 0; e < num_test_engines; e += 1)
     {
         if (testSmallRegions(e))
         {

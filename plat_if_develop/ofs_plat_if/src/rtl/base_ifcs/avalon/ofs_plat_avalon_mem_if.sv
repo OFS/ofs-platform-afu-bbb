@@ -367,7 +367,7 @@ interface ofs_plat_avalon_mem_if
 
                 if (wr_sop && (^burstcount === 1'bx))
                 begin
-                    $fatal(2, "** ERROR ** %m: wr_burstcount undefined during a write SOP, currently 0x%x", burstcount);
+                    $fatal(2, "** ERROR ** %m: burstcount undefined during a write SOP, currently 0x%x", burstcount);
                 end
             end
         end
