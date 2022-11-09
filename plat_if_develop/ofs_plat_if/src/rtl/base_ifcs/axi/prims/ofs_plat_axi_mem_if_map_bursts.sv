@@ -326,12 +326,18 @@ module ofs_plat_axi_mem_if_map_bursts_impl
     end
 
     // Write data
-    assign mem_source.wready = mem_sink.wready;
-    assign mem_sink.wvalid = mem_source.wvalid;
-    always_comb
+    assign mem_source.wready = !mem_sink.wvalid || mem_sink.wready;
+    always_ff @(posedge clk)
     begin
-        // Field-by-field copy (sizes changed)
-        `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink.w, =, mem_source.w);
+        if (mem_sink.wready) begin
+            mem_sink.wvalid <= 1'b0;
+        end
+
+        if (!mem_sink.wvalid || mem_sink.wready) begin
+            mem_sink.wvalid <= mem_source.wvalid;
+            // Field-by-field copy (sizes changed)
+            `OFS_PLAT_AXI_MEM_IF_COPY_W(mem_sink.w, <=, mem_source.w);
+        end
     end
 
     // Write responses
