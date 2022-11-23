@@ -2,7 +2,7 @@
 
 The Platform Interface Manager (PIM) is an abstraction layer between an AFU and the system layer — the FPGA Interface Manager (FIM). The FIM is the base system layer, typically provided by board vendors. The FIM interface is specific to a particular physical platform. The PIM enables the construction of portable AFUs.
 
-The Platform Interface Manager (PIM) code in this repository has components aimed at two classes of developers: board vendors providing FIMs and accelerator developers writing RTL-based AFUs. Board vendors configure the FIM-side, platform-specific, PIM interface and AFU developers attach to the PIM's platform-independent interface.
+The Platform Interface Manager (PIM) code in this repository has components aimed at two classes of developers: board vendors providing FIMs and accelerator developers writing RTL-based AFUs. Board vendors configure the PIM's platform-specific FIM interface and AFU developers attach to the PIM's platform-independent interface.
 
 Contents:
 

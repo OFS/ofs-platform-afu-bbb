@@ -1,6 +1,13 @@
 # AFU Developers: Connecting an AFU to a Platform #
 
-The Platform Interface Manager (PIM) is the interface between an accelerator (an AFU) and the platform (the FIM). It is a collection of SystemVerilog interfaces and shims. The interfaces wrap ports to devices. The shims provide transformations, such as clock crossing, response sorting, and buffering. Board developers provide platform-specific PIM instances for use by AFU developers. Ideally, a PIM instance exports standard AFU-side interfaces despite internal FIM differences. A board with PCIe TLPs encapsulated in an AXI stream and a board with PCIe wrapped in Intel's CCI-P protocol can both provide the same PIM module name to map PCIe traffic to an Avalon memory interface. The implementation of the shim will be radically different, but both are compatible black boxes from the AFU's perspective. With consistent interfaces it becomes possible to write cross-platform AFUs, despite what may be significant underlying FIM changes. Of course an AFU that depends on local memory will not synthesize on a board with no local memory. The AFU may, however, adapt to variations in topology of local memory.
+The Platform Interface Manager (PIM) is the interface between an accelerator (an AFU) and the platform (the FIM). The PIM has two core components:
+
+1. A fixed top-level module name and SystemVerilog wrapper around FIM interfaces.
+2. Shims for transforming standardized AFU-side interfaces to platform-specific FIM interfaces.
+
+These two components are actually separable, though full cross-platform portability depends on using both together. Here, we will describe the PIM under the assumption that both are used.
+
+PIM-provided shims include protocol transformations, clock crossing, response sorting, and buffering. Board developers provide platform-specific PIM instances for use by AFU developers. Ideally, a PIM instance exports standard AFU-side interfaces despite internal FIM differences. A board with PCIe TLPs encapsulated in an AXI stream and a board with PCIe wrapped in Intel's CCI-P protocol can both provide the same PIM module names to map PCIe traffic to AXI and Avalon memory interfaces. The implementation of the shims will be radically different, but both are compatible black boxes from the AFU's perspective. With consistent interfaces it becomes possible to write cross-platform AFUs, despite what may be significant underlying FIM changes. Of course an AFU that depends on local memory will not synthesize on a board with no local memory. The AFU may, however, adapt to variations in topology of local memory.
 
 The top level of an AFU is always the same on all PIM-based platforms:
 
@@ -20,9 +27,9 @@ endmodule
 
 The *ofs\_plat\_if.vh* include file imports all preprocessor macros and types in the PIM.
 
-It is the responsibility of FIM developers to construct a platform-specific PIM as part of generating a release for AFU-development. The topology of a release and PIM-construction tools are described in *[Board Vendors: Configuring a Release](PIM_board_vendors.md)*. AFU developers set the environment variable *\$OPAE\_PLATFORM\_ROOT* to the root of a release tree. PIM sources are found in *\$OPAE\_PLATFORM\_ROOT/hw/lib/build/platform/ofs\_plat\_if*.
+It is the responsibility of FIM developers to construct a platform-specific PIM as part of generating a release for AFU-development. The topology of a release and PIM-construction tools are described in *[Board Vendors: Configuring a Release](PIM_board_vendors.md)*. AFU developers set the environment variable *OPAE\_PLATFORM\_ROOT* to the root of a release tree. PIM sources are found in *\${OPAE\_PLATFORM\_ROOT}/hw/lib/build/platform/ofs\_plat\_if*.
 
-The SystemVerilog interface *ofs\_plat\_if* wraps all connections to the FIM's devices. The contents of *ofs\_plat\_if* may vary from device to device. Portability is maintained by conforming to standard naming conventions. *ofs\_plat\_if* is, itself, a collection of interface wrappers to groups of devices. This is the wrapper for the FPGA PAC D5005 release 2.0.1, with one CCI-P port wrapping PCIe, four local memory banks, and two HSSI ports:
+The SystemVerilog interface *ofs\_plat\_if* wraps all connections to the FIM's devices. The contents of ofs\_plat\_if may vary from device to device. Portability is maintained by conforming to standard naming conventions. ofs\_plat\_if is, itself, a collection of interface wrappers to groups of devices. The wrapper is constructed from the .ini file and scripts described in the [board vendors section](PIM_board_vendors.md). The sample below is the wrapper for the OFS-based n6001 board, with AXI stream ports wrapping PCIe TLP, four AXI-MM local memory banks, and HSSI ports. The extra *other* extension interface is merely an example, described in the [board vendors section](PIM_board_vendors.md), and can be ignored here. The interface is nearly identical to the versions from other platforms, despite significant underlying protocol differences, because the actual channel types are defined inside sub-interfaces declared in ofs\_plat\_if.
 
 ```SystemVerilog
 interface ofs_plat_if
@@ -64,10 +71,16 @@ interface ofs_plat_if
         )
         hssi();
 
+    ofs_plat_other_fiu_if
+      #(
+        .ENABLE_LOG(ENABLE_LOG)
+        )
+        other();
+
 endinterface // ofs_plat_if
 ```
 
-A standard type, defined in [ofs\_plat\_clocks.vh](../src/rtl/base_ifcs/clocks/ofs_plat_clocks.vh), wraps the usual pClk, pClkDiv2, pClkDiv4, uClk\_user and uClk\_userDiv2 that are exported by the FIM. Corresponding active low resets are also provided, all derived from the base SoftReset and crossed into each clock domain. The user clock is thus accessible as *plat\_ifc.clocks.uClk\_usr.clk* on any conforming platform and the corresponding active low reset as *plat\_ifc.clocks.uClk\_usr.reset\_n*. Individual platform vendors may also add non-standard clocks to the structure, though these will not be portable.
+A standard type, defined in [ofs\_plat\_clocks.vh](../src/rtl/base_ifcs/clocks/ofs_plat_clocks.vh), wraps the usual pClk, pClkDiv2, pClkDiv4, uClk\_user and uClk\_userDiv2 that are exported by the FIM. Corresponding active low resets are also provided, all derived from the base soft reset and crossed into each clock domain. The user clock is thus accessible as *plat\_ifc.clocks.uClk\_usr.clk* on any conforming platform and the corresponding active low reset as *plat\_ifc.clocks.uClk\_usr.reset\_n*. Individual platform vendors may also add non-standard clocks to the structure, though these will not be portable.
 
 One more interface layer wraps groups of ports that all share the same properties. Standard names are used for portability:
 
@@ -75,7 +88,7 @@ One more interface layer wraps groups of ports that all share the same propertie
 * **local\_mem** — Local memory is off-chip memory connected to an FPGA but not visible to the host as system memory.
 * **hssi** — High-speed serial interfaces such as Ethernet.
 
-At the top level of the interface hierarchy the syntax remains platform-independent. Internally, however, these interfaces are platform-specific. On the D5005 board the host channel uses CCI-P and is defined as:
+At the top level of the interface hierarchy the syntax remains platform-independent. Internally, however, these interfaces are platform-specific. On the n6001 board the host channel uses AXI streams and is defined as:
 
 ```SystemVerilog
 interface ofs_plat_host_chan_fiu_if
@@ -84,7 +97,7 @@ interface ofs_plat_host_chan_fiu_if
     parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
     );
 
-    ofs_plat_host_ccip_if
+    ofs_plat_host_chan_axis_pcie_tlp_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
         )
@@ -93,21 +106,22 @@ interface ofs_plat_host_chan_fiu_if
 endinterface // ofs_plat_host_chan_fiu_if
 ```
 
-Finally, we have reached the point at which the CCI-P port exposed by the FIM is defined and passed to the AFU. It is visible as *plat\_ifc.host\_chan.ports[0]*. Local memory has similar syntax:
+Finally, we have reached the point at which the AXI stream ports exposed by the FIM are defined and passed to the AFU. They are visible as elements in the *plat\_ifc.host\_chan.ports* array. Local memory has similar syntax:
 
 ```SystemVerilog
 interface ofs_plat_local_mem_fiu_if
   #(
     parameter ENABLE_LOG = 0,
-    parameter NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS
+    parameter NUM_BANKS = `OFS_PLAT_PARAM_LOCAL_MEM_NUM_BANKS,
+    parameter WAIT_REQUEST_ALLOWANCE = 0
     );
 
-    ofs_plat_avalon_mem_if
+    ofs_plat_axi_mem_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::LOCAL_MEM : ofs_plat_log_pkg::NONE),
-        .ADDR_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_ADDR_WIDTH),
-        .DATA_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_DATA_WIDTH),
-        .BURST_CNT_WIDTH(`OFS_PLAT_PARAM_LOCAL_MEM_BURST_CNT_WIDTH)
+
+        .WAIT_REQUEST_ALLOWANCE(WAIT_REQUEST_ALLOWANCE),
+        `LOCAL_MEM_AXI_MEM_PARAMS_FULL_BUS_DEFAULT
         )
         banks[NUM_BANKS]();
 
@@ -118,7 +132,7 @@ and is visible as *plat\_ifc.local\_mem.banks[0]* through  *plat\_ifc.local\_mem
 
 The ENABLE\_LOG and LOG\_CLASS parameters control simulation-time logging of traffic for debugging. OFS PIM interfaces typically are able to log requests and responses flowing through any instance of an interface. In ASE-based simulation, LOG\_ENABLE is turned on in plat\_ifc. HOST\_CHAN traffic is logged to work/log\_ofs\_plat\_host\_chan.tsv and local memory to work/log\_ofs\_plat\_local\_mem.tsv. OFS interfaces are also self-checking in simulation. For example, a simulation-time error will fire if an Avalon memory interface has *write* asserted but a bit in *address* is uninitialized.
 
-The preprocessor macros are included by *ofs\_plat\_if.vh* and are defined in *\$OPAE\_PLATFORM\_ROOT/hw/lib/build/platform/ofs\_plat\_if/rtl/ofs\_plat\_if\_top\_config.vh*. They are derived from the .ini file used by FIM architects to build the PIM, as described in *[Board Vendors: Configuring a Release](PIM_board_vendors.md)*. Any property defined as a [default](PIM_board_vendors.md#defaults) is guaranteed to have a corresponding preprocessor macro. An AFU can test whether a particular board has local memory by testing whether the macro *OFS\_PLAT\_PARAM\_LOCAL\_MEM\_NUM\_BANKS* is defined.
+The preprocessor macros are included by *ofs\_plat\_if.vh* and are defined in *\${OPAE\_PLATFORM\_ROOT}/hw/lib/build/platform/ofs\_plat\_if/rtl/ofs\_plat\_if\_top\_config.vh*. They are derived from the .ini file used by FIM architects to build the PIM, as described in *[Board Vendors: Configuring a Release](PIM_board_vendors.md)*. Any property defined as a [default](PIM_board_vendors.md#defaults) is guaranteed to have a corresponding preprocessor macro. An AFU can test whether a particular board has local memory by testing whether the macro *OFS\_PLAT\_PARAM\_LOCAL\_MEM\_NUM\_BANKS* is defined.
 
 While an AFU could connect directly to a port in *plat\_ifc.host\_chan.ports[0]*, this is generally inadvisable as it is not portable. The PIM provides wrapper shims with standard names that act as abstraction layers. In the simplest case, where an AFU requests *plat\_ifc.host\_chan.ports[0]* with a protocol identical to the native implementation of the port, the shim is just wires and consumes no area. If the AFU requests a different protocol from the native implementation, such as Avalon instead of AXI, the PIM will instantiate a protocol translation layer. An AFU will compile as long as the FIM architect has provided the module offering support for the AFU's target protocol, independent of a port's underlying native protocol.
 
@@ -127,31 +141,39 @@ On a single platform, either of the following becomes possible:
 ```SystemVerilog
     // ====================================================================
     //
-    //  Get an Avalon host channel connection from the platform.
+    //  Get an AXI host channel connection from the platform.
     //
     // ====================================================================
 
-    // Host memory AFU master
-    ofs_plat_avalon_mem_rdwr_if
+    // Host memory AFU source
+    ofs_plat_axi_mem_if
       #(
-        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
-        .BURST_CNT_WIDTH(6)
+        `HOST_CHAN_AXI_MEM_PARAMS,
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         host_mem_to_afu();
 
-    // 64 bit read/write MMIO AFU slave
-    ofs_plat_avalon_mem_if
+    // 64 bit read/write MMIO AFU sink
+    ofs_plat_axi_mem_lite_if
       #(
-        `HOST_CHAN_AVALON_MMIO_PARAMS(64)
+        `HOST_CHAN_AXI_MMIO_PARAMS(64),
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         mmio64_to_afu();
 
-    ofs_plat_host_chan_as_avalon_mem_rdwr_with_mmio
-      primary_avalon
+    // Map FIU interface to AXI host memory and MMIO
+    ofs_plat_host_chan_as_axi_mem_with_mmio
+      #(
+        .ADD_TIMING_REG_STAGES(2)
+        )
+      primary_axi
        (
         .to_fiu(plat_ifc.host_chan.ports[0]),
-        .host_mem_to_afu(host_mem_to_afu),
-        .mmio_to_afu(mmio64_to_afu)
+        .host_mem_to_afu,
+        .mmio_to_afu(mmio64_to_afu),
+
+        .afu_clk(),
+        .afu_reset_n()
         );
 ```
 
@@ -179,18 +201,18 @@ or:
         );
 ```
 
-As long as a FIM developer provides both *ofs\_plat\_host\_chan\_as\_avalon\_mem\_rdwr\_with\_mmio()* and *ofs\_plat\_host\_chan\_as\_ccip()*, these samples will compile on any platform.
+As long as a FIM developer provides both *ofs\_plat\_host\_chan\_as\_axi\_mem\_with\_mmio()* and *ofs\_plat\_host\_chan\_as\_ccip()*, these samples will compile on any platform.
 
 ### Clock Crossing, Buffering and Reordering ###
 
-In addition to protocol transformations, the PIM is capable of instantiating some common bus transformations that are often required by AFUs. Most PIM top-level shims allow AFUs to request clock domain crossings by setting *ADD\_CLOCK\_CROSSING*. Protocols that naturally respond out of order may have options to instantiate reorder buffers. Implementing these in the PIM can be quite efficient. Consider the case of a native PCIe TLP stream being exported as an AXI memory interface. The implementation already requires buffering on the DMA response channels from the PCIe interface toward the AFU master in order to handle AXI flow control. Adding clock crossing and even a reorder buffer that sorts responses consumes very little additional area. The tags used for reordering can be the same tags already required by PCIe TLPs. Implementing clock crossing or reordering elsewhere in the design would require duplication of the large response buffer.
+In addition to protocol transformations, the PIM is capable of instantiating some common bus transformations that are often required by AFUs. Most PIM top-level shims allow AFUs to request clock domain crossings by setting ADD\_CLOCK\_CROSSING. Protocols that naturally respond out of order may have options to instantiate reorder buffers. Implementing these in the PIM can be quite efficient. Consider the case of a native PCIe TLP stream being exported as an Avalon memory interface. The implementation already requires buffering on the DMA response channels from the PCIe interface toward the AFU master in order to handle flow control. Adding clock crossing and even a reorder buffer that sorts responses consumes very little additional area. The tags used for reordering can be the same tags already required by PCIe TLPs. Implementing clock crossing or reordering elsewhere in the design would require duplication of the large response buffer. When an interface already returns ordered responses, the PIM ignores SORT\_READ\_RESPONSES and does not waste area on an unnecessary reorder buffer.
 
 Every major PIM interface defines a wire named *clk* and an active low reset port, *reset_n*, in the *clk* domain. PIM-instantiated clock crossing updates these wires.
 
-The AFU with an Avalon host channel (*host\_mem\_to\_afu*) described above can connect to local memory, mapping it to the host channel's clock simply by setting *ADD\_CLOCK\_CROSSING*:
+The AFU with an AXI-MM host channel (host\_mem\_to\_afu) described above can connect to local memory, mapping it to the host channel's clock simply by setting ADD\_CLOCK\_CROSSING when connecting to local memory:
 
 ```SystemVerilog
-    ofs_plat_local_mem_as_avalon_mem
+    ofs_plat_local_mem_as_axi_mem
       #(
         .ADD_CLOCK_CROSSING(1)
         )
@@ -204,7 +226,7 @@ The AFU with an Avalon host channel (*host\_mem\_to\_afu*) described above can c
         );
 ```
 
-Now, *local\_mem\_to\_afu[0]* and *host\_mem\_to\_afu* are operating in the same clock domain. The CCI-P port from the host channel example above can both be sorted and moved to uClk_user:
+Now, *local\_mem\_to\_afu[0]* and *host\_mem\_to\_afu* are operating in the same clock domain. Similarly, the CCI-P port from the host channel example above can both be sorted and moved to uClk_user:
 
 ```SystemVerilog
     ofs_plat_host_ccip_if ccip_to_afu();
@@ -224,19 +246,19 @@ Now, *local\_mem\_to\_afu[0]* and *host\_mem\_to\_afu* are operating in the same
         );
 ```
 
-Typically, extra register stages can also be added, for timing, by setting *ADD\_TIMING\_REG\_STAGES(num\_stages)*.
+Typically, extra register stages can also be added for timing by setting ADD\_TIMING\_REG\_STAGES(num\_stages).
 
 ### Burst Count Gearboxes ###
 
 As another abstraction layer, the PIM permits mismatched maximum burst sizes of Avalon and AXI interfaces between an AFU and the native port. When an AFU requests bursts larger than those supported by the native device interface, the PIM adds a gearbox to map large bursts into smaller ones that fit. Burst mapping may also be added in order to satisfy alignment requirements, emitting smaller bursts until natural alignment is achieved. The gearbox suppresses extra write responses for requests that are broken up so that the AFU will see responses only when the original burst completes.
 
-Maximum burst sizes are set simply by setting the appropriate parameter when constructing an instance of a SystemVerilog interface. The example above that connected an Avalon channel to the primary host_chan with a maximum burst size of 64 can, instead, set the maximum burst size to 128 simply by changing the declaration of the *host\_mem\_to\_afu* interface:
+Maximum burst sizes are derived from the AFU-defined SystemVerilog interface instances. The example above that connected an AXI channel to the primary host_chan with a maximum burst size of 64 can, instead, set the maximum burst size to 128 simply by changing the declaration of the *host\_mem\_to\_afu* interface:
 
 ```SystemVerilog
     // Host memory AFU master
-    ofs_plat_avalon_mem_rdwr_if
+    ofs_plat_axi_mem_if
       #(
-        `HOST_CHAN_AVALON_MEM_RDWR_PARAMS,
+        `HOST_CHAN_AXI_MEM_PARAMS,
         .BURST_CNT_WIDTH(7)
         )
         host_mem_to_afu();
@@ -246,7 +268,7 @@ Maximum burst sizes are set simply by setting the appropriate parameter when con
 
 One impediment to portability is proper tie-offs of unused devices. An AFU written today can not anticipate new devices that may be added to future platforms. The PIM solves this by inverting the normal tie-off process: an AFU declares the interfaces to which it has connected. The PIM ties off all other ports.
 
-Tie-offs are passed to the PIM as bit masks in parameters. The mask makes it possible to indicate, for example, that a single local memory bank is being driven. If a future platform adds an additional local memory bank, the PIM will tie it off while maintaining the AFU's connection to port 0. There is no harm to setting mask bits that don't correspond to devices on a particular board. An AFU that will connect to however many memory banks are offered can safely set the mask to -1, indicating all banks have connections.
+Tie-offs are passed to the PIM as bit masks in parameters. The mask makes it possible to indicate, for example, that a single local memory bank is being driven. If a future platform adds an additional local memory bank, the PIM will tie it off while maintaining the AFU's connection to bank 0. There is no harm to setting mask bits that don't correspond to devices on a particular board. An AFU that will connect to however many memory banks are offered can safely set the mask to -1, indicating all banks have connections.
 
 Tie-off parameters are all of the form: *\<interface class\>\_IN\_USE\_MASK()*. Every AFU is expected to instantiate the tie-off module:
 
@@ -307,3 +329,7 @@ Each group must be named separately when managing tie-offs:
         )
         tie_off(plat_ifc);
 ```
+
+## Tutorial ##
+
+A hands-on introduction to PIM-based AFUs is available in the [OFS example AFUs repository](https://github.com/OFS/examples-afu/tree/main/tutorial). It covers simulation and synthesis of AFUs and provides simple examples that map host channels and local memory banks. Using PIM-provided shims without the PIM's top-level ofs\_plat\_afu module is also covered.

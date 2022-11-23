@@ -13,7 +13,7 @@ The portability of PIM interfaces relies on mapping physical ports to bus-indepe
 
 ### Host Channels ###
 
-A host channel is a port offering DMA to host memory and, optionally, a CSR space managed by the AFU. Typical boards provide PCIe as the primary host channel, with the OPAE SDK and driver depending on PCIe MMIO to implement the CSRs used by OPAE to manage the FIM and AFU. Boards may have more than one host channel, often of different types. Both CXL and UPI are considered host channels.
+A host channel is a port offering DMA to host memory and, optionally, a CSR space managed by the AFU. Typical boards provide PCIe as the primary host channel, with the OPAE SDK and driver depending on PCIe MMIO to implement the CSRs used by OPAE to manage the FIM and AFU. Boards may have more than one host channel, often of different types. PCIe, CXL and UPI are all considered host channels.
 
 ### Local Memory ###
 
@@ -42,8 +42,8 @@ The PIM is instantiated in a build environment from the following:
 * The [gen\_ofs\_plat\_if](../scripts/gen_ofs_plat_if) script
 
 ```sh
-$ mkdir -p <release tree root>/hw/lib/build/platform/ofs_plat_if
-$ gen_ofs_plat_if -c <.ini file path> -t <release tree root>/hw/lib/build/platform/ofs_plat_if
+mkdir -p <release tree root>/hw/lib/build/platform/ofs_plat_if
+gen_ofs_plat_if -c <.ini file path> -t <release tree root>/hw/lib/build/platform/ofs_plat_if
 ```
 
 This script is run automatically by the standard OFS FIM build flow as long as a board compilation environment specifies the .ini file. The generated PIM sources are included in both FIM and PR build trees.
@@ -152,7 +152,7 @@ Some directories within the rtl tree are imported unchanged:
 
 ### Templates ###
 
-The core sources for PIM interfaces are in the [ofs\_plat\_if/src/rtl/ifc\_classes/](../src/rtl/ifc_classes/) tree. The tree is organized by top-level PIM classes (host\_chan, local\_mem, etc.) and, below those, by native interfaces. The PIM generator script copies only the top-level class and native interface pairs specified by a platform-specific .ini file. Multiple native interfaces under a given top-level class are, from an AFU's perspective, functionally equivalent mappings to the same module names and semantics. This selection of the proper, platform-specific, shim is the core PIM mechanism for achieving AFU portability.
+The core sources for PIM interfaces are in the [ofs\_plat\_if/src/rtl/ifc\_classes/](../src/rtl/ifc_classes/) tree. The tree is organized by top-level PIM classes (host\_chan, local\_mem, etc.) and, below those, by native interfaces. The PIM generator script copies only the top-level class and native interface pairs specified by a platform-specific .ini file. From an AFU's perspective, multiple native interfaces under a given top-level class are functionally equivalent mappings to the same module names and semantics. This selection of the proper, platform-specific, shim is the core PIM mechanism for achieving AFU portability.
 
 Another key to portability is a shim naming convention. All shims are named:
 
@@ -326,4 +326,81 @@ module ofs_plat_if_tie_off_unused
     endgenerate
 
 endmodule // ofs_plat_if_tie_off_unused
+```
+
+## Sample .ini File ###
+
+This sample .ini file is the FIM's default configuration for the n6001 board. All fields are documented in [defaults.ini](../../../plat_if_develop/ofs_plat_if/src/config/defaults.ini).
+
+* Parameters imported from FIM packages are used whenever possible instead of numeric constants to avoid mismatches between the FIM and PIM interfaces.
+* Field values may include arithmetic, such as local\_mem.addr\_width.
+* The FPGA\_FAMILY definition is required by the PIM and the simulation environment.
+* The *other* section is not required. It is provided with the FIM as an example to board vendors for writing board-specific interfaces. See [Platform-Specific Extensions](#platform-specific-extensions) above.
+
+```ini
+;; Platform Interface Manager configuration
+;;
+;; Intel® Agilex n6001 board
+;;
+
+[define]
+PLATFORM_FPGA_FAMILY_AGILEX=1
+;; Indicates that ASE emulation of the afu_main interface is offered
+ASE_AFU_MAIN_IF_OFFERED=1
+native_class=none
+
+[clocks]
+pclk_freq=400
+native_class=none
+
+[host_chan]
+num_ports=top_cfg_pkg::PG_AFU_NUM_PORTS
+native_class=native_axis_pcie_tlp
+gasket=pcie_ss
+
+;; Minimum number of outstanding flits that must be in flight to
+;; saturate bandwidth. Maximum bandwidth is typically a function
+;; of the number flits in flight, indepent of burst sizes.
+max_bw_active_flits_rd=1024
+max_bw_active_flits_wr=128
+
+;; Recommended number of times an AFU should register host channel
+;; signals before use in order to make successful timing closure likely.
+suggested_timing_reg_stages=0
+
+[local_mem]
+native_class=native_axi
+gasket=fim_emif_axi_mm
+num_banks=mem_ss_pkg::MC_CHANNEL
+;; Address width (line-based, ignoring the byte offset within a line)
+addr_width=mem_ss_pkg::AXI_MEM_ADDR_WIDTH-$clog2(mem_ss_pkg::AXI_MEM_DATA_WIDTH/8)
+data_width=mem_ss_pkg::AXI_MEM_DATA_WIDTH
+ecc_width=0
+;; For consistency, the PIM always encodes burst width as if the bus were
+;; Avalon. Add 1 bit: Avalon burst length is 1-based, AXI is 0-based.
+burst_cnt_width=8+1
+user_width=mem_ss_pkg::AXI_MEM_USER_WIDTH
+rid_width=mem_ss_pkg::AXI_MEM_ID_WIDTH
+wid_width=mem_ss_pkg::AXI_MEM_ID_WIDTH
+suggested_timing_reg_stages=2
+
+[hssi]
+native_class=native_axis_with_fc
+num_channels=ofs_fim_eth_plat_if_pkg::MAX_NUM_ETH_CHANNELS
+
+;; Sideband interface specific to this platform. It is used for passing
+;; state through plat_ifc.other.ports[] that the PIM does not manage.
+[other]
+;; Use the PIM's "generic" extension class. The PIM provides the top-level
+;; generic wrapper around ports and the implementation of the type is set below.
+template_class=generic_templates
+native_class=ports
+;; All PIM wrappers are vectors. Depending on the data being passed through
+;; the interface, FIMs may either use more ports or put vectors inside the
+;; port's type.
+num_ports=1
+;; Data type of the sideband interface
+type=ofs_plat_fim_other_if
+;; Import the "other" SystemVerilog definitions into the PIM (relative path)
+import=../../ofs-common/src/fpga_family/agilex/port_gasket/afu_main_pim/extend_pim/
 ```
