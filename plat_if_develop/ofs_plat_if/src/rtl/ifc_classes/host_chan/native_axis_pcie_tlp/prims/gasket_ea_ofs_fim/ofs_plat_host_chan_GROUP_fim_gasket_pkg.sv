@@ -61,6 +61,16 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // The EA FIM does not reorder completions
     localparam CPL_REORDER_EN = 0;
 
+    typedef enum bit[0:0] {
+        PCIE_CHAN_A,
+        PCIE_CHAN_B
+    } e_pcie_chan;
+
+    // On which TLP channel are completions returned?
+    localparam e_pcie_chan CPL_CHAN = PCIE_CHAN_A;
+    // On which TLP channel are FIM-generated write commits returned?
+    localparam e_pcie_chan WR_COMMIT_CHAN = PCIE_CHAN_B;
+
     // Data types in the FIM's AXI streams
     typedef ofs_fim_if_pkg::t_axis_pcie_tdata [NUM_FIM_PCIE_TLP_CH-1:0] t_ofs_fim_axis_pcie_tdata_vec;
     typedef ofs_fim_if_pkg::t_axis_pcie_tx_tuser [NUM_FIM_PCIE_TLP_CH-1:0] t_ofs_fim_axis_pcie_tx_tuser_vec;

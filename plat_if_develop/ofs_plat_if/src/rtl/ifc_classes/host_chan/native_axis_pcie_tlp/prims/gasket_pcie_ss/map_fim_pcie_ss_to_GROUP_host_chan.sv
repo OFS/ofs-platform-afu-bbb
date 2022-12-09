@@ -130,6 +130,7 @@ module map_fim_pcie_ss_to_@group@_host_chan
     wire reset_n = pim_tx_a_st.reset_n;
 
     logic pcie_ss_rx_a_is_sop;
+    logic pcie_ss_rx_b_is_sop;
 
     //
     // TX (AFU -> host)
@@ -240,12 +241,37 @@ module map_fim_pcie_ss_to_@group@_host_chan
         pim_rx_b_st.t.data = pcie_ss_rx_b_st.tdata;
         pim_rx_b_st.t.keep = pcie_ss_rx_b_st.tkeep;
 
-        // In RX B, only segment 0 will have a valid header. Since it has no payload,
-        // SOP and EOP are the same value.
+        // The PIM's user field has sop/eop tracking built in. For now, we
+        // assume that only PCIe SS segment 0 has a header.
         pim_rx_b_st.t.user = '0;
         pim_rx_b_st.t.user[0].dm_mode = pcie_ss_rx_b_st.tuser_vendor[0];
-        pim_rx_b_st.t.user[0].sop = pcie_ss_rx_b_st.tlast;
-        pim_rx_b_st.t.user[0].eop = pcie_ss_rx_b_st.tlast;
+        pim_rx_b_st.t.user[0].sop = pcie_ss_rx_b_is_sop;
+
+        // Mark at most one EOP. Find the highest segment with a payload and
+        // set its EOP bit, using tlast. tlast is currently the only header
+        // indicator in the FIM's PCIe SS configuration.
+        for (int s = ofs_pcie_ss_cfg_pkg::NUM_OF_SEG - 1; s >= 0; s = s - 1)
+        begin
+            if (pcie_ss_rx_b_st.tkeep[s * FIM_PCIE_SEG_BYTES])
+            begin
+                pim_rx_b_st.t.user[0].eop = pcie_ss_rx_b_st.tlast;
+                break;
+            end
+        end
+    end
+
+    always_ff @(posedge clk)
+    begin
+        // Is the next RX packet a new SOP?
+        if (pcie_ss_rx_b_st.tready && pcie_ss_rx_b_st.tvalid)
+        begin
+            pcie_ss_rx_b_is_sop <= pcie_ss_rx_b_st.tlast;
+        end
+
+        if (!reset_n)
+        begin
+            pcie_ss_rx_b_is_sop <= 1'b1;
+        end
     end
 
 endmodule // map_fim_pcie_ss_to_@group@_host_chan

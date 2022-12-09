@@ -57,11 +57,39 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
 
     localparam NUM_FIM_PCIE_TLP_CH = ofs_pcie_ss_cfg_pkg::NUM_OF_STREAMS;
 
-`ifdef OFS_PCIE_SS_PLAT_CFG_FLAG_CPL_REORDER
+`ifdef OFS_PCIE_SS_CFG_FLAG_CPL_REORDER
     // Are completions reordered by the PCIe SS?
-    localparam CPL_REORDER_EN = ofs_pcie_ss_cfg_pkg::CPL_REORDER_EN;
+    import ofs_pcie_ss_cfg_pkg::CPL_REORDER_EN;
+    export ofs_pcie_ss_cfg_pkg::CPL_REORDER_EN;
 `else
+    // Compatibility with older releases - flag not defined
     localparam CPL_REORDER_EN = 0;
+`endif
+
+`ifdef OFS_PCIE_SS_CFG_FLAG_CPL_CHAN
+    // On which TLP channel are completions returned?
+    typedef enum bit[0:0] {
+        PCIE_CHAN_A = ofs_pcie_ss_cfg_pkg::PCIE_CHAN_A,
+        PCIE_CHAN_B = ofs_pcie_ss_cfg_pkg::PCIE_CHAN_B
+    } e_pcie_chan;
+
+    localparam e_pcie_chan CPL_CHAN = e_pcie_chan'(ofs_pcie_ss_cfg_pkg::CPL_CHAN);
+`else
+    // Compatibility with older releases - flag not defined
+    typedef enum bit[0:0] {
+        PCIE_CHAN_A,
+        PCIE_CHAN_B
+    } e_pcie_chan;
+
+    localparam e_pcie_chan CPL_CHAN = PCIE_CHAN_A;
+`endif
+
+`ifdef OFS_PCIE_SS_CFG_FLAG_WR_COMMIT_CHAN
+    // On which TLP channel are FIM-generated write commits returned?
+    localparam e_pcie_chan WR_COMMIT_CHAN = e_pcie_chan'(ofs_pcie_ss_cfg_pkg::WR_COMMIT_CHAN);
+`else
+    // Compatibility with older releases - flag not defined
+    localparam e_pcie_chan WR_COMMIT_CHAN = PCIE_CHAN_B;
 `endif
 
     //

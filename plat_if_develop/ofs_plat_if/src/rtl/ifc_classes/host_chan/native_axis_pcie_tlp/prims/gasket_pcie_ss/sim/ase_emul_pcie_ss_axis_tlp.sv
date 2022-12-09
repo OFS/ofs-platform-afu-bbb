@@ -148,11 +148,10 @@ module ase_emul_pcie_ss_axis_tlp
         end
     endgenerate
 
-
     //
     // Merge the A/B TX ports into a single port.
     //
-    pcie_ss_axis_if fim_axi_tx_arb_if(clk, rst_n);
+    pcie_ss_axis_if fim_axi_tx_mrg_if(clk, rst_n);
 
     ase_emul_pcie_ss_axis_mux
       #(
@@ -163,13 +162,164 @@ module ase_emul_pcie_ss_axis_tlp
         .clk,
         .rst_n,
         .sink(fim_axi_tx_ab_if),
-        .source(fim_axi_tx_arb_if)
+        .source(fim_axi_tx_mrg_if)
         );
 
 
     //
+    // Route RX read completions and write commits to the proper channels, based on
+    // the FIM configuration. The FIM may route RX completions to either RX-A or RX-B,
+    // depending on the PCIe SS mode. When the PCIe SS sorts responses, completions
+    // are routed to a private stream. The FIM can also be configured to put store
+    // commits on either RX-A or RX-B.
+    //
+
+    //
+    // It is not supported to send both write commits and read completions to
+    // the RX-B channel.
+    //
+    initial
+    begin
+        assert ((ofs_plat_host_chan_fim_gasket_pkg::CPL_CHAN != ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_B) ||
+                (ofs_plat_host_chan_fim_gasket_pkg::WR_COMMIT_CHAN != ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_B)) else
+          $fatal(2, "Illegal FIM configuration: both CPL_CHAN and WR_COMMIT_CHAN are RX-B!");
+    end
+
+    pcie_ss_axis_if fim_axi_rx_commit_if(clk, rst_n);
+    pcie_ss_axis_if fim_axi_rx_emul_if(clk, rst_n);
+
+    generate
+        if (ofs_plat_host_chan_fim_gasket_pkg::WR_COMMIT_CHAN == ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_A)
+        begin : commit_a
+            //
+            // Write commits go to RX-A. The commit stream must be merged into
+            // the emulation stream, which already has at least MMIO requests, with
+            // an arbiter.
+            //
+
+            // Input to the arbiter
+            pcie_ss_axis_if fim_axi_rx_arb_if[2](clk, rst_n);
+
+            // Read completions might be routed to RX-B, depending on the FIM
+            // configuration. This flag governs the routing of the current message.
+            logic rx_emul_to_rx_b;
+
+            // rx_emul_if will route either to RX-A (fim_axi_rx_arb_if[0]) or to
+            // fim_axi_rx_b_if.
+            assign fim_axi_rx_emul_if.tready = rx_emul_to_rx_b ? fim_axi_rx_b_if.tready :
+                                                                 fim_axi_rx_arb_if[0].tready;
+
+            // RX stream when routing to RX-A
+            assign fim_axi_rx_arb_if[0].tvalid = fim_axi_rx_emul_if.tvalid && !rx_emul_to_rx_b;
+            assign fim_axi_rx_arb_if[0].tlast = fim_axi_rx_emul_if.tlast;
+            assign fim_axi_rx_arb_if[0].tuser_vendor = fim_axi_rx_emul_if.tuser_vendor;
+            assign fim_axi_rx_arb_if[0].tdata = fim_axi_rx_emul_if.tdata;
+            assign fim_axi_rx_arb_if[0].tkeep = fim_axi_rx_emul_if.tkeep;
+
+            // FIM-generated write commits, merged into RX-A
+            assign fim_axi_rx_commit_if.tready = fim_axi_rx_arb_if[1].tready;
+            assign fim_axi_rx_arb_if[1].tvalid = fim_axi_rx_commit_if.tvalid;
+            assign fim_axi_rx_arb_if[1].tlast = fim_axi_rx_commit_if.tlast;
+            assign fim_axi_rx_arb_if[1].tuser_vendor = fim_axi_rx_commit_if.tuser_vendor;
+            assign fim_axi_rx_arb_if[1].tdata = fim_axi_rx_commit_if.tdata;
+            assign fim_axi_rx_arb_if[1].tkeep = fim_axi_rx_commit_if.tkeep;
+
+            // Merge the RX emulation and write commit streams into RX-A
+            ase_emul_pcie_ss_axis_mux
+              #(
+                .NUM_CH(2)
+                )
+              rx_ab_mux
+               (
+                .clk,
+                .rst_n,
+                .sink(fim_axi_rx_arb_if),
+                .source(fim_axi_rx_a_if)
+                );
+
+            // RX stream when routing read completions to RX-B
+            assign fim_axi_rx_b_if.tvalid = fim_axi_rx_emul_if.tvalid && rx_emul_to_rx_b;
+            assign fim_axi_rx_b_if.tlast = fim_axi_rx_emul_if.tlast;
+            assign fim_axi_rx_b_if.tuser_vendor = fim_axi_rx_emul_if.tuser_vendor;
+            assign fim_axi_rx_b_if.tdata = fim_axi_rx_emul_if.tdata;
+            assign fim_axi_rx_b_if.tkeep = fim_axi_rx_emul_if.tkeep;
+
+
+            //
+            // Routing calculation of read completions on RX, either to RX-A or RX-B.
+            // Completions may be multiple beats.
+            //
+            logic rx_emul_is_cpl_sop;
+            logic rx_emul_is_cpl_multi;
+            logic rx_emul_is_sop;
+            pcie_ss_hdr_pkg::PCIe_CplHdr_t rx_emul_hdr;
+
+            // Send a completion on the incoming RX stream to RX-B?
+            assign rx_emul_to_rx_b =
+                   (ofs_plat_host_chan_fim_gasket_pkg::CPL_CHAN == ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_B) &&
+                   (rx_emul_is_cpl_sop || rx_emul_is_cpl_multi);
+
+            // Is the current messages on the incoming RX stream a completion?
+            assign rx_emul_hdr = pcie_ss_hdr_pkg::PCIe_CplHdr_t'(fim_axi_rx_emul_if.tdata);
+            assign rx_emul_is_cpl_sop =
+                   (rx_emul_is_sop && fim_axi_rx_emul_if.tvalid) ?
+                     pcie_ss_hdr_pkg::func_is_completion(rx_emul_hdr.fmt_type) : 1'b0;
+
+            // Track multi-beat completions
+            always_ff @(posedge clk)
+            begin
+                if (fim_axi_rx_emul_if.tvalid && fim_axi_rx_emul_if.tready)
+                begin
+                    if (fim_axi_rx_emul_if.tlast)
+                    begin
+                        // EOP
+                        rx_emul_is_sop <= 1'b1;
+                        rx_emul_is_cpl_multi <= 1'b0;
+                    end
+                    else
+                    begin
+                        // Not EOP
+                        rx_emul_is_sop <= 1'b0;
+                        if (rx_emul_is_cpl_sop)
+                        begin
+                            // Start of a multi-beat completion
+                            rx_emul_is_cpl_multi <= 1'b1;
+                        end
+                    end
+                end
+
+                if (!rst_n)
+                begin
+                    rx_emul_is_sop <= 1'b1;
+                    rx_emul_is_cpl_multi <= 1'b0;
+                end
+            end
+        end
+        else
+        begin : commit_b
+            //
+            // Write commits go to RX-B. Since completions must then go to RX-A
+            // the code is simple.
+            //
+            assign fim_axi_rx_emul_if.tready = fim_axi_rx_a_if.tready;
+            assign fim_axi_rx_a_if.tvalid = fim_axi_rx_emul_if.tvalid;
+            assign fim_axi_rx_a_if.tlast = fim_axi_rx_emul_if.tlast;
+            assign fim_axi_rx_a_if.tuser_vendor = fim_axi_rx_emul_if.tuser_vendor;
+            assign fim_axi_rx_a_if.tdata = fim_axi_rx_emul_if.tdata;
+            assign fim_axi_rx_a_if.tkeep = fim_axi_rx_emul_if.tkeep;
+
+            assign fim_axi_rx_commit_if.tready = fim_axi_rx_b_if.tready;
+            assign fim_axi_rx_b_if.tvalid = fim_axi_rx_commit_if.tvalid;
+            assign fim_axi_rx_b_if.tlast = fim_axi_rx_commit_if.tlast;
+            assign fim_axi_rx_b_if.tuser_vendor = fim_axi_rx_commit_if.tuser_vendor;
+            assign fim_axi_rx_b_if.tdata = fim_axi_rx_commit_if.tdata;
+            assign fim_axi_rx_b_if.tkeep = fim_axi_rx_commit_if.tkeep;
+        end
+    endgenerate
+
+    //
     // Generate local commit messages for write requests now that A/B arbitration
-    // is complete. Commits are on RX B.
+    // is complete.
     //
     pcie_ss_axis_if fim_axi_tx_if(clk, rst_n);
 
@@ -178,11 +328,11 @@ module ase_emul_pcie_ss_axis_tlp
         .clk,
         .rst_n,
 
-        .sink(fim_axi_tx_arb_if),
+        .sink(fim_axi_tx_mrg_if),
         // Final merged TX stream, passed to ASE for emulation
         .source(fim_axi_tx_if),
         // Synthesized write completions
-        .commit(fim_axi_rx_b_if)
+        .commit(fim_axi_rx_commit_if)
         );
 
 
@@ -194,7 +344,7 @@ module ase_emul_pcie_ss_axis_tlp
         .pck_cp2af_pwrState(pwrState),
         .pck_cp2af_error(),
 
-        .pcie_rx_if(fim_axi_rx_a_if),
+        .pcie_rx_if(fim_axi_rx_emul_if),
         .pcie_tx_if(fim_axi_tx_if)
         );
 
