@@ -20,8 +20,11 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // PIM encoding (FPGA->host, optional separate MRd stream)
     ofs_plat_axi_stream_if.to_source tx_mrd_from_pim,
 
-    // PIM encoding
-    ofs_plat_axi_stream_if.to_sink rx_to_pim,
+    // MMIO requests (host -> AFU)
+    ofs_plat_axi_stream_if.to_sink mmio_req_to_pim,
+
+    // Read completions (host -> AFU)
+    ofs_plat_axi_stream_if.to_sink rd_cpl_to_pim,
 
     // Write completions (t_gen_tx_wr_cpl)
     ofs_plat_axi_stream_if.to_sink wr_cpl_to_pim,
@@ -411,18 +414,35 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // hdr and data messages in order.
     //
     logic fim_enc_rx_sop;
-
     always_ff @(posedge clk)
     begin
         if (fim_enc_rx_data.tready && fim_enc_rx_data.tvalid)
-        begin
             fim_enc_rx_sop <= fim_enc_rx_data.t.last;
-        end
 
         if (!reset_n)
-        begin
             fim_enc_rx_sop <= 1'b1;
-        end
+    end
+
+    // SOP of the MMIO and read completion streams to the PIM are tracked in
+    // order to route pure data beats.
+    logic mmio_req_sop;
+    always_ff @(posedge clk)
+    begin
+        if (mmio_req_to_pim.tready && mmio_req_to_pim.tvalid)
+            mmio_req_sop <= mmio_req_to_pim.t.user[0].eop;
+
+        if (!reset_n)
+            mmio_req_sop <= 1'b1;
+    end
+
+    logic rd_cpl_sop;
+    always_ff @(posedge clk)
+    begin
+        if (rd_cpl_to_pim.tready && rd_cpl_to_pim.tvalid)
+            rd_cpl_sop <= rd_cpl_to_pim.t.user[0].eop;
+
+        if (!reset_n)
+            rd_cpl_sop <= 1'b1;
     end
 
     //
@@ -430,12 +450,10 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // valid. (In order to simplify the control logic here, there is always a data
     // message, even if the header indicates no payload.)
     //
-    assign fim_enc_rx_hdr.tready = rx_to_pim.tready && fim_enc_rx_sop && fim_enc_rx_data.tvalid;
-    assign fim_enc_rx_data.tready = rx_to_pim.tready && (!fim_enc_rx_sop || fim_enc_rx_hdr.tvalid);
-
-    // Data stream to PIM valid? Data must always be present and, if SOP, a header.
-    assign rx_to_pim.tvalid = fim_enc_rx_data.tvalid && (!fim_enc_rx_sop || fim_enc_rx_hdr.tvalid);
-
+    assign fim_enc_rx_hdr.tready = mmio_req_to_pim.tready && rd_cpl_to_pim.tready &&
+                                   fim_enc_rx_sop && fim_enc_rx_data.tvalid;
+    assign fim_enc_rx_data.tready = mmio_req_to_pim.tready && rd_cpl_to_pim.tready &&
+                                    (!fim_enc_rx_sop || fim_enc_rx_hdr.tvalid);
 
     //
     // Header
@@ -455,66 +473,79 @@ module ofs_plat_host_chan_@group@_fim_gasket
     pcie_ss_hdr_pkg::ReqHdr_FmtType_e rx_fmttype;
     assign rx_fmttype = rx_cpl_pu_hdr.fmt_type;
 
-    logic rx_to_pim_invalid_cmd;
+    // MMIO request?
+    assign mmio_req_to_pim.tvalid =
+             fim_enc_rx_data.tvalid && rd_cpl_to_pim.tready &&
+             (!mmio_req_sop ||
+              (fim_enc_rx_sop && fim_enc_rx_hdr.tvalid && pcie_ss_hdr_pkg::func_is_mem_req(rx_fmttype)));
+
+    // Read completion?
+    assign rd_cpl_to_pim.tvalid =
+             fim_enc_rx_data.tvalid && mmio_req_to_pim.tready &&
+             (!rd_cpl_sop ||
+              (fim_enc_rx_sop && fim_enc_rx_hdr.tvalid && pcie_ss_hdr_pkg::func_is_completion(rx_fmttype)));
 
     always_comb
     begin
-        rx_to_pim_invalid_cmd = 1'b0;
-        rx_to_pim.t.user = '0;
+        mmio_req_to_pim.t.user = '0;
 
-        rx_to_pim.t.user[0].sop = fim_enc_rx_sop;
-        rx_to_pim.t.user[0].eop = fim_enc_rx_data.t.last;
+        mmio_req_to_pim.t.user[0].sop = fim_enc_rx_sop;
+        mmio_req_to_pim.t.user[0].eop = fim_enc_rx_data.t.last;
+        mmio_req_to_pim.t.last = fim_enc_rx_data.t.last;
 
         if (fim_enc_rx_sop)
         begin
-            rx_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
+            mmio_req_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
+            mmio_req_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
+            mmio_req_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_pu_hdr.req_id;
+            mmio_req_to_pim.t.user[0].hdr.u.mem_req.tc = rx_mem_req_pu_hdr.TC;
+            mmio_req_to_pim.t.user[0].hdr.u.mem_req.tag =
+                { rx_mem_req_pu_hdr.tag_h, rx_mem_req_pu_hdr.tag_m, rx_mem_req_pu_hdr.tag_l };
+            mmio_req_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_pu_hdr.last_dw_be;
+            mmio_req_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_pu_hdr.first_dw_be;
+            mmio_req_to_pim.t.user[0].hdr.u.mem_req.addr =
+                pcie_ss_hdr_pkg::func_is_addr64(rx_fmttype) ?
+                    { rx_mem_req_pu_hdr.host_addr_h, rx_mem_req_pu_hdr.host_addr_l, 2'b0 } :
+                    { '0, rx_mem_req_pu_hdr.host_addr_h };
+        end
+    end
 
-            if (pcie_ss_hdr_pkg::func_is_mem_req(rx_fmttype))
+    always_comb
+    begin
+        rd_cpl_to_pim.t.user = '0;
+
+        rd_cpl_to_pim.t.user[0].sop = fim_enc_rx_sop;
+        rd_cpl_to_pim.t.user[0].eop = fim_enc_rx_data.t.last;
+        rd_cpl_to_pim.t.last = fim_enc_rx_data.t.last;
+
+        if (fim_enc_rx_sop)
+        begin
+            rd_cpl_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
+            if (fim_enc_rx_hdr.t.user)
             begin
-                rx_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
-                rx_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_pu_hdr.req_id;
-                rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_mem_req_pu_hdr.TC;
-                rx_to_pim.t.user[0].hdr.u.mem_req.tag =
-                    { rx_mem_req_pu_hdr.tag_h, rx_mem_req_pu_hdr.tag_m, rx_mem_req_pu_hdr.tag_l };
-                rx_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_pu_hdr.last_dw_be;
-                rx_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_pu_hdr.first_dw_be;
-                rx_to_pim.t.user[0].hdr.u.mem_req.addr =
-                    pcie_ss_hdr_pkg::func_is_addr64(rx_fmttype) ?
-                        { rx_mem_req_pu_hdr.host_addr_h, rx_mem_req_pu_hdr.host_addr_l, 2'b0 } :
-                        { '0, rx_mem_req_pu_hdr.host_addr_h };
-            end
-            else if (pcie_ss_hdr_pkg::func_is_completion(rx_fmttype))
-            begin
-                if (fim_enc_rx_hdr.t.user)
-                begin
-                    // DM encoded
-                    rx_to_pim.t.user[0].hdr.length = { '0, rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m };
-                    rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_dm_hdr.TC;
-                    rx_to_pim.t.user[0].hdr.u.cpl.tag = rx_cpl_dm_hdr.tag;
-                    { rx_to_pim.t.user[0].hdr.u.cpl.lower_addr_h, rx_to_pim.t.user[0].hdr.u.cpl.lower_addr } =
-                        { '0, rx_cpl_dm_hdr.low_addr_h, rx_cpl_dm_hdr.low_addr_l };
-                    rx_to_pim.t.user[0].hdr.u.cpl.fc = rx_cpl_dm_hdr.FC;
-                    rx_to_pim.t.user[0].hdr.u.cpl.dm_encoded = 1'b1;
-                end
-                else
-                begin
-                    // PU encoded
-                    rx_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
-                    rx_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_pu_hdr.req_id;
-                    rx_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_pu_hdr.TC;
-                    rx_to_pim.t.user[0].hdr.u.cpl.tag =
-                        { rx_cpl_pu_hdr.tag_h, rx_cpl_pu_hdr.tag_m, rx_cpl_pu_hdr.tag_l };
-                    rx_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_pu_hdr.comp_id;
-                    rx_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_pu_hdr.byte_count;
-                    rx_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_pu_hdr.low_addr;
-                    // The PIM only generates dword aligned reads, so the check for
-                    // the last packet is easy.
-                    rx_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_pu_hdr.byte_count[11:2] == rx_cpl_pu_hdr.length);
-                end
+                // DM encoded
+                rd_cpl_to_pim.t.user[0].hdr.length = { '0, rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m };
+                rd_cpl_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_dm_hdr.TC;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.tag = rx_cpl_dm_hdr.tag;
+                { rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr_h, rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr } =
+                    { '0, rx_cpl_dm_hdr.low_addr_h, rx_cpl_dm_hdr.low_addr_l };
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = rx_cpl_dm_hdr.FC;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.dm_encoded = 1'b1;
             end
             else
             begin
-                rx_to_pim_invalid_cmd = 1'b1;
+                // PU encoded
+                rd_cpl_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_pu_hdr.req_id;
+                rd_cpl_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_pu_hdr.TC;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.tag =
+                    { rx_cpl_pu_hdr.tag_h, rx_cpl_pu_hdr.tag_m, rx_cpl_pu_hdr.tag_l };
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_pu_hdr.comp_id;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_pu_hdr.byte_count;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_pu_hdr.low_addr;
+                // The PIM only generates dword aligned reads, so the check for
+                // the last packet is easy.
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_pu_hdr.byte_count[11:2] == rx_cpl_pu_hdr.length);
             end
         end
     end
@@ -523,9 +554,13 @@ module ofs_plat_host_chan_@group@_fim_gasket
     wire [13:0] rx_cpl_dm_hdr_length =
         { rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m, rx_cpl_dm_hdr.length_l };
 
-    always_ff @(posedge rx_to_pim.clk)
+    // Unexpected RX traffic?
+    wire rx_to_pim_invalid_cmd = fim_enc_rx_sop &&
+                                 !pcie_ss_hdr_pkg::func_is_completion(rx_fmttype);
+
+    always_ff @(posedge rd_cpl_to_pim.clk)
     begin
-        if (rx_to_pim.reset_n && rx_to_pim.tvalid && rx_to_pim.tready)
+        if (rd_cpl_to_pim.reset_n && rd_cpl_to_pim.tvalid && rd_cpl_to_pim.tready)
         begin
             if (rx_to_pim_invalid_cmd)
                 $fatal(2, "Unexpected TLP RX header to PIM!");
@@ -545,8 +580,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
     //
     always_comb
     begin
-        rx_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
-        rx_to_pim.t.keep = ~'0;
+        mmio_req_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
+        mmio_req_to_pim.t.keep = ~'0;
+    end
+
+    always_comb
+    begin
+        rd_cpl_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
+        rd_cpl_to_pim.t.keep = ~'0;
 
         // The PIM will only generate a short read for atomic requests. The
         // response will arrive in the low bits of the payload, but the PIM's
@@ -557,16 +598,16 @@ module ofs_plat_host_chan_@group@_fim_gasket
         begin
             if (rx_cpl_pu_hdr.length == 1)
             begin
-                for (int i = 1; i < $bits(rx_to_pim.t.data[0]) / 32; i = i + 1)
+                for (int i = 1; i < $bits(rd_cpl_to_pim.t.data[0]) / 32; i = i + 1)
                 begin
-                    rx_to_pim.t.data[0][i*32 +: 32] = fim_enc_rx_data.t.data.payload[31:0];
+                    rd_cpl_to_pim.t.data[0][i*32 +: 32] = fim_enc_rx_data.t.data.payload[31:0];
                 end
             end
             else if (rx_cpl_pu_hdr.length == 2)
             begin
-                for (int i = 1; i < $bits(rx_to_pim.t.data[0]) / 64; i = i + 1)
+                for (int i = 1; i < $bits(rd_cpl_to_pim.t.data[0]) / 64; i = i + 1)
                 begin
-                    rx_to_pim.t.data[0][i*64 +: 64] = fim_enc_rx_data.t.data.payload[63:0];
+                    rd_cpl_to_pim.t.data[0][i*64 +: 64] = fim_enc_rx_data.t.data.payload[63:0];
                 end
             end
         end

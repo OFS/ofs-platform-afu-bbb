@@ -83,12 +83,14 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     localparam FIM_HAS_SEPARATE_READ_STREAM = 0;
 `endif
 
-    `AXI_TLP_STREAM_INSTANCE(from_fiu_rx_st);
+    `AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_req);
+    `AXI_TLP_STREAM_INSTANCE(from_fiu_rd_cpl);
     `AXI_STREAM_INSTANCE(from_fiu_wr_cpl, t_gen_tx_wr_cpl);
     `AXI_STREAM_INSTANCE(from_fiu_irq_cpl, t_ofs_plat_pcie_hdr_irq);
 
     // synthesis translate_off
-    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(ofs_plat_log_pkg::HOST_CHAN, from_fiu_rx_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(ofs_plat_log_pkg::HOST_CHAN, from_fiu_mmio_req)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(ofs_plat_log_pkg::HOST_CHAN, from_fiu_rd_cpl)
     // synthesis translate_on
 
 
@@ -141,17 +143,15 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         // TX MRd stream (AFU -> host)
         .tx_mrd_from_pim(to_fiu_tx_mrd_st),
 
-        // RX (host -> AFU)
-        .rx_to_pim(from_fiu_rx_st),
+        // MMIO requests (host -> AFU)
+        .mmio_req_to_pim(from_fiu_mmio_req),
+        // Read completions (host -> AFU)
+        .rd_cpl_to_pim(from_fiu_rd_cpl),
         // Write completions
         .wr_cpl_to_pim(from_fiu_wr_cpl),
         // Interrupt responses (host -> AFU)
         .irq_cpl_to_pim(from_fiu_irq_cpl)
         );
-
-    logic rx_cpl_handler_ready;
-    logic rx_mmio_handler_ready;
-    assign from_fiu_rx_st.tready = rx_cpl_handler_ready && rx_mmio_handler_ready;
 
 
     // ====================================================================
@@ -163,19 +163,12 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TLP_STREAM_INSTANCE(tx_mmio_tlps);
 
-    // TLP RX stream from host, copied for forwarding to the MMIO handler.
-    // port for read requests. Otherwise, tied off.
-    `AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_rx_st);
-    assign from_fiu_mmio_rx_st.tvalid = from_fiu_rx_st.tvalid && from_fiu_rx_st.tready;
-    assign rx_mmio_handler_ready = from_fiu_mmio_rx_st.tready;
-    assign from_fiu_mmio_rx_st.t = from_fiu_rx_st.t;
-
     ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_to_tlps
        (
         .clk,
         .reset_n,
 
-        .from_fiu_rx_st(from_fiu_mmio_rx_st),
+        .from_fiu_rx_st(from_fiu_mmio_req),
         .host_mmio_req,
         .host_mmio_rsp,
         .tx_mmio(tx_mmio_tlps),
@@ -192,13 +185,6 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     // Output read request stream to host (TX TLP vector with NUM_PCIE_TLP_CH channels)
     `AXI_TLP_STREAM_INSTANCE(tx_rd_tlps);
-
-    // Input read completion stream from host (TX TLP vector with NUM_PCIE_TLP_CH channels)
-    `AXI_TLP_STREAM_INSTANCE(rx_cpl_tlps);
-    assign rx_cpl_tlps.tvalid = from_fiu_rx_st.tvalid && from_fiu_rx_st.tready;
-    assign rx_cpl_handler_ready = rx_cpl_tlps.tready;
-    assign rx_cpl_tlps.t.data = from_fiu_rx_st.t.data;
-    assign rx_cpl_tlps.t.user = from_fiu_rx_st.t.user;
 
     // Atomic completion tags are allocated by sending a dummy read through the
     // read pipeline. Response tags are attached to the atomic write request
@@ -222,7 +208,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
         .tx_rd_tlps,
 
         // Input TLP response stream from host.
-        .rx_cpl_tlps,
+        .rx_cpl_tlps(from_fiu_rd_cpl),
 
         // Read responses to AFU
         .afu_rd_rsp,

@@ -21,8 +21,11 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // EA -- just set tready.
     ofs_plat_axi_stream_if.to_source tx_mrd_from_pim,
 
-    // PIM encoding
-    ofs_plat_axi_stream_if.to_sink rx_to_pim,
+    // MMIO requests (host -> AFU)
+    ofs_plat_axi_stream_if.to_sink mmio_req_to_pim,
+
+    // Read completions (host -> AFU)
+    ofs_plat_axi_stream_if.to_sink rd_cpl_to_pim,
 
     // Write completions (t_gen_tx_wr_cpl)
     ofs_plat_axi_stream_if.to_sink wr_cpl_to_pim,
@@ -34,9 +37,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
     import ofs_plat_pcie_tlp_hdr_pkg::*;
 
     logic clk;
-    assign clk = rx_to_pim.clk;
+    assign clk = to_fiu_tlp.clk;
     logic reset_n;
-    assign reset_n = rx_to_pim.reset_n;
+    assign reset_n = to_fiu_tlp.reset_n;
 
 
     //
@@ -259,17 +262,41 @@ module ofs_plat_host_chan_@group@_fim_gasket
         .stream_sink(fim_enc_rx)
         );
 
+    // SOP of the MMIO and read completion streams to the PIM are tracked in
+    // order to route pure data beats.
+    logic mmio_req_sop;
+    always_ff @(posedge clk)
+    begin
+        if (mmio_req_to_pim.tready && mmio_req_to_pim.tvalid)
+            mmio_req_sop <= mmio_req_to_pim.t.user[0].eop;
+
+        if (!reset_n)
+            mmio_req_sop <= 1'b1;
+    end
+
+    logic rd_cpl_sop;
+    always_ff @(posedge clk)
+    begin
+        if (rd_cpl_to_pim.tready && rd_cpl_to_pim.tvalid)
+            rd_cpl_sop <= rd_cpl_to_pim.t.user[0].eop;
+
+        if (!reset_n)
+            rd_cpl_sop <= 1'b1;
+    end
+
     // FIM to PIM encoding translation. At this point, all SOP entries are
     // guaranteed to be in slot 0.
-    assign fim_enc_rx.tready = rx_to_pim.tready;
-    assign rx_to_pim.tvalid = fim_enc_rx.tvalid;
+    assign fim_enc_rx.tready = mmio_req_to_pim.tready && rd_cpl_to_pim.tready;
 
     // Map multi-channel FIM to single-channel PIM data encoding
     always_comb
     begin
         for (int i = 0; i < NUM_FIM_MAP_CH; i = i + 1)
         begin
-            rx_to_pim.t.data[0][i * ofs_fim_if_pkg::AXIS_PCIE_PW +: ofs_fim_if_pkg::AXIS_PCIE_PW] =
+            mmio_req_to_pim.t.data[0][i * ofs_fim_if_pkg::AXIS_PCIE_PW +: ofs_fim_if_pkg::AXIS_PCIE_PW] =
+                fim_enc_rx.t.data[i].payload;
+
+            rd_cpl_to_pim.t.data[0][i * ofs_fim_if_pkg::AXIS_PCIE_PW +: ofs_fim_if_pkg::AXIS_PCIE_PW] =
                 fim_enc_rx.t.data[i].payload;
         end
     end
@@ -287,60 +314,84 @@ module ofs_plat_host_chan_@group@_fim_gasket
     t_ofs_plat_pcie_hdr_fmttype rx_fmttype;
     assign rx_fmttype = t_ofs_plat_pcie_hdr_fmttype'(rx_dw0.fmttype);
 
-    logic rx_to_pim_invalid_cmd;
+    // MMIO request?
+    assign mmio_req_to_pim.tvalid =
+             fim_enc_rx.tvalid && rd_cpl_to_pim.tready &&
+             (!mmio_req_sop ||
+              (fim_enc_rx.t.data[0].sop && ofs_plat_pcie_func_is_mem_req(rx_fmttype)));
+
+    // Read completion?
+    assign rd_cpl_to_pim.tvalid =
+             fim_enc_rx.tvalid && mmio_req_to_pim.tready &&
+             (!rd_cpl_sop ||
+              (fim_enc_rx.t.data[0].sop && ofs_plat_pcie_func_is_completion(rx_fmttype)));
 
     always_comb
     begin
-        rx_to_pim_invalid_cmd = 1'b0;
-        rx_to_pim.t.keep = ~'0;
-        rx_to_pim.t.user = '0;
+        mmio_req_to_pim.t.keep = ~'0;
+        mmio_req_to_pim.t.user = '0;
 
         // SOP guaranteed in FIM slot 0 after alignment above
-        rx_to_pim.t.user[0].sop = fim_enc_rx.t.data[0].sop;
+        mmio_req_to_pim.t.user[0].sop = fim_enc_rx.t.data[0].sop;
 
         // Merge EOP into a single bit for PIM encoding
-        rx_to_pim.t.user[0].eop = fim_enc_rx.t.data[0].eop;
+        mmio_req_to_pim.t.user[0].eop = fim_enc_rx.t.data[0].eop;
         for (int i = 1; i < NUM_FIM_MAP_CH; i = i + 1)
         begin
-            rx_to_pim.t.user[0].eop = rx_to_pim.t.user[0].eop || fim_enc_rx.t.data[i].eop;
+            mmio_req_to_pim.t.user[0].eop = mmio_req_to_pim.t.user[0].eop || fim_enc_rx.t.data[i].eop;
         end
 
-        rx_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
-        rx_to_pim.t.user[0].hdr.length = rx_dw0.length;
+        mmio_req_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
+        mmio_req_to_pim.t.user[0].hdr.length = rx_dw0.length;
+        mmio_req_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_hdr.requester_id;
+        mmio_req_to_pim.t.user[0].hdr.u.mem_req.tag = rx_mem_req_hdr.tag;
+        mmio_req_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_hdr.last_be;
+        mmio_req_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_hdr.first_be;
+        mmio_req_to_pim.t.user[0].hdr.u.mem_req.addr =
+            ofs_plat_pcie_func_is_addr64(rx_fmttype) ?
+               { rx_mem_req_hdr.addr, rx_mem_req_hdr.lsb_addr } :
+               { '0, rx_mem_req_hdr.addr };
+    end
 
-        if (ofs_plat_pcie_func_is_mem_req(rx_fmttype))
+    always_comb
+    begin
+        rd_cpl_to_pim.t.keep = ~'0;
+        rd_cpl_to_pim.t.user = '0;
+
+        // SOP guaranteed in FIM slot 0 after alignment above
+        rd_cpl_to_pim.t.user[0].sop = fim_enc_rx.t.data[0].sop;
+
+        // Merge EOP into a single bit for PIM encoding
+        rd_cpl_to_pim.t.user[0].eop = fim_enc_rx.t.data[0].eop;
+        for (int i = 1; i < NUM_FIM_MAP_CH; i = i + 1)
         begin
-            rx_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_hdr.requester_id;
-            rx_to_pim.t.user[0].hdr.u.mem_req.tag = rx_mem_req_hdr.tag;
-            rx_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_hdr.last_be;
-            rx_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_hdr.first_be;
-            rx_to_pim.t.user[0].hdr.u.mem_req.addr =
-                ofs_plat_pcie_func_is_addr64(rx_fmttype) ?
-                   { rx_mem_req_hdr.addr, rx_mem_req_hdr.lsb_addr } :
-                   { '0, rx_mem_req_hdr.addr };
+            rd_cpl_to_pim.t.user[0].eop = rd_cpl_to_pim.t.user[0].eop || fim_enc_rx.t.data[i].eop;
         end
-        else if (ofs_plat_pcie_func_is_completion(rx_fmttype))
-        begin
-            rx_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_hdr.requester_id;
-            rx_to_pim.t.user[0].hdr.u.cpl.tag = rx_cpl_hdr.tag;
-            rx_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_hdr.completer_id;
-            rx_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_hdr.byte_count;
-            rx_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_hdr.lower_addr;
-            // The PIM only generates dword aligned reads, so the check for
-            // the last packet is easy.
-            rx_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_hdr.byte_count[11:2] == rx_dw0.length);
-        end
-        else
-        begin
-            rx_to_pim_invalid_cmd = rx_to_pim.tvalid && rx_to_pim.t.user[0].sop;
-        end
+
+        rd_cpl_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
+        rd_cpl_to_pim.t.user[0].hdr.length = rx_dw0.length;
+        rd_cpl_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_hdr.requester_id;
+        rd_cpl_to_pim.t.user[0].hdr.u.cpl.tag = rx_cpl_hdr.tag;
+        rd_cpl_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_hdr.completer_id;
+        rd_cpl_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_hdr.byte_count;
+        rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_hdr.lower_addr;
+        // The PIM only generates dword aligned reads, so the check for
+        // the last packet is easy.
+        rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_hdr.byte_count[11:2] == rx_dw0.length);
     end
 
     // synthesis translate_off
-    always_ff @(posedge rx_to_pim.clk)
+    // Unexpected RX traffic?
+    wire rx_to_pim_invalid_cmd = fim_enc_rx.t.data[0].sop &&
+                                 !ofs_plat_pcie_func_is_completion(rx_fmttype);
+
+    always_ff @(posedge rd_cpl_to_pim.clk)
     begin
-        if (rx_to_pim.reset_n && rx_to_pim_invalid_cmd)
-            $fatal(2, "Unexpected TLP RX header to PIM!");
+        if (rd_cpl_to_pim.reset_n && rd_cpl_to_pim.tvalid && rd_cpl_to_pim.tready)
+        begin
+            if (rx_to_pim_invalid_cmd)
+                $fatal(2, "Unexpected TLP RX header to PIM!");
+        end
     end
     // synthesis translate_on
 
