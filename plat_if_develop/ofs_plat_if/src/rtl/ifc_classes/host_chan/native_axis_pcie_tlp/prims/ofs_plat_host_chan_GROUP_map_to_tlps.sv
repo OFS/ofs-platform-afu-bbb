@@ -22,7 +22,7 @@
 // modules instantiated here. They use a common idiom. Define a macro
 // that instantiates a stream "instance_name" of "data_type" and assigns
 // standard clock, reset and debug info.
-`define AXI_STREAM_INSTANCE(instance_name, data_type) \
+`define OFS_PLAT_AXI_STREAM_INSTANCE(instance_name, data_type) \
     ofs_plat_axi_stream_if \
       #( \
         .TDATA_TYPE(data_type), \
@@ -34,7 +34,7 @@
     assign instance_name.instance_number = to_fiu_tlp.instance_number
 
 // Standard AFU line-width TX TLP stream instance
-`define AXI_TLP_STREAM_INSTANCE(instance_name) \
+`define OFS_PLAT_AXI_TLP_STREAM_INSTANCE(instance_name) \
     ofs_plat_axi_stream_if \
       #( \
         .TDATA_TYPE(ofs_plat_host_chan_@group@_pcie_tlp_pkg::t_ofs_plat_axis_pcie_tdata_vec), \
@@ -83,10 +83,10 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     localparam FIM_HAS_SEPARATE_READ_STREAM = 0;
 `endif
 
-    `AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_req);
-    `AXI_TLP_STREAM_INSTANCE(from_fiu_rd_cpl);
-    `AXI_STREAM_INSTANCE(from_fiu_wr_cpl, t_gen_tx_wr_cpl);
-    `AXI_STREAM_INSTANCE(from_fiu_irq_cpl, t_ofs_plat_pcie_hdr_irq);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(from_fiu_mmio_req);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(from_fiu_rd_cpl);
+    `OFS_PLAT_AXI_STREAM_INSTANCE(from_fiu_wr_cpl, t_gen_tx_wr_cpl);
+    `OFS_PLAT_AXI_STREAM_INSTANCE(from_fiu_irq_cpl, t_ofs_plat_pcie_hdr_irq);
 
     // synthesis translate_off
     `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_RX(ofs_plat_log_pkg::HOST_CHAN, from_fiu_mmio_req)
@@ -94,12 +94,12 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // synthesis translate_on
 
 
-    `AXI_TLP_STREAM_INSTANCE(to_fiu_tx_st);
-    `AXI_TLP_STREAM_INSTANCE(to_fiu_tx_st_skid);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(to_fiu_tx_st);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(to_fiu_tx_st_skid);
 
     // Read request stream to FIM, used only when the FIM provides a separate
     // port for read requests. Otherwise, tied off.
-    `AXI_TLP_STREAM_INSTANCE(to_fiu_tx_mrd_st);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(to_fiu_tx_mrd_st);
 
     // synthesis translate_off
     `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_AXIS_PCIE_TLP_TX(ofs_plat_log_pkg::HOST_CHAN, to_fiu_tx_st)
@@ -161,7 +161,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // ====================================================================
 
     // Output response stream (TX TLP vector with NUM_PCIE_TLP_CH channels)
-    `AXI_TLP_STREAM_INSTANCE(tx_mmio_tlps);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(tx_mmio_tlps);
 
     ofs_plat_host_chan_@group@_gen_mmio_tlps mmio_to_tlps
        (
@@ -184,15 +184,15 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // ====================================================================
 
     // Output read request stream to host (TX TLP vector with NUM_PCIE_TLP_CH channels)
-    `AXI_TLP_STREAM_INSTANCE(tx_rd_tlps);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(tx_rd_tlps);
 
     // Atomic completion tags are allocated by sending a dummy read through the
     // read pipeline. Response tags are attached to the atomic write request
     // through this stream.
-    `AXI_STREAM_INSTANCE(atomic_cpl_tag, t_dma_rd_tag);
+    `OFS_PLAT_AXI_STREAM_INSTANCE(atomic_cpl_tag, t_dma_rd_tag);
 
     // Write fence completions
-    `AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
+    `OFS_PLAT_AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
 
     logic rd_cpld_tag_available;
 
@@ -232,7 +232,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // ====================================================================
 
     // Output write request stream to host (TX TLP vector with NUM_PCIE_TLP_CH channels)
-    `AXI_TLP_STREAM_INSTANCE(tx_wr_tlps);
+    `OFS_PLAT_AXI_TLP_STREAM_INSTANCE(tx_wr_tlps);
 
     ofs_plat_host_chan_@group@_gen_wr_tlps wr_req_to_tlps
        (
@@ -476,3 +476,6 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     // synthesis translate_on
 
 endmodule // ofs_plat_host_chan_@group@_map_to_tlps
+
+`undef OFS_PLAT_AXI_STREAM_INSTANCE
+`undef OFS_PLAT_AXI_TLP_STREAM_INSTANCE

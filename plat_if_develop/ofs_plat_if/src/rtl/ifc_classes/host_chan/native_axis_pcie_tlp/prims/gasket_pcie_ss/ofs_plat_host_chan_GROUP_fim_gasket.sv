@@ -6,6 +6,13 @@
 // PCIe TLP representation.
 //
 
+//
+// The implementation here handles multiple RX message configurations, where
+// read completions and write commits may be on either RX-A or RX-B. The
+// configuration is static, making the RTL complex but the generated logic
+// remains efficient.
+//
+
 `include "ofs_plat_if.vh"
 
 module ofs_plat_host_chan_@group@_fim_gasket
@@ -372,26 +379,42 @@ module ofs_plat_host_chan_@group@_fim_gasket
     //
     // ====================================================================
 
+    //
+    // It is not supported to send both write commits and read completions to
+    // the RX-B channel. The configuration comes from
+    // ofs_plat_host_chan_@group@_fim_gasket_pkg.
+    //
+    initial
+    begin
+        assert ((CPL_CHAN != PCIE_CHAN_B) ||
+                (WR_COMMIT_CHAN != PCIE_CHAN_B)) else
+          $fatal(2, "Illegal FIM configuration: both CPL_CHAN and WR_COMMIT_CHAN are RX-B!");
+    end
+
+    //
+    // Map RX-A to separate header and data streams. The PIM expects out-of-band
+    // headers.
+    //
     ofs_plat_axi_stream_if
       #(
         .TDATA_TYPE(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t),
         .TUSER_TYPE(logic)    // pu mode (0) / dm mode (1)
         )
-      fim_enc_rx_hdr();
+      fim_enc_rx_a_hdr();
 
     ofs_plat_axi_stream_if
       #(
         .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
         .TUSER_TYPE(logic)    // Not used
         )
-      fim_enc_rx_data();
+      fim_enc_rx_a_data();
 
-    assign fim_enc_rx_hdr.clk = to_fiu_tlp.clk;
-    assign fim_enc_rx_hdr.reset_n = to_fiu_tlp.reset_n;
-    assign fim_enc_rx_hdr.instance_number = to_fiu_tlp.instance_number;
-    assign fim_enc_rx_data.clk = to_fiu_tlp.clk;
-    assign fim_enc_rx_data.reset_n = to_fiu_tlp.reset_n;
-    assign fim_enc_rx_data.instance_number = to_fiu_tlp.instance_number;
+    assign fim_enc_rx_a_hdr.clk = to_fiu_tlp.clk;
+    assign fim_enc_rx_a_hdr.reset_n = to_fiu_tlp.reset_n;
+    assign fim_enc_rx_a_hdr.instance_number = to_fiu_tlp.instance_number;
+    assign fim_enc_rx_a_data.clk = to_fiu_tlp.clk;
+    assign fim_enc_rx_a_data.reset_n = to_fiu_tlp.reset_n;
+    assign fim_enc_rx_a_data.instance_number = to_fiu_tlp.instance_number;
 
     //
     //  Align the incoming RX stream in canonical form, making it far
@@ -405,23 +428,110 @@ module ofs_plat_host_chan_@group@_fim_gasket
       align_rx_a
        (
         .stream_source(to_fiu_tlp.afu_rx_a_st),
-        .hdr_stream_sink(fim_enc_rx_hdr),
-        .data_stream_sink(fim_enc_rx_data)
+        .hdr_stream_sink(fim_enc_rx_a_hdr),
+        .data_stream_sink(fim_enc_rx_a_data)
         );
+
+
+    //
+    // RX-B handling is more complicated because its mapping depends on
+    // whether read completions are on RX-B or whether write commits are
+    // on RX-B. (It will always be one or the other, or neither.)
+    // When read completions are on RX-B, separate headers and data
+    // just like RX-A.
+    //
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t),
+        .TUSER_TYPE(logic)    // pu mode (0) / dm mode (1)
+        )
+      fim_enc_rx_b_hdr();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(logic)    // Not used
+        )
+      fim_enc_rx_b_data();
+
+    assign fim_enc_rx_b_hdr.clk = to_fiu_tlp.clk;
+    assign fim_enc_rx_b_hdr.reset_n = to_fiu_tlp.reset_n;
+    assign fim_enc_rx_b_hdr.instance_number = to_fiu_tlp.instance_number;
+    assign fim_enc_rx_b_data.clk = to_fiu_tlp.clk;
+    assign fim_enc_rx_b_data.reset_n = to_fiu_tlp.reset_n;
+    assign fim_enc_rx_b_data.instance_number = to_fiu_tlp.instance_number;
+
+    // afu_rx_b_st will be used only when read completions are on RX-A.
+    // In this case, at most write commits are on RX-B and there is no
+    // data.
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
+        )
+      afu_rx_b_st();
+
+    generate
+        if (CPL_CHAN == PCIE_CHAN_A)
+        begin : b_skid
+            // Read completions are on RX-A. This means at most write
+            // completions are on RX-B, which do not need split streams.
+            // Use simple logic for RX-B with just a skid buffer for
+            // timing.
+            ofs_plat_axi_stream_if_skid_source_clk entry_b_skid
+               (
+                .stream_source(to_fiu_tlp.afu_rx_b_st),
+                .stream_sink(afu_rx_b_st)
+                );
+
+            // Tie off the unused fim_enc_rx_b streams.
+            assign fim_enc_rx_b_hdr.tvalid = 1'b0;
+            assign fim_enc_rx_b_hdr.tready = 1'b0;
+            assign fim_enc_rx_b_data.tvalid = 1'b0;
+            assign fim_enc_rx_b_data.tready = 1'b0;
+        end
+        else
+        begin : b_align
+            // Read completions are on RX-B. Split header and data
+            // streams are required.
+            ofs_plat_host_chan_@group@_align_rx_tlps
+              align_rx_b
+               (
+                .stream_source(to_fiu_tlp.afu_rx_b_st),
+                .hdr_stream_sink(fim_enc_rx_b_hdr),
+                .data_stream_sink(fim_enc_rx_b_data)
+                );
+
+            // Tie off the unused afu_rx_b_st.
+            assign afu_rx_b_st.tvalid = 1'b0;
+        end
+    endgenerate
+
 
     //
     // Track EOP/SOP of the incoming fim_enc_rx streams in order to handle
     // hdr and data messages in order.
     //
-    logic fim_enc_rx_sop;
+    logic fim_enc_rx_a_sop;
     always_ff @(posedge clk)
     begin
-        if (fim_enc_rx_data.tready && fim_enc_rx_data.tvalid)
-            fim_enc_rx_sop <= fim_enc_rx_data.t.last;
+        if (fim_enc_rx_a_data.tready && fim_enc_rx_a_data.tvalid)
+            fim_enc_rx_a_sop <= fim_enc_rx_a_data.t.last;
 
         if (!reset_n)
-            fim_enc_rx_sop <= 1'b1;
+            fim_enc_rx_a_sop <= 1'b1;
     end
+
+    logic fim_enc_rx_b_sop;
+    always_ff @(posedge clk)
+    begin
+        if (fim_enc_rx_b_data.tready && fim_enc_rx_b_data.tvalid)
+            fim_enc_rx_b_sop <= fim_enc_rx_b_data.t.last;
+
+        if (!reset_n)
+            fim_enc_rx_b_sop <= 1'b1;
+    end
+
 
     // SOP of the MMIO and read completion streams to the PIM are tracked in
     // order to route pure data beats.
@@ -450,53 +560,47 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // valid. (In order to simplify the control logic here, there is always a data
     // message, even if the header indicates no payload.)
     //
-    assign fim_enc_rx_hdr.tready = mmio_req_to_pim.tready && rd_cpl_to_pim.tready &&
-                                   fim_enc_rx_sop && fim_enc_rx_data.tvalid;
-    assign fim_enc_rx_data.tready = mmio_req_to_pim.tready && rd_cpl_to_pim.tready &&
-                                    (!fim_enc_rx_sop || fim_enc_rx_hdr.tvalid);
+    wire fim_enc_rx_a_all_tready =
+             mmio_req_to_pim.tready &&
+             (CPL_CHAN == PCIE_CHAN_A ? rd_cpl_to_pim.tready : 1'b1) &&
+             (WR_COMMIT_CHAN == PCIE_CHAN_A ? wr_cpl_to_pim.tready : 1'b1) &&
+             (WR_COMMIT_CHAN == PCIE_CHAN_A ? irq_cpl_to_pim.tready : 1'b1);
 
-    //
-    // Header
-    //
-
-    // Next header, cast to a memory request
-    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t rx_mem_req_pu_hdr;
-    assign rx_mem_req_pu_hdr = fim_enc_rx_hdr.t.data;
-
-    // Next header, cast to a completion response
-    pcie_ss_hdr_pkg::PCIe_CplHdr_t rx_cpl_dm_hdr;
-    assign rx_cpl_dm_hdr = fim_enc_rx_hdr.t.data;
-    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_cpl_pu_hdr;
-    assign rx_cpl_pu_hdr = fim_enc_rx_hdr.t.data;
+    assign fim_enc_rx_a_hdr.tready =
+             fim_enc_rx_a_sop && fim_enc_rx_a_data.tvalid && fim_enc_rx_a_all_tready;
+    assign fim_enc_rx_a_data.tready =
+             fim_enc_rx_a_all_tready &&
+             (!fim_enc_rx_a_sop || fim_enc_rx_a_hdr.tvalid);
 
     // Format type of header (same position in any message)
-    pcie_ss_hdr_pkg::ReqHdr_FmtType_e rx_fmttype;
-    assign rx_fmttype = rx_cpl_pu_hdr.fmt_type;
+    pcie_ss_hdr_pkg::ReqHdr_FmtType_e rx_a_fmttype;
+    assign rx_a_fmttype = fim_enc_rx_a_hdr.t.data.fmt_type;
 
-    // MMIO request?
+
+    //
+    // MMIO requests (always on RX-A)
+    //
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t rx_mem_req_pu_hdr;
+    assign rx_mem_req_pu_hdr = fim_enc_rx_a_hdr.t.data;
+
     assign mmio_req_to_pim.tvalid =
-             fim_enc_rx_data.tvalid && rd_cpl_to_pim.tready &&
+             fim_enc_rx_a_data.tvalid && fim_enc_rx_a_all_tready &&
              (!mmio_req_sop ||
-              (fim_enc_rx_sop && fim_enc_rx_hdr.tvalid && pcie_ss_hdr_pkg::func_is_mem_req(rx_fmttype)));
+              (fim_enc_rx_a_sop && fim_enc_rx_a_hdr.tvalid && pcie_ss_hdr_pkg::func_is_mem_req(rx_a_fmttype)));
 
-    // Read completion?
-    assign rd_cpl_to_pim.tvalid =
-             fim_enc_rx_data.tvalid && mmio_req_to_pim.tready &&
-             (!rd_cpl_sop ||
-              (fim_enc_rx_sop && fim_enc_rx_hdr.tvalid && pcie_ss_hdr_pkg::func_is_completion(rx_fmttype)));
-
+    // MMIO request header
     always_comb
     begin
         mmio_req_to_pim.t.user = '0;
 
-        mmio_req_to_pim.t.user[0].sop = fim_enc_rx_sop;
-        mmio_req_to_pim.t.user[0].eop = fim_enc_rx_data.t.last;
-        mmio_req_to_pim.t.last = fim_enc_rx_data.t.last;
+        mmio_req_to_pim.t.user[0].sop = fim_enc_rx_a_sop;
+        mmio_req_to_pim.t.user[0].eop = fim_enc_rx_a_data.t.last;
+        mmio_req_to_pim.t.last = fim_enc_rx_a_data.t.last;
 
-        if (fim_enc_rx_sop)
+        if (fim_enc_rx_a_sop)
         begin
-            mmio_req_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
-            mmio_req_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
+            mmio_req_to_pim.t.user[0].hdr.fmttype = rx_a_fmttype;
+            mmio_req_to_pim.t.user[0].hdr.length = rx_mem_req_pu_hdr.length;
             mmio_req_to_pim.t.user[0].hdr.u.mem_req.requester_id = rx_mem_req_pu_hdr.req_id;
             mmio_req_to_pim.t.user[0].hdr.u.mem_req.tc = rx_mem_req_pu_hdr.TC;
             mmio_req_to_pim.t.user[0].hdr.u.mem_req.tag =
@@ -504,59 +608,158 @@ module ofs_plat_host_chan_@group@_fim_gasket
             mmio_req_to_pim.t.user[0].hdr.u.mem_req.last_be = rx_mem_req_pu_hdr.last_dw_be;
             mmio_req_to_pim.t.user[0].hdr.u.mem_req.first_be = rx_mem_req_pu_hdr.first_dw_be;
             mmio_req_to_pim.t.user[0].hdr.u.mem_req.addr =
-                pcie_ss_hdr_pkg::func_is_addr64(rx_fmttype) ?
+                pcie_ss_hdr_pkg::func_is_addr64(rx_a_fmttype) ?
                     { rx_mem_req_pu_hdr.host_addr_h, rx_mem_req_pu_hdr.host_addr_l, 2'b0 } :
                     { '0, rx_mem_req_pu_hdr.host_addr_h };
         end
     end
 
+    // MMIO request payload
+    always_comb
+    begin
+        mmio_req_to_pim.t.data[0] = fim_enc_rx_a_data.t.data.payload;
+        mmio_req_to_pim.t.keep = ~'0;
+    end
+
+
+    // Read completion header, cast to a both DM and PU
+    pcie_ss_hdr_pkg::PCIe_CplHdr_t rd_cpl_dm_hdr;
+    pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rd_cpl_pu_hdr;
+    logic rd_cpl_dm_mode;
+    // Next completion payload
+    t_ofs_fim_axis_pcie_tdata rd_cpl_data;
+    logic rd_cpl_eop;
+
+    // Get completion header and data from the proper channel. The condition
+    // is static.
+    generate
+        if (CPL_CHAN == PCIE_CHAN_A)
+        begin : rd_cpl_a
+            // Read completions are on RX-A.
+            assign rd_cpl_dm_hdr = fim_enc_rx_a_hdr.t.data;
+            assign rd_cpl_pu_hdr = fim_enc_rx_a_hdr.t.data;
+            assign rd_cpl_dm_mode = fim_enc_rx_a_hdr.t.user;
+            assign rd_cpl_data = fim_enc_rx_a_data.t.data.payload;
+            assign rd_cpl_eop = fim_enc_rx_a_data.t.last;
+
+            // There are other message classes also on RX-A. Forward only
+            // completions with data to rd_cpl_to_pim.
+            assign rd_cpl_to_pim.tvalid =
+                     fim_enc_rx_a_data.tvalid && fim_enc_rx_a_all_tready &&
+                     (!rd_cpl_sop ||
+                      (fim_enc_rx_a_sop && fim_enc_rx_a_hdr.tvalid &&
+                       pcie_ss_hdr_pkg::func_is_completion(rx_a_fmttype) &&
+                       pcie_ss_hdr_pkg::func_has_data(rx_a_fmttype)));
+
+        end
+        else
+        begin : rd_cpl_b
+            // Read completions are the only traffic on RX-B.
+            assign rd_cpl_dm_hdr = fim_enc_rx_b_hdr.t.data;
+            assign rd_cpl_pu_hdr = fim_enc_rx_b_hdr.t.data;
+            assign rd_cpl_dm_mode = fim_enc_rx_b_hdr.t.user;
+            assign rd_cpl_data = fim_enc_rx_b_data.t.data.payload;
+            assign rd_cpl_eop = fim_enc_rx_b_data.t.last;
+
+            assign fim_enc_rx_b_hdr.tready =
+                     fim_enc_rx_b_sop && fim_enc_rx_b_data.tvalid && rd_cpl_to_pim.tready;
+            assign fim_enc_rx_b_data.tready =
+                     rd_cpl_to_pim.tready &&
+                     (!fim_enc_rx_b_sop || fim_enc_rx_b_hdr.tvalid);
+
+            assign rd_cpl_to_pim.tvalid =
+                     fim_enc_rx_b_data.tvalid &&
+                     (!rd_cpl_sop || (fim_enc_rx_b_sop && fim_enc_rx_b_hdr.tvalid));
+        end
+    endgenerate
+
+    // Read completion headers: FIM to PIM mapping
     always_comb
     begin
         rd_cpl_to_pim.t.user = '0;
 
-        rd_cpl_to_pim.t.user[0].sop = fim_enc_rx_sop;
-        rd_cpl_to_pim.t.user[0].eop = fim_enc_rx_data.t.last;
-        rd_cpl_to_pim.t.last = fim_enc_rx_data.t.last;
+        rd_cpl_to_pim.t.user[0].sop = rd_cpl_sop;
+        rd_cpl_to_pim.t.user[0].eop = rd_cpl_eop;
+        rd_cpl_to_pim.t.last = rd_cpl_eop;
 
-        if (fim_enc_rx_sop)
+        if (rd_cpl_sop)
         begin
-            rd_cpl_to_pim.t.user[0].hdr.fmttype = rx_fmttype;
-            if (fim_enc_rx_hdr.t.user)
+            if (rd_cpl_dm_mode)
             begin
                 // DM encoded
-                rd_cpl_to_pim.t.user[0].hdr.length = { '0, rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m };
-                rd_cpl_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_dm_hdr.TC;
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.tag = rx_cpl_dm_hdr.tag;
+                rd_cpl_to_pim.t.user[0].hdr.fmttype = rd_cpl_dm_hdr.fmt_type;
+                rd_cpl_to_pim.t.user[0].hdr.length = { '0, rd_cpl_dm_hdr.length_h, rd_cpl_dm_hdr.length_m };
+                rd_cpl_to_pim.t.user[0].hdr.u.mem_req.tc = rd_cpl_dm_hdr.TC;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.tag = rd_cpl_dm_hdr.tag;
                 { rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr_h, rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr } =
-                    { '0, rx_cpl_dm_hdr.low_addr_h, rx_cpl_dm_hdr.low_addr_l };
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = rx_cpl_dm_hdr.FC;
+                    { '0, rd_cpl_dm_hdr.low_addr_h, rd_cpl_dm_hdr.low_addr_l };
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = rd_cpl_dm_hdr.FC;
                 rd_cpl_to_pim.t.user[0].hdr.u.cpl.dm_encoded = 1'b1;
             end
             else
             begin
                 // PU encoded
-                rd_cpl_to_pim.t.user[0].hdr.length = rx_cpl_pu_hdr.length;
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.requester_id = rx_cpl_pu_hdr.req_id;
-                rd_cpl_to_pim.t.user[0].hdr.u.mem_req.tc = rx_cpl_pu_hdr.TC;
+                rd_cpl_to_pim.t.user[0].hdr.fmttype = rd_cpl_pu_hdr.fmt_type;
+                rd_cpl_to_pim.t.user[0].hdr.length = rd_cpl_pu_hdr.length;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.requester_id = rd_cpl_pu_hdr.req_id;
+                rd_cpl_to_pim.t.user[0].hdr.u.mem_req.tc = rd_cpl_pu_hdr.TC;
                 rd_cpl_to_pim.t.user[0].hdr.u.cpl.tag =
-                    { rx_cpl_pu_hdr.tag_h, rx_cpl_pu_hdr.tag_m, rx_cpl_pu_hdr.tag_l };
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.completer_id = rx_cpl_pu_hdr.comp_id;
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.byte_count = rx_cpl_pu_hdr.byte_count;
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr = rx_cpl_pu_hdr.low_addr;
+                    { rd_cpl_pu_hdr.tag_h, rd_cpl_pu_hdr.tag_m, rd_cpl_pu_hdr.tag_l };
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.completer_id = rd_cpl_pu_hdr.comp_id;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.byte_count = rd_cpl_pu_hdr.byte_count;
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.lower_addr = rd_cpl_pu_hdr.low_addr;
                 // The PIM only generates dword aligned reads, so the check for
                 // the last packet is easy.
-                rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = (rx_cpl_pu_hdr.byte_count[11:2] == rx_cpl_pu_hdr.length);
+                rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = (rd_cpl_pu_hdr.byte_count[11:2] == rd_cpl_pu_hdr.length);
             end
         end
     end
 
+    // Read completion data
+    always_comb
+    begin
+        rd_cpl_to_pim.t.data[0] = rd_cpl_data;
+        rd_cpl_to_pim.t.keep = ~'0;
+
+        // The PIM will only generate a short read for atomic requests. The
+        // response will arrive in the low bits of the payload, but the PIM's
+        // memory mapped interfaces expect the data shifted to the position
+        // in the data bus corresponding to the request address. We can simply
+        // replicate the data unconditionally.
+        if (rd_cpl_sop && !rd_cpl_dm_mode)
+        begin
+            if (rd_cpl_pu_hdr.length == 1)
+            begin
+                for (int i = 1; i < $bits(rd_cpl_to_pim.t.data[0]) / 32; i = i + 1)
+                begin
+                    rd_cpl_to_pim.t.data[0][i*32 +: 32] = rd_cpl_data[31:0];
+                end
+            end
+            else if (rd_cpl_pu_hdr.length == 2)
+            begin
+                for (int i = 1; i < $bits(rd_cpl_to_pim.t.data[0]) / 64; i = i + 1)
+                begin
+                    rd_cpl_to_pim.t.data[0][i*64 +: 64] = rd_cpl_data[63:0];
+                end
+            end
+        end
+    end
+
+
     // synthesis translate_off
-    wire [13:0] rx_cpl_dm_hdr_length =
-        { rx_cpl_dm_hdr.length_h, rx_cpl_dm_hdr.length_m, rx_cpl_dm_hdr.length_l };
+
+    //
+    // Check a few properties of the read completion stream.
+    //
+
+    wire [13:0] rd_cpl_dm_hdr_length =
+        { rd_cpl_dm_hdr.length_h, rd_cpl_dm_hdr.length_m, rd_cpl_dm_hdr.length_l };
 
     // Unexpected RX traffic?
-    wire rx_to_pim_invalid_cmd = fim_enc_rx_sop &&
-                                 !pcie_ss_hdr_pkg::func_is_completion(rx_fmttype);
+    wire rx_to_pim_invalid_cmd =
+           rd_cpl_sop &&
+           (!pcie_ss_hdr_pkg::func_is_completion(rd_cpl_dm_hdr.fmt_type) ||
+            !pcie_ss_hdr_pkg::func_has_data(rd_cpl_dm_hdr.fmt_type));
 
     always_ff @(posedge rd_cpl_to_pim.clk)
     begin
@@ -565,9 +768,9 @@ module ofs_plat_host_chan_@group@_fim_gasket
             if (rx_to_pim_invalid_cmd)
                 $fatal(2, "Unexpected TLP RX header to PIM!");
 
-            if (fim_enc_rx_sop && fim_enc_rx_hdr.t.user &&
-                pcie_ss_hdr_pkg::func_is_completion(rx_fmttype) &&
-                (rx_cpl_dm_hdr_length <= 8))
+            if (rd_cpl_sop && rd_cpl_dm_mode &&
+                pcie_ss_hdr_pkg::func_is_completion(rd_cpl_dm_hdr.fmt_type) &&
+                (rd_cpl_dm_hdr_length <= 8))
             begin
                 $fatal(2, "Data Mover encoded TLP RX headers for short reads not supported by PIM!");
             end
@@ -575,77 +778,42 @@ module ofs_plat_host_chan_@group@_fim_gasket
     end
     // synthesis translate_on
 
-    //
-    // Payload (data only)
-    //
-    always_comb
-    begin
-        mmio_req_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
-        mmio_req_to_pim.t.keep = ~'0;
-    end
-
-    always_comb
-    begin
-        rd_cpl_to_pim.t.data[0] = fim_enc_rx_data.t.data.payload;
-        rd_cpl_to_pim.t.keep = ~'0;
-
-        // The PIM will only generate a short read for atomic requests. The
-        // response will arrive in the low bits of the payload, but the PIM's
-        // memory mapped interfaces expect the data shifted to the position
-        // in the data bus corresponding to the request address. We can simply
-        // replicate the data unconditionally.
-        if (fim_enc_rx_sop && pcie_ss_hdr_pkg::func_is_completion(rx_fmttype))
-        begin
-            if (rx_cpl_pu_hdr.length == 1)
-            begin
-                for (int i = 1; i < $bits(rd_cpl_to_pim.t.data[0]) / 32; i = i + 1)
-                begin
-                    rd_cpl_to_pim.t.data[0][i*32 +: 32] = fim_enc_rx_data.t.data.payload[31:0];
-                end
-            end
-            else if (rx_cpl_pu_hdr.length == 2)
-            begin
-                for (int i = 1; i < $bits(rd_cpl_to_pim.t.data[0]) / 64; i = i + 1)
-                begin
-                    rd_cpl_to_pim.t.data[0][i*64 +: 64] = fim_enc_rx_data.t.data.payload[63:0];
-                end
-            end
-        end
-    end
-
 
     //
-    // Write and interrupt completions arrive on RX B. Run it through a skid
-    // buffer for timing.
-    //
-    ofs_plat_axi_stream_if
-      #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
-        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
-        )
-      afu_rx_b_st();
-
-    ofs_plat_axi_stream_if_skid_source_clk entry_b_skid
-       (
-        .stream_source(to_fiu_tlp.afu_rx_b_st),
-        .stream_sink(afu_rx_b_st)
-        );
-
-    assign afu_rx_b_st.tready = wr_cpl_to_pim.tready && irq_cpl_to_pim.tready;
-
-    //
-    // Forward write completions generated by the FIM back to the AFU. Write completions
+    // Forward write commits generated by the FIM back to the AFU. Write completions
     // indicate the serialized commit point of writes on TX A relative to reads on TX B.
     //
 
     // DM and PU fields needed in the write completion are in the same place. Either
     // header type will work.
     pcie_ss_hdr_pkg::PCIe_PUCplHdr_t rx_wr_cpl_pu_hdr;
-    assign rx_wr_cpl_pu_hdr = afu_rx_b_st.t.data;
+    generate
+        if (WR_COMMIT_CHAN == PCIE_CHAN_A)
+        begin : wr_cpl_a
+            // Write commits on RX-A
+            assign afu_rx_b_st.tready = 1'b1;
 
-    assign wr_cpl_to_pim.tvalid = afu_rx_b_st.tvalid &&
-                                  // TC[0] is 0 for write responses, 1 for interrupts
-                                  !rx_wr_cpl_pu_hdr.TC[0];
+            assign rx_wr_cpl_pu_hdr = fim_enc_rx_a_hdr.t.data;
+            assign wr_cpl_to_pim.tvalid = fim_enc_rx_a_data.tvalid &&
+                                          fim_enc_rx_a_all_tready &&
+                                          fim_enc_rx_a_sop &&
+                                          fim_enc_rx_a_hdr.tvalid &&
+                                          pcie_ss_hdr_pkg::func_is_completion(rx_a_fmttype) &&
+                                          !pcie_ss_hdr_pkg::func_has_data(rx_a_fmttype) &&
+                                          // TC[0] is 0 for write responses, 1 for interrupts
+                                          !rx_wr_cpl_pu_hdr.TC[0];
+        end
+        else
+        begin : wr_cpl_b
+            // Write commits on RX-B
+            assign afu_rx_b_st.tready = wr_cpl_to_pim.tready && irq_cpl_to_pim.tready;
+
+            assign rx_wr_cpl_pu_hdr = afu_rx_b_st.t.data;
+            assign wr_cpl_to_pim.tvalid = afu_rx_b_st.tvalid &&
+                                          // TC[0] is 0 for write responses, 1 for interrupts
+                                          !rx_wr_cpl_pu_hdr.TC[0];
+        end
+    endgenerate
 
     always_comb
     begin
@@ -658,15 +826,33 @@ module ofs_plat_host_chan_@group@_fim_gasket
     end
 
 
-    //
-    // IRQ responses are out of band from the FIM
-    //
+    // Local commits for IRQ requests. This isn't the IRQ response from the host.
+    // It is just like a write commit, indicating that the request is now ordered
+    // relative to all other requests.
     pcie_ss_hdr_pkg::PCIe_CplHdr_t rx_intr_cpl_dm_hdr;
-    assign rx_intr_cpl_dm_hdr = afu_rx_b_st.t.data;
-
-    assign irq_cpl_to_pim.tvalid = afu_rx_b_st.tvalid &&
-                                   // TC[0] is 1 for interrupts
-                                   rx_wr_cpl_pu_hdr.TC[0];
+    generate
+        if (WR_COMMIT_CHAN == PCIE_CHAN_A)
+        begin : irq_cpl_a
+            // IRQ local commits on RX-A
+            assign rx_intr_cpl_dm_hdr = fim_enc_rx_a_hdr.t.data;
+            assign irq_cpl_to_pim.tvalid = fim_enc_rx_a_data.tvalid &&
+                                           fim_enc_rx_a_all_tready &&
+                                           fim_enc_rx_a_sop &&
+                                           fim_enc_rx_a_hdr.tvalid &&
+                                           pcie_ss_hdr_pkg::func_is_completion(rx_a_fmttype) &&
+                                           !pcie_ss_hdr_pkg::func_has_data(rx_a_fmttype) &&
+                                           // TC[0] is 1 for interrupts
+                                           rx_intr_cpl_dm_hdr.TC[0];
+        end
+        else
+        begin : irq_cpl_b
+            // IRQ local commits on RX-B
+            assign rx_intr_cpl_dm_hdr = afu_rx_b_st.t.data;
+            assign irq_cpl_to_pim.tvalid = afu_rx_b_st.tvalid &&
+                                           // TC[0] is 1 for interrupts
+                                           rx_intr_cpl_dm_hdr.TC[0];
+        end
+    endgenerate
 
     always_comb
     begin

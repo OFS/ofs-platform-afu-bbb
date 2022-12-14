@@ -70,7 +70,7 @@ module ase_emul_pcie_arb_local_commit #(
    wire tx_needs_cpl = sink_sop && (tx_is_wr_req || tx_is_intr_req) && !tx_suppress_commit;
 
    assign sink.tready = source.tready && commit_in_ready;
-   assign source.tvalid = sink.tvalid && commit_in_ready;
+   assign source.tvalid = sink.tvalid && sink.tready && commit_in_ready;
    assign source.tkeep = sink.tkeep;
    assign source.tlast = sink.tlast;
    assign source.tuser_vendor = sink.tuser_vendor;
