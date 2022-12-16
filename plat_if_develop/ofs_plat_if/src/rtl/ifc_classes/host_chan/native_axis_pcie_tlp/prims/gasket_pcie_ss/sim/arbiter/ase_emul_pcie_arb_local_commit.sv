@@ -46,9 +46,9 @@ module ase_emul_pcie_arb_local_commit #(
 
    pcie_ss_axis_if commit_in(clk, rst_n);
    logic sink_sop;
-   logic rx_pending, rx_ready;
 
-   wire commit_in_ready = (commit_in.tready || !rx_pending);
+   // Commit messages are only generated on tlast
+   wire commit_in_ready = (commit_in.tready || !sink.tlast);
 
    // TX data, viewed as either PU or DM headers
    PCIe_ReqHdr_t   tx_req_dm_hdr;
@@ -63,21 +63,21 @@ module ase_emul_pcie_arb_local_commit #(
    wire tx_suppress_commit =
       TUSER_NO_STORE_COMMIT_MSG_BIT ? sink.tuser_vendor[TUSER_NO_STORE_COMMIT_MSG_BIT] : 1'b0;
 
-   // Valid/ready bits are checked separately
    wire tx_is_dm = func_hdr_is_dm_mode(sink.tuser_vendor);
    wire tx_is_wr_req = func_is_mwr_req(tx_req_dm_hdr.fmt_type);
    wire tx_is_intr_req = tx_is_dm && func_is_interrupt_req(tx_req_dm_hdr.fmt_type);
-   wire tx_needs_cpl = sink_sop && (tx_is_wr_req || tx_is_intr_req) && !tx_suppress_commit;
+   wire tx_needs_cpl = (tx_is_wr_req || tx_is_intr_req) && !tx_suppress_commit;
 
+   // Forward incoming TX stream (sink) toward the FIM (source)
    assign sink.tready = source.tready && commit_in_ready;
-   assign source.tvalid = sink.tvalid && sink.tready && commit_in_ready;
+   assign source.tvalid = sink.tvalid && commit_in_ready;
    assign source.tkeep = sink.tkeep;
    assign source.tlast = sink.tlast;
    assign source.tuser_vendor = sink.tuser_vendor;
    always_comb
    begin
       source.tdata = sink.tdata;
-      if (tx_needs_cpl && !tx_is_dm)
+      if (sink_sop && tx_needs_cpl && !tx_is_dm)
       begin
          // The PCIe SS declares bytes 24-31 of PU encoded requests as reserved.
          // These correspond to the metadata fields of DM encoded requests. The
@@ -87,6 +87,15 @@ module ase_emul_pcie_arb_local_commit #(
          // PCIe SS.
          source.tdata[24*8 +: 64] = '0;
       end
+   end
+
+   always_ff @(posedge clk)
+   begin
+      if (sink.tvalid && sink.tready)
+         sink_sop <= sink.tlast;
+
+      if (!rst_n)
+         sink_sop <= 1'b1;
    end
 
    PCIe_CplHdr_t   rx_cmp_dm_hdr;
@@ -135,43 +144,45 @@ module ase_emul_pcie_arb_local_commit #(
       rx_cmp_dm_intr.TC[0]      = 1'b1;  // TC[0] set to 1 indicates interrupt
    end
 
+   // The completion header is derived from the first beat of a write request,
+   // but returned to the AFU on the last write beat.
+   PCIe_CplHdr_t rx_cmp_hdr, rx_cmp_hdr_reg;
+   logic [$bits(commit_in.tuser_vendor)-1 : 0] rx_cmp_tuser_reg;
+   logic rx_cmp_hdr_reg_valid;
+
+   always_comb
+   begin
+      if (tx_is_wr_req)
+         rx_cmp_hdr = { '0, (tx_is_dm ? rx_cmp_dm_hdr : rx_cmp_pu_hdr) };
+      else
+         rx_cmp_hdr = { '0, rx_cmp_dm_intr };
+   end
+
+   // Record commit header during the sink header beat
    always_ff @(posedge clk)
    begin
-      if (commit_in.tvalid && commit_in.tready) begin
-         rx_pending <= 1'b0;
-         rx_ready <= 1'b0;
-      end
-
-      if (sink.tvalid && sink.tready) begin
-         sink_sop <= sink.tlast;
-
-         if (tx_needs_cpl) begin
-            rx_pending <= 1'b1;
-            if (tx_is_wr_req)
-               commit_in.tdata <= { '0, (tx_is_dm ? rx_cmp_dm_hdr : rx_cmp_pu_hdr) };
-            else
-               commit_in.tdata <= { '0, rx_cmp_dm_intr };
-            commit_in.tuser_vendor <= sink.tuser_vendor;
-         end
-         if (sink.tlast && (tx_needs_cpl || rx_pending)) begin
-            rx_ready <= 1'b1;
-         end
+      if (sink.tvalid && sink.tready && sink_sop) begin
+         rx_cmp_hdr_reg_valid <= tx_needs_cpl;
+         rx_cmp_hdr_reg <= rx_cmp_hdr;
+         rx_cmp_tuser_reg <= sink.tuser_vendor;
       end
 
       if (!rst_n) begin
-         rx_pending <= 1'b0;
-         rx_ready <= 1'b0;
-         sink_sop <= 1'b1;
+         rx_cmp_hdr_reg_valid <= 1'b0;
       end
    end
 
-   assign commit_in.tvalid = rx_pending && rx_ready;
+   assign commit_in.tvalid = sink.tvalid && sink.tready && sink.tlast &&
+                             (sink_sop ? tx_needs_cpl : rx_cmp_hdr_reg_valid);
+   assign commit_in.tdata = { '0, (sink_sop ? rx_cmp_hdr : rx_cmp_hdr_reg) };
+   assign commit_in.tuser_vendor = (sink_sop ? sink.tuser_vendor : rx_cmp_tuser_reg);
    assign commit_in.tkeep = { '0, {($bits(PCIe_CplHdr_t)/8){1'b1}} };
    assign commit_in.tlast = 1'b1;
 
    ase_emul_pcie_ss_axis_pipeline #(
       .TDATA_WIDTH(TDATA_WIDTH),
-      .TUSER_WIDTH(TUSER_WIDTH)
+      .TUSER_WIDTH(TUSER_WIDTH),
+      .MODE(1)
    ) commit_skid (
       .clk,
       .rst_n,
@@ -179,4 +190,4 @@ module ase_emul_pcie_arb_local_commit #(
       .axis_m(commit)
    );
 
-endmodule // pcie_arb_local_commit
+endmodule // ase_emul_pcie_arb_local_commit
