@@ -64,6 +64,13 @@
 `ifdef AFU_TOP_REQUIRES_AFU_MAIN_IF
   // Platform-specific afu_main() top-level emulation
   `define OFS_PLAT_PROVIDES_ASE_TOP ase_top_afu_main
+`elsif SHARED_AFU_MAIN_TO_PORT_AFU_INSTANCES
+  // The afu_main() and PIM entry in this FIM uses a standard afu_main()
+  // provided by the FIM. Use that path to instantiate a PIM-based AFU.
+  // We could also use ase_top_ofs_plat(), but that is a generic
+  // environment constructed for simulation. We may as well simulate
+  // the real afu_main() path.
+  `define OFS_PLAT_PROVIDES_ASE_TOP ase_top_afu_main
 `else
   // PIM ofs_plat_afu() top-level emulation
   `define OFS_PLAT_PROVIDES_ASE_TOP ase_top_ofs_plat
