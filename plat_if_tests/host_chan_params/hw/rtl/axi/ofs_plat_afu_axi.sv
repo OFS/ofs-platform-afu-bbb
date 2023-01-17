@@ -209,6 +209,25 @@ module ofs_plat_afu
         for (p = 0; p < NUM_PORTS_G0; p = p + 1)
         begin : ev_g0
           `ifdef OFS_PLAT_PARAM_HOST_CHAN_IS_NATIVE_AXIS_PCIE_TLP
+            `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
+              // Pick the proper RX channel for read completions
+              logic en_rx;
+              ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata rx_data;
+              ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser rx_user;
+              if (ofs_plat_host_chan_fim_gasket_pkg::CPL_CHAN == ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_A)
+              begin
+                  assign en_rx =plat_ifc.host_chan.ports[p].afu_rx_a_st.tready && plat_ifc.host_chan.ports[p].afu_rx_a_st.tvalid;
+                  assign rx_data = plat_ifc.host_chan.ports[p].afu_rx_a_st.t.data;
+                  assign rx_user = plat_ifc.host_chan.ports[p].afu_rx_a_st.t.user;
+              end
+              else
+              begin
+                  assign en_rx =plat_ifc.host_chan.ports[p].afu_rx_b_st.tready && plat_ifc.host_chan.ports[p].afu_rx_b_st.tvalid;
+                  assign rx_data = plat_ifc.host_chan.ports[p].afu_rx_b_st.t.data;
+                  assign rx_user = plat_ifc.host_chan.ports[p].afu_rx_b_st.t.user;
+              end
+            `endif
+
             host_chan_events_axi ev
                (
                 .clk(plat_ifc.host_chan.ports[p].clk),
@@ -223,9 +242,9 @@ module ofs_plat_afu
                 .tx_b_data(plat_ifc.host_chan.ports[p].afu_tx_b_st.t.data),
                 .tx_b_user(plat_ifc.host_chan.ports[p].afu_tx_b_st.t.user),
 
-                .en_rx(plat_ifc.host_chan.ports[p].afu_rx_a_st.tready && plat_ifc.host_chan.ports[p].afu_rx_a_st.tvalid),
-                .rx_data(plat_ifc.host_chan.ports[p].afu_rx_a_st.t.data),
-                .rx_user(plat_ifc.host_chan.ports[p].afu_rx_a_st.t.user),
+                .en_rx,
+                .rx_data,
+                .rx_user,
                `else
                 .en_tx(plat_ifc.host_chan.ports[p].afu_tx_st.tready && plat_ifc.host_chan.ports[p].afu_tx_st.tvalid),
                 .tx_data(plat_ifc.host_chan.ports[p].afu_tx_st.t.data),
@@ -258,11 +277,43 @@ module ofs_plat_afu
         for (p = 0; p < NUM_PORTS_G1; p = p + 1)
         begin : ev_g1
           `ifdef OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AXIS_PCIE_TLP
+            `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
+              // Pick the proper RX channel for read completions
+              logic en_rx;
+              ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata rx_data;
+              ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser rx_user;
+              if (ofs_plat_host_chan_fim_gasket_pkg::CPL_CHAN == ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_A)
+              begin
+                  assign en_rx = plat_ifc.host_chan_g1.ports[p].afu_rx_a_st.tready && plat_ifc.host_chan_g1.ports[p].afu_rx_a_st.tvalid;
+                  assign rx_data = plat_ifc.host_chan_g1.ports[p].afu_rx_a_st.t.data;
+                  assign rx_user = plat_ifc.host_chan_g1.ports[p].afu_rx_a_st.t.user;
+              end
+              else
+              begin
+                  assign en_rx = plat_ifc.host_chan_g1.ports[p].afu_rx_b_st.tready && plat_ifc.host_chan_g1.ports[p].afu_rx_b_st.tvalid;
+                  assign rx_data = plat_ifc.host_chan_g1.ports[p].afu_rx_b_st.t.data;
+                  assign rx_user = plat_ifc.host_chan_g1.ports[p].afu_rx_b_st.t.user;
+              end
+            `endif
+
             host_chan_events_axi ev
                (
                 .clk(plat_ifc.host_chan_g1.ports[p].clk),
                 .reset_n(plat_ifc.host_chan_g1.ports[p].reset_n),
 
+              `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
+                .en_tx(plat_ifc.host_chan_g1.ports[p].afu_tx_a_st.tready && plat_ifc.host_chan_g1.ports[p].afu_tx_a_st.tvalid),
+                .tx_data(plat_ifc.host_chan_g1.ports[p].afu_tx_a_st.t.data),
+                .tx_user(plat_ifc.host_chan_g1.ports[p].afu_tx_a_st.t.user),
+
+                .en_tx_b(plat_ifc.host_chan_g1.ports[p].afu_tx_b_st.tready && plat_ifc.host_chan_g1.ports[p].afu_tx_b_st.tvalid),
+                .tx_b_data(plat_ifc.host_chan_g1.ports[p].afu_tx_b_st.t.data),
+                .tx_b_user(plat_ifc.host_chan_g1.ports[p].afu_tx_b_st.t.user),
+
+                .en_rx,
+                .rx_data,
+                .rx_user,
+               `else
                 .en_tx(plat_ifc.host_chan_g1.ports[p].afu_tx_st.tready && plat_ifc.host_chan_g1.ports[p].afu_tx_st.tvalid),
                 .tx_data(plat_ifc.host_chan_g1.ports[p].afu_tx_st.t.data),
                 .tx_user(plat_ifc.host_chan_g1.ports[p].afu_tx_st.t.user),
@@ -270,6 +321,7 @@ module ofs_plat_afu
                 .en_rx(plat_ifc.host_chan_g1.ports[p].afu_rx_st.tready && plat_ifc.host_chan_g1.ports[p].afu_rx_st.tvalid),
                 .rx_data(plat_ifc.host_chan_g1.ports[p].afu_rx_st.t.data),
                 .rx_user(plat_ifc.host_chan_g1.ports[p].afu_rx_st.t.user),
+               `endif
 
                 .events(host_chan_g1_events[p])
                 );

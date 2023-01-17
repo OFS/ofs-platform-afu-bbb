@@ -697,9 +697,17 @@ module host_mem_rdwr_engine_axi
     // ====================================================================
 
     assign host_chan_events_if.eng_clk = clk;
+
+    logic [2:0] eng_reset_n = '0;
+    assign host_chan_events_if.eng_reset_n = eng_reset_n[0];
+    always @(posedge clk)
+    begin
+        eng_reset_n[2] <= reset_n && !state_reset;
+        eng_reset_n[1:0] <= eng_reset_n[2:1];
+    end
+
     always_ff @(posedge clk)
     begin
-        host_chan_events_if.eng_reset_n <= reset_n && !state_reset;
         host_chan_events_if.enable_cycle_counter <= csrs.status_active;
     end
 
