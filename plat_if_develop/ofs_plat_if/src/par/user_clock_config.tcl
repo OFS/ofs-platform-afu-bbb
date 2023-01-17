@@ -153,6 +153,18 @@ proc save_computed_user_clocks {uclk_freqs} {
 ## requests in a file.
 ##
 proc load_computed_user_clocks {freq_max} {
+    # Delete an old computed user clocks file if running fit
+    set cur_tool ""
+    if {[info exists quartus(nameofexecutable)]} {
+        set cur_tool $quartus(nameofexecutable)
+    }
+    if {[info exists ::TimingAnalyzerInfo(nameofexecutable)]} {
+        set cur_tool $::TimingAnalyzerInfo(nameofexecutable)
+    }
+    if {$cur_tool == "quartus_fit"} {
+        delete_computed_user_clocks_file
+    }
+
     if {[file exists "output_files/user_clock_freq.txt"]} {
         set fp [open "output_files/user_clock_freq.txt"]
 
