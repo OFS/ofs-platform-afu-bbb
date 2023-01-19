@@ -307,7 +307,7 @@ module local_mem_engine_avalon
     //
     always_ff @(posedge clk)
     begin
-        if (reset_n && !state_reset)
+        if (reset_n && !state_reset && local_mem_if.reset_n)
         begin
             // synthesis translate_off
             if (rd_user_error) $fatal(2, "Aborting due to error");
@@ -442,7 +442,7 @@ module local_mem_engine_avalon
     //
     always_ff @(posedge clk)
     begin
-        if (reset_n && !state_reset)
+        if (reset_n && !state_reset && local_mem_if.reset_n)
         begin
             // synthesis translate_off
             if (wr_user_error) $fatal(2, "Aborting due to error");

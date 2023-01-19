@@ -143,6 +143,36 @@ configEngWrite(
 
 
 //
+// Read the total lines read and write since the start of a test.
+//
+static uint64_t
+totalMemLines(
+    uint64_t emask
+)
+{
+    uint64_t total_lines = 0;
+    uint32_t e = 0;
+    uint64_t m = emask;
+
+    while (m)
+    {
+        // Is engine e active?
+        if (m & 1)
+        {
+            // Read line responses + write line requests
+            total_lines += csrEngRead(s_csr_handle, e, 2) +
+                           csrEngRead(s_csr_handle, e, 3);
+        }
+
+        e += 1;
+        m >>= 1;
+    }
+
+    return total_lines;
+}
+
+
+//
 // Run engines (tests must be configured already with fixed numbers
 // of bursts. Returns after all the engines are quiet.
 //
@@ -156,13 +186,15 @@ runEnginesTest(
     // Start your engines
     csrEnableEngines(s_csr_handle, emask);
 
+    uint64_t prev_total_lines = 0;
+
     // Wait for engines to complete. Checking csrGetEnginesEnabled()
     // resolves a race between the request to start an engine
     // and the engine active flag going high. Execution is done when
     // the engine is enabled and the active flag goes low.
     struct timespec wait_time;
     // Poll less often in simulation
-    wait_time.tv_sec = (s_is_ase ? 4 : 0);
+    wait_time.tv_sec = (s_is_ase ? 2 : 0);
     wait_time.tv_nsec = 10000000;
     int trips = 0;
     while (true)
@@ -177,10 +209,18 @@ runEnginesTest(
         trips += 1;
         if (trips == 10)
         {
-            printf(" - HANG!\n\n");
-            printf("Aborting - enabled mask 0x%lx, active mask 0x%lx\n",
-                   eng_enabled, eng_active);
-            return 1;
+            // Some simulators are very slow. Is there still traffic flowing?
+            uint64_t cur_total_lines = totalMemLines(emask);
+            if (cur_total_lines == prev_total_lines)
+            {
+                printf(" - HANG!\n\n");
+                printf("Aborting - enabled mask 0x%lx, active mask 0x%lx\n",
+                       eng_enabled, eng_active);
+                return 1;
+            }
+
+            prev_total_lines = cur_total_lines;
+            trips = 0;
         }
 
         nanosleep(&wait_time, NULL);
@@ -577,7 +617,7 @@ runBandwidth(
 
     // Wait for them to start
     struct timespec wait_time;
-    wait_time.tv_sec = (s_is_ase ? 4 : 0);
+    wait_time.tv_sec = (s_is_ase ? 2 : 0);
     wait_time.tv_nsec = 100000000;
     while (csrGetEnginesEnabled(s_csr_handle) == 0)
     {
@@ -590,6 +630,7 @@ runBandwidth(
     csrDisableEngines(s_csr_handle, emask);
 
     // Wait for them to stop
+    uint64_t prev_total_lines = 0;
     int trips = 0;
     while (true)
     {
@@ -601,10 +642,18 @@ runBandwidth(
         trips += 1;
         if (trips == 10)
         {
-            printf(" - HANG!\n\n");
-            printf("Aborting - active mask 0x%lx\n", eng_active);
-            testDumpMaskedEngineState(emask);
-            exit(1);
+            // Some simulators are very slow. Is there still traffic flowing?
+            uint64_t cur_total_lines = totalMemLines(emask);
+            if (cur_total_lines == prev_total_lines)
+            {
+                printf(" - HANG!\n\n");
+                printf("Aborting - active mask 0x%lx\n", eng_active);
+                testDumpMaskedEngineState(emask);
+                exit(1);
+            }
+
+            prev_total_lines = cur_total_lines;
+            trips = 0;
         }
 
         nanosleep(&wait_time, NULL);
