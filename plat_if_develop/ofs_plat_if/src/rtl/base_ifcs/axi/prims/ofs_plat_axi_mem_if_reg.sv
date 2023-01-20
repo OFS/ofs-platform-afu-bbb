@@ -24,7 +24,13 @@ module ofs_plat_axi_mem_if_reg_impl
     parameter BURST_CNT_WIDTH,
     parameter RID_WIDTH,
     parameter WID_WIDTH,
-    parameter USER_WIDTH
+    parameter USER_WIDTH,
+
+    parameter T_AW_WIDTH,
+    parameter T_W_WIDTH,
+    parameter T_B_WIDTH,
+    parameter T_AR_WIDTH,
+    parameter T_R_WIDTH
     )
    (
     ofs_plat_axi_mem_if.to_sink mem_sink,
@@ -73,7 +79,7 @@ module ofs_plat_axi_mem_if_reg_impl
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_pipe[0].T_AW_WIDTH)
+                    .N_DATA_BITS(T_AW_WIDTH)
                     )
                   aw
                    (
@@ -91,7 +97,7 @@ module ofs_plat_axi_mem_if_reg_impl
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_pipe[0].T_W_WIDTH)
+                    .N_DATA_BITS(T_W_WIDTH)
                     )
                   w
                    (
@@ -109,7 +115,7 @@ module ofs_plat_axi_mem_if_reg_impl
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_pipe[0].T_B_WIDTH)
+                    .N_DATA_BITS(T_B_WIDTH)
                     )
                   b
                    (
@@ -127,7 +133,7 @@ module ofs_plat_axi_mem_if_reg_impl
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_pipe[0].T_AR_WIDTH)
+                    .N_DATA_BITS(T_AR_WIDTH)
                     )
                   ar
                    (
@@ -145,7 +151,7 @@ module ofs_plat_axi_mem_if_reg_impl
 
                 ofs_plat_prim_ready_enable_skid
                   #(
-                    .N_DATA_BITS(mem_pipe[0].T_R_WIDTH)
+                    .N_DATA_BITS(T_R_WIDTH)
                     )
                   r
                    (
@@ -193,7 +199,13 @@ module ofs_plat_axi_mem_if_reg
         .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
         .RID_WIDTH(mem_sink.RID_WIDTH_),
         .WID_WIDTH(mem_sink.WID_WIDTH_),
-        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        .USER_WIDTH(mem_sink.USER_WIDTH_),
+
+        .T_AW_WIDTH(mem_sink.T_AW_WIDTH),
+        .T_W_WIDTH(mem_sink.T_W_WIDTH),
+        .T_B_WIDTH(mem_sink.T_B_WIDTH),
+        .T_AR_WIDTH(mem_sink.T_AR_WIDTH),
+        .T_R_WIDTH(mem_sink.T_R_WIDTH)
         )
       r
        (
