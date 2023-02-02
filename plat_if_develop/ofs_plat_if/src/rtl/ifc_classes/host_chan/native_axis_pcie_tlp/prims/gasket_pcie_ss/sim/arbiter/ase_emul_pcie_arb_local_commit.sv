@@ -26,6 +26,15 @@ module ase_emul_pcie_arb_local_commit #(
    parameter TDATA_WIDTH = ofs_pcie_ss_cfg_pkg::TDATA_WIDTH,
    parameter TUSER_WIDTH = ofs_pcie_ss_cfg_pkg::TUSER_WIDTH,
 
+   // Generate a commit when this TUSER bit is set. Ignored
+   // when the parameter is zero.
+`ifdef OFS_PCIE_SS_CFG_FLAG_TUSER_STORE_COMMIT_REQ
+   parameter TUSER_STORE_COMMIT_REQ_BIT = ofs_pcie_ss_cfg_pkg::TUSER_STORE_COMMIT_REQ_BIT,
+`else
+   parameter TUSER_STORE_COMMIT_REQ_BIT = 0,
+`endif
+
+   // *** This parameter is no longer used in current OFS. ***
    // Don't generate a commit when this TUSER bit is set. Ignored
    // when the parameter is zero.
 `ifdef OFS_PCIE_SS_CFG_FLAG_TUSER_NO_STORE_COMMIT
@@ -58,15 +67,22 @@ module ase_emul_pcie_arb_local_commit #(
    assign tx_req_pu_hdr = PCIe_PUReqHdr_t'(sink.tdata);
    assign tx_req_dm_intr = PCIe_IntrHdr_t'(sink.tdata);
 
-   // Suppress the commit for this message when specified tuser_vendor bit is 1.
-   // Suppress nothing when the bit index is 0.
-   wire tx_suppress_commit =
-      TUSER_NO_STORE_COMMIT_MSG_BIT ? sink.tuser_vendor[TUSER_NO_STORE_COMMIT_MSG_BIT] : 1'b0;
+   // Enable the commit for this message when specified tuser_vendor bit is 1.
+   // Enable nothing when the bit index is 0.
+   wire tx_enable_commit =
+`ifdef OFS_PCIE_SS_CFG_FLAG_TUSER_STORE_COMMIT_REQ
+      // Current OFS version.
+      TUSER_STORE_COMMIT_REQ_BIT ? sink.tuser_vendor[TUSER_STORE_COMMIT_REQ_BIT] : 1'b0;
+`else
+      // Legacy version with inverted meaning of the bit.
+      // Current OFS uses the other case.
+      TUSER_NO_STORE_COMMIT_MSG_BIT ? ~sink.tuser_vendor[TUSER_NO_STORE_COMMIT_MSG_BIT] : 1'b1;
+`endif
 
    wire tx_is_dm = func_hdr_is_dm_mode(sink.tuser_vendor);
    wire tx_is_wr_req = func_is_mwr_req(tx_req_dm_hdr.fmt_type);
    wire tx_is_intr_req = tx_is_dm && func_is_interrupt_req(tx_req_dm_hdr.fmt_type);
-   wire tx_needs_cpl = (tx_is_wr_req || tx_is_intr_req) && !tx_suppress_commit;
+   wire tx_needs_cpl = (tx_is_wr_req || tx_is_intr_req) && tx_enable_commit;
 
    // Forward incoming TX stream (sink) toward the FIM (source)
    assign sink.tready = source.tready && commit_in_ready;

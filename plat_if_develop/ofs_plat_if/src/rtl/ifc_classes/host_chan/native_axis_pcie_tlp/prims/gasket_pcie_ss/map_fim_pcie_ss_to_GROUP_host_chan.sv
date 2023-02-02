@@ -111,6 +111,9 @@ module map_fim_pcie_ss_to_@group@_host_chan
     assign pim_tx_a_st.tready = pcie_ss_tx_a_st.tready;
     assign pcie_ss_tx_a_st.tvalid = pim_tx_a_st.tvalid;
 
+    pcie_ss_hdr_pkg::PCIe_ReqHdr_t tx_a_hdr;
+    assign tx_a_hdr = pcie_ss_hdr_pkg::PCIe_ReqHdr_t'(pim_tx_a_st.t.data);
+
     always_comb
     begin
         pcie_ss_tx_a_st.tlast = pim_tx_a_st.t.last;
@@ -127,6 +130,15 @@ module map_fim_pcie_ss_to_@group@_host_chan
         // that only segment 0 has a header.
         pcie_ss_tx_a_st.tuser_vendor = '0;
         pcie_ss_tx_a_st.tuser_vendor[0] = pim_tx_a_st.t.user[0].dm_mode;
+`ifdef OFS_PCIE_SS_CFG_FLAG_TUSER_STORE_COMMIT_REQ
+        // When this macro exists, a tuser_vendor must be set in order
+        // to get FIM-generated local commits. The PIM expects commits
+        // for all stores and interrupts.
+        pcie_ss_tx_a_st.tuser_vendor[ofs_pcie_ss_cfg_pkg::TUSER_STORE_COMMIT_REQ_BIT] =
+            pim_tx_a_st.t.user[0].sop &&
+            (pcie_ss_hdr_pkg::func_is_mwr_req(tx_a_hdr.fmt_type) ||
+             pcie_ss_hdr_pkg::func_is_interrupt_req(tx_a_hdr.fmt_type));
+`endif
     end
 
     //
