@@ -1,15 +1,8 @@
 # Board Vendors: Configuring a Release #
 
-The Platform Interface Manager (PIM) is two separable components that, together, enable portable AFU development:
-
-1. A collection of shims with well-known names that map native FIM interfaces to consistent AFU interfaces. For example, on OFS boards with PCIe SS TLP streams a PIM module maps TLP streams to AXI-MM.
-2. A top-level module name and single interface wrapper around all incoming devices.
-
-The PIM is instantiated in all OFS FIM and PR build environments. PIM configuration is driven by a single .ini file that describes the FIM's native interfaces.
-
 ## Platform Interface Classes ##
 
-The portability of PIM interfaces relies on mapping physical ports to bus-independent abstract groups. Major PIM groups are:
+As discussed in [PIM Core Concepts](PIM_core_concepts.md), the portability of PIM interfaces relies on mapping physical ports to bus-independent abstract groups. Major PIM groups are:
 
 ### Host Channels ###
 

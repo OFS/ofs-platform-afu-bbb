@@ -6,12 +6,8 @@ The Platform Interface Manager (PIM) code in this repository has components aime
 
 Contents:
 
+* [PIM Core Concepts](plat_if_develop/ofs_plat_if/docs/PIM_core_concepts.md)
 * [Board Vendors: Generating a Release and Configuring the PIM](plat_if_develop/ofs_plat_if/docs/PIM_board_vendors.md)
 * [AFU Developers: Connecting an AFU to a Platform](plat_if_develop/ofs_plat_if/docs/PIM_AFU_interface.md)
 
-Whatever your role, you may find that reading both sections makes it easier to understand how all the components fit together.
-
-This repository holds interface components and Basic Building Blocks (BBBs)
-that are specific either to an FPGA architecture or a particular physical
-platform. The repository is the sibling of the [platform-independent BBB
-repository](https://github.com/OPAE/intel-fpga-bbb).
+Whatever your role, you may find that reading both the board vendor and AFU developer sections makes it easier to understand how all the components fit together.

@@ -1,9 +1,9 @@
 # AFU Developers: Connecting an AFU to a Platform #
 
-The Platform Interface Manager (PIM) is the interface between an accelerator (an AFU) and the platform (the FIM). The PIM has two core components:
+The Platform Interface Manager (PIM) is the interface between an accelerator (an AFU) and the platform (the FIM). AFU developers rely on two of the core components covered in [PIM Core Concepts](PIM_core_concepts.md):
 
-1. A fixed top-level module name and SystemVerilog wrapper around FIM interfaces.
-2. Shims for transforming standardized AFU-side interfaces to platform-specific FIM interfaces.
+1. Shims for transforming standardized AFU-side interfaces to platform-specific FIM interfaces.
+2. A fixed top-level module name and SystemVerilog wrapper around FIM interfaces.
 
 These two components are actually separable, though full cross-platform portability depends on using both together. Here, we will describe the PIM under the assumption that both are used.
 
