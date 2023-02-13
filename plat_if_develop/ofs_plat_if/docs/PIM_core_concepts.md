@@ -67,3 +67,5 @@ PIM composition is described in the section aimed at [board vendors](PIM_board_v
 For AFU developers, [Connecting an AFU to a Platform](PIM_AFU_interface.md) describes the top-level ofs_plat_afu\(\) module and shims in more detail. A [tutorial with synthesizable examples](https://github.com/OFS/examples-afu/tree/main/tutorial) and inline comments demonstrates building AFUs with the PIM.
 
 For board developers, [Board Vendors: Configuring a Release](PIM_board_vendors.md) covers defining a PIM instance for the native interfaces on a new board, along with methods for supporting new classes of native devices.
+
+Detailed documentation is available on instantiating and formatting requests on [PIM memory mapped host channels](PIM_ifc_host_channel.md).
