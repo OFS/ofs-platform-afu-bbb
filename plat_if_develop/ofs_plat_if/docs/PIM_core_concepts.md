@@ -68,4 +68,4 @@ For AFU developers, [Connecting an AFU to a Platform](PIM_AFU_interface.md) desc
 
 For board developers, [Board Vendors: Configuring a Release](PIM_board_vendors.md) covers defining a PIM instance for the native interfaces on a new board, along with methods for supporting new classes of native devices.
 
-Detailed documentation is available on instantiating and formatting requests on [PIM memory mapped host channels](PIM_ifc_host_channel.md).
+Detailed documentation is available on instantiating and formatting requests on [PIM memory mapped host channels](PIM_ifc_host_channel.md) and on [local memory mapping](PIM_ifc_local_mem.md).

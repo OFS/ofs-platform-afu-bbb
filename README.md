@@ -10,5 +10,6 @@ Contents:
 * [Board Vendors: Generating a Release and Configuring the PIM](plat_if_develop/ofs_plat_if/docs/PIM_board_vendors.md)
 * [AFU Developers: Connecting an AFU to a Platform](plat_if_develop/ofs_plat_if/docs/PIM_AFU_interface.md)
   * [Host channel interfaces](plat_if_develop/ofs_plat_if/docs/PIM_ifc_host_channel.md)
+  * [Local memory interfaces](plat_if_develop/ofs_plat_if/docs/PIM_ifc_local_mem.md)
 
 Whatever your role, you may find that reading both the board vendor and AFU developer sections makes it easier to understand how all the components fit together.

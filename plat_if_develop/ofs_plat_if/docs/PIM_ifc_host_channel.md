@@ -149,7 +149,7 @@ The PIM test [host_chan_atomic](../../../plat_if_tests/host_chan_atomic/hw/rtl/a
 
 ## Avalon-MM Host Channels
 
-The PIM has two varieties of Avalon-MM channels: a split-bus [ofs_plat_avalon_mem_rdwr_if](../src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_if.sv) with completely separate channels for reads and writes and a standard Avalon-MM channel [ofs_plat_avalon_mem_if](../src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_if.sv) with a shared address bus. The split-bus version is used for the host memory interface since it more accurately reflects the behavior and throughput of most native host channels. The standard shared address bus is used for CSRs \(MMIO\).
+The PIM has two varieties of Avalon-MM channels: a split-bus [ofs_plat_avalon_mem_rdwr_if](../src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_rdwr_if.sv) with completely separate channels for reads and writes and a standard Avalon-MM channel [ofs_plat_avalon_mem_if](../src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_if.sv) with a shared address bus. The split-bus version is used for the host memory interface since it more accurately reflects the behavior and throughput of most native host channels. The standard shared address bus is used for CSRs \(MMIO\).
 
 ### Host memory Avalon-MM Split Bus
 
@@ -165,7 +165,7 @@ Define the host memory Avalon-MM interface as follows:
 
 ```
 
-The PIM provides the macro `HOST_CHAN_AVALON_MEM_RDWR_PARAMS, which sets ADDR_WIDTH and DATA_WIDTH to values appropriate for the native device in the memory interface. An AFU may set other [ofs_plat_avalon_mem_rdwr_if](../src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_if.sv) parameters to AFU-specific values:
+The PIM provides the macro `HOST_CHAN_AVALON_MEM_RDWR_PARAMS, which sets ADDR_WIDTH and DATA_WIDTH to values appropriate for the native device in the memory interface. An AFU may set other [ofs_plat_avalon_mem_rdwr_if](../src/rtl/base_ifcs/avalon/ofs_plat_avalon_mem_rdwr_if.sv) parameters to AFU-specific values:
 
 * BURST_CNT_WIDTH may be any value. The PIM will map large AFU bursts into legal host channel sizes and handle device-specific alignment requirements. For example, the PIM permits AFU-generated bursts to cross 4KB boundaries. This would be illegal on PCIe, so the PIM breaks apart bursts at 4KB boundaries.
 * USER_WIDTH may be set by an AFU, but must leave space for the user bits defined by the PIM for fences and interrupts that are described below. The user field from a request is returned with a response. For writes, user bits from the address bus are returned.
