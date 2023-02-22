@@ -138,10 +138,6 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     //
     // ====================================================================
 
-    // Header of incoming completions
-    t_ofs_plat_pcie_hdr tlp_cpl_hdr;
-    assign tlp_cpl_hdr = rx_cpl_tlps.t.user[0].hdr;
-
     typedef struct packed {
         // AFU's original tag, returned with the read response
         logic [AFU_TAG_WIDTH-1 : 0] afu_tag;
@@ -183,19 +179,6 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     t_tlp_payload_line_count rd_rsp_track_wdata;
     t_tlp_payload_line_count rd_rsp_track_idx;
 
-`ifndef PLATFORM_FPGA_FAMILY_S10
-    // Everything but S10 uses the real PCIe SS, which returns the offset from
-    // the start address in lower_addr. No tracking RAM is needed in this case.
-    // The offset in lower_addr is all we need.
-    assign rd_rsp_track_ready = 1'b1;
-    // lower_addr is byte length. Shift right for DWORDs and then convert to lines.
-    assign rd_rsp_track_idx =
-        dwordLenToLineCount({ '0, tlp_cpl_hdr.u.cpl.lower_addr_h, tlp_cpl_hdr.u.cpl.lower_addr } >> 2);
-`else
-    // On S10 the PCIe SS DM encoding is emulated and the emulator returns
-    // the true start address of partial packets. The tracking RAM here is
-    // needed to compute the offset of partial packet headers from the base
-    // address.
     ofs_plat_prim_lutram_init
       #(
         .N_ENTRIES(MAX_OUTSTANDING_DMA_RD_REQS),
@@ -214,7 +197,6 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         .raddr(rd_rsp_tlp_tag),
         .rdata(rd_rsp_track_idx)
         );
-`endif
 
 
     // ====================================================================
@@ -292,6 +274,8 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     //
     // ====================================================================
 
+    t_ofs_plat_pcie_hdr tlp_cpl_hdr;
+    assign tlp_cpl_hdr = rx_cpl_tlps.t.user[0].hdr;
     assign rd_rsp_tlp_tag = t_dma_rd_tag'(tlp_cpl_hdr.u.cpl.tag);
 
     assign rx_cpl_tlps.tready = (!afu_rd_rsp.tvalid || afu_rd_rsp.tready) &&
@@ -346,8 +330,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             end
             else
             begin
-                // DM encoded offset from the start address. See above where
-                // rd_rsp_track_idx is set for details.
+                // DM encoding doesn't provide byte count. Instead, we count responses.
                 afu_rd_rsp_line_idx = rd_rsp_track_idx;
             end
         end
