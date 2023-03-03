@@ -284,6 +284,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     logic arb_grant_mmio, arb_grant_rd, arb_grant_wr;
     logic allow_rd_tlps, allow_wr_tlps;
     logic history_fewer_rds;
+    logic force_allow_wr;
 
     ofs_plat_prim_arb_rr
       #(
@@ -310,8 +311,29 @@ module ofs_plat_host_chan_@group@_map_to_tlps
                         // reads are blocked causes a significant imbalance when
                         // read and write streams are both active. Without back-
                         // pressure on writes, the FIM pipeline fills with only
-                        // write requests.
-                        rd_cpld_tag_available;
+                        // write requests. The force_allow_wr flag avoids a
+                        // deadlock when reads are blocked due to the write
+                        // stream also being blocked.
+                        (rd_cpld_tag_available || force_allow_wr);
+
+    // Allow writes when there has been no write activity for a while, even
+    // if reads are blocked.
+    logic [4:0] non_wr_ctr;
+    always_ff @(posedge clk)
+    begin
+        non_wr_ctr <= non_wr_ctr + 1;
+        if (non_wr_ctr[4])
+        begin
+            force_allow_wr <= 1'b1;
+        end
+
+        // A write was granted this cycle, or in reset
+        if (!reset_n || arb_grant_wr)
+        begin
+            force_allow_wr <= 1'b0;
+            non_wr_ctr <= '0;
+        end
+    end
 
     assign arb_grant_mmio = arb_grant[0] ||
                             ((arb_state == ARB_LOCK_MMIO) && to_fiu_tx_st.tready && tx_mmio_tlps.tvalid);
