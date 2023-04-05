@@ -8,18 +8,54 @@ and write the source list to stdout in package dependence order."""
 
 import os
 import sys
+import re
 
 from platlib import sort_sv_packages
 
 
-def load_sv_files(fname):
+def parse_args():
+    """Parse command line arguments."""
+
+    msg = """
+SystemVerilog requires that packages be named in dependence order.
+This script uses a very simple parser to detect package dependence
+and emits the packages in order.
+"""
+
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Sort a collection of SystemVerilog packages "
+                    "in dependence order.",
+        epilog=msg)
+
+    # Positional arguments
+    parser.add_argument(
+        '-i', '--incdir',
+        help="""File containing +incdir+ statements.""")
+
+    parser.add_argument(
+        '-s', '--source',
+        help="""Source file containing the package paths. Stdin
+                is read if the source is not specified.""")
+
+    parser.add_argument(
+        '-t', '--target',
+        help="""Output file. Stdout is written if the target is
+                not specified.""")
+
+    global args
+    args = parser.parse_args()
+
+
+def load_sv_files():
     """Return the contents of a file as a list, one entry per line.
     Ignore any line beginning with #."""
 
     sv_list = []
 
-    if fname:
-        f = open(fname, 'r')
+    if args.source:
+        f = open(args.source, 'r')
     else:
         f = sys.stdin
 
@@ -31,21 +67,36 @@ def load_sv_files(fname):
     return sv_list
 
 
+def load_incdirs():
+    """Load include directories from a file, looking for +incdir+."""
+
+    if not args.incdir:
+        return []
+
+    text = open(args.incdir, 'r').read()
+
+    re_find_inc = re.compile(r'^\+incdir\+([./\w]+)',
+                             re.IGNORECASE + re.M)
+    return re_find_inc.findall(text)
+
+
 def main():
-    if len(sys.argv) > 2:
-        sys.stderr.write('Usage: sort_sv_pkgs [<file>]\n\n')
-        sys.stderr.write('Sort a collection of SystemVerilog '
-                         'packages in dependence order.\n')
-        sys.stderr.write('If file is not specified, read from stdin.\n')
-        sys.exit(1)
+    parse_args()
 
     # Load the input file into a list
-    pkg_list = load_sv_files(sys.argv[1] if (len(sys.argv) == 2) else None)
+    pkg_list = load_sv_files()
+
     # Sort the file list in dependence order
-    sorted_pkg_list = sort_sv_packages.sort_pkg_list(pkg_list)
+    sorted_pkg_list = sort_sv_packages.sort_pkg_list(pkg_list,
+                                                     load_incdirs())
+
+    if args.target:
+        f = open(args.target, 'w')
+    else:
+        f = sys.stdout
 
     for p in sorted_pkg_list:
-        print(p)
+        print(p, file=f)
 
 
 if __name__ == "__main__":

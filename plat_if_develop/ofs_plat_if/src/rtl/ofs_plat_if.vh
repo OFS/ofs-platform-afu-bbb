@@ -10,6 +10,16 @@
 `define __OFS_PLAT_IF_VH__
 
 `include "ofs_plat_if_top_config.vh"
+
+
+// PKG_SORT_IGNORE_START --
+//  This marker causes the PIM's sort_sv_packages.py to ignore everything
+//  from here to the ignore end marker below. The package sorter uses a
+//  very simple parser to detect what looks like a SystemVerilog package
+//  reference in order to emit packages in dependence order. The code
+//  or include files below contain macros that refer to packages but
+//  do not represent true package to package dependence.
+
 `include "ofs_plat_clocks.vh"
 `include "ofs_plat_host_ccip_if.vh"
 `include "ofs_plat_avalon_mem_if.vh"
@@ -33,6 +43,9 @@
 `ifndef AFU_TOP_REQUIRES_OFS_PLAT_IF_AFU
   `include "platform_shim_ccip_std_afu.vh"
 `endif
+
+// PKG_SORT_IGNORE_END
+
 
 //
 // Two-bit power state, originally defined in CCI-P.

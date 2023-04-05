@@ -117,7 +117,8 @@ class emit_src_cfg(object):
                 if (fn.lower().endswith("_pkg.sv") or
                     fn.lower().endswith("_def.sv"))]
 
-        self.__src_package_list = sort_sv_packages.sort_pkg_list(pkgs)
+        self.__src_package_list = \
+            sort_sv_packages.sort_pkg_list(pkgs, self.include_dirs())
 
     def src_packages(self):
         """Return a list of all SystemVerilog packages (files matching
