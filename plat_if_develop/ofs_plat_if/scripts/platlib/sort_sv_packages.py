@@ -32,6 +32,11 @@ this._re_pkg_sort_ignore = \
                re.MULTILINE | re.DOTALL)
 
 
+class CircularPkgDependence(Exception):
+    """Raised when a package dependence chain is circular."""
+    pass
+
+
 def sort_pkg_list(pkgs, inc_dirs):
     """Sort the list of SystemVerilog packages in dependence order,
     computed by parsing each package and looking for references to
@@ -100,13 +105,17 @@ def _dep_first_packages(pkg, pkg_deps, cur_pkg_walk, cur_pkg_incs):
         if (len(cycle_path) > 1):
             # Currently only a warning. This should probably be
             # an error.
-            print("  WARNING -- Cycle in package dependence:")
+            sys.stderr.write("  ERROR -- Cycle in package dependence:\n")
             for i, p in enumerate(cycle_path):
                 chain = [p]
                 if cycle_incs[i]:
                     chain += cycle_incs[i]
-                print('    {} ->'.format(' -> '.join(chain)))
-            print("    {}".format(pkg))
+                sys.stderr.write('    {} ->\n'.format(' -> '.join(chain)))
+            sys.stderr.write('    {}\n'.format(pkg))
+
+            _circular_error_msg()
+
+            raise CircularPkgDependence
         return []
 
     # Recursive dependence walk
@@ -207,3 +216,21 @@ def _find_inc_path(inc_fname, inc_dirs):
             return fpath
 
     return None
+
+
+def _circular_error_msg():
+    sys.stderr.write("""
+The package sorter uses a very simple parser. Any text in a file that
+looks like a package reference adds a dependence edge. This is true of
+macro definitions, even when they are not referenced, and conditional
+code that should be eliminated by a preprocessor. As a result, the
+sorter may see a dependence cycle (a file that ultimately depends on
+itself) when there is no actual dependence.
+
+To work around this, a comment can be added to source files to force
+the sorter to ignore a block of text. False package dependence can
+often be eliminated by wrapping macro definitions or entire include
+directives between PKG_SORT_IGNORE_START and PKG_SORT_IGNORE_END.
+For an example, see:
+    https://github.com/OFS/ofs-platform-afu-bbb/blob/master/plat_if_develop/ofs_plat_if/src/rtl/ofs_plat_if.vh
+""")

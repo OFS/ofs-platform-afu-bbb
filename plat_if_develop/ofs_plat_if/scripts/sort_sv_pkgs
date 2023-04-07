@@ -87,8 +87,12 @@ def main():
     pkg_list = load_sv_files()
 
     # Sort the file list in dependence order
-    sorted_pkg_list = sort_sv_packages.sort_pkg_list(pkg_list,
-                                                     load_incdirs())
+    try:
+        sorted_pkg_list = sort_sv_packages.sort_pkg_list(pkg_list,
+                                                         load_incdirs())
+    except sort_sv_packages.CircularPkgDependence:
+        sys.stderr.write('\nAborting...\n')
+        sys.exit(1)
 
     if args.target:
         f = open(args.target, 'w')
