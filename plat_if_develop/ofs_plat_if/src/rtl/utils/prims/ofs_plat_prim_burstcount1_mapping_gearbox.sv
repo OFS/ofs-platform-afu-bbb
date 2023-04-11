@@ -228,6 +228,11 @@ module ofs_plat_prim_burstcount1_page_mapping_gearbox
     localparam SINK_MAX_BURST = (1 << (SINK_BURST_WIDTH-1));
     typedef logic [SINK_BURST_WIDTH-1 : 0] t_sink_burst_cnt;
 
+    // Max burst size across source and sink (smaller of the two)
+    localparam BURST_WIDTH = (SOURCE_BURST_WIDTH < SINK_BURST_WIDTH) ?
+                                 SOURCE_BURST_WIDTH : SINK_BURST_WIDTH;
+    localparam MAX_BURST = (1 << (BURST_WIDTH-1));
+
     // synthesis translate_off
     initial
     begin : error_proc
@@ -245,12 +250,12 @@ module ofs_plat_prim_burstcount1_page_mapping_gearbox
         // Is the address near the end of the page? It is if all the high
         // address bits within the page are 1. In this case, a single sink
         // burst could overflow to the next page.
-        logic near_page_end = &(addr[$clog2(PAGE_SIZE)-1 : SINK_BURST_WIDTH-1]);
+        logic near_page_end = &(addr[$clog2(PAGE_SIZE)-1 : BURST_WIDTH-1]);
 
         if (!near_page_end)
         begin
             // Not near the end of the page. A full burst would fit.
-            return t_sink_burst_cnt'(SINK_MAX_BURST);
+            return t_sink_burst_cnt'(MAX_BURST);
         end
         else
         begin
@@ -258,9 +263,8 @@ module ofs_plat_prim_burstcount1_page_mapping_gearbox
             // that remain on the current page. The encoding of burst counts makes
             // the high bit management a bit strange, since the only case in which
             // the high bit can be 1 is if all other bits are 0. In that case,
-            // a full SINK_MAX_BURST would fit.
-            return t_sink_burst_cnt'(SINK_MAX_BURST) -
-                   { 1'b0, addr[SINK_BURST_WIDTH-2 : 0] };
+            // a full MAX_BURST would fit.
+            return t_sink_burst_cnt'(MAX_BURST) - { 1'b0, addr[BURST_WIDTH-2 : 0] };
         end
     endfunction // max_burst_at_addr
 
