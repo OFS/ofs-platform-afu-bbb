@@ -40,7 +40,19 @@ module ofs_plat_host_chan_@group@_as_axi_mem
     // request may be broken into multiple PCIe unordered transactions,
     // which would violate AXI response ordering rules for a single request.
     parameter SORT_READ_RESPONSES = 1,
-    parameter SORT_WRITE_RESPONSES = 0
+    parameter SORT_WRITE_RESPONSES = 0,
+
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -58,7 +70,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
-        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES),
+        .BUFFER_READ_RESPONSES(BUFFER_READ_RESPONSES)
         )
       e
        (
@@ -94,7 +107,19 @@ module ofs_plat_host_chan_@group@_as_axi_mem_enc
     // request may be broken into multiple PCIe unordered transactions,
     // which would violate AXI response ordering rules for a single request.
     parameter SORT_READ_RESPONSES = 1,
-    parameter SORT_WRITE_RESPONSES = 0
+    parameter SORT_WRITE_RESPONSES = 0,
+
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -137,7 +162,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_enc
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
-        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES),
+        .BUFFER_READ_RESPONSES(BUFFER_READ_RESPONSES)
         )
      impl
        (
@@ -191,7 +217,19 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
     // request may be broken into multiple PCIe unordered transactions,
     // which would violate AXI response ordering rules for a single request.
     parameter SORT_READ_RESPONSES = 1,
-    parameter SORT_WRITE_RESPONSES = 0
+    parameter SORT_WRITE_RESPONSES = 0,
+
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -211,7 +249,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
-        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES),
+        .BUFFER_READ_RESPONSES(BUFFER_READ_RESPONSES)
         )
       e
        (
@@ -250,7 +289,19 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio_enc
     // request may be broken into multiple PCIe unordered transactions,
     // which would violate AXI response ordering rules for a single request.
     parameter SORT_READ_RESPONSES = 1,
-    parameter SORT_WRITE_RESPONSES = 0
+    parameter SORT_WRITE_RESPONSES = 0,
+
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -295,7 +346,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio_enc
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
-        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES),
+        .BUFFER_READ_RESPONSES(BUFFER_READ_RESPONSES)
         )
       impl
        (
@@ -392,7 +444,19 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
     // request may be broken into multiple PCIe unordered transactions,
     // which would violate AXI response ordering rules for a single request.
     parameter SORT_READ_RESPONSES = 1,
-    parameter SORT_WRITE_RESPONSES = 0
+    parameter SORT_WRITE_RESPONSES = 0,
+
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -434,7 +498,8 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .ADD_TIMING_REG_STAGES(ADD_TIMING_REG_STAGES),
         .SORT_READ_RESPONSES(SORT_READ_RESPONSES),
-        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES)
+        .SORT_WRITE_RESPONSES(SORT_WRITE_RESPONSES),
+        .BUFFER_READ_RESPONSES(BUFFER_READ_RESPONSES)
         )
       impl
        (
@@ -563,7 +628,19 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     // request may be broken into multiple PCIe unordered transactions,
     // which would violate AXI response ordering rules for a single request.
     parameter SORT_READ_RESPONSES = 1,
-    parameter SORT_WRITE_RESPONSES = 0
+    parameter SORT_WRITE_RESPONSES = 0,
+
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_chan_@group@_axis_pcie_tlp_if to_fiu,
@@ -670,6 +747,7 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         // Add a reorder buffer if the responses aren't already sorted.
         .SORT_RESPONSES(ofs_plat_host_chan_@group@_fim_gasket_pkg::CPL_REORDER_EN == 0),
+        .BUFFER_READ_RESPONSES(BUFFER_READ_RESPONSES),
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
         // Don't allow packets to cross 4KB pages due to PCIe requirement.

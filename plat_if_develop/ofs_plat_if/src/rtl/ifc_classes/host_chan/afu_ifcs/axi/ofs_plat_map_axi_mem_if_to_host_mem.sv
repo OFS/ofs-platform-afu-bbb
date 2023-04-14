@@ -21,6 +21,21 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     // here unnecessary.
     parameter SORT_RESPONSES = 1,
 
+    // Should the PIM guarantee that every outstanding read response
+    // has a buffer slot inside the PIM? When a ROB is needed to sort
+    // responses this property is guaranteed. When responses are already
+    // sorted, there is no default buffering inside the PIM. Some AFUs
+    // depend on a buffer to avoid deadlocks. For example, an AFU that
+    // routes read responses back as writes can deadlock if the read
+    // and write request channels have shared control logic. In that case,
+    // backed up read responses may inibit writes, thus deadlocking.
+    // Setting BUFFER_READ_RESPONSES guarantees a home for all read
+    // responses inside the PIM.
+    //
+    // This parameter is ignored when responses are sorted, since the
+    // ROB provides a buffer.
+    parameter BUFFER_READ_RESPONSES = 0,
+
     // Does the host memory port require natural alignment?
     parameter NATURAL_ALIGNMENT = 0,
 
@@ -183,17 +198,28 @@ module ofs_plat_map_axi_mem_if_to_host_mem
             end
             else
             begin
-                ofs_plat_axi_mem_if_connect conn
+                ofs_plat_axi_mem_if_connect conn_clk
                    (
                     .mem_source(axi_fiu_burst_if),
                     .mem_sink(axi_fiu_clk_if)
                     );
             end
 
+
             //
             // Responses are already sorted. Just record the metadata (full ID
             // and USER fields) that may not be preserved in completions.
             //
+            ofs_plat_axi_mem_if
+              #(
+                `OFS_PLAT_AXI_MEM_IF_REPLICATE_PARAMS(mem_sink)
+                )
+              axi_fiu_buf_if();
+
+            assign axi_fiu_buf_if.clk = mem_sink.clk;
+            assign axi_fiu_buf_if.reset_n = mem_sink.reset_n;
+            assign axi_fiu_buf_if.instance_number = mem_sink.instance_number;
+
             ofs_plat_axi_mem_if_preserve_meta
               #(
                 // There is one entry per packet, not per line, so limit
@@ -204,8 +230,35 @@ module ofs_plat_map_axi_mem_if_to_host_mem
               preserve_meta
                (
                 .mem_source(axi_fiu_clk_if),
-                .mem_sink
+                .mem_sink(axi_fiu_buf_if)
                 );
+
+
+            //
+            // There is no ROB because responses are already sorted.
+            // Is a FIFO buffer requested by the AFU?
+            //
+            if (BUFFER_READ_RESPONSES)
+            begin
+                // Provide a home for every active read response.
+                ofs_plat_axi_mem_if_buffered_read
+                  #(
+                    .NUM_READ_ENTRIES(MAX_ACTIVE_RD_LINES)
+                    )
+                  to_fiu_buf
+                   (
+                    .mem_source(axi_fiu_buf_if),
+                    .mem_sink
+                    );
+            end
+            else
+            begin
+                ofs_plat_axi_mem_if_connect conn_buf
+                   (
+                    .mem_source(axi_fiu_buf_if),
+                    .mem_sink
+                    );
+            end
         end
     endgenerate
 

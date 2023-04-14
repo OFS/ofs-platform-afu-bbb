@@ -33,7 +33,15 @@ module ofs_plat_host_chan_@group@_as_axi_mem
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Added for compatibility with other native host channel interfaces,
+    // such as PCIe TLP AXI-S. They are ignored in CCI-P, since responses
+    // are necessarily sorted in order to guarantee that AXI-MM transactions
+    // split to fit in CCI-P request sizes are returned in order.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 1,
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
@@ -83,7 +91,15 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_mmio
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Added for compatibility with other native host channel interfaces,
+    // such as PCIe TLP AXI-S. They are ignored in CCI-P, since responses
+    // are necessarily sorted in order to guarantee that AXI-MM transactions
+    // split to fit in CCI-P request sizes are returned in order.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 1,
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
@@ -165,7 +181,15 @@ module ofs_plat_host_chan_@group@_as_axi_mem_with_dual_mmio
     // almost full and requests in these registers continue to flow
     // when almost full is asserted. Beware of adding too many stages
     // and losing requests on transitions to almost full.
-    parameter ADD_TIMING_REG_STAGES = 0
+    parameter ADD_TIMING_REG_STAGES = 0,
+
+    // Added for compatibility with other native host channel interfaces,
+    // such as PCIe TLP AXI-S. They are ignored in CCI-P, since responses
+    // are necessarily sorted in order to guarantee that AXI-MM transactions
+    // split to fit in CCI-P request sizes are returned in order.
+    parameter SORT_READ_RESPONSES = 1,
+    parameter SORT_WRITE_RESPONSES = 1,
+    parameter BUFFER_READ_RESPONSES = 0
     )
    (
     ofs_plat_host_ccip_if.to_fiu to_fiu,
