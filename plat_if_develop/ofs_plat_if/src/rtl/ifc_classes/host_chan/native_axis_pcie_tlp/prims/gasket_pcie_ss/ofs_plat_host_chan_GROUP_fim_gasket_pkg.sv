@@ -20,10 +20,28 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // Largest tag value permitted in the FIM configuration for host->AFU MMIO reads
     localparam MAX_OUTSTANDING_MMIO_RD_REQS = ofs_pcie_ss_cfg_pkg::PCIE_RP_MAX_TAGS;
 
-`ifdef PLATFORM_FPGA_FAMILY_S10
-    // S10 uses an emulated PCIe SS and supports only standard PCIe
-    // request sizes.
+    //
+    // Heuristics to pick a working maximum request size for the target
+    // platform.
+    //
+    `undef OFS_PLAT_USE_PU_REQ_SIZE
+    `ifdef PLATFORM_FPGA_FAMILY_S10
+        // S10 uses an emulated PCIe SS and supports only standard PCIe
+        // request sizes.
+        `define OFS_PLAT_USE_PU_REQ_SIZE 1
+    `endif
+    `ifndef OFS_PCIE_SS_CFG_FLAG_TUSER_STORE_COMMIT_REQ
+        // Early versions of OFS enforced PU-sized requests in the protocol
+        // checker. The change to allowing any DM-encoded size has no flag,
+        // so we use a macro that was added at the same time. The store
+        // commit flag has nothing to do with the max. request size, but
+        // its existence is a clue that the protocol checker will allow
+        // large requests.
+        `undef OFS_PLAT_USE_PU_REQ_SIZE
+        `define OFS_PLAT_USE_PU_REQ_SIZE 1
+    `endif
 
+`ifdef OFS_PLAT_USE_PU_REQ_SIZE
     // Maximum read request bits (AFU reading host memory)
     localparam MAX_RD_REQ_SIZE = ofs_pcie_ss_cfg_pkg::MAX_RD_REQ_BYTES * 8;
     // Maximum write payload bits (AFU writing host memory)
