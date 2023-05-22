@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 `include "ofs_plat_if.vh"
+`include "ofs_fim_eth_plat_defines.svh"
 
 //
 // All streams associated with a single channel's data and sideband metadata.
@@ -34,6 +35,12 @@ interface ofs_plat_hssi_@group@_channel_if
     // Debugging
     //
 
+//
+// The func_axis_hssi_ss_*_to_string functions were not available from OFS
+// until mid-2023. HSSI logging depends on them.
+//
+`ifdef OFS_FIM_ETH_PROVIDES_HSSI_TO_STRING
+
     // This will typically be driven to a constant by the
     // code that instantiates the interface object.
     int unsigned instance_number;
@@ -57,7 +64,7 @@ interface ofs_plat_hssi_@group@_channel_if
                             ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            ofs_fim_eth_if_pkg::func_axis_eth_rx_to_string(data_rx.rx));
+                            ofs_fim_eth_if_pkg::func_axis_hssi_ss_rx_to_string(data_rx.rx));
                 end
 
                 if (data_tx.rst_n && data_tx.tx.tvalid && data_tx.tready)
@@ -66,12 +73,14 @@ interface ofs_plat_hssi_@group@_channel_if
                             ctx_name, $time,
                             ofs_plat_log_pkg::instance_name[LOG_CLASS],
                             instance_number,
-                            ofs_fim_eth_if_pkg::func_axis_eth_tx_to_string(data_tx.tx));
+                            ofs_fim_eth_if_pkg::func_axis_hssi_ss_tx_to_string(data_tx.tx));
                 end
             end
         end
     end
 
     // synthesis translate_on
+
+`endif //  `ifdef OFS_FIM_ETH_PROVIDES_HSSI_TO_STRING
 
 endinterface // ofs_plat_hssi_@group@_channel_if
