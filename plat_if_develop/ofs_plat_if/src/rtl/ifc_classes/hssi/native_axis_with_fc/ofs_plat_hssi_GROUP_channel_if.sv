@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: MIT
 
 `include "ofs_plat_if.vh"
-`include "ofs_fim_eth_plat_defines.svh"
+
+`ifdef SIM_MODE
+  // This file is on the search path only in simulation, which is a little unfortunate
+  // but not a major problem. The file is included only to test for the simulation
+  // debug logging functions under OFS_FIM_ETH_PROVIDES_HSSI_TO_STRING below.
+  `include "ofs_fim_eth_plat_defines.svh"
+`endif
+
 
 //
 // All streams associated with a single channel's data and sideband metadata.
