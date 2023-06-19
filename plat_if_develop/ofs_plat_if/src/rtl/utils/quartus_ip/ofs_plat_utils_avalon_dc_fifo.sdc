@@ -15,7 +15,7 @@
 # Do not declare the FIFO clocks as asynchronous at the top level, or false path these crossings,
 # because that will override these constraints.
 #-------------------------------------------------------------------------------
-set all_dc_fifo [get_entity_instances ofs_plat_utils_avalon_dc_fifo]
+set all_dc_fifo [get_entity_instances -nowarn ofs_plat_utils_avalon_dc_fifo]
 
 set_max_delay -from [get_registers {*|in_wr_ptr_gray[*]}] -to [get_registers {*|ofs_plat_utils_dcfifo_synchronizer_bundle:write_crosser|ofs_plat_utils_std_synchronizer_nocut:sync[*].u|din_s1}] 200
 set_min_delay -from [get_registers {*|in_wr_ptr_gray[*]}] -to [get_registers {*|ofs_plat_utils_dcfifo_synchronizer_bundle:write_crosser|ofs_plat_utils_std_synchronizer_nocut:sync[*].u|din_s1}] -200
