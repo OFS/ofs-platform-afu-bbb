@@ -42,11 +42,14 @@ proc get_aligned_user_clock_targets {afu_json_uclk_freqs freq_max} {
 
     if {0 == [string compare -nocase -length 4 "auto" $uclk_freq_high]} {
         # High frequency clock is "auto".  Initially, constrain it
-        # to a maximum frequency.  Also, ignore the JSON constraint
-        # on the low frequency clock and constrain it to half of
-        # freq_max.
+        # to a maximum frequency. We ignore the JSON constraint
+        # on the low frequency clock and constrain it to the same
+        # freq_max. The low frequency clock gets a high constraint
+        # in case the high frequency clock is unused. Some OneAPI
+        # designs use only the low frequency clock and expect that
+        # it is allowed to go above $freq_max / 2.
         set uclk_freq_high [uclk_parse_auto_freq $uclk_freq_high $freq_max]
-        set uclk_freq_low [expr {$uclk_freq_high / 2.0}]
+        set uclk_freq_low [uclk_parse_auto_freq $uclk_freq_low $freq_max]
 
         post_message "Target user clock high: auto ($uclk_freq_high)"
         post_message "Target user clock low: auto ($uclk_freq_low)"
