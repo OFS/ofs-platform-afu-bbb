@@ -218,15 +218,18 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
         end
         else
         begin
-            // Response generated here as writes win arbitrarion
-            mem_source.wr_writeresponsevalid <= arb_grant_write && !mem_sink.waitrequest &&
-                                                !wr_burst_active;
+            // Response generated here as writes complete
+            mem_source.wr_writeresponsevalid <= mem_sink.write && !mem_sink.waitrequest &&
+                                                wr_req.eop;
             mem_source.wr_response <= '0;
 
-            if (PRESERVE_WR_RESPONSE_USER != 0)
-                mem_source.wr_writeresponseuser <= wr_req.user;
-            else
-                mem_source.wr_writeresponseuser <= '0;
+            if (arb_grant_write && !mem_sink.waitrequest && !wr_burst_active)
+            begin
+                if (PRESERVE_WR_RESPONSE_USER != 0)
+                  mem_source.wr_writeresponseuser <= wr_req.user;
+                else
+                  mem_source.wr_writeresponseuser <= '0;
+            end
         end
 
         if (!reset_n)
