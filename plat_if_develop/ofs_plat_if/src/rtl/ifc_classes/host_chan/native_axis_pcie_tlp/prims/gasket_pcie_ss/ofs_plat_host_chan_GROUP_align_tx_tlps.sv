@@ -20,24 +20,22 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
     ofs_plat_axi_stream_if.to_source data_stream_source
     );
 
-    import ofs_plat_host_chan_@group@_fim_gasket_pkg::*;
-
     logic clk;
     assign clk = stream_sink.clk;
     logic reset_n;
     assign reset_n = stream_sink.reset_n;
 
-    // synthesis translate_off
-    initial
-    begin
-        // The code below assumes that a header is encoded as exactly
-        // half of the data bus width.
-        assert($bits(t_ofs_fim_axis_pcie_tdata) == 2 * $bits(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t)) else
-          $fatal(2, "PCIe SS header size is not half the data bus width. Code below will not work.");
-    end
-    // synthesis translate_on
+    localparam TDATA_WIDTH = stream_sink.TDATA_WIDTH;
+    localparam TUSER_WIDTH = stream_sink.TUSER_WIDTH;
+    localparam TKEEP_WIDTH = TDATA_WIDTH/8;
 
-    localparam HALF_TDATA_WIDTH = ofs_pcie_ss_cfg_pkg::TDATA_WIDTH / 2;
+    // Size of a header. All header types are the same size.
+    localparam HDR_WIDTH = $bits(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t);
+    localparam HDR_TKEEP_WIDTH = HDR_WIDTH / 8;
+
+    // Size of the data portion when a header that starts at tdata[0] is also present.
+    localparam DATA_AFTER_HDR_WIDTH = TDATA_WIDTH - HDR_WIDTH;
+    localparam DATA_AFTER_HDR_TKEEP_WIDTH = DATA_AFTER_HDR_WIDTH / 8;
 
 
     // ====================================================================
@@ -55,7 +53,7 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
         .TUSER_TYPE(logic)    // Not used
         )
       data_source();
@@ -81,8 +79,8 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
-        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
         )
       sink_skid();
 
@@ -112,18 +110,16 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
             // This is a very simple case:
             //  - There is at most one header (SOP) in the incoming tdata stream.
             //  - All headers begin at tdata[0].
-            //  - All headers or stored in exactly half the width of tdata.
             //
 
             // Track data remaining from the previous cycle
             logic prev_data_valid;
-            t_ofs_fim_axis_pcie_tdata prev_data;
-            logic [$bits(prev_data)/8 - 1 : 0] prev_data_keep;
+            logic [TDATA_WIDTH-1:0] prev_data;
+            logic [(TDATA_WIDTH/8)-1:0] prev_data_keep;
 
-            logic source_is_single_beat;
-            assign source_is_single_beat =
-                !pcie_ss_hdr_pkg::func_has_data(hdr_source.t.data.fmt_type) ||
-                (hdr_source.t.data.length <= (HALF_TDATA_WIDTH / 32));
+            wire source_is_single_beat =
+                 !pcie_ss_hdr_pkg::func_has_data(hdr_source.t.data.fmt_type) ||
+                 !data_source.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH];
 
             always_ff @(posedge clk)
             begin
@@ -132,12 +128,12 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                     if (data_source.tready)
                     begin
                         // Does the current cycle's source data fit completely in the
-                        // sink data vector? If this isn't the SOP beat, then
-                        // obviously it does not since PIM data is aligned to the
-                        // bus width and the header shifted the payload so it is
-                        // unaligned. If this is an SOP beat then there will be
-                        // prev data if the message doesn't fit in a single beat.
-                        prev_data_valid <= (!source_is_sop || !source_is_single_beat);
+                        // sink data vector? If this isn't the SOP beat then the
+                        // last beat fits if it is shorter than the injected header.
+                        // If this is an SOP beat then there will be previous data
+                        // if the message doesn't fit in a single beat.
+                        prev_data_valid <= ((!source_is_sop && data_source.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH]) ||
+                                            (source_is_sop && !source_is_single_beat));
                     end
                     else
                     begin
@@ -165,8 +161,8 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                 begin
                     // Stored data is always shifted by the same amount: the size
                     // of the TLP header.
-                    prev_data.payload <= { '0, data_source.t.data.payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH] };
-                    prev_data_keep <= { '0, data_source.t.keep[HALF_TDATA_WIDTH/8 +: HALF_TDATA_WIDTH/8] };
+                    prev_data <= { '0, data_source.t.data[DATA_AFTER_HDR_WIDTH +: HDR_WIDTH] };
+                    prev_data_keep <= { '0, data_source.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH +: HDR_TKEEP_WIDTH] };
                 end
             end
 
@@ -201,10 +197,10 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                 if (hdr_source.tready)
                 begin
                     // SOP: payload is first portion of data + header
-                    sink_skid.t.data.payload = { data_source.t.data.payload[0 +: HALF_TDATA_WIDTH],
-                                                 hdr_source.t.data };
-                    sink_skid.t.keep = { data_source.t.keep[0 +: HALF_TDATA_WIDTH/8],
-                                         {(HALF_TDATA_WIDTH/8){1'b1}} };
+                    sink_skid.t.data = { data_source.t.data[0 +: DATA_AFTER_HDR_WIDTH],
+                                        hdr_source.t.data[0 +: HDR_WIDTH] };
+                    sink_skid.t.keep = { data_source.t.keep[0 +: DATA_AFTER_HDR_TKEEP_WIDTH],
+                                        {(HDR_TKEEP_WIDTH){1'b1}} };
                     sink_skid.t.last = source_is_single_beat;
                     sink_skid.t.user[0].dm_mode = hdr_source.t.user;
                     sink_skid.t.user[0].sop = 1'b1;
@@ -212,20 +208,19 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                 end
                 else
                 begin
-                    sink_skid.t.data.payload = { data_source.t.data.payload[0 +: HALF_TDATA_WIDTH],
-                                                 prev_data.payload[0 +: HALF_TDATA_WIDTH] };
-
-                    sink_skid.t.keep = { data_source.t.keep[0 +: HALF_TDATA_WIDTH/8],
-                                         prev_data_keep[0 +: HALF_TDATA_WIDTH/8] };
+                    sink_skid.t.data = { data_source.t.data[0 +: DATA_AFTER_HDR_WIDTH],
+                                        prev_data[0 +: HDR_WIDTH] };
+                    sink_skid.t.keep = { data_source.t.keep[0 +: DATA_AFTER_HDR_TKEEP_WIDTH],
+                                        prev_data_keep[0 +: HDR_TKEEP_WIDTH] };
                     if (source_is_sop)
                     begin
                         // New data isn't being being consumed -- only the prev_data is
                         // valid.
-                        sink_skid.t.data.payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH] = '0;
-                        sink_skid.t.keep[HALF_TDATA_WIDTH/8 +: HALF_TDATA_WIDTH/8] = '0;
+                        sink_skid.t.data[HDR_WIDTH +: DATA_AFTER_HDR_WIDTH] = '0;
+                        sink_skid.t.keep[HDR_TKEEP_WIDTH +: DATA_AFTER_HDR_TKEEP_WIDTH] = '0;
                     end
 
-                    sink_skid.t.last = source_is_sop;
+                    sink_skid.t.last = source_is_sop || !data_source.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH];
                     sink_skid.t.user[0].dm_mode = 1'b0;
                     sink_skid.t.user[0].sop = 1'b0;
                     sink_skid.t.user[0].eop = sink_skid.t.last;

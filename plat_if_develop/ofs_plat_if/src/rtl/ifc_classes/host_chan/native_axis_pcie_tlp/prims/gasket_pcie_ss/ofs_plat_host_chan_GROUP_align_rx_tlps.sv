@@ -16,6 +16,11 @@
 // header indicates there is data, consume data_stream_sink until EOP.
 //
 
+//
+// This module is largely the same as the FIM's ofs_fim_pcie_hdr_extract(),
+// modified to use ofs_plat_axi_stream_if.
+//
+
 module ofs_plat_host_chan_@group@_align_rx_tlps
    (
     ofs_plat_axi_stream_if.to_source stream_source,
@@ -27,24 +32,22 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
     ofs_plat_axi_stream_if.to_sink data_stream_sink
     );
 
-    import ofs_plat_host_chan_@group@_fim_gasket_pkg::*;
-
     logic clk;
     assign clk = stream_source.clk;
     logic reset_n;
     assign reset_n = stream_source.reset_n;
 
-    // synthesis translate_off
-    initial
-    begin
-        // The code below assumes that a header is encoded as exactly
-        // half of the data bus width.
-        assert($bits(t_ofs_fim_axis_pcie_tdata) == 2 * $bits(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t)) else
-          $fatal(2, "PCIe SS header size is not half the data bus width. Code below will not work.");
-    end
-    // synthesis translate_on
+    localparam TDATA_WIDTH = stream_source.TDATA_WIDTH;
+    localparam TUSER_WIDTH = stream_source.TUSER_WIDTH;
+    localparam TKEEP_WIDTH = TDATA_WIDTH/8;
 
-    localparam HALF_TDATA_WIDTH = ofs_pcie_ss_cfg_pkg::TDATA_WIDTH / 2;
+    // Size of a header. All header types are the same size.
+    localparam HDR_WIDTH = $bits(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t);
+    localparam HDR_TKEEP_WIDTH = HDR_WIDTH / 8;
+
+    // Size of the data portion when a header that starts at tdata[0] is also present.
+    localparam DATA_AFTER_HDR_WIDTH = TDATA_WIDTH - HDR_WIDTH;
+    localparam DATA_AFTER_HDR_TKEEP_WIDTH = DATA_AFTER_HDR_WIDTH / 8;
 
 
     // ====================================================================
@@ -55,8 +58,8 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
-        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
         )
       source_skid();
 
@@ -65,6 +68,8 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
         .stream_source(stream_source),
         .stream_sink(source_skid)
         );
+
+    wire source_skid_sop = source_skid.t.user[0].sop;
 
 
     // ====================================================================
@@ -82,129 +87,87 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
 
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
         .TUSER_TYPE(logic)    // Not used
         )
       data_stream();
 
+    logic prev_must_drain;
+
     // New message available and there is somewhere to put it?
-    logic process_msg;
-    assign process_msg = hdr_stream.tready && data_stream.tready &&
-                         source_skid.tvalid;
+    wire process_msg = source_skid.tvalid && source_skid.tready;
+    wire process_drain = prev_must_drain && data_stream.tready;
 
     assign source_skid.tready = hdr_stream.tready && data_stream.tready;
 
-    generate
-        if (ofs_pcie_ss_cfg_pkg::NUM_OF_SEG == 1)
-        begin : seg1
-            //
-            // This is a very simple case:
-            //  - There is at most one header (SOP) in the incoming tdata stream.
-            //  - All headers begin at tdata[0].
-            //  - All headers or stored in exactly half the width of tdata.
-            //  - The last beat of data in a multi-beat message takes exactly half
-            //    the width of tdata. We know this because multi-beat messages
-            //    are either completions requested by the PIM (which only asks
-            //    for multiples of the data bus width) or are wide MMIO writes,
-            //    which are also assumed to be multiples of the bus width.
-            //    (Most MMIO writes fit in a single beat.)
-            //
+    //
+    // Requirements:
+    //  - There is at most one header per beat in the incoming tdata stream.
+    //  - All headers begin at tdata[0].
+    //
 
-            // Header - only when SOP in the incoming stream
-            assign hdr_stream.tvalid = process_msg && source_skid.t.user[0].sop;
-            always_comb
-            begin
-                hdr_stream.t = '0;
-                hdr_stream.t.data = pcie_ss_hdr_pkg::PCIe_PUReqHdr_t'(source_skid.t.data.payload);
-                hdr_stream.t.user = source_skid.t.user[0].dm_mode;
-                hdr_stream.t.last = 1'b1;
-            end
+    // Header - only when SOP in the incoming stream
+    assign hdr_stream.tvalid = process_msg && source_skid_sop;
+    assign hdr_stream.t.data = { '0, source_skid.t.data[$bits(pcie_ss_hdr_pkg::PCIe_CplHdr_t)-1 : 0] };
+    assign hdr_stream.t.user = source_skid.t.user[0].dm_mode;
+    assign hdr_stream.t.keep = 64'((65'h1 << ($bits(pcie_ss_hdr_pkg::PCIe_CplHdr_t)) / 8) - 1);
+    assign hdr_stream.t.last = 1'b1;
 
 
-            // Data - either directly from the stream for short messages or
-            // by combining the current and previous messages.
+    // Data - either directly from the stream for short messages or
+    // by combining the current and previous messages.
 
-            // Record the previous data in case it is needed later.
-            logic [ofs_pcie_ss_cfg_pkg::TDATA_WIDTH-1:0] prev_payload;
-            always_ff @(posedge clk)
-            begin
-                if (process_msg)
-                begin
-                    prev_payload <= source_skid.t.data.payload;
-                end
-            end
-
-            // Continuation of multi-cycle data?
-            logic payload_is_pure_data;
-            assign payload_is_pure_data = !source_skid.t.user[0].sop;
-
-            // SOP and EOP both in the same source message? No realignment is required.
-            // A message is sent on the data channel even when the header indicates there
-            // is no data payload because always pushing a data channel message
-            // simplifies logic for the consumer.
-            logic payload_is_short;
-            assign payload_is_short = source_skid.t.user[0].sop && source_skid.t.last;
-
-            assign data_stream.tvalid = process_msg &&
-                                        (payload_is_pure_data || payload_is_short);
-            always_comb
-            begin
-                data_stream.t = '0;
-                data_stream.t.last = source_skid.t.last;
-                // The PIM doesn't care about tkeep
-                data_stream.t.keep = ~'0;
-
-                if (payload_is_short)
-                begin
-                    // Short data - header low half, payload high half
-                    data_stream.t.data[0 +: HALF_TDATA_WIDTH-1] =
-                        source_skid.t.data.payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH];
-                end
-                else
-                begin
-                    // Long data - low half from previous flit, high half from current
-                    data_stream.t.data =
-                        { source_skid.t.data.payload[0 +: HALF_TDATA_WIDTH],
-                          prev_payload[HALF_TDATA_WIDTH +: HALF_TDATA_WIDTH] };
-                end
-            end
-
-
-            // synthesis translate_off
-            // Check the integrity of the incoming SOP and tlast bits
-            logic expect_sop;
-
-            always_ff @(posedge clk)
-            begin
-                if (process_msg)
-                begin
-                    expect_sop <= source_skid.t.last;
-
-                    if (reset_n)
-                    begin
-                        assert(expect_sop == source_skid.t.user[0].sop) else
-                          $fatal(2, "expect_sop (%0d) != actual SOP flag", expect_sop);
-                    end
-                end
-
-                if (!reset_n)
-                begin
-                    expect_sop <= 1'b1;
-                end
-            end
-            // synthesis translate_on
+    // Record the previous data in case it is needed later.
+    logic [TDATA_WIDTH-1:0] prev_payload;
+    logic [(TDATA_WIDTH/8)-1:0] prev_keep;
+    always_ff @(posedge clk)
+    begin
+        if (process_drain)
+        begin
+            prev_must_drain <= 1'b0;
         end
-        else
-        begin : fail
-            // synthesis translate_off
-            initial
-            begin
-                $fatal(2, "%0d segments per PCIe data segment not yet supported.",
-                       ofs_pcie_ss_cfg_pkg::NUM_OF_SEG);
-            end
-            // synthesis translate_on
+        if (process_msg)
+        begin
+            prev_payload <= source_skid.t.data;
+            prev_keep <= source_skid.t.keep;
+            // Either there is data that won't fit in this beat or the data+header
+            // is a single beat.
+            prev_must_drain <= source_skid.t.last &&
+                               (source_skid.t.keep[HDR_TKEEP_WIDTH] || source_skid_sop);
         end
-    endgenerate
+
+        if (!reset_n)
+        begin
+            prev_must_drain <= 1'b0;
+        end
+    end
+
+    // Continuation of multi-cycle data?
+    logic payload_is_pure_data;
+    assign payload_is_pure_data = !source_skid_sop;
+
+    assign data_stream.tvalid = (process_msg && payload_is_pure_data) || process_drain;
+
+    always_comb
+    begin
+        data_stream.t.last = (source_skid.t.last && !source_skid.t.keep[HDR_TKEEP_WIDTH]) ||
+                            prev_must_drain;
+        data_stream.t.user = '0;
+
+        // Realign data - low part from previous flit, high part from current
+        data_stream.t.data =
+            { source_skid.t.data[0 +: HDR_WIDTH],
+              prev_payload[HDR_WIDTH +: DATA_AFTER_HDR_WIDTH] };
+        data_stream.t.keep =
+            { source_skid.t.keep[0 +: HDR_TKEEP_WIDTH],
+              prev_keep[HDR_TKEEP_WIDTH +: DATA_AFTER_HDR_TKEEP_WIDTH] };
+
+        if (prev_must_drain)
+        begin
+            data_stream.t.data[DATA_AFTER_HDR_WIDTH +: HDR_WIDTH] = '0;
+            data_stream.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH +: HDR_TKEEP_WIDTH] = '0;
+        end
+    end
 
 
     // ====================================================================
