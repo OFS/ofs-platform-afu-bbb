@@ -17,8 +17,6 @@ module ase_emul_host_chan_native_ccip
     ofs_plat_host_ccip_if.to_afu host_chan_g1_ports[`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS],
   `elsif OFS_PLAT_PARAM_HOST_CHAN_G1_IS_NATIVE_AVALON
     ofs_plat_avalon_mem_if.to_source host_chan_g1_ports[`OFS_PLAT_PARAM_HOST_CHAN_G1_NUM_PORTS],
-  `else
-        *** ERROR *** Unsupported native interface!
   `endif
 `endif
 
@@ -27,8 +25,6 @@ module ase_emul_host_chan_native_ccip
     ofs_plat_host_ccip_if.to_afu host_chan_g2_ports[`OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS],
   `elsif OFS_PLAT_PARAM_HOST_CHAN_G2_IS_NATIVE_AVALON
     ofs_plat_avalon_mem_if.to_source host_chan_g2_ports[`OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS],
-  `else
-        *** ERROR *** Unsupported native interface!
   `endif
 `endif
 
@@ -77,8 +73,6 @@ module ase_emul_host_chan_native_ccip
                                // it. This is much less resource intensive, since
                                // CCI-P to Avalon requires sorting responses.
                                + 1
-  `else
-        *** ERROR *** Unsupported native interface!
   `endif
 `endif
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_G2_NUM_PORTS
@@ -89,8 +83,6 @@ module ase_emul_host_chan_native_ccip
                                // it. This is much less resource intensive, since
                                // CCI-P to Avalon requires sorting responses.
                                + 1
-  `else
-        *** ERROR *** Unsupported native interface!
   `endif
 `endif
                                ;
@@ -187,8 +179,6 @@ module ase_emul_host_chan_native_ccip
 
         localparam CCIP_PORT_G2_START = CCIP_PORT_G1_START + 1;
 
-  `else
-        *** ERROR *** Unsupported native interface!
   `endif
 `endif
 
@@ -250,8 +240,6 @@ module ase_emul_host_chan_native_ccip
 
         localparam CCIP_PORT_G3_START = CCIP_PORT_G2_START + 1;
 
-  `else
-        *** ERROR *** Unsupported native interface!
   `endif
 `endif
     endgenerate

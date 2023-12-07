@@ -13,7 +13,7 @@ localparam CCIP_VERSION_NUMBER    = 12'h080;
 localparam NUM_CCIP_PORTS         = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS;
 
 
-localparam CCIP_CLADDR_WIDTH      = `OFS_PLAT_PARAM_HOST_CHAN_ADDR_WIDTH;
+localparam CCIP_CLADDR_WIDTH      = 42;
 localparam CCIP_CLDATA_WIDTH      = `OFS_PLAT_PARAM_HOST_CHAN_DATA_WIDTH;
 // Number of bytes in a cache line
 localparam CCIP_CLDATA_BYTE_WIDTH = CCIP_CLDATA_WIDTH / 8;

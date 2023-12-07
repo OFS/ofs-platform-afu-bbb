@@ -107,10 +107,20 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // Data types in the FIM's AXI streams
     //
 
+    // Data width may be something other than the PCIe SS configuration when
+    // links are merged into a single wide stream. Use the PIM's configured value.
+    localparam TDATA_WIDTH = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_DATA_WIDTH;
+
+    // Scale the number of segments by the configured width. For now, we special
+    // case when ofs_pcie_ss_cfg_pkg::NUM_OF_SEG is 1 because that likely is set
+    // when the code is capable of handling SOP only in data bit 0.
+    localparam NUM_OF_SEG = (ofs_pcie_ss_cfg_pkg::NUM_OF_SEG == 1) ? 1 :
+                              (ofs_pcie_ss_cfg_pkg::NUM_OF_SEG *
+                               (TDATA_WIDTH / ofs_pcie_ss_cfg_pkg::TDATA_WIDTH));
+
     // The PCIe SS breaks the data vector into segments of equal size.
     // Segments are legal header starting points within the data vector.
-    localparam FIM_PCIE_SEG_WIDTH = ofs_pcie_ss_cfg_pkg::TDATA_WIDTH /
-                                    ofs_pcie_ss_cfg_pkg::NUM_OF_SEG;
+    localparam FIM_PCIE_SEG_WIDTH = TDATA_WIDTH / NUM_OF_SEG;
     // Segment width in bytes (useful for indexing tkeep as valid bits)
     localparam FIM_PCIE_SEG_BYTES = FIM_PCIE_SEG_WIDTH / 8;
     typedef logic [FIM_PCIE_SEG_WIDTH-1:0] t_ofs_fim_axis_pcie_seg;
@@ -118,11 +128,11 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // Represent the data vector as a union of two options: "payload" is the
     // full width and "segs" breaks payload into NUM_OF_SEG segments.
     typedef union packed {
-        logic [ofs_pcie_ss_cfg_pkg::TDATA_WIDTH-1:0] payload;
-        t_ofs_fim_axis_pcie_seg [ofs_pcie_ss_cfg_pkg::NUM_OF_SEG-1:0] segs;
+        logic [TDATA_WIDTH-1:0] payload;
+        t_ofs_fim_axis_pcie_seg [NUM_OF_SEG-1:0] segs;
     } t_ofs_fim_axis_pcie_tdata;
 
-    localparam FIM_PCIE_TKEEP_WIDTH = (ofs_pcie_ss_cfg_pkg::TDATA_WIDTH / 8);
+    localparam FIM_PCIE_TKEEP_WIDTH = (TDATA_WIDTH / 8);
     typedef logic [FIM_PCIE_TKEEP_WIDTH-1:0] t_ofs_fim_axis_pcie_tkeep;
 
     // The PIM's representation of PCIe SS user bits adds sop and eop flags
@@ -134,7 +144,7 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
         logic eop;
     } t_ofs_fim_axis_pcie_seg_tuser;
 
-    typedef t_ofs_fim_axis_pcie_seg_tuser [ofs_pcie_ss_cfg_pkg::NUM_OF_SEG-1:0]
+    typedef t_ofs_fim_axis_pcie_seg_tuser [NUM_OF_SEG-1:0]
         t_ofs_fim_axis_pcie_tuser;
 
 
@@ -174,7 +184,7 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
         );
 
         automatic int printed_msg = 0;
-        for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
+        for (int s = 0; s < NUM_OF_SEG; s = s + 1)
         begin
             if (keep[s * FIM_PCIE_SEG_BYTES])
             begin

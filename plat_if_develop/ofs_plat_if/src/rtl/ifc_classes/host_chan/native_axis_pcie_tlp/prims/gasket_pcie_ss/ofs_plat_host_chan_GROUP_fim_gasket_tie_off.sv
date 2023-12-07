@@ -64,7 +64,7 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
     begin
         // Check that NUM_OF_SOP is 1. The code below will fail if there are
         // multiple MMIO read requests in a cycle.
-        assert(ofs_pcie_ss_cfg_pkg::NUM_OF_SOP == 1) else
+        assert(ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG == 1) else
             $fatal(2, "Only one SOP per cycle is supported in the decoder!");
     end
     // synthesis translate_on
@@ -84,7 +84,7 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
 
             // Assume that there is at most one SOP (checked with assertion above).
             // It may be in any segment though.
-            for (int s = 0; s < ofs_pcie_ss_cfg_pkg::NUM_OF_SEG; s = s + 1)
+            for (int s = 0; s < ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG; s = s + 1)
             begin
                 // Only power user mode requests are detected
                 if (rx_st.tvalid && !rx_st.t.user[s].dm_mode && rx_st.t.user[s].sop)

@@ -94,8 +94,8 @@ module map_fim_pcie_ss_to_@group@_host_chan
     ofs_plat_axi_stream_if.to_sink pim_rx_b_st
     );
 
-    localparam FIM_PCIE_SEG_WIDTH = ofs_pcie_ss_cfg_pkg::TDATA_WIDTH /
-                                    ofs_pcie_ss_cfg_pkg::NUM_OF_SEG;
+    localparam FIM_PCIE_SEG_WIDTH = ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH /
+                                    ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG;
     // Segment width in bytes (useful for indexing tkeep as valid bits)
     localparam FIM_PCIE_SEG_BYTES = FIM_PCIE_SEG_WIDTH / 8;
 
@@ -120,7 +120,7 @@ module map_fim_pcie_ss_to_@group@_host_chan
         pcie_ss_tx_a_st.tdata = pim_tx_a_st.t.data;
         // Map byte->dword keep bits, dropping 3/4 of them, to save space.
         // Masks are always at the dword level.
-        for (int w = 0; w < ofs_pcie_ss_cfg_pkg::TDATA_WIDTH/32; w = w + 1)
+        for (int w = 0; w < ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH/32; w = w + 1)
         begin
             pcie_ss_tx_a_st.tkeep[w*4 +: 4] = {4{pim_tx_a_st.t.keep[w*4]}};
         end
@@ -155,7 +155,7 @@ module map_fim_pcie_ss_to_@group@_host_chan
         pcie_ss_tx_b_st.tdata = pim_tx_b_st.t.data;
         // Map byte->dword keep bits, dropping 3/4 of them, to save space.
         // Masks are always at the dword level.
-        for (int w = 0; w < ofs_pcie_ss_cfg_pkg::TDATA_WIDTH/32; w = w + 1)
+        for (int w = 0; w < ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH/32; w = w + 1)
         begin
             pcie_ss_tx_b_st.tkeep[w*4 +: 4] = {4{pim_tx_b_st.t.keep[w*4]}};
         end
@@ -189,7 +189,7 @@ module map_fim_pcie_ss_to_@group@_host_chan
         // Mark at most one EOP. Find the highest segment with a payload and
         // set its EOP bit, using tlast. tlast is currently the only header
         // indicator in the FIM's PCIe SS configuration.
-        for (int s = ofs_pcie_ss_cfg_pkg::NUM_OF_SEG - 1; s >= 0; s = s - 1)
+        for (int s = ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG - 1; s >= 0; s = s - 1)
         begin
             if (pcie_ss_rx_a_st.tkeep[s * FIM_PCIE_SEG_BYTES])
             begin
@@ -235,7 +235,7 @@ module map_fim_pcie_ss_to_@group@_host_chan
         // Mark at most one EOP. Find the highest segment with a payload and
         // set its EOP bit, using tlast. tlast is currently the only header
         // indicator in the FIM's PCIe SS configuration.
-        for (int s = ofs_pcie_ss_cfg_pkg::NUM_OF_SEG - 1; s >= 0; s = s - 1)
+        for (int s = ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG - 1; s >= 0; s = s - 1)
         begin
             if (pcie_ss_rx_b_st.tkeep[s * FIM_PCIE_SEG_BYTES])
             begin

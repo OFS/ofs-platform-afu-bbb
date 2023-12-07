@@ -104,7 +104,7 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
     end
 
     generate
-        if (ofs_pcie_ss_cfg_pkg::NUM_OF_SEG == 1)
+        if (ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG == 1)
         begin : seg1
             //
             // This is a very simple case:
@@ -233,7 +233,7 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
             initial
             begin
                 $fatal(2, "%0d segments per PCIe data segment not yet supported.",
-                       ofs_pcie_ss_cfg_pkg::NUM_OF_SEG);
+                       ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG);
             end
             // synthesis translate_on
         end
