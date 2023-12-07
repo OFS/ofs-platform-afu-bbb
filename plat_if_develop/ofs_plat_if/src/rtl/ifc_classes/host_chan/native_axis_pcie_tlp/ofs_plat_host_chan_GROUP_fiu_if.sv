@@ -29,6 +29,6 @@ interface ofs_plat_host_chan_@group@_fiu_if
       #(
         .LOG_CLASS(ENABLE_LOG ? ofs_plat_log_pkg::HOST_CHAN : ofs_plat_log_pkg::NONE)
         )
-        ports[NUM_PORTS]();
+        ports[(NUM_PORTS != 0) ? NUM_PORTS : 1]();
 
 endinterface // ofs_plat_host_chan_@group@_fiu_if

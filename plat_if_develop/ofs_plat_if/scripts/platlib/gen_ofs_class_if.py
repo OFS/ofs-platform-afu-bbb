@@ -16,7 +16,7 @@ import shutil
 
 def copy_class(src=None, tgt=None, import_dir=None,
                template_class=None, base_class=None, native_class=None,
-               params=dict(), group_num=0, verbose=False):
+               params=dict(), group_name=0, verbose=False):
     """Copy the implementation of a single interface class to the target.
     template_class is the source directory from which files are copied.
     base_class is the type of the interface abstraction, e.g. host_chan.
@@ -28,12 +28,12 @@ def copy_class(src=None, tgt=None, import_dir=None,
     if (native_class == 'none'):
         if (verbose):
             print('Generating {0} group {1} (no source)'.format(base_class,
-                                                                group_num))
+                                                                group_name))
         return None
 
     if (verbose):
         print('Generating {0} group {1} using {2}/{3}:'.format(
-            base_class, group_num, template_class, native_class))
+            base_class, group_name, template_class, native_class))
 
     # Source path
     src_subdir = os.path.join('rtl', 'ifc_classes',
@@ -105,13 +105,21 @@ def __mark_gasket_trees(tgt_tree, tgt_gasket, verbose=False):
                     None
 
 
-def use_class_templates(tgt=None, base_class=None, group_num=0,
+def use_class_templates(tgt=None, base_class=None, group_name=0,
                         verbose=False):
     """Move the class's group-specific template files to their proper names
     and update the contents to match the names."""
 
     # What is the target group name? Group 0 is a special case. It is empty.
-    group_str = '' if (group_num == 0) else '_g{0}'.format(group_num)
+    group_str = ''
+    if (group_name):
+        if isinstance(group_name, int):
+            # Originally, only numeric section names were allowed and
+            # they were prefixed with "g". Preserve the original naming.
+            group_str = '_g{0}'.format(group_name)
+        else:
+            # Non-numeric names are applied without modification.
+            group_str = '_{0}'.format(group_name)
 
     # Template files with names containing _GROUP_ were copied to
     # the target. Find them, use them to generate group-specific

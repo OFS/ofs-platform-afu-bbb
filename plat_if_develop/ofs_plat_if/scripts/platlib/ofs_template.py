@@ -124,7 +124,13 @@ class ofs_template(object):
             # Change group to a string and make it empty if the group number
             # is zero.
             if (g):
-                g = '_g{0}'.format(g)
+                if isinstance(g, int):
+                    # Originally, only numeric section names were allowed and
+                    # they were prefixed with "g". Preserve the original naming.
+                    g = '_g{0}'.format(g)
+                else:
+                    # Non-numeric names are applied without modification.
+                    g = '_{0}'.format(g)
             else:
                 g = ''
 

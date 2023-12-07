@@ -79,7 +79,7 @@ class ofs_plat_cfg(object):
 
     def sections(self):
         """Return a list of the configuration file's sections."""
-        return self.config.sections()
+        return sorted(self.config.sections())
 
     def parse_section_name(self, section):
         """Split a section name into class name string and a group number.
@@ -93,9 +93,9 @@ class ofs_plat_cfg(object):
                 self.__errorExit("Illegal section name ({0})".format(s))
             c = p[0]
             g = 0
-            # Group number specified?
+            # Group name or number specified? If numeric, convert the group to int.
             if (len(p) == 2):
-                g = int(p[1])
+                g = int(p[1]) if p[1].isnumeric() else p[1]
         except Exception:
             self.__errorExit("Illegal section name ({0})".format(s))
 
@@ -173,8 +173,9 @@ class ofs_plat_cfg(object):
                 # First time class is seen. Group number must be 0.
                 if (g != 0):
                     self.__errorExit(msg)
-            elif (secs[c] + 1 != g):
-                # Class seen before but group number isn't incrementing by 1
+            elif (isinstance(g, int) and secs[c] + 1 != g):
+                # Group is a number but it isn't incrementing by 1. Non-numeric
+                # group names don't have to satisfy this requirement.
                 self.__errorExit(msg)
 
             secs[c] = g
