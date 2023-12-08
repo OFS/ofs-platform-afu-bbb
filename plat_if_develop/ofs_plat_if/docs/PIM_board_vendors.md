@@ -43,7 +43,7 @@ This script is run automatically by the standard OFS FIM build flow as long as a
 
 ### Platform .ini Files ###
 
-Each major section in a platform .ini file corresponds to one or more devices of the same type. Same-sized banks of local memory share a single .ini section, with the number of banks as a parameter in the section. The same is true of HSSI ports and, on some multi-PCIe systems, of host channels. All devices in a section must share the same properties. If there are two types of local memory on a board with different address or data widths, they must have their own local memory sections. Separate sections of the same type must be named with monotonically increasing numeric suffixes, e.g. *local\_memory.0* and *local\_memory.1*. The trailing *.0* is optional. *host\_channel.0* and *host\_channel* are equivalent.
+Each major section in a platform .ini file corresponds to one or more devices of the same type. Same-sized banks of local memory share a single .ini section, with the number of banks as a parameter in the section. The same is true of HSSI ports and, on some multi-PCIe systems, of host channels. All devices in a section must share the same properties. If there are two types of local memory on a board with different address or data widths, they must have their own local memory sections. Separate sections of the same type must be named either with a unique tag, such as *local\_memory.hbm* or with monotonically increasing numeric suffixes, e.g. *local\_memory.0* and *local\_memory.1*. The trailing *.0* is optional. *host\_channel.0* and *host\_channel* are equivalent.
 
 Some sections are required in order to guarantee AFU portability across platforms:
 
@@ -101,6 +101,30 @@ gasket=pcie_ss
 The native class maps to a directory during PIM construction. In this case, [host\_chan/native\_axis\_pcie\_tlp](../src/rtl/ifc_classes/host_chan/native_axis_pcie_tlp/). The PIM construction script will instantiate the specified native class and ignore all other native class implementations.
 
 The *gasket* keyword further refines the FIM interface. Platforms may have subtle implementation variations for the same basic native class. When *gasket* is specified, the PIM setup script looks for directories within the class named *gasket\_\** and keeps only those matching the gasket name, e.g. *gasket\_pcie\_ss*.
+
+### Conditional Compilation ###
+
+Some devices are enabled and disabled in FIM builds using macros in the Quartus project. For example, HSSI support is often enabled with INCLUDE\_HSSI. Each section in a PIM .ini files may contain an *enabled\_by* field. When present, the section is instantiated only when one of the listed macro names is set. Multiple macro names may be listed, separated by the \| (or) character. The PIM setup scripts automatically look for project macros in a file with the same path and name as the PIM .ini file but with the suffix *.macros*. FIM builds generate the PIM .macros automatically, early in the FIM setup stage.
+
+A PIM instance with conditionally enabled local memory might look like:
+
+```ini
+[local_mem]
+enabled_by=INCLUDE_DDR4|INCLUDE_DDR5
+native_class=native_axi
+num_banks=ofs_fim_mem_if_pkg::NUM_MEM_CHANNELS
+...
+```
+
+PIM memory interfaces and configuration will be generated only if INCLUDE_DDR4 or INCLUDE_DDR5 is defined. Similarly, the HSSI section is often predicated with:
+
+```ini
+[hssi]
+enabled_by=INCLUDE_HSSI
+native_class=native_axis_with_fc
+num_channels=ofs_fim_eth_plat_if_pkg::MAX_NUM_ETH_CHANNELS
+...
+```
 
 ### Platform-Specific Extensions ###
 

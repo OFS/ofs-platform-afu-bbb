@@ -290,27 +290,27 @@ Tie-off parameters are all of the form: *\<interface class\>\_IN\_USE\_MASK()*. 
 
 ### Interface Groups ###
 
-The PIM supports multiple instances of the same interface class. All interfaces in a vector of banks must be identical. A board with 4 banks of DDR4 memory and 2 banks of SRAM requires two instances of a local\_mem, each with different parameters. The general naming of an interface group is *\<interface class\>\_G\<group number\>*, e.g. *LOCAL\_MEM\_G1*. All the examples so far with a single group of each class are merely a special case, *\_G0* is always removed, so *LOCAL\_MEM\_G0* is simply *LOCAL\_MEM*.
+The PIM supports multiple instances of the same interface class. All interfaces in a vector of banks must be identical. A board with 4 banks of DDR4 memory and 2 banks of SRAM requires two instances of a local\_mem, each with different parameters. The general naming of an interface group is *\<interface class\>\_\<group name\>*, e.g. *LOCAL\_MEM\_SRAM*. The original PIM implementation allowed only monotonically increasing numbers as group identifiers. Arbitrary strings are now allowed. When numbers are used they are preceded by *G* to maintain compatibility with the original PIM implementation. All the examples so far with a single group of each class are merely a special case of group 0, as *\_G0* is always removed. *LOCAL\_MEM\_G0* is simply *LOCAL\_MEM*.
 
-Since each group of interfaces may have different configuration parameters and may even be implemented in different native protocols, all modules and macros are named with the group number. An AFU connects to group 1 of local memory with group 1 names:
+Since each group of interfaces may have different configuration parameters and may even be implemented in different native protocols, all modules and macros are named with the group name. An AFU connects to group SRAM of a memory defined in a PIM .ini file as \[local\_memory.sram\] with the following names:
 
 ```SystemVerilog
     ofs_plat_avalon_mem_if
       #(
-        `LOCAL_MEM_G1_AVALON_MEM_PARAMS,
+        `LOCAL_MEM_SRAM_AVALON_MEM_PARAMS,
         .BURST_CNT_WIDTH(6)
         )
-      local_mem_g1_to_afu[local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
+      local_mem_sram_to_afu[local_mem_sram_cfg_pkg::LOCAL_MEM_NUM_BANKS]();
 
     // Handle the clock crossing in the OFS module.
-    ofs_plat_local_mem_g1_as_avalon_mem
+    ofs_plat_local_mem_sram_as_avalon_mem
       #(
         .ADD_CLOCK_CROSSING(1)
         )
-      local_mem_g1
+      local_mem_sram
        (
-        .to_fiu(plat_ifc.local_mem_g1.banks[0]),
-        .to_afu(local_mem_g1_to_afu[0])
+        .to_fiu(plat_ifc.local_mem_sram.banks[0]),
+        .to_afu(local_mem_sram_to_afu[0])
 
         .afu_clk(host_mem_to_afu.clk),
         .afu_reset_n(host_mem_to_afu.reset_n)
@@ -325,10 +325,12 @@ Each group must be named separately when managing tie-offs:
         .HOST_CHAN_IN_USE_MASK(1),
         .LOCAL_MEM_IN_USE_MASK(-1),
         // Bank 0 of group 1 used
-        .LOCAL_MEM_G1_IN_USE_MASK(1)
+        .LOCAL_MEM_SRAM_IN_USE_MASK(1)
         )
         tie_off(plat_ifc);
 ```
+
+Note that the name *SRAM* here is derived solely from the group name chosen by the author of a PIM .ini file. It is merely a string with no underlying semantics.
 
 ## Tutorial ##
 
