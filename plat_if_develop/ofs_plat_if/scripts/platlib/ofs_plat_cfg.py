@@ -65,11 +65,18 @@ class ofs_plat_cfg(object):
         self.config = configparser.ConfigParser()
         self.config.read(ini_file)
 
-        # Are the section names legal?
-        self.__validate_section_names()
+        # In addition to the incoming "disable" list, each section may have
+        # an "enabled_by" value. Generate a list of sections that are not
+        # enabled.
+        not_enabled = self.__find_disabled_sections()
 
         # Drop sections we've been told to disable
-        self.__drop_disabled_sections(disable)
+        if (not disable):
+            disable = []
+        self.__drop_disabled_sections(set(not_enabled + disable))
+
+        # Are the section names legal?
+        self.__validate_section_names()
 
         # Rewrite state from old .ini files for backward compatibility
         self.__backward_compat_rewrite()
@@ -93,7 +100,8 @@ class ofs_plat_cfg(object):
                 self.__errorExit("Illegal section name ({0})".format(s))
             c = p[0]
             g = 0
-            # Group name or number specified? If numeric, convert the group to int.
+            # Group name or number specified? If numeric, convert the group
+            # to int.
             if (len(p) == 2):
                 g = int(p[1]) if p[1].isnumeric() else p[1]
         except Exception:
@@ -184,6 +192,52 @@ class ofs_plat_cfg(object):
             if (not native_class):
                 msg = "Section '" + s + "' must define a 'native_class'"
                 self.__errorExit(msg)
+
+    def __find_disabled_sections(self):
+        """Look for the enabled_by keyword in sections and return a list of
+        sections that are not enabled and should be removed."""
+
+        # Look for a file holding project macros. The same name as the PIM
+        # .ini file but with a '.macros' extension.
+        macro_fname = os.path.splitext(self.ini_file)[0] + '.macros'
+        project_macros = dict()
+        if (os.path.exists(macro_fname)):
+            with open(macro_fname, 'r') as f:
+                for line in f:
+                    # Drop comments
+                    line = line.split('#', 1)[0].strip()
+                    if not line:
+                        continue
+
+                    # Handle macros with and without values
+                    line = line.split('=', 1)
+                    if (len(line) == 1):
+                        project_macros[line[0].strip()] = None
+                    else:
+                        project_macros[line[0].strip()] = line[1].strip()
+
+        # Walk the configured sections, looking for 'enabled_by' options.
+        disable_list = []
+        for s in self.config.sections():
+            if self.config.has_option(s, 'enabled_by'):
+                found = False
+
+                # enabled_by may be a list of macro names, separated by '|'.
+                # Any one being set is enable to enable the section.
+                for e in self.config.get(s, 'enabled_by').split('|'):
+                    e = e.strip()
+                    if e and (e in project_macros):
+                        found = True
+                        break
+
+                if not found:
+                    disable_list += [s]
+
+                if not self.quiet:
+                    print("  Section {} is {}".format(s,
+                          'enabled' if found else 'DISABLED'))
+
+        return disable_list
 
     def __drop_disabled_sections(self, disable):
         """Drop sections that aren't wanted."""
