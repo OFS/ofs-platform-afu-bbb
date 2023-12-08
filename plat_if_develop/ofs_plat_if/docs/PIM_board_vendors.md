@@ -357,23 +357,33 @@ This sample .ini file is the FIM's default configuration for the n6001 board. Al
 ```ini
 ;; Platform Interface Manager configuration
 ;;
-;; Intel® Agilex n6001 board
+;; Intel® Agilex OFS FIM
 ;;
 
 [define]
 PLATFORM_FPGA_FAMILY_AGILEX=1
+PLATFORM_FPGA_FAMILY_AGILEX7=1
 ;; Indicates that ASE emulation of the afu_main interface is offered
 ASE_AFU_MAIN_IF_OFFERED=1
 native_class=none
+;; Early versions of afu_main checked INCLUDE_HSSI_AND_NOT_CVL. When
+;; this macro is set, the presence of HSSI ports in afu_main() is
+;; controlled by INCLUDE_HSSI.
+AFU_MAIN_API_USES_INCLUDE_HSSI=1
 
 [clocks]
-pclk_freq=400
+pclk_freq=int'(ofs_fim_cfg_pkg::MAIN_CLK_MHZ)
+;; Newer parameter, more accurate when pclk is not an integer MHz
+pclk_freq_mhz_real=ofs_fim_cfg_pkg::MAIN_CLK_MHZ
 native_class=none
 
 [host_chan]
 num_ports=top_cfg_pkg::PG_AFU_NUM_PORTS
 native_class=native_axis_pcie_tlp
 gasket=pcie_ss
+data_width=ofs_pcie_ss_cfg_pkg::TDATA_WIDTH
+mmio_addr_width=ofs_fim_cfg_pkg::MMIO_ADDR_WIDTH_PG
+num_intr_vecs=ofs_fim_cfg_pkg::NUM_AFU_INTERRUPTS
 
 ;; Minimum number of outstanding flits that must be in flight to
 ;; saturate bandwidth. Maximum bandwidth is typically a function
@@ -386,22 +396,24 @@ max_bw_active_flits_wr=128
 suggested_timing_reg_stages=0
 
 [local_mem]
+enabled_by=INCLUDE_DDR4
 native_class=native_axi
 gasket=fim_emif_axi_mm
-num_banks=mem_ss_pkg::MC_CHANNEL
+num_banks=ofs_fim_mem_if_pkg::NUM_MEM_CHANNELS
 ;; Address width (line-based, ignoring the byte offset within a line)
-addr_width=mem_ss_pkg::AXI_MEM_ADDR_WIDTH-$clog2(mem_ss_pkg::AXI_MEM_DATA_WIDTH/8)
-data_width=mem_ss_pkg::AXI_MEM_DATA_WIDTH
+addr_width=ofs_fim_mem_if_pkg::AXI_MEM_ADDR_WIDTH-$clog2(ofs_fim_mem_if_pkg::AXI_MEM_WDATA_WIDTH/8)
+data_width=ofs_fim_mem_if_pkg::AXI_MEM_WDATA_WIDTH
 ecc_width=0
 ;; For consistency, the PIM always encodes burst width as if the bus were
 ;; Avalon. Add 1 bit: Avalon burst length is 1-based, AXI is 0-based.
 burst_cnt_width=8+1
-user_width=mem_ss_pkg::AXI_MEM_USER_WIDTH
-rid_width=mem_ss_pkg::AXI_MEM_ID_WIDTH
-wid_width=mem_ss_pkg::AXI_MEM_ID_WIDTH
+user_width=ofs_fim_mem_if_pkg::AXI_MEM_USER_WIDTH
+rid_width=ofs_fim_mem_if_pkg::AXI_MEM_ID_WIDTH
+wid_width=ofs_fim_mem_if_pkg::AXI_MEM_ID_WIDTH
 suggested_timing_reg_stages=2
 
 [hssi]
+enabled_by=INCLUDE_HSSI
 native_class=native_axis_with_fc
 num_channels=ofs_fim_eth_plat_if_pkg::MAX_NUM_ETH_CHANNELS
 
