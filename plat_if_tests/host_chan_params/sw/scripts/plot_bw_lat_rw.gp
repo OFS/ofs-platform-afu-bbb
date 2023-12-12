@@ -21,6 +21,8 @@ if (afu_cnt > 2) { set_size = 6 }
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
 # Does data for 8 line requests exist?
 mcl8_found = system("grep -c 'Burst size: 8' " . data_file) + 0
+# Does data for 16 line requests exist?
+mcl16_found = system("grep -c 'Burst size: 16' " . data_file) + 0
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 
@@ -67,6 +69,9 @@ mcl_limit = 4
 if (mcl8_found) {
   mcl_limit = 8
 }
+#if (mcl16_found) {
+#  mcl_limit = 16
+#}
 
 mcl = 1
 table_idx = 2

@@ -21,6 +21,8 @@ if (afu_cnt > 2) { set_size = 6 }
 mcl3_found = system("grep -c 'Burst size: 3' " . data_file) + 0
 # Does data for 8 line requests exist?
 mcl8_found = system("grep -c 'Burst size: 8' " . data_file) + 0
+# Does data for 16 line requests exist?
+mcl16_found = system("grep -c 'Burst size: 16' " . data_file) + 0
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 
@@ -68,7 +70,7 @@ if (afu_cnt > 1) { prefix = " All" }
 
 set output "| ps2pdf - write_credit_vc.pdf"
 set title platform . prefix . " WRITE Varying Offered Load" offset 0,1 font ",18"
-set xrange [0:128]
+set xrange [0:256]
 
 if (mcl8_found) {
   plot data_file index (1             ) using ($6):($2) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
@@ -107,7 +109,7 @@ if (!mcl8_found && !mcl3_found) {
 
 set output "| ps2pdf - read_credit_vc.pdf"
 set title platform . prefix . " READ Varying Offered Load" offset 0,1 font ",18"
-set xrange [0:450]
+set xrange [0:512]
 
 if (mcl8_found) {
   plot data_file index (0             ) using ($3):($1) with lines smooth bezier ls 1 title "Bandwidth (MCL=1)", \
