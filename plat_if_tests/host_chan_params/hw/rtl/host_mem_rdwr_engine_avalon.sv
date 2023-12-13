@@ -28,13 +28,16 @@
 //
 //   5: Byte-level write data mask. (Using a data mask makes the interface
 //      consistent on CCI-P, Avalon and AXI.) The selected bytes must be
-//      contiguous, with zeros only at the beginning and end.
+//      contiguous, with zeros only at the beginning and end. The mask
+//      register supports data bus width greater than 64 bytes by shifting
+//      the previous write data mask left 64 bytes each time it is written.
 //
 //
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:51] - Reserved
+//       [63:53] - Reserved
+//       [52:51] - Data bus width (bytes) / 64
 //       [50]    - Masked write supported?
 //       [49:47] - Engine group
 //       [46:42] - Engine number
@@ -161,7 +164,7 @@ module host_mem_rdwr_engine_avalon
     t_line_counter rd_max_active_lines, wr_max_active_lines;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     t_addr_offset base_addr_offset_mask;
-    logic [63:0] wr_data_mask;
+    logic [DATA_WIDTH/8-1 : 0] wr_data_mask;
 
     always_ff @(posedge clk)
     begin
@@ -185,13 +188,18 @@ module host_mem_rdwr_engine_avalon
                         wr_req_burst_len <= csrs.wr_data[15:0];
                     end
                 4'h4: base_addr_offset_mask <= t_addr_offset'(csrs.wr_data);
-                4'h5: wr_data_mask <= csrs.wr_data;
+                4'h5:
+                    begin
+                        // Shift the write data mask in, 64 bits at a time,
+                        // in order to support bus sizes larger than 64 bytes.
+                        wr_data_mask <= $bits(wr_data_mask)'({ wr_data_mask, csrs.wr_data });
+                    end
             endcase // case (csrs.wr_idx)
         end
 
         if (!reset_n)
         begin
-            wr_data_mask <= ~64'b0;
+            wr_data_mask <= {$bits(wr_data_mask){1'b1}};
         end
     end
 
@@ -219,7 +227,8 @@ module host_mem_rdwr_engine_avalon
             csrs.rd_data[e] = 64'h0;
         end
 
-        csrs.rd_data[0] = { 13'h0,
+        csrs.rd_data[0] = { 11'h0,
+                            2'(DATA_WIDTH / 512),
                             1'(ccip_cfg_pkg::BYTE_EN_SUPPORTED),
                             3'(ENGINE_GROUP),
                             5'(ENGINE_NUMBER),

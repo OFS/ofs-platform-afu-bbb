@@ -34,7 +34,8 @@
 // Read status registers:
 //
 //   0: Engine configuration
-//       [63:51] - Reserved
+//       [63:53] - Reserved
+//       [52:51] - Data bus width (bytes) / 64
 //       [50]    - Masked write supported?
 //       [49:47] - Engine group
 //       [46:42] - Engine number
@@ -217,7 +218,8 @@ module host_mem_rdwr_engine_ccip
             csrs.rd_data[e] = 64'h0;
         end
 
-        csrs.rd_data[0] = { 13'h0,
+        csrs.rd_data[0] = { 11'h0,
+                            2'(DATA_WIDTH / 512),
                             1'(ccip_cfg_pkg::BYTE_EN_SUPPORTED),
                             3'(ENGINE_GROUP),
                             5'(ENGINE_NUMBER),

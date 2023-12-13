@@ -83,14 +83,17 @@ typedef struct
 
     volatile uint64_t *rd_buf;
     uint64_t rd_buf_ioaddr;
+    uint64_t rd_buf_ioaddr_enc;     // IOADDR divided by data bus width
     uint64_t rd_wsid;
 
     volatile uint64_t *wr_buf;
     uint64_t wr_buf_ioaddr;
+    uint64_t wr_buf_ioaddr_enc;     // IOADDR divided by data bus width
     uint64_t wr_wsid;
 
     struct bitmask* numa_rd_mem_mask;
     struct bitmask* numa_wr_mem_mask;
+    uint32_t data_bus_bytes;
     uint32_t max_burst_size;
     uint32_t group;
     uint32_t eng_type;
@@ -334,8 +337,10 @@ initEngine(
     s_eng_bufs[e].addr_mode = (r >> 40) & 3;
     s_eng_bufs[e].group = (r >> 47) & 7;
     s_eng_bufs[e].eng_type = (r >> 35) & 7;
+    s_eng_bufs[e].data_bus_bytes = ((r >> 51) & 3) * 64;
     uint32_t eng_num = (r >> 42) & 31;
     printf("#  Engine %d type: %s\n", e, engine_type[s_eng_bufs[e].eng_type]);
+    printf("#  Engine %d data bus bytes: %d\n", e, s_eng_bufs[e].data_bus_bytes);
     printf("#  Engine %d max burst size: %d\n", e, s_eng_bufs[e].max_burst_size);
     printf("#  Engine %d natural bursts: %d\n", e, s_eng_bufs[e].natural_bursts);
     printf("#  Engine %d ordered read responses: %d\n", e, s_eng_bufs[e].ordered_read_responses);
@@ -380,6 +385,7 @@ initEngine(
                                              &s_eng_bufs[e].rd_wsid,
                                              &s_eng_bufs[e].rd_buf_ioaddr);
     assert(NULL != s_eng_bufs[e].rd_buf);
+    s_eng_bufs[e].rd_buf_ioaddr_enc = s_eng_bufs[e].rd_buf_ioaddr / s_eng_bufs[e].data_bus_bytes;
     printf("#  Engine %d read buffer: VA %p, DMA address %p\n", e,
            s_eng_bufs[e].rd_buf, (void*)s_eng_bufs[e].rd_buf_ioaddr);
     initReadBuf(s_eng_bufs[e].rd_buf, MB(2));
@@ -396,6 +402,7 @@ initEngine(
                                              &s_eng_bufs[e].wr_wsid,
                                              &s_eng_bufs[e].wr_buf_ioaddr);
     assert(NULL != s_eng_bufs[e].wr_buf);
+    s_eng_bufs[e].wr_buf_ioaddr_enc = s_eng_bufs[e].wr_buf_ioaddr / s_eng_bufs[e].data_bus_bytes;
     printf("#  Engine %d write buffer: VA %p, DMA address %p\n", e,
            s_eng_bufs[e].wr_buf, (void*)s_eng_bufs[e].wr_buf_ioaddr);
 
@@ -413,6 +420,7 @@ initEngine(
 static uint32_t
 computeExpectedReadHash(
     uint16_t *buf,
+    uint32_t line_bytes,
     uint32_t num_bursts,
     uint32_t burst_size)
 {
@@ -424,8 +432,8 @@ computeExpectedReadHash(
         while (num_lines--)
         {
             // Hash the low and high 16 bits of each line
-            hash = hash32(hash, ((buf[31]) << 16) | buf[0]);
-            buf += 32;
+            hash = hash32(hash, ((buf[line_bytes/2 - 1]) << 16) | buf[0]);
+            buf += line_bytes/2;
         }
     }
 
@@ -437,6 +445,7 @@ computeExpectedReadHash(
 static uint32_t
 computeExpectedReadSum(
     uint16_t *buf,
+    uint32_t line_bytes,
     uint32_t num_bursts,
     uint32_t burst_size)
 {
@@ -448,8 +457,8 @@ computeExpectedReadSum(
         while (num_lines--)
         {
             // Hash the low and high 16 bits of each line
-            sum += ((buf[31] << 16) | buf[0]);
-            buf += 32;
+            sum += ((buf[line_bytes/2 - 1] << 16) | buf[0]);
+            buf += line_bytes/2;
         }
     }
 
@@ -463,6 +472,7 @@ static bool
 testExpectedWrites(
     uint64_t *buf,
     uint64_t buf_ioaddr,
+    uint32_t line_bytes,
     uint32_t num_bursts,
     uint32_t burst_size,
     uint32_t *line_index)
@@ -477,17 +487,17 @@ testExpectedWrites(
             // The low word is the IOADDR
             if (buf[0] != buf_ioaddr++) return false;
             // The high word is 0xdeadbeef
-            if (buf[7] != 0xdeadbeef) return false;
+            if (buf[line_bytes/8 - 1] != 0xdeadbeef) return false;
 
             *line_index += 1;
-            buf += 8;
+            buf += line_bytes/8;
         }
     }
 
     // Confirm that the next line is 0. This is the first line not
     // written by the FPGA.
     if (buf[0] != 0) return false;
-    if (buf[7] != 0) return false;
+    if (buf[line_bytes/8 - 1] != 0) return false;
 
     return true;
 }
@@ -501,6 +511,7 @@ testMaskedWrite(
     int num_errors = 0;
     uint64_t emask = (uint64_t)1 << e;
     t_csr_handle_p csr_handle = s_eng_bufs[e].csr_handle;
+    uint32_t line_bytes = s_eng_bufs[e].data_bus_bytes;
 
     // No support for masked writes?
     if (! s_eng_bufs[e].masked_writes)
@@ -512,22 +523,36 @@ testMaskedWrite(
     // No read
     csrEngWrite(csr_handle, e, 0, 0);
     // Configure write
-    csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+    csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr_enc);
 
     // Write 1 line (1 burst of 1 line)
     csrEngWrite(csr_handle, e, 2, ((uint64_t)1 << 32) | 1);
     csrEngWrite(csr_handle, e, 3, ((uint64_t)1 << 32) | 1);
 
-    uint64_t mask = 0x3fffffffffffffe;
-
     // Test a simple mask -- just prove that the mask reaches the FIM
-    csrEngWrite(csr_handle, e, 5, mask);
+    if (line_bytes == 64)
+    {
+        uint64_t mask = 0x3fffffffffffffe;
+        csrEngWrite(csr_handle, e, 5, mask);
+        printf("  Write engine %d, mask 0x%016" PRIx64 " - ", e, mask);
+    }
+    else if (line_bytes == 128)
+    {
+        uint64_t mask_h = 0x3ffffffffffffff;
+        csrEngWrite(csr_handle, e, 5, mask_h);
+        uint64_t mask_l = 0xfffffffffffffffe;
+        csrEngWrite(csr_handle, e, 5, mask_l);
+        printf("  Write engine %d, mask 0x%016" PRIx64 "%016" PRIx64 " - ", e, mask_h, mask_l);
+    }
+    else
+    {
+        printf("FAIL: unsupported line size -- need to fix mask encoding\n");
+        num_errors += 1;
+    }
 
     // Set the line to all ones to make it easier to observe the mask
-    memset((void*)s_eng_bufs[e].wr_buf, ~0, CL(1));
-    flushRange((void*)s_eng_bufs[e].wr_buf, CL(1));
-
-    printf("  Write engine %d, mask 0x%016" PRIx64 " - ", e, mask);
+    memset((void*)s_eng_bufs[e].wr_buf, ~0, line_bytes);
+    flushRange((void*)s_eng_bufs[e].wr_buf, line_bytes);
 
     // Start engine
     csrEnableEngines(csr_handle, emask);
@@ -546,18 +571,18 @@ testMaskedWrite(
 
     uint64_t *buf = (uint64_t*)s_eng_bufs[e].wr_buf;
 
-    // Test expected values (assuming mask of 0x3fffffffffffffe
-    uint64_t buf_ioaddr = s_eng_bufs[e].wr_buf_ioaddr / CL(1);
+    // Test expected values (assuming mask of 0x3fffffffffffffe)
+    uint64_t buf_ioaddr = s_eng_bufs[e].wr_buf_ioaddr_enc;
     if (buf[0] != (buf_ioaddr | 0xff))
     {
         printf("FAIL (expected low 0x%016" PRIx64 ", found 0x%016" PRIx64 ")\n",
                buf_ioaddr | 0xff, buf[0]);
         num_errors += 1;
     }
-    else if (buf[7] != 0xffffffffffffbeef)
+    else if (buf[line_bytes/8 - 1] != 0xffffffffffffbeef)
     {
         printf("FAIL (expected high 0x%016" PRIx64 ", found 0x%016" PRIx64 ")\n",
-               0xffffffffffffbeef, buf[7]);
+               0xffffffffffffbeef, buf[line_bytes/8 - 1]);
         num_errors += 1;
     }
     else
@@ -616,13 +641,13 @@ testSmallRegions(
                     {
                         // Read buffer base address (0 disables reads)
                         if (mode & 1)
-                            csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
+                            csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr_enc);
                         else
                             csrEngWrite(csr_handle, e, 0, 0);
 
                         // Write buffer base address (0 disables writes)
                         if (mode & 2)
-                            csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+                            csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr_enc);
                         else
                             csrEngWrite(csr_handle, e, 1, 0);
 
@@ -689,10 +714,12 @@ testSmallRegions(
                         {
                             expected_hash = computeExpectedReadHash(
                                 (uint16_t*)s_eng_bufs[e].rd_buf,
+                                s_eng_bufs[e].data_bus_bytes,
                                 num_bursts, burst_size);
 
                             expected_sum = computeExpectedReadSum(
                                 (uint16_t*)s_eng_bufs[e].rd_buf,
+                                s_eng_bufs[e].data_bus_bytes,
                                 num_bursts, burst_size);
                         }
 
@@ -715,7 +742,8 @@ testSmallRegions(
 
                             writes_ok = testExpectedWrites(
                                 (uint64_t*)s_eng_bufs[e].wr_buf,
-                                s_eng_bufs[e].wr_buf_ioaddr / CL(1),
+                                s_eng_bufs[e].wr_buf_ioaddr_enc,
+                                s_eng_bufs[e].data_bus_bytes,
                                 num_bursts, burst_size, &write_error_line);
                         }
 
@@ -790,13 +818,13 @@ configBandwidth(
 
     // Read buffer base address (0 disables reads)
     if (mode & 1)
-        csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr / CL(1));
+        csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr_enc);
     else
         csrEngWrite(csr_handle, e, 0, 0);
 
     // Write buffer base address (0 disables writes)
     if (mode & 2)
-        csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr / CL(1));
+        csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr_enc);
     else
         csrEngWrite(csr_handle, e, 1, 0);
 
@@ -889,8 +917,8 @@ printBandwidth(
     assert(emask != 0);
 
     uint64_t cycles = csrGetClockCycles(s_eng_bufs[0].csr_handle);
-    uint64_t read_lines = 0;
-    uint64_t write_lines = 0;
+    uint64_t read_bytes = 0;
+    uint64_t write_bytes = 0;
     for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
     {
         t_csr_handle_p csr_handle = s_eng_bufs[glob_e].csr_handle;
@@ -898,25 +926,25 @@ printBandwidth(
 
         if (emask & ((uint64_t)1 << glob_e))
         {
-            read_lines += csrEngRead(csr_handle, e, 2);
-            write_lines += csrEngRead(csr_handle, e, 3);
+            read_bytes += csrEngRead(csr_handle, e, 2) * s_eng_bufs[glob_e].data_bus_bytes;
+            write_bytes += csrEngRead(csr_handle, e, 3) * s_eng_bufs[glob_e].data_bus_bytes;
         }
     }
 
-    if (!read_lines && !write_lines)
+    if (!read_bytes && !write_bytes)
     {
         printf("  FAIL: no memory traffic detected!\n");
         return 1;
     }
 
-    double read_bw = 64 * read_lines * s_afu_mhz / (1000.0 * cycles);
-    double write_bw = 64 * write_lines * s_afu_mhz / (1000.0 * cycles);
+    double read_bw = read_bytes * s_afu_mhz / (1000.0 * cycles);
+    double write_bw = write_bytes * s_afu_mhz / (1000.0 * cycles);
 
-    if (! write_lines)
+    if (! write_bytes)
     {
         printf("  Read GB/s:  %0.2f\n", read_bw);
     }
-    else if (! read_lines)
+    else if (! read_bytes)
     {
         printf("  Write GB/s: %0.2f\n", write_bw);
     }
@@ -948,16 +976,16 @@ printLatencyAndBandwidth(
     uint64_t cycles = csrGetClockCycles(s_eng_bufs[0].csr_handle);
     double afu_ns_per_cycle = 1000.0 / s_afu_mhz;
 
-    uint64_t total_read_lines = 0;
-    uint64_t total_write_lines = 0;
+    uint64_t total_read_bytes = 0;
+    uint64_t total_write_bytes = 0;
     double read_avg_lat = 0;
     double fim_read_avg_lat = 0;
     double write_avg_lat = 0;
     uint64_t max_reads_in_flight = 0;
     uint64_t fim_max_reads_in_flight = 0;
 
-    uint64_t eng_read_lines[32];
-    uint64_t eng_write_lines[32];
+    uint64_t eng_read_bytes[32];
+    uint64_t eng_write_bytes[32];
     assert(num_engines < 32);
 
     // How many engines are being sampled in this test?
@@ -988,26 +1016,26 @@ printLatencyAndBandwidth(
             double fim_ns_per_cycle = 1000.0 / s_eng_bufs[glob_e].fim_ifc_mhz;
 
             // Count of lines read and written by the engine
-            uint64_t read_lines = csrEngRead(csr_handle, e, 2);
-            eng_read_lines[glob_e] = read_lines;
-            total_read_lines += read_lines;
-            uint64_t write_lines = csrEngRead(csr_handle, e, 3);
-            eng_write_lines[glob_e] = write_lines;
-            total_write_lines += write_lines;
+            uint64_t read_bytes = csrEngRead(csr_handle, e, 2) * s_eng_bufs[glob_e].data_bus_bytes;
+            eng_read_bytes[glob_e] = read_bytes;
+            total_read_bytes += read_bytes;
+            uint64_t write_bytes = csrEngRead(csr_handle, e, 3) * s_eng_bufs[glob_e].data_bus_bytes;
+            eng_write_bytes[glob_e] = write_bytes;
+            total_write_bytes += write_bytes;
 
             // Total active lines across all cycles, from the AFU
-            uint64_t read_active_lines = csrEngRead(csr_handle, e, 8);
-            uint64_t write_active_lines = csrEngRead(csr_handle, e, 9);
+            uint64_t read_active_bytes = csrEngRead(csr_handle, e, 8) * s_eng_bufs[glob_e].data_bus_bytes;
+            uint64_t write_active_bytes = csrEngRead(csr_handle, e, 9) * s_eng_bufs[glob_e].data_bus_bytes;
 
             // Compute average latency using Little's Law. Each sampled engine
             // is given equal weight.
-            if (read_lines)
+            if (read_bytes)
             {
-                read_avg_lat += afu_ns_per_cycle * (read_active_lines / read_lines) / n_sampled_rd_engines;
+                read_avg_lat += afu_ns_per_cycle * (read_active_bytes / read_bytes) / n_sampled_rd_engines;
             }
-            if (write_lines)
+            if (write_bytes)
             {
-                write_avg_lat += afu_ns_per_cycle * (write_active_lines / write_lines) / n_sampled_wr_engines;
+                write_avg_lat += afu_ns_per_cycle * (write_active_bytes / write_bytes) / n_sampled_wr_engines;
             }
 
             // Sample latency calculation for reads at the boundary to the FIM.
@@ -1036,14 +1064,14 @@ printLatencyAndBandwidth(
         }
     }
 
-    if (!total_read_lines && !total_write_lines)
+    if (!total_read_bytes && !total_write_bytes)
     {
         fprintf(stderr, "  FAIL: no memory traffic detected!\n");
         return 1;
     }
 
-    double read_bw = 64 * total_read_lines * s_afu_mhz / (1000.0 * cycles);
-    double write_bw = 64 * total_write_lines * s_afu_mhz / (1000.0 * cycles);
+    double read_bw = total_read_bytes * s_afu_mhz / (1000.0 * cycles);
+    double write_bw = total_write_bytes * s_afu_mhz / (1000.0 * cycles);
 
     if (print_header)
     {
@@ -1071,8 +1099,8 @@ printLatencyAndBandwidth(
     {
         for (uint32_t glob_e = 0; glob_e < num_engines; glob_e += 1)
         {
-            double eng_read_bw = 64 * eng_read_lines[glob_e] * s_afu_mhz / (1000.0 * cycles);
-            double eng_write_bw = 64 * eng_write_lines[glob_e] * s_afu_mhz / (1000.0 * cycles);
+            double eng_read_bw = eng_read_bytes[glob_e] * s_afu_mhz / (1000.0 * cycles);
+            double eng_write_bw = eng_write_bytes[glob_e] * s_afu_mhz / (1000.0 * cycles);
             printf(" %0.2f %0.2f", eng_read_bw, eng_write_bw);
         }
     }
