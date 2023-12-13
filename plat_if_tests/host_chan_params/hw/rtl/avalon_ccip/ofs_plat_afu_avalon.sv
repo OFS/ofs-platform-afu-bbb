@@ -32,6 +32,16 @@ module ofs_plat_afu
 
     localparam NUM_PORTS = plat_ifc.host_chan.NUM_PORTS_;
 
+`ifndef OFS_PLAT_PARAM_HOST_CHAN_LINKX2_NUM_PORTS
+    // No link x 2 support. Generate AFUs with only standard width.
+    localparam NUM_STD_PORTS = NUM_PORTS;
+    localparam NUM_2X_PORTS = 0;
+`else
+    // Generate one link x 2 AFU and the rest standard width.
+    localparam NUM_STD_PORTS = NUM_PORTS - 1;
+    localparam NUM_2X_PORTS = 1;
+`endif
+
     // Host memory AFU source
     ofs_plat_avalon_mem_rdwr_if
       #(
@@ -43,7 +53,7 @@ module ofs_plat_afu
 `endif
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
-        host_mem_to_afu[NUM_PORTS]();
+        host_mem_to_afu[NUM_STD_PORTS]();
 
     // 64 bit read/write MMIO AFU sink
     ofs_plat_avalon_mem_if
@@ -51,13 +61,15 @@ module ofs_plat_afu
         `HOST_CHAN_AVALON_MMIO_PARAMS(64),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
-        mmio64_to_afu[NUM_PORTS]();
+        mmio64_to_afu[NUM_STD_PORTS]();
 
     // Map ports to host_mem_to_afu.
     genvar p;
     generate
-        for (p = 0; p < NUM_PORTS; p = p + 1)
+        for (p = 0; p < NUM_STD_PORTS; p = p + 1)
         begin : hc
+            localparam ifc_port = p + NUM_2X_PORTS;
+
             ofs_plat_host_chan_as_avalon_mem_rdwr_with_mmio
               #(
 `ifdef TEST_PARAM_AFU_CLK
@@ -69,13 +81,13 @@ module ofs_plat_afu
                 )
               primary_avalon
                (
-                .to_fiu(plat_ifc.host_chan.ports[p]),
+                .to_fiu(plat_ifc.host_chan.ports[ifc_port]),
                 .host_mem_to_afu(host_mem_to_afu[p]),
                 .mmio_to_afu(mmio64_to_afu[p]),
 
 `ifdef TEST_PARAM_AFU_CLK
-                .afu_clk(plat_ifc.clocks.ports[p].`TEST_PARAM_AFU_CLK.clk),
-                .afu_reset_n(plat_ifc.clocks.ports[p].`TEST_PARAM_AFU_CLK.reset_n)
+                .afu_clk(plat_ifc.clocks.ports[ifc_port].`TEST_PARAM_AFU_CLK.clk),
+                .afu_reset_n(plat_ifc.clocks.ports[ifc_port].`TEST_PARAM_AFU_CLK.reset_n)
 `else
                 .afu_clk(),
                 .afu_reset_n()
@@ -83,6 +95,87 @@ module ofs_plat_afu
                 );
         end
     endgenerate
+
+
+    // ====================================================================
+    //
+    // Map FIM ports to link x 2
+    //
+    // ====================================================================
+
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_LINKX2_NUM_PORTS
+
+    // FIM host channels, mapped to a double width data bus
+    ofs_plat_host_chan_linkx2_fiu_if
+      #(
+        .ENABLE_LOG(1),
+        .NUM_PORTS(NUM_2X_PORTS)
+        )
+        host_chan_linkx2();
+
+    ofs_plat_avalon_mem_rdwr_if
+      #(
+        `HOST_CHAN_LINKX2_AVALON_MEM_RDWR_PARAMS,
+`ifdef TEST_PARAM_BURST_CNT_WIDTH
+        .BURST_CNT_WIDTH(`TEST_PARAM_BURST_CNT_WIDTH),
+`else
+        .BURST_CNT_WIDTH(7),
+`endif
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
+        )
+        host_mem_2x_to_afu[NUM_2X_PORTS]();
+
+    // 64 bit read/write MMIO AFU sink
+    ofs_plat_avalon_mem_if
+      #(
+        `HOST_CHAN_LINKX2_AVALON_MMIO_PARAMS(64),
+        .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
+        )
+        mmio64_2x_to_afu[NUM_2X_PORTS]();
+
+    // Map ports to host_mem_2x_to_afu.
+    generate
+        for (p = 0; p < NUM_2X_PORTS; p = p + 1)
+        begin : hc_2x
+            localparam ifc_port = p;
+
+            // Map a host channel to double width. This double width
+            // host-native stream (e.g. PCIe TLP) will be the input to
+            // the PIM on the FIM side.
+            ofs_plat_host_chan_linkx2_from_host_chan map_linkx2
+               (
+                .to_fiu0(plat_ifc.host_chan.ports[ifc_port]),
+                .to_afu(host_chan_linkx2.ports[p])
+                );
+
+            // Connect a PIM instance to the double width native stream.
+            ofs_plat_host_chan_linkx2_as_avalon_mem_rdwr_with_mmio
+              #(
+`ifdef TEST_PARAM_AFU_CLK
+                .ADD_CLOCK_CROSSING(1),
+`endif
+`ifdef TEST_PARAM_AFU_REG_STAGES
+                .ADD_TIMING_REG_STAGES(`TEST_PARAM_AFU_REG_STAGES)
+`endif
+                )
+              primary_avalon
+               (
+                .to_fiu(host_chan_linkx2.ports[ifc_port]),
+                .host_mem_to_afu(host_mem_2x_to_afu[p]),
+                .mmio_to_afu(mmio64_2x_to_afu[p]),
+
+`ifdef TEST_PARAM_AFU_CLK
+                .afu_clk(plat_ifc.clocks.ports[ifc_port].`TEST_PARAM_AFU_CLK.clk),
+                .afu_reset_n(plat_ifc.clocks.ports[ifc_port].`TEST_PARAM_AFU_CLK.reset_n)
+`else
+                .afu_clk(),
+                .afu_reset_n()
+`endif
+                );
+        end
+    endgenerate
+
+`endif //  `ifdef OFS_PLAT_PARAM_HOST_CHAN_LINKX2_NUM_PORTS
 
 
     // ====================================================================
@@ -182,7 +275,8 @@ module ofs_plat_afu
               map_pwrState
                (
                 .clk_src(plat_ifc.clocks.pClk.clk),
-                .clk_dst(host_mem_to_afu[p].clk),
+                // All the AFU clocks are the same
+                .clk_dst(host_mem_to_afu[0].clk),
                 .r_in(plat_ifc.pwrState),
                 .r_out(afu_pwrState[p])
                 );
@@ -211,22 +305,50 @@ module ofs_plat_afu
     // ====================================================================
 
     generate
-        for (p = 0; p < NUM_PORTS; p = p + 1)
+        //
+        // Normal width AFU instances
+        //
+        for (p = 0; p < NUM_STD_PORTS; p = p + 1)
         begin : afu
+            localparam ifc_port = p + NUM_2X_PORTS;
+
+            afu
+              #(
+                .AFU_INSTANCE_ID(ifc_port)
+                )
+              afu_impl
+               (
+                .host_mem_if(host_mem_to_afu[p]),
+                .host_chan_events_if(host_chan_events[ifc_port]),
+
+                .mmio64_if(mmio64_to_afu[p]),
+                .pClk(plat_ifc.clocks.pClk.clk),
+                .pwrState(afu_pwrState[ifc_port])
+                );
+        end
+
+`ifdef OFS_PLAT_PARAM_HOST_CHAN_LINKX2_NUM_PORTS
+        //
+        // Double width AFU instances. afu() gets the bus width from the
+        // configuration of host_mem_if.
+        //
+        for (p = 0; p < NUM_2X_PORTS; p = p + 1)
+        begin : afu_2x
             afu
               #(
                 .AFU_INSTANCE_ID(p)
                 )
               afu_impl
                (
-                .host_mem_if(host_mem_to_afu[p]),
+                .host_mem_if(host_mem_2x_to_afu[p]),
                 .host_chan_events_if(host_chan_events[p]),
 
-                .mmio64_if(mmio64_to_afu[p]),
+                .mmio64_if(mmio64_2x_to_afu[p]),
                 .pClk(plat_ifc.clocks.pClk.clk),
                 .pwrState(afu_pwrState[p])
                 );
         end
+`endif
     endgenerate
 
 endmodule // ofs_plat_afu
