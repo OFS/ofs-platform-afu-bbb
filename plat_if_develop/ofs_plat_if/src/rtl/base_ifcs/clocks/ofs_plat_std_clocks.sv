@@ -13,9 +13,12 @@
 // is mapped to all the clock domains.
 //
 module ofs_plat_std_clocks_gen_port_resets
+  #(
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
+    )
    (
     input  logic pClk,
-    input  logic [`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS - 1 : 0] pClk_reset_n,
+    input  logic [NUM_PORTS - 1 : 0] pClk_reset_n,
 
     input  logic pClkDiv2,
     input  logic pClkDiv4,
@@ -26,7 +29,7 @@ module ofs_plat_std_clocks_gen_port_resets
     );
 
     generate
-        for (genvar p = 0; p < `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS; p = p + 1)
+        for (genvar p = 0; p < NUM_PORTS; p = p + 1)
         begin : port
             ofs_plat_std_afu_clocks_gen_resets r
                (

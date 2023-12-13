@@ -37,7 +37,9 @@ module ofs_plat_if_tie_off_unused
     //==
 
     generate
-        for (i = 0; i < plat_ifc.@class@@group@.NUM_@NOUN@; i = i + 1)
+        // Special case when the length is zero. There is a dummy entry since
+        // array lengths can't be zero.
+        for (i = 0; i < (plat_ifc.@class@@group@.NUM_@NOUN@ == 0 ? 1 : plat_ifc.@class@@group@.NUM_@NOUN@); i = i + 1)
         begin : tie_@class@@group@
             if (~@CLASS@@GROUP@_IN_USE_MASK[i])
             begin : m

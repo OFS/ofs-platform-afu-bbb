@@ -114,10 +114,14 @@ class ofs_template(object):
         for s in self.plat_cfg.sections():
             # What is an instance of the class called? (E.g. ports or banks)
             noun = self.plat_cfg.section_instance_noun(s)
-            # If the noun is empty then skip the section unless all sections
-            # are requested.
-            if (not noun and not all_sections):
-                continue
+            # If the noun (the count of instances) is empty or zero then skip
+            # the section unless all sections are requested.
+            if not all_sections:
+                if not noun:
+                    continue
+                cnt = self.plat_cfg.get(s, 'num_' + noun)
+                if not cnt or cnt == '0':
+                    continue
 
             # Section name to class/group
             c, g = self.plat_cfg.parse_section_name(s)
@@ -126,7 +130,8 @@ class ofs_template(object):
             if (g):
                 if isinstance(g, int):
                     # Originally, only numeric section names were allowed and
-                    # they were prefixed with "g". Preserve the original naming.
+                    # they were prefixed with "g". Preserve the original
+                    # naming.
                     g = '_g{0}'.format(g)
                 else:
                     # Non-numeric names are applied without modification.

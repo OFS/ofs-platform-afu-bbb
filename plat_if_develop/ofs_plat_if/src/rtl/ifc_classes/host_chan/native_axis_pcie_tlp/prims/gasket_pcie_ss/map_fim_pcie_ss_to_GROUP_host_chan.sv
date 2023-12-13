@@ -44,7 +44,7 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     pcie_ss_axis_if.sink pcie_ss_rx_b_st,
 
     // PIM wrapper for the FIM interfaces
-    ofs_plat_host_chan_axis_pcie_tlp_if port
+    ofs_plat_host_chan_@group@_axis_pcie_tlp_if port
     );
 
     assign port.clk = clk;
@@ -56,7 +56,7 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     assign port.vf_active = VF_ACTIVE;
 
     // Use the legacy module to map the streaming channels
-    map_fim_pcie_ss_to_host_chan map
+    map_fim_pcie_ss_to_@group@_host_chan map
        (
         .pcie_ss_tx_a_st,
         .pcie_ss_tx_b_st,
