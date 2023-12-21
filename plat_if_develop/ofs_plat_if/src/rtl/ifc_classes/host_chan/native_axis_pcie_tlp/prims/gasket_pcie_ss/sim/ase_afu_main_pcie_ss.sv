@@ -36,7 +36,8 @@ module ase_afu_main_pcie_ss
     // Emulate the PCIe SS
     ase_emul_pcie_ss_axis_tlp
       #(
-        .NUM_PORTS(NUM_PORTS)
+        .NUM_PORTS(NUM_PORTS),
+        .NUM_AFU_PORTS(`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS)
         )
       pcie_ss_axis_tlp
        (

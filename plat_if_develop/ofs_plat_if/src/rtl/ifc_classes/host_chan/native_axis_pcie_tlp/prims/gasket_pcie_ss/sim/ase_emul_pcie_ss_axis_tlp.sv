@@ -15,7 +15,13 @@
 
 module ase_emul_pcie_ss_axis_tlp
   #(
-    parameter NUM_PORTS = 1
+    // Number of physical port interfaces to emulate. In recent OFS instances
+    // this is always 1 because a PF/VF MUX is part of the design and the port
+    // on the FIM side of the PF/VF MUX attaches here.
+    parameter NUM_PORTS = 1,
+    // The number of PFs/VFs that reach the AFU. ASE emulates these all as VFs
+    // on PF0. This value is equivalent to the PIM's number of host channels.
+    parameter NUM_AFU_PORTS = NUM_PORTS
     )
    (
     input  logic clk,
@@ -310,7 +316,11 @@ module ase_emul_pcie_ss_axis_tlp
 
 
     // Instantiate the core ASE PCIe SS emulator
-    ase_pcie_ss_emulator pcie_ss_emulator
+    ase_pcie_ss_emulator
+      #(
+        .NUM_AFU_PORTS(NUM_AFU_PORTS)
+        )
+      pcie_ss_emulator
        (
         .pClk(clk),
         .pck_cp2af_softReset(softReset),
