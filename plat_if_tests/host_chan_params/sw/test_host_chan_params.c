@@ -818,13 +818,13 @@ configBandwidth(
 
     // Read buffer base address (0 disables reads)
     if (mode & 1)
-        csrEngWrite(csr_handle, e, 0, s_eng_bufs[e].rd_buf_ioaddr_enc);
+        csrEngWrite(csr_handle, e, 0, s_eng_bufs[glob_e].rd_buf_ioaddr_enc);
     else
         csrEngWrite(csr_handle, e, 0, 0);
 
     // Write buffer base address (0 disables writes)
     if (mode & 2)
-        csrEngWrite(csr_handle, e, 1, s_eng_bufs[e].wr_buf_ioaddr_enc);
+        csrEngWrite(csr_handle, e, 1, s_eng_bufs[glob_e].wr_buf_ioaddr_enc);
     else
         csrEngWrite(csr_handle, e, 1, 0);
 

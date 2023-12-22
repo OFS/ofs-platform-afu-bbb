@@ -11,6 +11,7 @@
 
 module csr_mgr_axi
   #(
+    parameter INSTANCE_ID = 0,
     parameter NUM_ENGINES = 1,
     parameter DFH_MMIO_NEXT_ADDR = 0
     )
@@ -121,6 +122,7 @@ module csr_mgr_axi
 
     csr_mgr
       #(
+        .INSTANCE_ID(INSTANCE_ID),
         .NUM_ENGINES(NUM_ENGINES),
         .DFH_MMIO_NEXT_ADDR(DFH_MMIO_NEXT_ADDR),
         .MMIO_ADDR_WIDTH(MMIO_ADDR_WIDTH),

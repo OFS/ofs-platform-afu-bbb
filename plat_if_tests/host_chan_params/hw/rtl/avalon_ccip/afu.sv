@@ -108,6 +108,7 @@ module afu
 
     csr_mgr
       #(
+        .INSTANCE_ID(AFU_INSTANCE_ID),
         .NUM_ENGINES(NUM_ENGINES),
         .MMIO_ADDR_WIDTH(mmio64_if.ADDR_WIDTH)
         )

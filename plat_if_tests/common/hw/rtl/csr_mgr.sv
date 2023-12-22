@@ -52,6 +52,7 @@
 
 module csr_mgr
   #(
+    parameter INSTANCE_ID = 0,
     parameter NUM_ENGINES = 1,
     parameter DFH_MMIO_NEXT_ADDR = 0,
     parameter MMIO_ADDR_WIDTH = 16,
@@ -436,12 +437,12 @@ module csr_mgr
                 else if (cmd_wr_writedata[e] && is_eng_enable_cmd)
                 begin
                     state_reset[e] <= 1'b1;
-                    $display("%t: Starting engine %0d", $time, e);
+                    $display("%t: Starting engine %0d (instance %0d)", $time, e, INSTANCE_ID);
                 end
                 else if (cmd_wr_writedata[e] && is_eng_disable_cmd)
                 begin
                     state_run[e] <= 1'b0;
-                    $display("%t: Stopping engine %0d", $time, e);
+                    $display("%t: Stopping engine %0d (instance %0d)", $time, e, INSTANCE_ID);
                 end
 
                 if (!reset_n)

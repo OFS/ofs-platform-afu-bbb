@@ -93,6 +93,7 @@ module afu
 
     csr_mgr_axi
       #(
+        .INSTANCE_ID(AFU_INSTANCE_ID),
         .NUM_ENGINES(NUM_ENGINES)
         )
       csr_mgr
