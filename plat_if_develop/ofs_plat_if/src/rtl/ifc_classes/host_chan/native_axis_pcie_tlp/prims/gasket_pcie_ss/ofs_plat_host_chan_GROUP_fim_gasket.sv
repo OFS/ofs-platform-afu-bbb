@@ -59,6 +59,77 @@ module ofs_plat_host_chan_@group@_fim_gasket
 
     // ====================================================================
     //
+    //  Map FIM interfaces to the PIM's representation of the same messages
+    //
+    // ====================================================================
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_tx_a_st();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_tx_b_st();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_rx_a_st();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_rx_b_st();
+
+    assign fim_tx_a_st.clk = to_fiu_tlp.clk;
+    assign fim_tx_a_st.reset_n = to_fiu_tlp.reset_n;
+    assign fim_tx_a_st.instance_number = to_fiu_tlp.instance_number;
+
+    assign fim_tx_b_st.clk = to_fiu_tlp.clk;
+    assign fim_tx_b_st.reset_n = to_fiu_tlp.reset_n;
+    assign fim_tx_b_st.instance_number = to_fiu_tlp.instance_number;
+
+    assign fim_rx_a_st.clk = to_fiu_tlp.clk;
+    assign fim_rx_a_st.reset_n = to_fiu_tlp.reset_n;
+    assign fim_rx_a_st.instance_number = to_fiu_tlp.instance_number;
+
+    assign fim_rx_b_st.clk = to_fiu_tlp.clk;
+    assign fim_rx_b_st.reset_n = to_fiu_tlp.reset_n;
+    assign fim_rx_b_st.instance_number = to_fiu_tlp.instance_number;
+
+    map_fim_pcie_ss_to_@group@_pim_axi_stream fim_to_pim
+       (
+        .pcie_ss_tx_a_st(to_fiu_tlp.afu_tx_a_st),
+        .pcie_ss_tx_b_st(to_fiu_tlp.afu_tx_b_st),
+        .pcie_ss_rx_a_st(to_fiu_tlp.afu_rx_a_st),
+        .pcie_ss_rx_b_st(to_fiu_tlp.afu_rx_b_st),
+
+        .pim_tx_a_st(fim_tx_a_st),
+        .pim_tx_b_st(fim_tx_b_st),
+        .pim_rx_a_st(fim_rx_a_st),
+        .pim_rx_b_st(fim_rx_b_st)
+        );
+
+    // synthesis translate_off
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "tx_a_st", fim_tx_a_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "tx_b_st", fim_tx_b_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "rx_a_st", fim_rx_a_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "rx_b_st", fim_rx_b_st)
+    // synthesis translate_on
+
+
+    // ====================================================================
+    //
     //  AFU -> FIM TX stream translation from PIM to FIM encoding
     //
     // ====================================================================
@@ -93,7 +164,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     ofs_plat_host_chan_@group@_align_tx_tlps
       align_tx
        (
-        .stream_sink(to_fiu_tlp.afu_tx_a_st),
+        .stream_sink(fim_tx_a_st),
         .hdr_stream_source(fim_enc_tx_hdr),
         .data_stream_source(fim_enc_tx_data)
         );
@@ -369,7 +440,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     ofs_plat_axi_stream_if_skid_sink_clk mrd_exit_skid
        (
         .stream_source(fim_enc_tx_mrd),
-        .stream_sink(to_fiu_tlp.afu_tx_b_st)
+        .stream_sink(fim_tx_b_st)
         );
 
 
@@ -427,7 +498,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     ofs_plat_host_chan_@group@_align_rx_tlps
       align_rx_a
        (
-        .stream_source(to_fiu_tlp.afu_rx_a_st),
+        .stream_source(fim_rx_a_st),
         .hdr_stream_sink(fim_enc_rx_a_hdr),
         .data_stream_sink(fim_enc_rx_a_data)
         );
@@ -480,7 +551,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
             // timing.
             ofs_plat_axi_stream_if_skid_source_clk entry_b_skid
                (
-                .stream_source(to_fiu_tlp.afu_rx_b_st),
+                .stream_source(fim_rx_b_st),
                 .stream_sink(afu_rx_b_st)
                 );
 
@@ -497,7 +568,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
             ofs_plat_host_chan_@group@_align_rx_tlps
               align_rx_b
                (
-                .stream_source(to_fiu_tlp.afu_rx_b_st),
+                .stream_source(fim_rx_b_st),
                 .hdr_stream_sink(fim_enc_rx_b_hdr),
                 .data_stream_sink(fim_enc_rx_b_data)
                 );

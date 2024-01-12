@@ -105,19 +105,19 @@ module ofs_plat_afu
             `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
               // Pick the proper RX channel for read completions
               logic en_rx;
-              ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata rx_data;
-              ofs_plat_host_chan_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser rx_user;
+              logic [ofs_plat_host_chan_fim_gasket_pkg::TDATA_WIDTH-1 : 0] rx_data;
+              logic rx_tlast;
               if (ofs_plat_host_chan_fim_gasket_pkg::CPL_CHAN == ofs_plat_host_chan_fim_gasket_pkg::PCIE_CHAN_A)
               begin
                   assign en_rx =plat_ifc.host_chan.ports[p].afu_rx_a_st.tready && plat_ifc.host_chan.ports[p].afu_rx_a_st.tvalid;
-                  assign rx_data = plat_ifc.host_chan.ports[p].afu_rx_a_st.t.data;
-                  assign rx_user = plat_ifc.host_chan.ports[p].afu_rx_a_st.t.user;
+                  assign rx_data = plat_ifc.host_chan.ports[p].afu_rx_a_st.tdata;
+                  assign rx_tlast = plat_ifc.host_chan.ports[p].afu_rx_a_st.tlast;
               end
               else
               begin
                   assign en_rx =plat_ifc.host_chan.ports[p].afu_rx_b_st.tready && plat_ifc.host_chan.ports[p].afu_rx_b_st.tvalid;
-                  assign rx_data = plat_ifc.host_chan.ports[p].afu_rx_b_st.t.data;
-                  assign rx_user = plat_ifc.host_chan.ports[p].afu_rx_b_st.t.user;
+                  assign rx_data = plat_ifc.host_chan.ports[p].afu_rx_b_st.tdata;
+                  assign rx_tlast = plat_ifc.host_chan.ports[p].afu_rx_b_st.tlast;
               end
             `endif
 
@@ -128,16 +128,16 @@ module ofs_plat_afu
 
               `ifdef OFS_PLAT_PARAM_HOST_CHAN_GASKET_PCIE_SS
                 .en_tx(plat_ifc.host_chan.ports[p].afu_tx_a_st.tready && plat_ifc.host_chan.ports[p].afu_tx_a_st.tvalid),
-                .tx_data(plat_ifc.host_chan.ports[p].afu_tx_a_st.t.data),
-                .tx_user(plat_ifc.host_chan.ports[p].afu_tx_a_st.t.user),
+                .tx_data(plat_ifc.host_chan.ports[p].afu_tx_a_st.tdata),
+                .tx_tlast(plat_ifc.host_chan.ports[p].afu_tx_a_st.tlast),
 
                 .en_tx_b(plat_ifc.host_chan.ports[p].afu_tx_b_st.tready && plat_ifc.host_chan.ports[p].afu_tx_b_st.tvalid),
-                .tx_b_data(plat_ifc.host_chan.ports[p].afu_tx_b_st.t.data),
-                .tx_b_user(plat_ifc.host_chan.ports[p].afu_tx_b_st.t.user),
+                .tx_b_data(plat_ifc.host_chan.ports[p].afu_tx_b_st.tdata),
+                .tx_b_tlast(plat_ifc.host_chan.ports[p].afu_tx_b_st.tlast),
 
                 .en_rx,
                 .rx_data,
-                .rx_user,
+                .rx_tlast,
                `else
                 .en_tx(plat_ifc.host_chan.ports[p].afu_tx_st.tready && plat_ifc.host_chan.ports[p].afu_tx_st.tvalid),
                 .tx_data(plat_ifc.host_chan.ports[p].afu_tx_st.t.data),

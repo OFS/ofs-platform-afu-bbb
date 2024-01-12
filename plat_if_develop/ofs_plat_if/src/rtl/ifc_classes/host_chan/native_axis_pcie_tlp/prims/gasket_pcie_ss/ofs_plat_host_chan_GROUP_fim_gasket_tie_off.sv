@@ -15,22 +15,90 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
     import ofs_plat_host_chan_@group@_fim_gasket_pkg::*;
 
     //
+    //  Map FIM interfaces to the PIM's representation of the same messages
+    //
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_tx_a_st();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_tx_b_st();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_rx_a_st();
+
+    ofs_plat_axi_stream_if
+      #(
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
+        )
+      fim_rx_b_st();
+
+    assign fim_tx_a_st.clk = port.clk;
+    assign fim_tx_a_st.reset_n = port.reset_n;
+    assign fim_tx_a_st.instance_number = port.instance_number;
+
+    assign fim_tx_b_st.clk = port.clk;
+    assign fim_tx_b_st.reset_n = port.reset_n;
+    assign fim_tx_b_st.instance_number = port.instance_number;
+
+    assign fim_rx_a_st.clk = port.clk;
+    assign fim_rx_a_st.reset_n = port.reset_n;
+    assign fim_rx_a_st.instance_number = port.instance_number;
+
+    assign fim_rx_b_st.clk = port.clk;
+    assign fim_rx_b_st.reset_n = port.reset_n;
+    assign fim_rx_b_st.instance_number = port.instance_number;
+
+    map_fim_pcie_ss_to_@group@_pim_axi_stream fim_to_pim
+       (
+        .pcie_ss_tx_a_st(port.afu_tx_a_st),
+        .pcie_ss_tx_b_st(port.afu_tx_b_st),
+        .pcie_ss_rx_a_st(port.afu_rx_a_st),
+        .pcie_ss_rx_b_st(port.afu_rx_b_st),
+
+        .pim_tx_a_st(fim_tx_a_st),
+        .pim_tx_b_st(fim_tx_b_st),
+        .pim_rx_a_st(fim_rx_a_st),
+        .pim_rx_b_st(fim_rx_b_st)
+        );
+
+    // synthesis translate_off
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "tx_a_st", fim_tx_a_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "tx_b_st", fim_tx_b_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "rx_a_st", fim_rx_a_st)
+    `LOG_OFS_PLAT_HOST_CHAN_@GROUP@_FIM_GASKET_PCIE_TLP(ofs_plat_log_pkg::HOST_CHAN, "rx_b_st", fim_rx_b_st)
+    // synthesis translate_on
+
+
+    //
     // Consume FIM -> AFU RX stream in a skid buffer for timing
     //
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
-        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
         )
       rx_st();
 
     ofs_plat_axi_stream_if_skid_source_clk rx_skid
        (
-        .stream_source(port.afu_rx_a_st),
+        .stream_source(fim_rx_a_st),
         .stream_sink(rx_st)
         );
 
-    assign port.afu_rx_b_st.tready = 1'b1;
+    assign fim_rx_b_st.tready = 1'b1;
 
 
     //
@@ -38,15 +106,15 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
     //
     ofs_plat_axi_stream_if
       #(
-        .TDATA_TYPE(t_ofs_fim_axis_pcie_tdata),
-        .TUSER_TYPE(t_ofs_fim_axis_pcie_tuser)
+        .TDATA_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tdata),
+        .TUSER_TYPE(ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_axis_pcie_tuser)
         )
       tx_st();
 
     ofs_plat_axi_stream_if_skid_sink_clk tx_skid
        (
         .stream_source(tx_st),
-        .stream_sink(port.afu_tx_a_st)
+        .stream_sink(fim_tx_a_st)
         );
 
 
@@ -188,7 +256,7 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
         tx_st.t.last = 1'b1;
     end
 
-    assign port.afu_tx_b_st.tvalid = 1'b0;
-    assign port.afu_tx_b_st.t = '0;
+    assign fim_tx_b_st.tvalid = 1'b0;
+    assign fim_tx_b_st.t = '0;
 
 endmodule // ofs_plat_host_chan_@group@_fim_gasket_tie_off
