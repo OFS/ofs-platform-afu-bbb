@@ -29,7 +29,8 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     // PCIe PF/VF details
     parameter pcie_ss_hdr_pkg::ReqHdr_pf_num_t PF_NUM,
     parameter pcie_ss_hdr_pkg::ReqHdr_vf_num_t VF_NUM,
-    parameter VF_ACTIVE
+    parameter VF_ACTIVE,
+    parameter LINK_NUM = 0
     )
    (
     // All streams are expected to share the same clock and reset
@@ -54,6 +55,7 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     assign port.pf_num = PF_NUM;
     assign port.vf_num = VF_NUM;
     assign port.vf_active = VF_ACTIVE;
+    assign port.link_num = LINK_NUM;
 
     // Use the legacy module to map the streaming channels
     map_fim_pcie_ss_to_@group@_host_chan map

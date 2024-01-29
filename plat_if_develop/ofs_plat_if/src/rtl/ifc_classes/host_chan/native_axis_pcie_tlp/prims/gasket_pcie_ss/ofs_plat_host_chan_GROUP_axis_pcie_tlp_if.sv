@@ -26,6 +26,7 @@ interface ofs_plat_host_chan_@group@_axis_pcie_tlp_if
     pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num;
     pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num;
     logic vf_active;
+    int link_num;
 
     // AFU -> FIM TLP TX stream
     pcie_ss_axis_if#(.DATA_W(ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH))
