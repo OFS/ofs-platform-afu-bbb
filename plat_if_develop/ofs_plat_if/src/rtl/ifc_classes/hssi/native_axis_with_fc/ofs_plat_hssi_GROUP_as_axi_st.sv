@@ -25,10 +25,10 @@ module ofs_plat_hssi_@group@_as_axi_st
     ofs_plat_hssi_@group@_channel_if to_fiu,
 
     // Individual AXI streams for use in the AFU
-    ofs_fim_hssi_ss_rx_axis_if.client rx_st,
-    ofs_fim_hssi_ss_tx_axis_if.client tx_st,
+    ofs_fim_hssi_ss_rx_axis_if.mac rx_st,
+    ofs_fim_hssi_ss_tx_axis_if.mac tx_st,
 
-    ofs_fim_hssi_fc_if.client         fc,
+    ofs_fim_hssi_fc_if.mac         fc,
 
     // These are present in all PIM interfaces, though not used here.
     input  logic afu_clk,
