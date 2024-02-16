@@ -20,6 +20,13 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
     // Largest tag value permitted in the FIM configuration for host->AFU MMIO reads
     localparam MAX_OUTSTANDING_MMIO_RD_REQS = ofs_pcie_ss_cfg_pkg::PCIE_RP_MAX_TAGS;
 
+`ifdef OFS_PCIE_SS_CFG_FLAG_DM_ENCODING
+    localparam ALLOW_DM_ENCODING = ofs_pcie_ss_cfg_pkg::DM_ENCODING_EN;
+`else
+    // FIMs built before the flag was added support DM encoding
+    localparam ALLOW_DM_ENCODING = 1;
+`endif
+
     //
     // Heuristics to pick a working maximum request size for the target
     // platform.

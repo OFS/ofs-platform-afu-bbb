@@ -195,6 +195,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // Use DM encoding for most write requests. Short writes not aligned to dwords
     // use PU encoding since DM would require a data shift.
     wire tx_req_hdr_use_dm =
+        ofs_plat_host_chan_@group@_fim_gasket_pkg::ALLOW_DM_ENCODING &&
         allow_dm_enc_q &&
         ((tx_fmttype == pcie_ss_hdr_pkg::M_WR) || (tx_fmttype == pcie_ss_hdr_pkg::DM_WR)) &&
         &(tx_from_pim.t.user[0].hdr.u.mem_req.last_be) &&
@@ -367,6 +368,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     // Use DM encoding for most read requests. Short reads not aligned to dwords
     // use PU encoding since DM would require a data shift.
     wire tx_mrd_req_hdr_use_dm =
+        ofs_plat_host_chan_@group@_fim_gasket_pkg::ALLOW_DM_ENCODING &&
         allow_dm_enc_q &&
         ((tx_mrd_fmttype == pcie_ss_hdr_pkg::M_RD) || (tx_mrd_fmttype == pcie_ss_hdr_pkg::DM_RD)) &&
         &(tx_mrd_from_pim.t.user[0].hdr.u.mem_req.last_be) &&
