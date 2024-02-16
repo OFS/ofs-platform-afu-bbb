@@ -106,13 +106,13 @@ module afu
     assign wr_data_512 = wr_data_bits_512;
 
     logic [63:0] wr_mask_512;
-    logic [mmio512_if.ADDR_WIDTH_-1 : 0] wr_addr_512;
+    logic [mmio512_if.ADDR_WIDTH-1 : 0] wr_addr_512;
     // Byte offset within the 512 bit entry
     logic [5:0] wr_byte_idx_512;
 
     t_mmio_value wr_data_64;
     logic [7:0] wr_mask_64;
-    logic [mmio64_if.ADDR_WIDTH_-1 : 0] wr_addr_64;
+    logic [mmio64_if.ADDR_WIDTH-1 : 0] wr_addr_64;
     // Byte offset within the 64 bit entry
     logic [2:0] wr_byte_idx_64;
 

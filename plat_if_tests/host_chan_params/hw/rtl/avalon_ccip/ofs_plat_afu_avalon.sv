@@ -30,7 +30,7 @@ module ofs_plat_afu
     // each interface.
     //
 
-    localparam NUM_PORTS = plat_ifc.host_chan.NUM_PORTS_;
+    localparam NUM_PORTS = plat_ifc.host_chan.NUM_PORTS;
 
     // Host memory AFU source
     ofs_plat_avalon_mem_rdwr_if

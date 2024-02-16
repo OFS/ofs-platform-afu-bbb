@@ -18,7 +18,7 @@ module ase_top_ofs_plat
     );
 
     // Number of PCIe group 0 ports (VFs)
-    localparam NUM_PORTS_G0 = plat_ifc.host_chan.NUM_PORTS_;
+    localparam NUM_PORTS_G0 = plat_ifc.host_chan.NUM_PORTS;
 
     // Construct the simulated platform interface wrapper which will be passed
     // to the AFU.

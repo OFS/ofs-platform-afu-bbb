@@ -70,10 +70,10 @@ module ofs_plat_afu
     //
     // ====================================================================
 
-    localparam AVALON64_USER_WIDTH = axi_mmio64_to_afu.RID_WIDTH_ +
-                                     axi_mmio64_to_afu.USER_WIDTH_;
-    localparam AVALON512_USER_WIDTH = axi_mmio512_wr_to_afu.RID_WIDTH_ +
-                                      axi_mmio512_wr_to_afu.USER_WIDTH_;
+    localparam AVALON64_USER_WIDTH = axi_mmio64_to_afu.RID_WIDTH +
+                                     axi_mmio64_to_afu.USER_WIDTH;
+    localparam AVALON512_USER_WIDTH = axi_mmio512_wr_to_afu.RID_WIDTH +
+                                      axi_mmio512_wr_to_afu.USER_WIDTH;
 
     ofs_plat_avalon_mem_if
       #(

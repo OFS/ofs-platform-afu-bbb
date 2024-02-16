@@ -17,9 +17,9 @@ module ase_emul_ooo_avalon_mem_rdwr_if
     ofs_plat_avalon_mem_rdwr_if.to_source_clk mem_source
     );
             
-    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
-    localparam RESPONSE_WIDTH = mem_sink.RESPONSE_WIDTH_;
-    localparam USER_WIDTH = mem_sink.USER_WIDTH_;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH;
+    localparam RESPONSE_WIDTH = mem_sink.RESPONSE_WIDTH;
+    localparam USER_WIDTH = mem_sink.USER_WIDTH;
 
     generate
         if (OUT_OF_ORDER == 0)

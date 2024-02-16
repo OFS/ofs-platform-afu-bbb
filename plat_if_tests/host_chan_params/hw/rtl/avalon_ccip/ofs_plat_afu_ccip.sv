@@ -30,7 +30,7 @@ module ofs_plat_afu
     // each interface.
     //
 
-    localparam NUM_PORTS = plat_ifc.host_chan.NUM_PORTS_;
+    localparam NUM_PORTS = plat_ifc.host_chan.NUM_PORTS;
 
     // Instance of a CCI-P interface. The interface wraps usual CCI-P
     // sRx and sTx structs as well as the associated clock and reset.
