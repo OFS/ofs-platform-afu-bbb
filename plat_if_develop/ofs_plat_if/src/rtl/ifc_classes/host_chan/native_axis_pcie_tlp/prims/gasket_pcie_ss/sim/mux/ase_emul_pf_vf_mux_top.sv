@@ -123,8 +123,8 @@ module ase_emul_pf_vf_mux_top                                                   
 
     function automatic [NID_WIDTH:0] pfvf_to_port(input [PFVF_WIDTH-1:0] pfvf);
         // For simulation, port index is just the VF index. The field
-        // is layed out { VF index, VF active, PF index }.
-        return pfvf[pcie_ss_hdr_pkg::PF_WIDTH+1 +: NID_WIDTH];
+        // is layed out { VF active, VF index, PF index }.
+        return pfvf[pcie_ss_hdr_pkg::PF_WIDTH +: NID_WIDTH];
     endfunction
 
     always @(*) begin                                                                //  
