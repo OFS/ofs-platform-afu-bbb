@@ -56,18 +56,25 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
 `else
     // Maximum read request bits (AFU reading host memory)
     localparam MAX_RD_REQ_SIZE =
-       // With data-mover encoding, the maximum length isn't limited to the
-       // host's maximum request size. The PCIe SS will map large requests to
-       // legal sizes. 1KB reads get slightly higher bandwidth than 512 bytes.
-       // Since the PIM uses data-mover encoding, we can override the FIM's
-       // power user maximum of MAX_RD_REQ_BYTES when it is small.
-       (ofs_pcie_ss_cfg_pkg::MAX_RD_REQ_BYTES > 1024) ?
-           ofs_pcie_ss_cfg_pkg::MAX_RD_REQ_BYTES * 8 : 1024 * 8;
+       (ALLOW_DM_ENCODING == 0) ?
+           // PU max size
+           (ofs_pcie_ss_cfg_pkg::MAX_RD_REQ_BYTES * 8) :
+           // With data-mover encoding, the maximum length isn't limited to the
+           // host's maximum request size. The PCIe SS will map large requests to
+           // legal sizes. 1KB reads get slightly higher bandwidth than 512 bytes.
+           // Since the PIM uses data-mover encoding, we can override the FIM's
+           // power user maximum of MAX_RD_REQ_BYTES when it is small.
+           ((ofs_pcie_ss_cfg_pkg::MAX_RD_REQ_BYTES > 1024) ?
+               ofs_pcie_ss_cfg_pkg::MAX_RD_REQ_BYTES * 8 : 1024 * 8);
+
     // Maximum write payload bits (AFU writing host memory)
     localparam MAX_WR_PAYLOAD_SIZE =
-       // At least 1KB, for the same reason as MAX_RD_REQ_SIZE above.
-       (ofs_pcie_ss_cfg_pkg::MAX_WR_PAYLOAD_BYTES  > 1024) ?
-           ofs_pcie_ss_cfg_pkg::MAX_WR_PAYLOAD_BYTES * 8 : 1024 * 8;
+       (ALLOW_DM_ENCODING == 0) ?
+           // PU max size
+           (ofs_pcie_ss_cfg_pkg::MAX_WR_PAYLOAD_BYTES * 8) :
+           // At least 1KB, for the same reason as MAX_RD_REQ_SIZE above.
+           ((ofs_pcie_ss_cfg_pkg::MAX_WR_PAYLOAD_BYTES  > 1024) ?
+               ofs_pcie_ss_cfg_pkg::MAX_WR_PAYLOAD_BYTES * 8 : 1024 * 8);
 `endif
 
     // Number of interrupt vectors supported
