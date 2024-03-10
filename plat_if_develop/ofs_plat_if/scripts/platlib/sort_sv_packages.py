@@ -145,7 +145,12 @@ def _read_dep_packages(filename, inc_dirs):
     inc_dirs is the collection of all directories that should be
     searched for include files."""
 
-    text = open(filename, 'r').read()
+    try:
+        text = open(filename, 'r').read()
+    except UnicodeDecodeError:
+        print('read_dep_packages: Ignoring binary file {}'.format(filename))
+        return {}
+
     text = this._re_pkg_sort_ignore.sub('', text)
     text = this._re_remove_comments.sub('', text)
 
