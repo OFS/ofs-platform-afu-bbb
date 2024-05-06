@@ -24,11 +24,11 @@ module ofs_plat_avalon_mem_rdwr_if_to_mem_if
     ofs_plat_avalon_mem_rdwr_if.to_source mem_source
     );
 
-    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH_;
-    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
-    localparam BURST_CNT_WIDTH = mem_sink.BURST_CNT_WIDTH_;
-    localparam MASKED_SYMBOL_WIDTH = mem_sink.MASKED_SYMBOL_WIDTH_;
-    localparam USER_WIDTH = mem_source.USER_WIDTH_;
+    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH;
+    localparam BURST_CNT_WIDTH = mem_sink.BURST_CNT_WIDTH;
+    localparam MASKED_SYMBOL_WIDTH = mem_sink.MASKED_SYMBOL_WIDTH;
+    localparam USER_WIDTH = mem_source.USER_WIDTH;
 
     localparam DATA_N_BYTES = mem_sink.DATA_N_BYTES;
 

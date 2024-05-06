@@ -139,10 +139,10 @@ module ofs_plat_local_mem_@group@_as_axi_mem
       #(
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(to_afu),
         // Avalon burst count of the sink, mapped to AXI size
-        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_ - 1),
-        .RID_WIDTH(to_afu.RID_WIDTH_),
-        .WID_WIDTH(to_afu.WID_WIDTH_),
-        .USER_WIDTH(to_afu.USER_WIDTH_)
+        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH - 1),
+        .RID_WIDTH(to_afu.RID_WIDTH),
+        .WID_WIDTH(to_afu.WID_WIDTH),
+        .USER_WIDTH(to_afu.USER_WIDTH)
         )
       axi_fiu_burst_if();
 
@@ -229,9 +229,9 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_avalon_mem_rdwr_if
       #(
         .ADDR_WIDTH(to_afu.ADDR_LINE_IDX_WIDTH),
-        .DATA_WIDTH(to_afu.DATA_WIDTH_),
-        .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH_),
-        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
+        .DATA_WIDTH(to_afu.DATA_WIDTH),
+        .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH),
+        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH),
         .USER_WIDTH(AVMM_USER_WIDTH)
         )
       avmm_rdwr_if();
@@ -243,10 +243,10 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     // synthesis translate_off
     initial
     begin
-        if (avmm_rdwr_if.DATA_WIDTH_ > to_fiu.DATA_WIDTH_)
+        if (avmm_rdwr_if.DATA_WIDTH > to_fiu.DATA_WIDTH)
         begin
             $fatal(2, "** ERROR ** %m: AFU memory DATA_WIDTH (%0d) is wider than FIU (%0d)!",
-                   avmm_rdwr_if.DATA_WIDTH_, to_fiu.DATA_WIDTH_);
+                   avmm_rdwr_if.DATA_WIDTH, to_fiu.DATA_WIDTH);
         end
     end
     // synthesis translate_on

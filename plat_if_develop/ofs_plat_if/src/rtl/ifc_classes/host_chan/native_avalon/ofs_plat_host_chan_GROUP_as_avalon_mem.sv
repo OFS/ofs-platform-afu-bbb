@@ -42,8 +42,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
     input  logic afu_reset_n
     );
 
-    localparam FIU_BURST_CNT_WIDTH = to_fiu.BURST_CNT_WIDTH_;
-    localparam FIU_USER_WIDTH = to_fiu.USER_WIDTH_;
+    localparam FIU_BURST_CNT_WIDTH = to_fiu.BURST_CNT_WIDTH;
+    localparam FIU_USER_WIDTH = to_fiu.USER_WIDTH;
 
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_OUT_OF_ORDER
     localparam OUT_OF_ORDER = `OFS_PLAT_PARAM_HOST_CHAN_@GROUP@_OUT_OF_ORDER;
@@ -158,7 +158,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
             ofs_plat_avalon_mem_if
               #(
                 `OFS_PLAT_AVALON_MEM_IF_REPLICATE_MEM_PARAMS(to_fiu),
-                .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
+                .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH),
                 .USER_WIDTH(ROB_IDX_WIDTH)
                 )
                 mem_cross();
@@ -235,7 +235,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem
     // ====================================================================
 
     generate
-        if (host_mem_to_afu.BURST_CNT_WIDTH_ <= afu_clk_if.BURST_CNT_WIDTH_)
+        if (host_mem_to_afu.BURST_CNT_WIDTH <= afu_clk_if.BURST_CNT_WIDTH)
         begin : nb
             // AFU's burst count is no larger than the FIU's. Just wire
             // the connection to the next stage.

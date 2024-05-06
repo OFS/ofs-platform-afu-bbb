@@ -20,11 +20,6 @@ interface ofs_plat_@class@_@group@_fiu_if
     parameter NUM_BANKS = `OFS_PLAT_PARAM_@CLASS@_@GROUP@_NUM_BANKS
     );
 
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new ofs_plat_@class@_if from an
-    // existing one's parameters.
-    localparam NUM_BANKS_ = $bits(logic [NUM_BANKS:0]) - 1;
-
 `ifdef OFS_PLAT_PARAM_@CLASS@_TYPE
     // @class@ in .ini file specified a type
     `OFS_PLAT_PARAM_@CLASS@_TYPE banks[NUM_BANKS]();

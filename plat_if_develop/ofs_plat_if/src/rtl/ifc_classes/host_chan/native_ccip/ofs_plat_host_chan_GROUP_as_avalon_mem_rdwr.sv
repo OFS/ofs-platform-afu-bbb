@@ -208,9 +208,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
     // Internal MMIO Avalon interface
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(mmio_to_afu.ADDR_WIDTH_),
-        .DATA_WIDTH(mmio_to_afu.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mmio_to_afu.BURST_CNT_WIDTH_)
+        .ADDR_WIDTH(mmio_to_afu.ADDR_WIDTH),
+        .DATA_WIDTH(mmio_to_afu.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mmio_to_afu.BURST_CNT_WIDTH)
         )
       mmio_if();
 
@@ -243,9 +243,9 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_with_dual_mmio
     // Internal second (write only) MMIO Avalon interface
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(mmio_wr_to_afu.ADDR_WIDTH_),
-        .DATA_WIDTH(mmio_wr_to_afu.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mmio_wr_to_afu.BURST_CNT_WIDTH_)
+        .ADDR_WIDTH(mmio_wr_to_afu.ADDR_WIDTH),
+        .DATA_WIDTH(mmio_wr_to_afu.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mmio_wr_to_afu.BURST_CNT_WIDTH)
         )
       mmio_wr_if();
 

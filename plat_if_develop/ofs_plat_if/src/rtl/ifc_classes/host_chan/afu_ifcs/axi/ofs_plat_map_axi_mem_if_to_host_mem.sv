@@ -93,10 +93,10 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     ofs_plat_axi_mem_if
       #(
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(mem_source),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .RID_WIDTH(mem_source.RID_WIDTH_),
-        .WID_WIDTH(mem_source.WID_WIDTH_),
-        .USER_WIDTH(mem_source.USER_WIDTH_)
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .RID_WIDTH(mem_source.RID_WIDTH),
+        .WID_WIDTH(mem_source.WID_WIDTH),
+        .USER_WIDTH(mem_source.USER_WIDTH)
         )
       axi_fiu_burst_if();
 

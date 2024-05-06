@@ -140,9 +140,9 @@ module ofs_plat_map_ccip_as_axi_mmio_impl
     logic freset_n;
     assign freset_n = reset_n;
 
-    localparam ADDR_WIDTH = mmio_to_afu.ADDR_WIDTH_;
+    localparam ADDR_WIDTH = mmio_to_afu.ADDR_WIDTH;
     typedef logic [ADDR_WIDTH-1 : 0] t_mmio_addr;
-    localparam DATA_WIDTH = mmio_to_afu.DATA_WIDTH_;
+    localparam DATA_WIDTH = mmio_to_afu.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_mmio_data;
 
     localparam DATA_WIDTH_LEGAL = (DATA_WIDTH >= 64) && (DATA_WIDTH <= 512) &&

@@ -37,7 +37,7 @@ module ofs_plat_avalon_mem_rdwr_if_async_shim
     // of the request pipeline inside the clock crossing FIFO. When the
     // maximum burst count is large this can affect throughput. Pad the
     // response FIFO with extra slots.
-    localparam RD_MAX_BURST = (1 << (mem_sink.BURST_CNT_WIDTH_ - 1));
+    localparam RD_MAX_BURST = (1 << (mem_sink.BURST_CNT_WIDTH - 1));
     localparam RD_RESPONSE_PADDED_FIFO_DEPTH = RD_RESPONSE_FIFO_DEPTH +
                                                2 * RD_MAX_BURST;
 

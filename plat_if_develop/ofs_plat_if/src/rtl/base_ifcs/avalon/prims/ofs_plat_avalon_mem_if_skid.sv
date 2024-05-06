@@ -41,13 +41,13 @@ module ofs_plat_avalon_mem_if_skid
 
             ofs_plat_prim_ready_enable_skid
               #(
-                .N_DATA_BITS(mem_source.BURST_CNT_WIDTH_ +
-                             mem_source.DATA_WIDTH_ +
-                             mem_source.ADDR_WIDTH_ +
+                .N_DATA_BITS(mem_source.BURST_CNT_WIDTH +
+                             mem_source.DATA_WIDTH +
+                             mem_source.ADDR_WIDTH +
                              1 +
                              1 +
                              mem_source.DATA_N_BYTES +
-                             mem_source.USER_WIDTH_)
+                             mem_source.USER_WIDTH)
                 )
               mem_req_skid
                (

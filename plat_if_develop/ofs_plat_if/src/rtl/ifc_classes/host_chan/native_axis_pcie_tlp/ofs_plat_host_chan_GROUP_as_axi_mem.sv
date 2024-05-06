@@ -719,14 +719,14 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
 
     // Maximum burst that fits in the largest allowed TLP packet
     localparam FIU_BURST_CNT_MAX = ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_PAYLOAD_SIZE /
-                                   host_mem_to_afu.DATA_WIDTH_;
+                                   host_mem_to_afu.DATA_WIDTH;
 
     ofs_plat_axi_mem_if
       #(
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN),
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
         .BURST_CNT_WIDTH($clog2(FIU_BURST_CNT_MAX)),
-        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_),
+        .USER_WIDTH(host_mem_to_afu.USER_WIDTH),
         .RID_WIDTH(ROB_RID_WIDTH),
         .WID_WIDTH(ROB_WID_WIDTH)
         )

@@ -126,14 +126,14 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
     `AXI_STREAM_INSTANCE(host_mmio_req, t_gen_tx_mmio_afu_req);
 
-    localparam MMIO_ADDR_WIDTH = mmio_sink.ADDR_WIDTH_;
+    localparam MMIO_ADDR_WIDTH = mmio_sink.ADDR_WIDTH;
     typedef logic [MMIO_ADDR_WIDTH-1 : 0] t_mmio_addr;
-    localparam MMIO_DATA_WIDTH = mmio_sink.DATA_WIDTH_;
+    localparam MMIO_DATA_WIDTH = mmio_sink.DATA_WIDTH;
     typedef logic [MMIO_DATA_WIDTH-1 : 0] t_mmio_data;
 
-    localparam MMIO_WO_ADDR_WIDTH = mmio_wo_sink.ADDR_WIDTH_;
+    localparam MMIO_WO_ADDR_WIDTH = mmio_wo_sink.ADDR_WIDTH;
     typedef logic [MMIO_WO_ADDR_WIDTH-1 : 0] t_mmio_wo_addr;
-    localparam MMIO_WO_DATA_WIDTH = mmio_wo_sink.DATA_WIDTH_;
+    localparam MMIO_WO_DATA_WIDTH = mmio_wo_sink.DATA_WIDTH;
     typedef logic [MMIO_WO_DATA_WIDTH-1 : 0] t_mmio_wo_data;
 
     // Index of the minimum addressable size (32 bit DWORD)
@@ -297,12 +297,12 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     //
     // ====================================================================
 
-    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH_;
+    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH;
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
-    localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
+    localparam DATA_WIDTH = mem_source.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
-    localparam USER_WIDTH = mem_source.USER_WIDTH_;
+    localparam USER_WIDTH = mem_source.USER_WIDTH;
     localparam ROB_IDX_WIDTH = USER_WIDTH - USER_ROB_IDX_START;
 
     // Byte-level address bits within a line. (Avalon doesn't have these
@@ -408,7 +408,7 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     logic wr_is_sop, wr_is_eop;
     ofs_plat_prim_burstcount1_sop_tracker
       #(
-        .BURST_CNT_WIDTH(mem_if.BURST_CNT_WIDTH_)
+        .BURST_CNT_WIDTH(mem_if.BURST_CNT_WIDTH)
         )
       wr_sop_tracker
        (

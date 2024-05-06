@@ -500,7 +500,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
 
     // Maximum burst that fits in the largest allowed TLP packet
     localparam FIU_BURST_CNT_MAX = ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_PAYLOAD_SIZE /
-                                   host_mem_to_afu.DATA_WIDTH_;
+                                   host_mem_to_afu.DATA_WIDTH;
 
     ofs_plat_avalon_mem_rdwr_if
       #(

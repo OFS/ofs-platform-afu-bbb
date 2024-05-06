@@ -33,9 +33,9 @@ module ofs_plat_avalon_mem_rdwr_if_reg_simple
             // Pipeline stages.
             ofs_plat_avalon_mem_rdwr_if
               #(
-                .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-                .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-                .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
+                .ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+                .DATA_WIDTH(mem_sink.DATA_WIDTH),
+                .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
                 .WAIT_REQUEST_ALLOWANCE(N_WAITREQUEST_STAGES)
                 )
                 mem_pipe[N_REG_STAGES+1]();

@@ -26,12 +26,6 @@ interface ofs_plat_axi_stream_opaque_if
     parameter DISABLE_BYTE_MASK_CHECKER = 0
     );
 
-    // A hack to work around compilers complaining of circular dependence
-    // incorrectly when trying to make a new ofs_plat_axi_stream_if from
-    // an existing one's parameters.
-    localparam TDATA_WIDTH_ = $bits(logic [TDATA_WIDTH:0]) - 1;
-    localparam TUSER_WIDTH_ = $bits(logic [TUSER_WIDTH:0]) - 1;
-
     typedef logic [TDATA_WIDTH-1 : 0] t_data;
     typedef logic [TUSER_WIDTH-1 : 0] t_user;
 

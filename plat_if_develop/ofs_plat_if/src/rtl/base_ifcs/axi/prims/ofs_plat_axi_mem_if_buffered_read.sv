@@ -21,7 +21,7 @@ module ofs_plat_axi_mem_if_buffered_read
     `OFS_PLAT_AXI_MEM_IF_CHECK_PARAMS_MATCH(mem_sink, mem_source)
     // synthesis translate_on
 
-    localparam MAX_ALLOC_PER_CYCLE = 1 << mem_source.BURST_CNT_WIDTH_;
+    localparam MAX_ALLOC_PER_CYCLE = 1 << mem_source.BURST_CNT_WIDTH;
     // Extra bit in order to represent the value MAX_ALLOC_PER_CYCLE
     typedef logic [$clog2(MAX_ALLOC_PER_CYCLE):0] t_alloc_cnt;
 

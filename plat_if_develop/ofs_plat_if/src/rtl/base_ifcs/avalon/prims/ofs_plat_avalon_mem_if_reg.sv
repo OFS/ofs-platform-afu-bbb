@@ -140,11 +140,11 @@ module ofs_plat_avalon_mem_if_reg
     ofs_plat_avalon_mem_if_reg_impl
       #(
         .N_REG_STAGES(N_REG_STAGES),
-        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .RESPONSE_WIDTH(mem_sink.RESPONSE_WIDTH_),
-        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .RESPONSE_WIDTH(mem_sink.RESPONSE_WIDTH),
+        .USER_WIDTH(mem_sink.USER_WIDTH)
         )
       r
        (
@@ -168,10 +168,10 @@ module ofs_plat_avalon_mem_if_reg_sink_clk
 
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .USER_WIDTH(mem_sink.USER_WIDTH)
         )
       mem_reg();
 
@@ -213,10 +213,10 @@ module ofs_plat_avalon_mem_if_reg_source_clk
 
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .USER_WIDTH(mem_sink.USER_WIDTH)
         )
       mem_reg();
 

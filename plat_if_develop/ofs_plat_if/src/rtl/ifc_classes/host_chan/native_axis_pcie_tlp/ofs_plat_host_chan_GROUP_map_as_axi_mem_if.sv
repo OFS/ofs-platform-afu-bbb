@@ -136,14 +136,14 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // MMIO requests from host to AFU (t_gen_tx_mmio_afu_req)
     `AXI_STREAM_INSTANCE(host_mmio_req, t_gen_tx_mmio_afu_req);
 
-    localparam MMIO_ADDR_WIDTH = mmio_sink.ADDR_WIDTH_;
+    localparam MMIO_ADDR_WIDTH = mmio_sink.ADDR_WIDTH;
     typedef logic [MMIO_ADDR_WIDTH-1 : 0] t_mmio_addr;
-    localparam MMIO_DATA_WIDTH = mmio_sink.DATA_WIDTH_;
+    localparam MMIO_DATA_WIDTH = mmio_sink.DATA_WIDTH;
     typedef logic [MMIO_DATA_WIDTH-1 : 0] t_mmio_data;
 
-    localparam MMIO_WO_ADDR_WIDTH = mmio_wo_sink.ADDR_WIDTH_;
+    localparam MMIO_WO_ADDR_WIDTH = mmio_wo_sink.ADDR_WIDTH;
     typedef logic [MMIO_WO_ADDR_WIDTH-1 : 0] t_mmio_wo_addr;
-    localparam MMIO_WO_DATA_WIDTH = mmio_wo_sink.DATA_WIDTH_;
+    localparam MMIO_WO_DATA_WIDTH = mmio_wo_sink.DATA_WIDTH;
     typedef logic [MMIO_WO_DATA_WIDTH-1 : 0] t_mmio_wo_data;
 
     // Index of the minimum addressable size (32 bit DWORD)
@@ -357,9 +357,9 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     //
     // ====================================================================
 
-    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH_;
+    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH;
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
-    localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
+    localparam DATA_WIDTH = mem_source.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
     // Mapping byte masks to start and length needs to be broken apart
@@ -516,7 +516,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // Preserve AWID from interrupt requests so responses can be tagged properly
     // on return to the AFU. (Interrupts use the same AWID space is normal writes
     // in our encoding.)
-    logic [mem_if.WID_WIDTH_-1:0] intrWID[NUM_AFU_INTERRUPTS];
+    logic [mem_if.WID_WIDTH-1:0] intrWID[NUM_AFU_INTERRUPTS];
 
     always_ff @(posedge clk)
     begin

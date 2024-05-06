@@ -194,12 +194,12 @@ module ofs_plat_axi_mem_if_reg
     ofs_plat_axi_mem_if_reg_impl
       #(
         .N_REG_STAGES(N_REG_STAGES),
-        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .RID_WIDTH(mem_sink.RID_WIDTH_),
-        .WID_WIDTH(mem_sink.WID_WIDTH_),
-        .USER_WIDTH(mem_sink.USER_WIDTH_),
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .RID_WIDTH(mem_sink.RID_WIDTH),
+        .WID_WIDTH(mem_sink.WID_WIDTH),
+        .USER_WIDTH(mem_sink.USER_WIDTH),
 
         .T_AW_WIDTH(mem_sink.T_AW_WIDTH),
         .T_W_WIDTH(mem_sink.T_W_WIDTH),

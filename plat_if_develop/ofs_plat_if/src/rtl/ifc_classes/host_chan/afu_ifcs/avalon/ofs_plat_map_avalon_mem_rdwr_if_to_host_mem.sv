@@ -50,8 +50,8 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
     ofs_plat_avalon_mem_rdwr_if
       #(
         `OFS_PLAT_AVALON_MEM_RDWR_IF_REPLICATE_MEM_PARAMS(mem_source),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .USER_WIDTH(mem_source.USER_WIDTH_)
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .USER_WIDTH(mem_source.USER_WIDTH)
         )
       avmm_fiu_burst_if();
 

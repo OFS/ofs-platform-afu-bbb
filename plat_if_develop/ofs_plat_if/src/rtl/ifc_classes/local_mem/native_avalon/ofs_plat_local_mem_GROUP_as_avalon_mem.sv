@@ -108,22 +108,22 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
 
     ofs_plat_avalon_mem_if
       #(
-        .ADDR_WIDTH(to_afu.ADDR_WIDTH_),
+        .ADDR_WIDTH(to_afu.ADDR_WIDTH),
         // The AFU may pick a data width narrower than the FIU. Reduce it here.
-        .DATA_WIDTH(to_fiu.DATA_WIDTH_),
-        .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH_),
-        .BURST_CNT_WIDTH(to_afu.BURST_CNT_WIDTH_),
-        .USER_WIDTH(to_afu.USER_WIDTH_)
+        .DATA_WIDTH(to_fiu.DATA_WIDTH),
+        .MASKED_SYMBOL_WIDTH(to_afu.MASKED_SYMBOL_WIDTH),
+        .BURST_CNT_WIDTH(to_afu.BURST_CNT_WIDTH),
+        .USER_WIDTH(to_afu.USER_WIDTH)
         )
       afu_burst_if();
 
     // synthesis translate_off
     initial
     begin
-        if (to_afu.DATA_WIDTH_ > to_fiu.DATA_WIDTH_)
+        if (to_afu.DATA_WIDTH > to_fiu.DATA_WIDTH)
         begin
             $fatal(2, "** ERROR ** %m: AFU memory DATA_WIDTH (%0d) is wider than FIU (%0d)!",
-                   to_afu.DATA_WIDTH_, to_fiu.DATA_WIDTH_);
+                   to_afu.DATA_WIDTH, to_fiu.DATA_WIDTH);
         end
     end
     // synthesis translate_on
@@ -142,7 +142,7 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
         afu_resp_if();
 
     generate
-        if (to_afu.BURST_CNT_WIDTH_ <= to_fiu.BURST_CNT_WIDTH_)
+        if (to_afu.BURST_CNT_WIDTH <= to_fiu.BURST_CNT_WIDTH)
         begin : nb
             // AFU's burst count is no larger than the FIU's. Just wire
             // the connection to the next stage.

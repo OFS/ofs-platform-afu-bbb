@@ -130,11 +130,11 @@ module ofs_plat_avalon_mem_if_reg_simple
       #(
         .N_REG_STAGES(N_REG_STAGES),
         .N_WAITREQUEST_STAGES(N_WAITREQUEST_STAGES),
-        .ADDR_WIDTH(mem_sink.ADDR_WIDTH_),
-        .DATA_WIDTH(mem_sink.DATA_WIDTH_),
-        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH_),
-        .RESPONSE_WIDTH(mem_sink.RESPONSE_WIDTH_),
-        .USER_WIDTH(mem_sink.USER_WIDTH_)
+        .ADDR_WIDTH(mem_sink.ADDR_WIDTH),
+        .DATA_WIDTH(mem_sink.DATA_WIDTH),
+        .BURST_CNT_WIDTH(mem_sink.BURST_CNT_WIDTH),
+        .RESPONSE_WIDTH(mem_sink.RESPONSE_WIDTH),
+        .USER_WIDTH(mem_sink.USER_WIDTH)
         )
       r
        (

@@ -30,8 +30,8 @@ module ofs_plat_axi_mem_if_map_bursts
     logic reset_n;
     assign reset_n = mem_sink.reset_n;
 
-    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH_;
-    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH_;
+    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH;
+    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH;
 
     generate
         if ((!NATURAL_ALIGNMENT && !PAGE_SIZE && (SINK_BURST_WIDTH >= SOURCE_BURST_WIDTH)) ||
@@ -116,10 +116,10 @@ module ofs_plat_axi_mem_if_map_bursts_impl
     // We only care about the address portion that is the line index
     localparam ADDR_WIDTH = mem_source.ADDR_LINE_IDX_WIDTH;
     localparam ADDR_START = mem_source.ADDR_BYTE_IDX_WIDTH;
-    localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
+    localparam DATA_WIDTH = mem_source.DATA_WIDTH;
 
-    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH_;
-    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH_;
+    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH;
+    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH;
     typedef logic [SOURCE_BURST_WIDTH-1 : 0] t_source_burst_cnt;
 
     // Instantiate an interface to use the properly sized internal structs

@@ -99,7 +99,7 @@ module ofs_plat_map_ccip_as_axi_host_mem
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(host_mem_to_afu),
         // CCI-P supports up to 4 line bursts
         .BURST_CNT_WIDTH(2),
-        .USER_WIDTH(host_mem_to_afu.USER_WIDTH_),
+        .USER_WIDTH(host_mem_to_afu.USER_WIDTH),
         .RID_WIDTH(ROB_RID_WIDTH),
         .WID_WIDTH(ROB_WID_WIDTH)
         )

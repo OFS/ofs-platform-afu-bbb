@@ -21,14 +21,11 @@ interface ofs_plat_axi_stream_if
 
     // Size of the data payload
     localparam TDATA_WIDTH = $bits(TDATA_TYPE);
-    // For consistency with ofs_plat_axi_stream_opaque_if
-    localparam TDATA_WIDTH_ = $bits(logic [TDATA_WIDTH:0]) - 1;
 
     // Size of the tuser payload
     localparam TUSER_WIDTH = $bits(TUSER_TYPE);
-    localparam TUSER_WIDTH_ = $bits(logic [TUSER_WIDTH:0]) - 1;
 
-    localparam TKEEP_WIDTH = (TDATA_WIDTH_ + 7) / 8;
+    localparam TKEEP_WIDTH = (TDATA_WIDTH + 7) / 8;
     typedef logic [TKEEP_WIDTH-1 : 0] t_keep;
 
     wire clk;

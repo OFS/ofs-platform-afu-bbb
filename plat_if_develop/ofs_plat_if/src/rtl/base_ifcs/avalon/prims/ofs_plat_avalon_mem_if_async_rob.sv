@@ -27,15 +27,15 @@ module ofs_plat_avalon_mem_if_async_rob
     ofs_plat_avalon_mem_if.to_source mem_source
     );
 
-    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
     // Preserve user data in source requests
-    localparam SOURCE_USER_WIDTH = mem_source.USER_WIDTH_;
+    localparam SOURCE_USER_WIDTH = mem_source.USER_WIDTH;
     typedef logic [SOURCE_USER_WIDTH-1 : 0] t_source_user;
 
     // Sink user data is the ROB index space
-    localparam SINK_USER_WIDTH = mem_sink.USER_WIDTH_;
+    localparam SINK_USER_WIDTH = mem_sink.USER_WIDTH;
     typedef logic [SINK_USER_WIDTH-1 : 0] t_sink_user;
 
     //

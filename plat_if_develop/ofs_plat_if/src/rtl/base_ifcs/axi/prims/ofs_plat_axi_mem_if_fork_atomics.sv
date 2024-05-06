@@ -39,8 +39,8 @@ module ofs_plat_axi_mem_if_fork_atomics
     //
     // Replicate atomic AW requests into a FIFO, which will feed into AR.
     //
-    localparam WID_WIDTH = mem_sink.WID_WIDTH_;
-    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH_;
+    localparam WID_WIDTH = mem_sink.WID_WIDTH;
+    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH;
 
     typedef struct packed {
         logic [WID_WIDTH-1 : 0] id;

@@ -52,7 +52,7 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     localparam ADDR_BYTE_IDX_WIDTH = to_fiu.ADDR_WIDTH - to_afu.ADDR_WIDTH;
 
     // AXI bursts are 0 based, so one bit smaller than Avalon.
-    localparam AXI_BURST_CNT_WIDTH = to_afu.BURST_CNT_WIDTH_ - 1;
+    localparam AXI_BURST_CNT_WIDTH = to_afu.BURST_CNT_WIDTH - 1;
     typedef logic [AXI_BURST_CNT_WIDTH-1 : 0] t_axi_burst_cnt;
 
 
@@ -83,14 +83,14 @@ module ofs_plat_local_mem_@group@_as_avalon_mem
     //
     ofs_plat_axi_mem_if
       #(
-        .ADDR_WIDTH(to_fiu.ADDR_WIDTH_),
-        .DATA_WIDTH(to_fiu.DATA_WIDTH_),
+        .ADDR_WIDTH(to_fiu.ADDR_WIDTH),
+        .DATA_WIDTH(to_fiu.DATA_WIDTH),
         // Avalon burst count of the source, mapped to AXI size
         .BURST_CNT_WIDTH(AXI_BURST_CNT_WIDTH),
-        .RID_WIDTH(to_fiu.RID_WIDTH_),
-        .WID_WIDTH(to_fiu.WID_WIDTH_),
-        .USER_WIDTH(to_afu.USER_WIDTH_),
-        .MASKED_SYMBOL_WIDTH(to_fiu.MASKED_SYMBOL_WIDTH_)
+        .RID_WIDTH(to_fiu.RID_WIDTH),
+        .WID_WIDTH(to_fiu.WID_WIDTH),
+        .USER_WIDTH(to_afu.USER_WIDTH),
+        .MASKED_SYMBOL_WIDTH(to_fiu.MASKED_SYMBOL_WIDTH)
         )
       axi_afu_if();
 

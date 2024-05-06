@@ -13,7 +13,7 @@
 //
 `define OFS_PLAT_AXI_STREAM_IF_REPLICATE_OPAQUE(AXI_IF) \
     .TDATA_WIDTH(AXI_IF.TDATA_WIDTH), \
-    .TUSER_WIDTH(AXI_IF.TUSER_WIDTH_)
+    .TUSER_WIDTH(AXI_IF.TUSER_WIDTH)
 
 // Replicate AXI stream interface but don't set type data type so
 // that other code can set it.

@@ -29,9 +29,9 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
 
     initial
     begin
-        if (mem_source.ADDR_WIDTH_ != mem_sink.ADDR_WIDTH_)
+        if (mem_source.ADDR_WIDTH != mem_sink.ADDR_WIDTH)
             $fatal(2, "** ERROR ** %m: ADDR_WIDTH mismatch!");
-        if (mem_source.DATA_WIDTH_ != mem_sink.DATA_WIDTH_)
+        if (mem_source.DATA_WIDTH != mem_sink.DATA_WIDTH)
             $fatal(2, "** ERROR ** %m: DATA_WIDTH mismatch!");
     end
 
@@ -40,18 +40,18 @@ module ofs_plat_avalon_mem_rdwr_if_map_bursts
     logic reset_n;
     assign reset_n = mem_sink.reset_n;
 
-    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH_;
-    localparam DATA_WIDTH = mem_source.DATA_WIDTH_;
+    localparam ADDR_WIDTH = mem_source.ADDR_WIDTH;
+    localparam DATA_WIDTH = mem_source.DATA_WIDTH;
 
-    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH_;
-    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH_;
+    localparam SOURCE_BURST_WIDTH = mem_source.BURST_CNT_WIDTH;
+    localparam SINK_BURST_WIDTH = mem_sink.BURST_CNT_WIDTH;
 
     // A "safe" source burst width is at least as large as the sink
     localparam SAFE_SOURCE_BURST_WIDTH = (SOURCE_BURST_WIDTH >= SINK_BURST_WIDTH) ?
                                          SOURCE_BURST_WIDTH : SINK_BURST_WIDTH;
     typedef logic [SAFE_SOURCE_BURST_WIDTH-1 : 0] t_safe_source_burst_cnt;
 
-    localparam USER_WIDTH = mem_sink.USER_WIDTH_;
+    localparam USER_WIDTH = mem_sink.USER_WIDTH;
     typedef logic [USER_WIDTH-1 : 0] t_user;
 
     generate

@@ -41,14 +41,14 @@ module ofs_plat_avalon_mem_rdwr_if_mux
     typedef logic [$clog2(NUM_SOURCE_PORTS)-1 : 0] t_port_idx;
 
     // All sink and source address, data and burst count sizes must match.
-    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH_;
-    localparam DATA_WIDTH = mem_sink.DATA_WIDTH_;
+    localparam ADDR_WIDTH = mem_sink.ADDR_WIDTH;
+    localparam DATA_WIDTH = mem_sink.DATA_WIDTH;
     localparam DATA_N_BYTES = mem_sink.DATA_N_BYTES;
-    localparam BURST_CNT_WIDTH = mem_sink.BURST_CNT_WIDTH_;
+    localparam BURST_CNT_WIDTH = mem_sink.BURST_CNT_WIDTH;
 
     // Preserve source's user, rd_user and wr_user fields. We assume that
     // all source ports have the same width.
-    localparam USER_WIDTH = mem_source[0].USER_WIDTH_;
+    localparam USER_WIDTH = mem_source[0].USER_WIDTH;
 
     typedef logic [ADDR_WIDTH-1:0] t_addr;
     typedef logic [DATA_WIDTH-1:0] t_data;

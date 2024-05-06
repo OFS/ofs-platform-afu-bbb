@@ -125,10 +125,10 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_axi_mem_if
       #(
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(to_afu),
-        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
-        .RID_WIDTH(to_afu.RID_WIDTH_),
-        .WID_WIDTH(to_afu.WID_WIDTH_),
-        .USER_WIDTH(to_afu.USER_WIDTH_)
+        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH),
+        .RID_WIDTH(to_afu.RID_WIDTH),
+        .WID_WIDTH(to_afu.WID_WIDTH),
+        .USER_WIDTH(to_afu.USER_WIDTH)
         )
       axi_fiu_burst_if();
 
@@ -155,10 +155,10 @@ module ofs_plat_local_mem_@group@_as_axi_mem
     ofs_plat_axi_mem_if
       #(
         `OFS_PLAT_AXI_MEM_IF_REPLICATE_MEM_PARAMS(to_afu),
-        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH_),
-        .RID_WIDTH(to_fiu.RID_WIDTH_),
-        .WID_WIDTH(to_fiu.WID_WIDTH_),
-        .USER_WIDTH(to_fiu.USER_WIDTH_)
+        .BURST_CNT_WIDTH(to_fiu.BURST_CNT_WIDTH),
+        .RID_WIDTH(to_fiu.RID_WIDTH),
+        .WID_WIDTH(to_fiu.WID_WIDTH),
+        .USER_WIDTH(to_fiu.USER_WIDTH)
         )
       axi_fiu_user_if();
 
