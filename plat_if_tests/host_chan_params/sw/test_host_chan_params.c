@@ -1280,6 +1280,8 @@ testHostChanLatency(
     s_eng_bufs = malloc(num_engines * sizeof(t_engine_buf));
     assert(NULL != s_eng_bufs);
     s_num_engines = num_engines;
+    uint64_t max_burst_size = 8;
+    bool natural_bursts = false;
     uint32_t glob_e = 0;
     for (uint32_t a = 0; a < num_accels; a += 1)
     {
@@ -1287,6 +1289,12 @@ testHostChanLatency(
         for (uint32_t e = 0; e < accel_num_engines; e += 1)
         {
             initEngine(glob_e, accel_handles[a], csr_handles[a], e);
+
+            if (max_burst_size > s_eng_bufs[glob_e].max_burst_size)
+                max_burst_size = s_eng_bufs[glob_e].max_burst_size;
+
+            natural_bursts |= s_eng_bufs[glob_e].natural_bursts;
+
             glob_e += 1;
         }
     }
@@ -1299,12 +1307,12 @@ testHostChanLatency(
     if (num_accels > 1) max_mode = 5;
     if (num_accels > 2) max_mode = 6;
 
-    while (burst_size <= 8)
+    while (burst_size <= max_burst_size)
     {
         for (int mode = 1; mode <= max_mode; mode += 1)
         {
             bool printed_header = false;
-            for (uint32_t max_reqs = burst_size; max_reqs <= 512; max_reqs = (max_reqs + 4) & 0xfffffffc)
+            for (uint32_t max_reqs = burst_size; max_reqs <= 608; max_reqs = (max_reqs + 4) & 0xfffffffc)
             {
                 uint32_t num_readers = 0;
                 uint32_t num_writers = 0;
@@ -1368,8 +1376,7 @@ testHostChanLatency(
             }
         }
 
-        // CCI-P requires naturally aligned sizes. Other protocols do not.
-        if (s_eng_bufs[0].eng_type || (burst_size >= 4))
+        if (! natural_bursts)
             burst_size += 1;
         else
             burst_size <<= 1;

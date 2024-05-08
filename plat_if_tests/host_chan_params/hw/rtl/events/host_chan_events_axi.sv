@@ -39,7 +39,7 @@ module host_chan_events_axi
     //
     // Track new requests and responses
     //
-    typedef logic [12:0] t_dword_count;
+    typedef logic [13:0] t_dword_count;
     t_dword_count rd_n_dwords_req, b_pipe_rd_n_dwords_req, rd_n_dwords_req_q;
     t_dword_count rd_n_dwords_rsp, rd_n_dwords_rsp_q;
 
@@ -161,7 +161,7 @@ module host_chan_events_axi
     //
     // Track new requests and responses
     //
-    typedef logic [12:0] t_dword_count;
+    typedef logic [13:0] t_dword_count;
     t_dword_count rd_n_dwords_req, rd_n_dwords_req_q;
     t_dword_count rd_n_dwords_rsp, rd_n_dwords_rsp_q;
 
