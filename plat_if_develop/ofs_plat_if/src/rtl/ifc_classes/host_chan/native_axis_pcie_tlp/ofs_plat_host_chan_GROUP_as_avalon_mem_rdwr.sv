@@ -495,8 +495,15 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     localparam ROB_IDX_WIDTH =
         $clog2((MAX_BW_ACTIVE_RD_LINES > MAX_BW_ACTIVE_WR_LINES) ? MAX_BW_ACTIVE_RD_LINES :
                                                                    MAX_BW_ACTIVE_WR_LINES);
+
+    // When the read completion boundary is smaller than the bus width,
+    // valid bits are added to the read response use flags for each
+    // RCB segment.
+    localparam RCB_USER_WIDTH = 2 * ofs_plat_host_chan_@group@_pcie_tlp_pkg::NUM_PAYLOAD_RCB_SEGS;
+
     localparam USER_WIDTH =
-        ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1 + ROB_IDX_WIDTH;
+        ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1 +
+        ROB_IDX_WIDTH + RCB_USER_WIDTH;
 
     // Maximum burst that fits in the largest allowed TLP packet
     localparam FIU_BURST_CNT_MAX = ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_PAYLOAD_SIZE /
@@ -526,9 +533,10 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_BW_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_BW_ACTIVE_WR_LINES),
-        .USER_ROB_IDX_START(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1),
+        .USER_ROB_IDX_START(USER_WIDTH - ROB_IDX_WIDTH),
         // Don't allow packets to cross 4KB pages due to PCIe requirement.
-        .PAGE_SIZE(4096)
+        .PAGE_SIZE(4096),
+        .NUM_PAYLOAD_RCB_SEGS(ofs_plat_host_chan_@group@_pcie_tlp_pkg::NUM_PAYLOAD_RCB_SEGS)
         )
       hc
        (
@@ -547,7 +555,7 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
 
     ofs_plat_host_chan_@group@_map_as_avalon_mem_if
       #(
-        .USER_ROB_IDX_START(ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1)
+        .USER_ROB_IDX_START(USER_WIDTH - ROB_IDX_WIDTH)
         )
       tlp_as_avalon_mem
        (

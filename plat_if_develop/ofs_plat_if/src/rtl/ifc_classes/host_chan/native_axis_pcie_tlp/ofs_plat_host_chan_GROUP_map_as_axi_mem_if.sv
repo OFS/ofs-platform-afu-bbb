@@ -347,9 +347,60 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         // and conform to AXI-MM.
         mem_if.r.id = afu_rd_rsp.t.data.tag + afu_rd_rsp.t.data.line_idx;
         mem_if.r.last = afu_rd_rsp.t.data.last;
-        mem_if.r.data = afu_rd_rsp.t.data.payload;
+
+        // The initial block below will trigger a fatal error if not 1 or 2
+        if (NUM_PAYLOAD_RCB_SEGS == 1)
+        begin
+            // Simple case: bus width is <= read completion boundary
+            mem_if.r.data = afu_rd_rsp.t.data.payload;
+        end
+        else if (NUM_PAYLOAD_RCB_SEGS == 2)
+        begin
+            // RCB is 2x bus width -- typically a 1024 bit bus
+
+            // If the start address of the completion is in the middle of
+            // the bus then swap the high and low payload halves. The
+            // swap realigns the data to match the expected position on
+            // the payload bus.
+            mem_if.r.data =
+                ~afu_rd_rsp.t.data.rcb_idx[0] ?
+                    afu_rd_rsp.t.data.payload :
+                    { afu_rd_rsp.t.data.payload[0 +: PAYLOAD_LINE_SIZE/2],
+                      afu_rd_rsp.t.data.payload[PAYLOAD_LINE_SIZE/2 +: PAYLOAD_LINE_SIZE/2] };
+
+            // User bits on the "r" bus here are unused. They will be
+            // overwritten in the PIM with the user bits from "ar".
+            // Inside the PIM, use the low user bits to mark valid RCB
+            // segments.
+
+            // Bit 0: low half of payload is valid
+            mem_if.r.user[0] =
+                ~afu_rd_rsp.t.data.num_rcb_seg_valid[0] || ~afu_rd_rsp.t.data.rcb_idx[0];
+            // Bit 1: high half of payload is valid
+            mem_if.r.user[1] =
+                ~afu_rd_rsp.t.data.num_rcb_seg_valid[0] || afu_rd_rsp.t.data.rcb_idx[0];
+            // Bit 2: payload begins in the high half. If the low half
+            // is valid, its ROB index is mem_if.r.id + 1.
+            mem_if.r.user[2] = afu_rd_rsp.t.data.rcb_idx[0];
+        end
     end
 
+    // synthesis translate_off
+    initial
+    begin
+        // The code above only works either when the read completion boundary
+        // is larger than the bus width or when there are exactly two RCB
+        // segments in the bus. Normally this means that either the bus
+        // width is <= 512 bits or is exactly 1024 bits.
+        if (NUM_PAYLOAD_RCB_SEGS > 2)
+            $fatal(2, "** ERROR ** %m: At most 2 RCB segments are allowed (%0d)", NUM_PAYLOAD_RCB_SEGS);
+
+        if ($bits(mem_if.r.user) < NUM_PAYLOAD_RCB_SEGS*2-1) begin
+            $fatal(2, "** ERROR ** %m: mem_if.r.user field is too small (%0d) for RCB info (%0d)",
+                   $bits(mem_if.r.user), NUM_PAYLOAD_RCB_SEGS);
+        end
+    end
+    // synthesis translate_on
 
     // ====================================================================
     //
@@ -365,27 +416,55 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // Mapping byte masks to start and length needs to be broken apart
     // for timing. This first stage uses a FIFO in parallel with the
     // mem_if.w skid buffer to store start and end indices.
-    t_tlp_payload_line_byte_idx w_byte_start_in, w_byte_end_in;
+    t_tlp_payload_line_byte_idx w_byte_start_in_A, w_byte_end_in_A;
+    logic w_byte_start_in_A_valid, w_byte_end_in_A_valid;
+    t_tlp_payload_line_byte_idx w_byte_start_in_B, w_byte_end_in_B;
     t_tlp_payload_line_byte_idx w_byte_start, w_byte_end;
 
+    // Reduce the depth of the search circuit by searching half the strb
+    // bits in group A and half in B, then pick the first with a valid bit.
     always_comb
     begin
-        w_byte_start_in = '0;
-        for (int i = 0; i < DATA_WIDTH/8; i = i + 1)
+        w_byte_start_in_A = '0;
+        w_byte_start_in_A_valid = 1'b0;
+        for (int i = 0; i < DATA_WIDTH/16; i = i + 1)
         begin
             if (mem_source.w.strb[i])
             begin
-                w_byte_start_in = i;
+                w_byte_start_in_A = i;
+                w_byte_start_in_A_valid = 1'b1;
                 break;
             end
         end
 
-        w_byte_end_in = ~'0;
-        for (int i = DATA_WIDTH/8 - 1; i >= 0; i = i - 1)
+        w_byte_start_in_B = '0;
+        for (int i = DATA_WIDTH/16; i < DATA_WIDTH/8; i = i + 1)
         begin
             if (mem_source.w.strb[i])
             begin
-                w_byte_end_in = i;
+                w_byte_start_in_B = i;
+                break;
+            end
+        end
+
+        w_byte_end_in_A = ~'0;
+        w_byte_end_in_A_valid = 1'b0;
+        for (int i = DATA_WIDTH/8 - 1; i >= DATA_WIDTH/16; i = i - 1)
+        begin
+            if (mem_source.w.strb[i])
+            begin
+                w_byte_end_in_A = i;
+                w_byte_end_in_A_valid = 1'b1;
+                break;
+            end
+        end
+
+        w_byte_end_in_B = ~'0;
+        for (int i = DATA_WIDTH/16 - 1; i >= 0; i = i - 1)
+        begin
+            if (mem_source.w.strb[i])
+            begin
+                w_byte_end_in_B = i;
                 break;
             end
         end
@@ -400,7 +479,8 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         .clk,
         .reset_n,
 
-        .enq_data({ w_byte_start_in, w_byte_end_in }),
+        .enq_data({ w_byte_start_in_A_valid ? w_byte_start_in_A : w_byte_start_in_B,
+                    w_byte_end_in_A_valid ? w_byte_end_in_A : w_byte_end_in_B }),
         .enq_en(mem_source.wvalid && mem_source.wready),
         // Space is the same as the mem_if.w skid buffer
         .notFull(),

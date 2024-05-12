@@ -44,6 +44,13 @@ module ofs_plat_host_chan_@group@_map_as_ccip
 
     assign to_afu_ccip.error = 1'b0;
 
+    // synthesis translate_off
+    initial
+    begin
+        if (PAYLOAD_LINE_SIZE != 512)
+            $fatal(2, "** ERROR ** %m: CCI-P only supports a 512 bit data bus, not %0d", PAYLOAD_LINE_SIZE);
+    end
+    // synthesis translate_on
 
     // ====================================================================
     //

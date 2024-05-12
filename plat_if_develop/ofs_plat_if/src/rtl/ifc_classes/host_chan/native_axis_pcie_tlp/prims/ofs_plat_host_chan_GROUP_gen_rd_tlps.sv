@@ -301,6 +301,8 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     logic [AFU_TAG_WIDTH-1 : 0] afu_rd_rsp_tag, reg_afu_rd_rsp_tag;
     t_tlp_payload_line_idx afu_rd_rsp_line_idx, reg_afu_rd_rsp_line_idx;
     t_dma_rd_tag reg_afu_rd_rsp_tlp_tag;
+    t_tlp_payload_rcb_seg_idx afu_rd_rsp_rcb_idx, reg_afu_rd_rsp_rcb_idx;
+    t_tlp_payload_rcb_seg_idx afu_rd_rsp_num_rcb_seg_valid, reg_afu_rd_rsp_num_rcb_seg_valid;
 
     // Figure out details of a response flit. The computed state is valid
     // both in the SOP cycle and subsequent beats.
@@ -333,6 +335,26 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
                 // DM encoding doesn't provide byte count. Instead, we count responses.
                 afu_rd_rsp_line_idx = rd_rsp_track_idx;
             end
+
+            if (tlp_cpl_hdr.length < PAYLOAD_RCB_SIZE/32)
+            begin
+                // Treat short (probably atomic) read responses as full
+                // bus-width data.
+                afu_rd_rsp_rcb_idx = '0;
+                afu_rd_rsp_num_rcb_seg_valid = '0;
+            end
+            else
+            begin
+                // Offset from a payload-aligned address, in RCB segments. This will
+                // always be 0 when the RCB >= the bus width.
+                afu_rd_rsp_rcb_idx =
+                    tlp_cpl_hdr.u.cpl.lower_addr[$clog2(PAYLOAD_RCB_SIZE/8) +: $bits(t_tlp_payload_rcb_seg_idx)];
+
+                // Partial data? Length will always be a multiple of the bus width
+                // unless RCB < the bus width.
+                afu_rd_rsp_num_rcb_seg_valid =
+                    tlp_cpl_hdr.length[$clog2(PAYLOAD_RCB_SIZE/32) +: $bits(t_tlp_payload_rcb_seg_idx)];
+            end
         end
         else
         begin
@@ -341,6 +363,8 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             afu_rd_rsp_is_last = reg_afu_rd_rsp_is_last;
             afu_rd_rsp_tag = reg_afu_rd_rsp_tag;
             afu_rd_rsp_line_idx = reg_afu_rd_rsp_line_idx + 1;
+            afu_rd_rsp_rcb_idx = reg_afu_rd_rsp_rcb_idx;
+            afu_rd_rsp_num_rcb_seg_valid = reg_afu_rd_rsp_num_rcb_seg_valid;
         end
 
         if (!rx_cpl_tlps.tvalid)
@@ -379,6 +403,8 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             reg_afu_rd_rsp_is_last <= afu_rd_rsp_is_last;
             reg_afu_rd_rsp_tag <= afu_rd_rsp_tag;
             reg_afu_rd_rsp_line_idx <= afu_rd_rsp_line_idx;
+            reg_afu_rd_rsp_rcb_idx <= afu_rd_rsp_rcb_idx;
+            reg_afu_rd_rsp_num_rcb_seg_valid <= afu_rd_rsp_num_rcb_seg_valid;
 
             if (rx_cpl_tlps.t.user[0].sop)
             begin
@@ -402,6 +428,13 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             afu_rd_rsp.t.data.line_idx <= afu_rd_rsp_line_idx;
             afu_rd_rsp.t.data.last <= afu_rd_rsp_is_last && rx_cpl_tlps_eop;
             afu_rd_rsp.t.data.payload <= { '0, rx_cpl_tlps.t.data };
+
+            afu_rd_rsp.t.data.rcb_idx <= afu_rd_rsp_rcb_idx;
+            // Only the last flit in a message might be less than the
+            // payload width. (And then only when the bus width is greater
+            // than the read completion boundary.)
+            afu_rd_rsp.t.data.num_rcb_seg_valid <=
+                rx_cpl_tlps_eop ? afu_rd_rsp_num_rcb_seg_valid : '0;
         end
 
         if (!reset_n)

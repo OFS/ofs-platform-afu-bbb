@@ -30,6 +30,8 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
     // tags or completions.
     parameter BLOCK_WRITE_WITH_READ = 0,
 
+    parameter NUM_PAYLOAD_RCB_SEGS = 1,
+
     // First bit in the user fields where the ROB indices should be stored.
     parameter USER_ROB_IDX_START = 0
     )
@@ -84,6 +86,7 @@ module ofs_plat_map_avalon_mem_rdwr_if_to_host_mem
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .MAX_ACTIVE_RD_LINES(MAX_ACTIVE_RD_LINES),
         .MAX_ACTIVE_WR_LINES(MAX_ACTIVE_WR_LINES),
+        .NUM_PAYLOAD_RCB_SEGS(NUM_PAYLOAD_RCB_SEGS),
         .USER_ROB_IDX_START(USER_ROB_IDX_START),
         .BLOCK_WRITE_WITH_READ(BLOCK_WRITE_WITH_READ)
         )

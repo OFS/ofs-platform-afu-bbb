@@ -50,7 +50,9 @@ module ofs_plat_map_axi_mem_if_to_host_mem
     // out of credits. On some channels, such as PCIe TLP, blocking writes along
     // with reads solves a fairness problem caused by writes not having either
     // tags or completions.
-    parameter BLOCK_WRITE_WITH_READ = 0
+    parameter BLOCK_WRITE_WITH_READ = 0,
+
+    parameter NUM_PAYLOAD_RCB_SEGS = 1
     )
    (
     // mem_source parameters should match the source's field widths.
@@ -157,7 +159,8 @@ module ofs_plat_map_axi_mem_if_to_host_mem
               #(
                 .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
                 .NUM_READ_CREDITS(MAX_ACTIVE_RD_LINES),
-                .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES)
+                .NUM_WRITE_CREDITS(MAX_ACTIVE_WR_LINES),
+                .NUM_PAYLOAD_RCB_SEGS(NUM_PAYLOAD_RCB_SEGS)
                 )
               rob
                (

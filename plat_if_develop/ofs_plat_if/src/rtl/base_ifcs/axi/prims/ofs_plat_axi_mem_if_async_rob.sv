@@ -27,7 +27,14 @@ module ofs_plat_axi_mem_if_async_rob
     parameter SINK_RESPONSES_ALWAYS_READY = 0,
 
     parameter NUM_READ_CREDITS = 256,
-    parameter NUM_WRITE_CREDITS = 128
+    parameter NUM_WRITE_CREDITS = 128,
+
+    // For some configurations, read responses may sometimes be shorter than
+    // the bus width. The parameter defines the number of independent read
+    // response segments. Extra state is added to mem_sink.r.user when
+    // NUM_PAYLOAD_RCB_SEGS is greater than 1. See the logic around rd_rob
+    // below for details.
+    parameter NUM_PAYLOAD_RCB_SEGS = 1
     )
    (
     ofs_plat_axi_mem_if.to_sink mem_sink,
@@ -244,11 +251,53 @@ module ofs_plat_axi_mem_if_async_rob
     t_source_rid rd_id, rd_reg_id;
     t_source_user rd_user, rd_reg_user;
 
+
+    // When read responses may arrive in chunks smaller than the full data width,
+    // the ROB is broken down into multiple smaller buffers. Full bus-width
+    // completions are returned to the source only when all chunks have
+    // arrived.
+
+    // Completion chunks -- guaranteed to be returned as a single unit
+    localparam RCB_SEG_WIDTH = mem_sink.DATA_WIDTH / NUM_PAYLOAD_RCB_SEGS;
+    typedef logic [RCB_SEG_WIDTH-1 : 0] t_rcb_seg_data;
+    // Full data bus, composed of one or more completion chunks
+    typedef t_rcb_seg_data [NUM_PAYLOAD_RCB_SEGS-1 : 0] t_rcb_full_data;
+
+    t_rcb_full_data rd_rsp_data;
+    t_rcb_full_data rd_rsp_data_in;
+    assign rd_rsp_data_in = mem_sink.r.data;
+    assign mem_sink_local.r.data = rd_rsp_data;
+
+    // The sink must encode RCB chunk details for each incoming valid cycle.
+    // Details arrive in mem_sink.r.user since it is otherwise unused. Only
+    // the original user field from mem_source.ar is passed to mem_source.r.
+
+    // Segment-level valid bits
+    logic [NUM_PAYLOAD_RCB_SEGS-1 : 0] rcb_seg_valid;
+    // Segment-level offset bits. A read response might not start at bit 0
+    // of the bus. When set, these bits indicate a segment belongs to the
+    // next line.
+    logic [NUM_PAYLOAD_RCB_SEGS-1 : 0] rcb_seg_offset;
+    // Segment-level state from mem_sink.r.user. Force the high bit of
+    // rcb_seg_offset to 0 since at least one segment must be associated
+    // with the index in mem_sink.r.id.
+    assign { rcb_seg_offset, rcb_seg_valid } =
+        (NUM_PAYLOAD_RCB_SEGS == 1) ?
+            { 1'b0, 1'b1 } :
+            { 1'b0, mem_sink.r.user[0 +: 2*NUM_PAYLOAD_RCB_SEGS-1] };
+
+    // Segment-level ROB response valid / last
+    logic [NUM_PAYLOAD_RCB_SEGS-1 : 0] rd_rsp_seg_valid;
+    logic [NUM_PAYLOAD_RCB_SEGS-1 : 0] rd_rsp_seg_last;
+    // Response is valid when all segments are valid
+    assign rd_rsp_valid = &rd_rsp_seg_valid;
+    assign mem_sink_local.r.last = |rd_rsp_seg_last;
+
     ofs_plat_prim_rob_maybe_dc
       #(
         .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
         .N_ENTRIES(RD_ROB_N_ENTRIES),
-        .N_DATA_BITS(mem_sink.T_R_WIDTH),
+        .N_DATA_BITS(RCB_SEG_WIDTH + 1),
         .N_META_BITS(mem_source.RID_WIDTH + mem_source.USER_WIDTH),
         .MAX_ALLOC_PER_CYCLE(1 << mem_sink.BURST_CNT_WIDTH)
         )
@@ -266,15 +315,54 @@ module ofs_plat_axi_mem_if_async_rob
         // Responses
         .enq_clk(mem_sink.clk),
         .enq_reset_n(mem_sink.reset_n),
-        .enqData_en(mem_sink.rvalid),
-        .enqDataIdx(mem_sink.r.id[0 +: $clog2(RD_ROB_N_ENTRIES)]),
-        .enqData(mem_sink.r),
+        .enqData_en(mem_sink.rvalid && rcb_seg_valid[0]),
+        .enqDataIdx(mem_sink.r.id[0 +: $clog2(RD_ROB_N_ENTRIES)] + rcb_seg_offset[0]),
+        .enqData({ rd_rsp_data_in[0], mem_sink.r.last }),
 
         .deq_en(rd_rsp_valid && !rd_rsp_almostFull),
-        .notEmpty(rd_rsp_valid),
-        .T2_first(mem_sink_local.r),
+        .notEmpty(rd_rsp_seg_valid[0]),
+        .T2_first({ rd_rsp_data[0], rd_rsp_seg_last[0] }),
         .T2_firstMeta({ rd_id, rd_user })
         );
+
+    for (genvar s = 1; s < NUM_PAYLOAD_RCB_SEGS; s += 1) begin : rs
+        // Other RCB segments. Timing and valid/ready will be identical to the
+        // main segment, so almost now control flow is used. All metadata also
+        // comes from segment 0 above.
+        ofs_plat_prim_rob_maybe_dc
+          #(
+            .ADD_CLOCK_CROSSING(ADD_CLOCK_CROSSING),
+            .N_ENTRIES(RD_ROB_N_ENTRIES),
+            .N_DATA_BITS(RCB_SEG_WIDTH + 1),
+            .N_META_BITS(1),
+            .MAX_ALLOC_PER_CYCLE(1 << mem_sink.BURST_CNT_WIDTH)
+            )
+          rd_seg_rob
+           (
+            .clk(mem_source.clk),
+            .reset_n(mem_source.reset_n),
+            .alloc_en(mem_source.arvalid && mem_source.arready),
+            .allocCnt(t_rd_alloc_cnt'(mem_source.ar.len) + t_rd_alloc_cnt'(1)),
+            .allocMeta(1'b0),
+            .notFull(),
+            .allocIdx(),
+            .inSpaceAvail(),
+
+            // Responses
+            .enq_clk(mem_sink.clk),
+            .enq_reset_n(mem_sink.reset_n),
+            .enqData_en(mem_sink.rvalid && rcb_seg_valid[s]),
+            .enqDataIdx(mem_sink.r.id[0 +: $clog2(RD_ROB_N_ENTRIES)] + rcb_seg_offset[s]),
+            .enqData({ rd_rsp_data_in[s], mem_sink.r.last }),
+
+            .deq_en(rd_rsp_valid && !rd_rsp_almostFull),
+            .notEmpty(rd_rsp_seg_valid[s]),
+            .T2_first({ rd_rsp_data[s], rd_rsp_seg_last[s] }),
+            .T2_firstMeta()
+            );
+    end
+
+    assign mem_sink_local.r.resp = '0;
 
     // Construct the AR sink payload, saving the ROB index as the ID field
     always_comb

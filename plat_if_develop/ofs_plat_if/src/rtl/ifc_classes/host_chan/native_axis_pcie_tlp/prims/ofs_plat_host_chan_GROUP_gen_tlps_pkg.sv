@@ -66,6 +66,17 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         t_tlp_payload_line_idx line_idx;
         // Done handling full request?
         logic last;
+
+        // RCB segment start index. Meaningful only when the bus width is
+        // greater than the PCIe read completion boundary. It is non-zero
+        // when the completion start address isn't aligned to the payload
+        // width.
+        t_tlp_payload_rcb_seg_idx rcb_idx;
+        // Number of valid RCB segments in the payload. 0 means all are
+        // valid. This will only be non-zero when the payload width
+        // is greater than the RCB and the current payload is less than
+        // full width.
+        t_tlp_payload_rcb_seg_idx num_rcb_seg_valid;
     } t_gen_tx_afu_rd_rsp;
 
 

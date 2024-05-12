@@ -90,6 +90,20 @@ package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
     localparam PAYLOAD_LINE_BYTES = PAYLOAD_LINE_SIZE / 8;
     typedef logic [$clog2(PAYLOAD_LINE_BYTES)-1 : 0] t_tlp_payload_line_byte_idx;
 
+    // PCIe read completion boundary. Assume 64 bytes.
+    localparam PAYLOAD_RCB_SIZE = 512;
+    // Number of RCB segments in payload. E.g., a 1024 bit bus has 2.
+    localparam NUM_PAYLOAD_RCB_SEGS =
+        (PAYLOAD_LINE_SIZE + PAYLOAD_RCB_SIZE - 1) / PAYLOAD_RCB_SIZE;
+    // RCB segment offset within a PAYLOAD_LINE. This is used for handling
+    // PCIe completions that aren't aligned to the payload width. The
+    // left bound is complicated only to avoid setting it to -1 when
+    // NUM_PAYLOAD_RCB_SEGS is 1.
+    typedef logic [(NUM_PAYLOAD_RCB_SEGS > 1 ? $clog2(NUM_PAYLOAD_RCB_SEGS)-1 : 0) : 0]
+        t_tlp_payload_rcb_seg_idx;
+    // Mask of valid segments with a payload bus width.
+    typedef logic [NUM_PAYLOAD_RCB_SEGS-1 : 0] t_rcb_seg_valid;
+
     localparam int MAX_BW_ACTIVE_RD_LINES =
         ofs_plat_host_chan_@group@_fim_gasket_pkg::MAX_BW_ACTIVE_RD_LINES;
     localparam int MAX_BW_ACTIVE_WR_LINES =

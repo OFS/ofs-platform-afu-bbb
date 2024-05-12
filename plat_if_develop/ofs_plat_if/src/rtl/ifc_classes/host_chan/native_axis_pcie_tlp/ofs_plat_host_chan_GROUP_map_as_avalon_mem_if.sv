@@ -305,6 +305,12 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     localparam USER_WIDTH = mem_source.USER_WIDTH;
     localparam ROB_IDX_WIDTH = USER_WIDTH - USER_ROB_IDX_START;
 
+    // Space was reserved in the read response user field for RCB
+    // segment valid bits. The space is twice the number of RCB segments
+    // and will be stored immediately before USER_ROB_IDX_START.
+    localparam RCB_USER_WIDTH = 2 * NUM_PAYLOAD_RCB_SEGS;
+    localparam RCB_USER_START = USER_ROB_IDX_START - RCB_USER_WIDTH;
+
     // Byte-level address bits within a line. (Avalon doesn't have these
     // but PCIe expects them.)
     localparam LINE_ADDR_BITS = $clog2(DATA_WIDTH/8);
@@ -336,17 +342,64 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     assign mem_if.rd_readdatavalid = afu_rd_rsp.tvalid;
     always_comb
     begin
-        mem_if.rd_readdata = afu_rd_rsp.t.data.payload;
         mem_if.rd_response = '0;
 
         // Index of the ROB entry.
         mem_if.rd_readresponseuser = { '0, robIdxToUser(afu_rd_rsp.t.data.tag +
                                                         afu_rd_rsp.t.data.line_idx) };
+
+        // The initial block below will trigger a fatal error if not 1 or 2
+        if (NUM_PAYLOAD_RCB_SEGS == 1)
+        begin
+            // Simple case: bus width is <= read completion boundary
+            mem_if.rd_readdata = afu_rd_rsp.t.data.payload;
+        end
+        else if (NUM_PAYLOAD_RCB_SEGS == 2)
+        begin
+            // RCB is 2x bus width -- typically a 1024 bit bus
+
+            // If the start address of the completion is in the middle of
+            // the bus then swap the high and low payload halves. The
+            // swap realigns the data to match the expected position on
+            // the payload bus.
+            mem_if.rd_readdata =
+                ~afu_rd_rsp.t.data.rcb_idx[0] ?
+                    afu_rd_rsp.t.data.payload :
+                    { afu_rd_rsp.t.data.payload[0 +: PAYLOAD_LINE_SIZE/2],
+                      afu_rd_rsp.t.data.payload[PAYLOAD_LINE_SIZE/2 +: PAYLOAD_LINE_SIZE/2] };
+
+            // User bits on the "r" bus here are unused. They will be
+            // overwritten in the PIM with the user bits from "ar".
+            // Inside the PIM, use the low user bits to mark valid RCB
+            // segments.
+
+            // Bit 0: low half of payload is valid
+            mem_if.rd_readresponseuser[RCB_USER_START+0] =
+                ~afu_rd_rsp.t.data.num_rcb_seg_valid[0] || ~afu_rd_rsp.t.data.rcb_idx[0];
+            // Bit 1: high half of payload is valid
+            mem_if.rd_readresponseuser[RCB_USER_START+1] =
+                ~afu_rd_rsp.t.data.num_rcb_seg_valid[0] || afu_rd_rsp.t.data.rcb_idx[0];
+            // Bit 2: payload begins in the high half. If the low half
+            // is valid, its ROB index is mem_if.r.id + 1.
+            mem_if.rd_readresponseuser[RCB_USER_START+2] = afu_rd_rsp.t.data.rcb_idx[0];
+        end
+
         // Use the no reply flag to indicate the beat isn't SOP.
         mem_if.rd_readresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY] <=
             |(afu_rd_rsp.t.data.line_idx);
     end
 
+    // synthesis translate_off
+    initial
+    begin
+        // The code above only works either when the read completion boundary
+        // is larger than the bus width or when there are exactly two RCB
+        // segments in the bus. Normally this means that either the bus
+        // width is <= 512 bits or is exactly 1024 bits.
+        if (NUM_PAYLOAD_RCB_SEGS > 2)
+            $fatal(2, "** ERROR ** %m: At most 2 RCB segments are allowed (%0d)", NUM_PAYLOAD_RCB_SEGS);
+    end
+    // synthesis translate_on
 
     // ====================================================================
     //
@@ -357,27 +410,55 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     // Mapping byte masks to start and length needs to be broken apart
     // for timing. This first stage uses a FIFO in parallel with the
     // mem_if.w skid buffer to store start and end indices.
-    t_tlp_payload_line_byte_idx w_byte_start_in, w_byte_end_in;
+    t_tlp_payload_line_byte_idx w_byte_start_in_A, w_byte_end_in_A;
+    logic w_byte_start_in_A_valid, w_byte_end_in_A_valid;
+    t_tlp_payload_line_byte_idx w_byte_start_in_B, w_byte_end_in_B;
     t_tlp_payload_line_byte_idx w_byte_start, w_byte_end;
 
+    // Reduce the depth of the search circuit by searching half the strb
+    // bits in group A and half in B, then pick the first with a valid bit.
     always_comb
     begin
-        w_byte_start_in = '0;
-        for (int i = 0; i < DATA_WIDTH/8; i = i + 1)
+        w_byte_start_in_A = '0;
+        w_byte_start_in_A_valid = 1'b0;
+        for (int i = 0; i < DATA_WIDTH/16; i = i + 1)
         begin
             if (mem_source.wr_byteenable[i])
             begin
-                w_byte_start_in = i;
+                w_byte_start_in_A = i;
+                w_byte_start_in_A_valid = 1'b1;
                 break;
             end
         end
 
-        w_byte_end_in = ~'0;
-        for (int i = DATA_WIDTH/8 - 1; i >= 0; i = i - 1)
+        w_byte_start_in_B = '0;
+        for (int i = DATA_WIDTH/16; i < DATA_WIDTH/8; i = i + 1)
         begin
             if (mem_source.wr_byteenable[i])
             begin
-                w_byte_end_in = i;
+                w_byte_start_in_B = i;
+                break;
+            end
+        end
+
+        w_byte_end_in_A = ~'0;
+        w_byte_end_in_A_valid = 1'b0;
+        for (int i = DATA_WIDTH/8 - 1; i >= DATA_WIDTH/16; i = i - 1)
+        begin
+            if (mem_source.wr_byteenable[i])
+            begin
+                w_byte_end_in_A = i;
+                w_byte_end_in_A_valid = 1'b1;
+                break;
+            end
+        end
+
+        w_byte_end_in_B = ~'0;
+        for (int i = DATA_WIDTH/16 - 1; i >= 0; i = i - 1)
+        begin
+            if (mem_source.wr_byteenable[i])
+            begin
+                w_byte_end_in_B = i;
                 break;
             end
         end
@@ -392,7 +473,8 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
         .clk,
         .reset_n,
 
-        .enq_data({ w_byte_start_in, w_byte_end_in }),
+        .enq_data({ w_byte_start_in_A_valid ? w_byte_start_in_A : w_byte_start_in_B,
+                    w_byte_end_in_A_valid ? w_byte_end_in_A : w_byte_end_in_B }),
         .enq_en(mem_source.wr_write && !mem_source.wr_waitrequest),
         // Space is the same as the mem_if.w skid buffer
         .notFull(),
