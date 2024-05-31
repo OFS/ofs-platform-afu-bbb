@@ -89,8 +89,7 @@ module ofs_plat_host_chan_@group@_fim_multi_link_afu_dfh
     //
     ofs_fim_axis_pipeline
       #(
-        .PL_DEPTH(0),
-        .TDATA_WIDTH(ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH)
+        .PL_DEPTH(0)
         )
       rx_b
        (
@@ -102,8 +101,7 @@ module ofs_plat_host_chan_@group@_fim_multi_link_afu_dfh
 
     ofs_fim_axis_pipeline
       #(
-        .PL_DEPTH(0),
-        .TDATA_WIDTH(ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH)
+        .PL_DEPTH(0)
         )
       tx_b
        (

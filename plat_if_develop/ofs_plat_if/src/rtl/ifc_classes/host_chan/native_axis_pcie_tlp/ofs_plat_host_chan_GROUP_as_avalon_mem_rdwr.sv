@@ -453,14 +453,8 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
         )
       avmm_afu_clk_if();
 
-    logic afu_reset_n_q = 1'b0;
-    always @(posedge afu_clk)
-    begin
-        afu_reset_n_q <= afu_reset_n;
-    end
-
     assign avmm_afu_clk_if.clk = (ADD_CLOCK_CROSSING == 0) ? to_fiu.clk : afu_clk;
-    assign avmm_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n_q;
+    assign avmm_afu_clk_if.reset_n = (ADD_CLOCK_CROSSING == 0) ? to_fiu.reset_n : afu_reset_n;
     assign avmm_afu_clk_if.instance_number = to_fiu.instance_number;
 
     // synthesis translate_off
