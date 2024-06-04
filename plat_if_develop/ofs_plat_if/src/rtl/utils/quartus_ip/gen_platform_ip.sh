@@ -22,6 +22,8 @@ src_files="\
     ip/altera/sopc_builder_ip/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v \
     ip/altera/merlin/altera_avalon_mm_bridge/altera_avalon_mm_bridge.v \
     ip/altera/merlin/altera_avalon_mm_clock_crossing_bridge/altera_avalon_mm_clock_crossing_bridge.v \
+    ip/altera/merlin/altera_merlin_waitrequest_adapter/altera_merlin_waitrequest_adapter.v \
+    ip/altera/merlin/altera_reset_controller/altera_reset_synchronizer.v \
     ip/altera/sopc_builder_ip/altera_avalon_dc_fifo/altera_dcfifo_synchronizer_bundle.v \
     ip/altera/primitives/altera_std_synchronizer/altera_std_synchronizer_nocut.v"
 
@@ -48,6 +50,7 @@ for s in $src_files; do
         -e 's/ altera_std/ ofs_plat_utils_std/g' \
         -e 's/ altera_avalon/ ofs_plat_utils_avalon/g' \
         -e 's/ altera_dcfifo/ ofs_plat_utils_dcfifo/g' \
+        -e 's/ altera_reset/ ofs_plat_utils_reset/g' \
         -e 's/parameter SYNC_RESET \([ ]*\)= 0/parameter SYNC_RESET \1= 1/' \
         "${src}" > "${dst}"
 done

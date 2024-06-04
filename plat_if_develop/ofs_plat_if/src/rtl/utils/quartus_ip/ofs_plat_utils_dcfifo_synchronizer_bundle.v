@@ -1,6 +1,9 @@
-// $File: //acds/rel/22.1/ip/iconnect/avalon_st/altera_avalon_dc_fifo/altera_dcfifo_synchronizer_bundle.v $
+// Copyright (C) 2024 Intel Corporation
+// SPDX-License-Identifier: MIT
+
+// $File: //acds/rel/24.1/ip/iconnect/avalon_st/altera_avalon_dc_fifo/altera_dcfifo_synchronizer_bundle.v $
 // $Revision: #1 $
-// $Date: 2022/01/27 $
+// $Date: 2024/02/01 $
 // $Author: psgswbuild $
 //-------------------------------------------------------------------------------
 
@@ -13,7 +16,8 @@ module ofs_plat_utils_dcfifo_synchronizer_bundle(
                                      );
    parameter WIDTH = 1;
    parameter DEPTH = 3;   
-   
+   parameter retiming_reg_en = 0;
+
    input clk;
    input reset_n;
    input [WIDTH-1:0] din;
@@ -24,7 +28,7 @@ module ofs_plat_utils_dcfifo_synchronizer_bundle(
    generate
       for (i=0; i<WIDTH; i=i+1)
         begin : sync
-           ofs_plat_utils_std_synchronizer_nocut #(.depth(DEPTH))
+           ofs_plat_utils_std_synchronizer_nocut #(.depth(DEPTH), .retiming_reg_en(retiming_reg_en))
                                    u (
                                       .clk(clk), 
                                       .reset_n(reset_n), 

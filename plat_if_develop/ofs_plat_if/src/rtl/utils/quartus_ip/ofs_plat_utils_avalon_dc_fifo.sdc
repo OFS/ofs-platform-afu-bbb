@@ -1,6 +1,9 @@
-# $File: //acds/rel/22.1/ip/iconnect/avalon_st/altera_avalon_dc_fifo/altera_avalon_dc_fifo.sdc $
+## Copyright (C) 2024 Intel Corporation
+## SPDX-License-Identifier: MIT
+
+# $File: //acds/rel/24.1/ip/iconnect/avalon_st/ofs_plat_utils_avalon_dc_fifo/ofs_plat_utils_avalon_dc_fifo.sdc $
 # $Revision: #1 $
-# $Date: 2022/01/27 $
+# $Date: 2024/02/01 $
 # $Author: psgswbuild $
 
 #-------------------------------------------------------------------------------
@@ -37,6 +40,42 @@ foreach dc_fifo_inst $all_dc_fifo {
    }
 }
 
+set aclr_collection_wr [get_pins -compatibility_mode -nocase -nowarn *|write_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|aclr]
+set clrn_collection_wr [get_pins -compatibility_mode -nocase -nowarn *|write_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|clrn]
+set aclr_counter_wr [get_collection_size $aclr_collection_wr]
+set clrn_counter_wr [get_collection_size $clrn_collection_wr]
+
+
+
+if {$aclr_counter_wr > 0} {
+set_false_path -to [get_pins -compatibility_mode -nocase *|write_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|aclr]
+}
+
+
+
+if {$clrn_counter_wr > 0} {
+set_false_path -to [get_pins -compatibility_mode -nocase *|write_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|clrn]
+}
+
+
+
+
+set aclr_collection_rd [get_pins -compatibility_mode -nocase -nowarn *|read_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|aclr]
+set clrn_collection_rd [get_pins -compatibility_mode -nocase -nowarn *|read_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|clrn]
+set aclr_counter_rd [get_collection_size $aclr_collection_rd]
+set clrn_counter_rd [get_collection_size $clrn_collection_rd]
+
+
+
+if {$aclr_counter_rd > 0} {
+set_false_path -to [get_pins -compatibility_mode -nocase *|read_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|aclr]
+}
+
+
+
+if {$clrn_counter_rd > 0} {
+set_false_path -to [get_pins -compatibility_mode -nocase *|read_reset_sync|ofs_plat_utils_reset_synchronizer_int_chain*|clrn]
+}
 
 # add in timing constraints across asynchronous clock domain crossings for simple dual clock memory inference
 

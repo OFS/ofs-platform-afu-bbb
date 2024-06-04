@@ -1,6 +1,5 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: MIT
-
 
 // --------------------------------------
 // Avalon-MM pipeline bridge
@@ -21,6 +20,9 @@ module ofs_plat_utils_avalon_mm_bridge
     parameter PIPELINE_RESPONSE    = 1,
     parameter SYNC_RESET           = 1,
     parameter USE_WRITERESPONSE    = 0,
+
+    parameter S0_WAITREQUEST_ALLOWANCE    = 0,
+    parameter M0_WAITREQUEST_ALLOWANCE    = 0,
 
     // --------------------------------------
     // Derived parameters
@@ -96,13 +98,28 @@ module ofs_plat_utils_avalon_mm_bridge
     reg                          rsp_writeresponsevalid; 
     
     wire [BURSTCOUNT_WIDTH-1:0] burst_reset_val;
+
+   //Connections with wait request adaptor
+    wire                        s0_waitrequest_from_adaptor;
+    wire [DATA_WIDTH-1:0]       s0_readdata_from_adaptor;
+    wire                        s0_readdatavalid_from_adaptor;
+    wire                        s0_writeresponsevalid_from_adaptor;
+    wire [RESPONSE_WIDTH-1:0]   s0_response_from_adaptor;
+
+    wire [BURSTCOUNT_WIDTH-1:0] m0_burstcount_from_adaptor;
+    wire [DATA_WIDTH-1:0]       m0_writedata_from_adaptor;
+    wire [HDL_ADDR_WIDTH-1:0]   m0_address_from_adaptor;
+    wire                        m0_write_from_adaptor;
+    wire                        m0_read_from_adaptor;
+    wire [BYTEEN_WIDTH-1:0]     m0_byteenable_from_adaptor;
+    wire                        m0_debugaccess_from_adaptor;
     
     generate 
-    	if (BURSTCOUNT_WIDTH > 1) begin
-		assign burst_reset_val = {{(BURSTCOUNT_WIDTH-1){1'b0}}, 1'b1};
-	end else begin
-		assign burst_reset_val = 1'b1;
-	end
+        if (BURSTCOUNT_WIDTH > 1) begin
+            assign burst_reset_val = {{(BURSTCOUNT_WIDTH-1){1'b0}}, 1'b1};
+        end else begin
+            assign burst_reset_val = 1'b1;
+        end
     endgenerate
 
 
@@ -114,6 +131,66 @@ module ofs_plat_utils_avalon_mm_bridge
        end
     end
     endgenerate
+
+// This instance manages waitrequest allowance feature
+
+ofs_plat_utils_merlin_waitrequest_adapter #(
+    
+      .UAV_ADDRESS_W                 (HDL_ADDR_WIDTH),
+      .UAV_DATA_W                    (DATA_WIDTH),
+      .UAV_BURSTCOUNT_W              (BURSTCOUNT_WIDTH),
+      .UAV_RESPONSE_W                (RESPONSE_WIDTH),
+      .UAV_BYTEENABLE_W              (BYTEEN_WIDTH),
+ 
+      // Optional                   
+      .USE_WRITERESPONSE             (1),
+      .USE_READRESPONSE              (1),
+  
+      .S0_WAITREQUEST_ALLOWANCE      (S0_WAITREQUEST_ALLOWANCE),     
+      .M0_WAITREQUEST_ALLOWANCE      (M0_WAITREQUEST_ALLOWANCE),     
+      .SYNC_RESET                    (SYNC_RESET)
+
+) waitrequest_adapter (
+   .clk                          (clk),
+   .reset                        (reset),
+
+   // Universal Avalon Slave
+   // Inputs
+   .s0_write                     (s0_write),
+   .s0_read                      (s0_read),
+   .s0_address                   (s0_address),
+   .s0_burstcount                (s0_burstcount),
+   .s0_byteenable                (s0_byteenable),
+   .s0_writedata                 (s0_writedata),
+   .s0_lock                      (1'b0),
+   .s0_debugaccess               (s0_debugaccess),
+
+   //output
+   .s0_readdata                  (s0_readdata_from_adaptor),
+   .s0_readdatavalid             (s0_readdatavalid_from_adaptor),
+   .s0_waitrequest               (s0_waitrequest_from_adaptor),
+   .s0_response                  (s0_response_from_adaptor),
+   .s0_writeresponsevalid        (s0_writeresponsevalid_from_adaptor),
+
+   // Universal Avalon Master
+   // Output
+   .m0_write                     (m0_write_from_adaptor),
+   .m0_read                      (m0_read_from_adaptor),
+   .m0_address                   (m0_address_from_adaptor),
+   .m0_burstcount                (m0_burstcount_from_adaptor),
+   .m0_byteenable                (m0_byteenable_from_adaptor),
+   .m0_writedata                 (m0_writedata_from_adaptor),
+   .m0_lock                      (),
+   .m0_debugaccess               (m0_debugaccess_from_adaptor),
+
+
+   //Inputs
+   .m0_readdata                  (m0_readdata),
+   .m0_readdatavalid             (m0_readdatavalid),
+   .m0_waitrequest               (m0_waitrequest),
+   .m0_response                  (m0_response),
+   .m0_writeresponsevalid        (m0_writeresponsevalid)
+);
 
     // --------------------------------------
     // Command pipeline
@@ -145,9 +222,9 @@ module ofs_plat_utils_avalon_mm_bridge
    
         always @(posedge clk) begin
          if (wait_rise) begin
-         wr_reg_writedata  <= s0_writedata;
-         wr_reg_byteenable <= s0_byteenable;
-         wr_reg_address    <= s0_address;
+         wr_reg_writedata  <= m0_writedata_from_adaptor ;
+         wr_reg_byteenable <= m0_byteenable_from_adaptor ;
+         wr_reg_address    <= m0_address_from_adaptor ;
          end
         end
       
@@ -170,23 +247,23 @@ module ofs_plat_utils_avalon_mm_bridge
                     // next stage in this bridge.
                     // --------------------------------------
                     use_reg            <= 1'b1;
-                    wr_reg_burstcount <= burst_reset_val; //1'b1;
-                    wr_reg_write      <= 1'b0;
-                    wr_reg_read       <= 1'b0;
+                    wr_reg_burstcount  <= burst_reset_val; 
+                    wr_reg_write       <= 1'b0;
+                    wr_reg_read        <= 1'b0;
                     wr_reg_debugaccess <= 1'b0;
                 end else begin
                     wr_reg_waitrequest <= cmd_waitrequest;
 
                     if (wait_rise) begin
-                        wr_reg_write      <= s0_write;
-                        wr_reg_read       <= s0_read;
-                        wr_reg_burstcount <= s0_burstcount;
-                        wr_reg_debugaccess <= s0_debugaccess;
+                        wr_reg_write       <= m0_write_from_adaptor ;
+                        wr_reg_read        <= m0_read_from_adaptor ;
+                        wr_reg_burstcount  <= m0_burstcount_from_adaptor ;
+                        wr_reg_debugaccess <= m0_debugaccess_from_adaptor ;
                     end
 
                     // stop using the buffer when waitrequest is low
                     if (~cmd_waitrequest)
-                         use_reg <= 1'b0;
+                        use_reg <= 1'b0;
                     else if (wait_rise) begin
                         use_reg <= 1'b1;
                     end     
@@ -213,18 +290,18 @@ module ofs_plat_utils_avalon_mm_bridge
                       // --------------------------------------
                       use_reg            <= 1'b1;
 
-                      wr_reg_burstcount <= burst_reset_val; //1'b1;
-                      wr_reg_write      <= 1'b0;
-                      wr_reg_read       <= 1'b0;
+                      wr_reg_burstcount  <= burst_reset_val; 
+                      wr_reg_write       <= 1'b0;
+                      wr_reg_read        <= 1'b0;
                       wr_reg_debugaccess <= 1'b0;
                   end else begin
                       wr_reg_waitrequest <= cmd_waitrequest;
 
                       if (wait_rise) begin
-                          wr_reg_write      <= s0_write;
-                          wr_reg_read       <= s0_read;
-                          wr_reg_burstcount <= s0_burstcount;
-                          wr_reg_debugaccess <= s0_debugaccess;
+                          wr_reg_write       <= m0_write_from_adaptor ;
+                          wr_reg_read        <= m0_read_from_adaptor ;
+                          wr_reg_burstcount  <= m0_burstcount_from_adaptor ;
+                          wr_reg_debugaccess <= m0_debugaccess_from_adaptor ;
                       end
 
                       // stop using the buffer when waitrequest is low
@@ -240,13 +317,13 @@ module ofs_plat_utils_avalon_mm_bridge
         end // if sync_reset
 
         always @* begin
-            wr_burstcount  =  s0_burstcount;
-            wr_writedata   =  s0_writedata;
-            wr_address     =  s0_address;
-            wr_write       =  s0_write;
-            wr_read        =  s0_read;
-            wr_byteenable  =  s0_byteenable;
-            wr_debugaccess =  s0_debugaccess;
+            wr_burstcount  =  m0_burstcount_from_adaptor ;
+            wr_writedata   =  m0_writedata_from_adaptor ;
+            wr_address     =  m0_address_from_adaptor ;
+            wr_write       =  m0_write_from_adaptor ;
+            wr_read        =  m0_read_from_adaptor ;
+            wr_byteenable  =  m0_byteenable_from_adaptor ;
+            wr_debugaccess =  m0_debugaccess_from_adaptor ;
      
             if (use_reg) begin
                 wr_burstcount  =  wr_reg_burstcount;
@@ -272,7 +349,7 @@ module ofs_plat_utils_avalon_mm_bridge
         // --------------------------------------
         wire no_command;
         assign no_command      = ~(cmd_read || cmd_write);
-        assign cmd_waitrequest = m0_waitrequest & ~no_command;
+        assign cmd_waitrequest = s0_waitrequest_from_adaptor  & ~no_command;
 
         always @(posedge clk) begin
          if (~cmd_waitrequest) begin
@@ -286,16 +363,16 @@ module ofs_plat_utils_avalon_mm_bridge
        
           always @(posedge clk, posedge reset) begin
               if (reset) begin
-                  cmd_burstcount <= burst_reset_val; //1'b1;
-                  cmd_write      <= 1'b0;
-                  cmd_read       <= 1'b0;
+                  cmd_burstcount  <= burst_reset_val; //1'b1;
+                  cmd_write       <= 1'b0;
+                  cmd_read        <= 1'b0;
                   cmd_debugaccess <= 1'b0;
               end 
               else begin 
                   if (~cmd_waitrequest) begin
-                      cmd_write      <= wr_write;
-                      cmd_read       <= wr_read;
-                      cmd_burstcount <= wr_burstcount;
+                      cmd_write       <= wr_write;
+                      cmd_read        <= wr_read;
+                      cmd_burstcount  <= wr_burstcount;
                       cmd_debugaccess <= wr_debugaccess;
                   end
               end
@@ -305,16 +382,16 @@ module ofs_plat_utils_avalon_mm_bridge
 
           always @(posedge clk) begin //sync_reg1
               if (internal_sclr) begin
-                  cmd_burstcount <= burst_reset_val; //1'b1;
-                  cmd_write      <= 1'b0;
-                  cmd_read       <= 1'b0;
+                  cmd_burstcount  <= burst_reset_val; //1'b1;
+                  cmd_write       <= 1'b0;
+                  cmd_read        <= 1'b0;
                   cmd_debugaccess <= 1'b0;
               end 
               else begin 
                   if (~cmd_waitrequest) begin
-                      cmd_write      <= wr_write;
-                      cmd_read       <= wr_read;
-                      cmd_burstcount <= wr_burstcount;
+                      cmd_write       <= wr_write;
+                      cmd_read        <= wr_read;
+                      cmd_burstcount  <= wr_burstcount;
                       cmd_debugaccess <= wr_debugaccess;
                   end
               end
@@ -323,16 +400,16 @@ module ofs_plat_utils_avalon_mm_bridge
     end  // conditional command pipeline
     else begin
 
-        assign s0_waitrequest   = m0_waitrequest;
+        assign s0_waitrequest   = s0_waitrequest_from_adaptor ;
 
         always @* begin
-            cmd_burstcount   = s0_burstcount;
-            cmd_writedata    = s0_writedata;
-            cmd_address      = s0_address;
-            cmd_write        = s0_write;
-            cmd_read         = s0_read;
-            cmd_byteenable   = s0_byteenable;
-            cmd_debugaccess  = s0_debugaccess;
+            cmd_burstcount   = m0_burstcount_from_adaptor ;
+            cmd_writedata    = m0_writedata_from_adaptor ;
+            cmd_address      = m0_address_from_adaptor ;
+            cmd_write        = m0_write_from_adaptor ;
+            cmd_read         = m0_read_from_adaptor ;
+            cmd_byteenable   = m0_byteenable_from_adaptor ;
+            cmd_debugaccess  = m0_debugaccess_from_adaptor ;
         end
 
     end
@@ -360,28 +437,28 @@ module ofs_plat_utils_avalon_mm_bridge
        if (SYNC_RESET == 0) begin // async_reg2
         always @(posedge clk, posedge reset) begin
             if (reset) begin
-                rsp_readdatavalid <= 1'b0;
-                rsp_response      <= 2'b00; 
-		rsp_writeresponsevalid <= 1'b0;              
+                rsp_readdatavalid      <= 1'b0;
+                rsp_response           <= 2'b00; 
+                rsp_writeresponsevalid <= 1'b0;              
             end 
             else begin
-                rsp_readdatavalid <= m0_readdatavalid;
-                rsp_response      <= m0_response;
-		rsp_writeresponsevalid <= m0_writeresponsevalid;               
+                rsp_readdatavalid      <= s0_readdatavalid_from_adaptor ;
+                rsp_response           <= s0_response_from_adaptor ;
+                rsp_writeresponsevalid <= s0_writeresponsevalid_from_adaptor ;               
             end
         end
        end //async_reg2
        else begin // sync reg2
         always @(posedge clk) begin
             if (internal_sclr) begin
-                rsp_readdatavalid <= 1'b0;
-                rsp_response      <= 2'b00; 
-		rsp_writeresponsevalid <= 1'b0;              
+                rsp_readdatavalid      <= 1'b0;
+                rsp_response           <= 2'b00; 
+                rsp_writeresponsevalid <= 1'b0;              
             end 
             else begin
-                rsp_readdatavalid <= m0_readdatavalid;
-                rsp_response      <= m0_response;  
-		rsp_writeresponsevalid <= m0_writeresponsevalid;             
+                rsp_readdatavalid      <= s0_readdatavalid_from_adaptor ;
+                rsp_response           <= s0_response_from_adaptor ;  
+                rsp_writeresponsevalid <= s0_writeresponsevalid_from_adaptor ;             
             end
         end  
        end // end  sync_reg2 
@@ -391,10 +468,10 @@ module ofs_plat_utils_avalon_mm_bridge
     else begin
 
         always @* begin
-            rsp_readdatavalid = m0_readdatavalid;
-            rsp_readdata      = m0_readdata;
-            rsp_response      = m0_response;  
-	    rsp_writeresponsevalid = m0_writeresponsevalid;         
+            rsp_readdatavalid      = s0_readdatavalid_from_adaptor ;
+            rsp_readdata           = s0_readdata_from_adaptor ;
+            rsp_response           = s0_response_from_adaptor ;  
+            rsp_writeresponsevalid = s0_writeresponsevalid_from_adaptor ;         
         end
     end
     endgenerate

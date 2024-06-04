@@ -1,6 +1,9 @@
-// $File: //acds/rel/22.1/ip/iconnect/avalon_st/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v $
+// Copyright (C) 2024 Intel Corporation
+// SPDX-License-Identifier: MIT
+
+// $File: //acds/rel/24.1/ip/iconnect/avalon_st/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v $
 // $Revision: #1 $
-// $Date: 2022/01/27 $
+// $Date: 2024/02/01 $
 // $Author: psgswbuild $
 //-------------------------------------------------------------------------------
 // Description: Dual clocked single channel FIFO with fill levels and status
@@ -93,6 +96,8 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     parameter SYNC_RESET = 1;
 
+    parameter retiming_reg_en = 0;
+
     localparam ADDR_WIDTH   = log2ceil(FIFO_DEPTH);
     localparam DEPTH        = 2 ** ADDR_WIDTH;
     localparam DATA_WIDTH   = SYMBOLS_PER_BEAT * BITS_PER_SYMBOL;
@@ -179,13 +184,13 @@ module ofs_plat_utils_avalon_dc_fifo(
     reg  [ADDR_WIDTH : 0] in_rd_ptr_gray_reg;
 
     (* preserve_syn_only *)      reg full;
-    (* preserve_syn_only *) 	 reg full_copyA;
-    (* preserve_syn_only *) 	 reg full_copyB;
-    (* preserve_syn_only *) 	 reg full_copyC;
+    (* preserve_syn_only *)      reg full_copyA;
+    (* preserve_syn_only *)      reg full_copyB;
+    (* preserve_syn_only *)      reg full_copyC;
 
-    wire in_ready_copyA;	 
+    wire in_ready_copyA;     
     wire in_ready_copyB;
-    wire in_ready_copyC;	 
+    wire in_ready_copyC;     
     reg empty;
 
     wire [PAYLOAD_WIDTH - 1 : 0] in_payload;
@@ -206,18 +211,50 @@ module ofs_plat_utils_avalon_dc_fifo(
     reg [23 : 0] almost_empty_threshold;
     reg [23 : 0] almost_full_threshold;
 
-    reg internal_in_sclr;
-    reg internal_out_sclr;
+    wire internal_in_sclr;
+    wire internal_out_sclr;
+    
+    reg reset_in_reg;
+    reg reset_out_reg;
 
+    wire internal_in_sclr_n;
+    wire internal_out_sclr_n; 
+    
+    wire reset_merged;    
 
     always @ (posedge in_clk) begin
-         internal_in_sclr <= in_reset_n;
+        reset_in_reg <= ~in_reset_n;
     end
 
     always @ (posedge out_clk) begin
-         internal_out_sclr <= out_reset_n;
+        reset_out_reg <= ~out_reset_n;
     end
     
+    
+    //logic to reset write & read pointer if write or read reset is asserted
+    assign reset_merged = (reset_in_reg | reset_out_reg) ;
+     
+    ofs_plat_utils_reset_synchronizer #(
+            .ASYNC_RESET     (1'b1),           
+            .DEPTH (3)
+        ) write_reset_sync (
+            .reset_in (reset_merged), /* synthesis ALTERA_ATTRIBUTE = "SUPPRESS_DA_RULE_INTERNAL=R101" */
+            .clk(in_clk),
+            .reset_out(internal_in_sclr)
+        );
+    
+    assign internal_in_sclr_n = ~(internal_in_sclr);
+    
+    ofs_plat_utils_reset_synchronizer #(
+        .ASYNC_RESET     (1'b1),
+        .DEPTH (3)
+        ) read_reset_sync (
+             .reset_in (reset_merged), /* synthesis ALTERA_ATTRIBUTE = "SUPPRESS_DA_RULE_INTERNAL=R101" */
+             .clk(out_clk),
+             .reset_out(internal_out_sclr)
+        );    
+    
+    assign internal_out_sclr_n = ~(internal_out_sclr);    
     // --------------------------------------------------
     // Define Payload
     //
@@ -297,7 +334,7 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     wire [PAYLOAD_WIDTH-1:0] fifo_out_payload;
 
-	always @* begin
+    always @* begin
             internal_out_payload = fifo_out_payload;
         end
 
@@ -328,13 +365,13 @@ module ofs_plat_utils_avalon_dc_fifo(
                   .address_a (mem_wr_ptr), // write address
                   .address_b (mem_rd_ptr), // read address
                   .clock0 (in_clk),
-		  .clock1 (out_clk),
+          .clock1 (out_clk),
                   .data_a (in_payload), // in_data
                   .wren_a (in_valid && in_ready_copyA), // wr ptr
                   .q_b (fifo_out_payload),
                   .aclr0 (1'b0),
                   .aclr1 (1'b0),
- 		  .address2_a (1'b1),
+          .address2_a (1'b1),
                   .address2_b (1'b1),
                   .addressstall_a (1'b0),
                   .addressstall_b (1'b0),
@@ -346,12 +383,12 @@ module ofs_plat_utils_avalon_dc_fifo(
                   .clocken3 (1'b1),
                   .data_b ({PAYLOAD_WIDTH{1'b1}}), // input - connect data width 
                   .q_a (),
-		  .eccstatus (),
-	          .eccencbypass (1'b0),
-		  .eccencparity (8'b0),	
+          .eccstatus (),
+              .eccencbypass (1'b0),
+          .eccencparity (8'b0), 
                   .rden_a (1'b1),
                   .rden_b (1'b1),
-		  .sclr (1'b0),
+          .sclr (1'b0),
                   .wren_b (1'b0));
    
     assign mem_rd_ptr = next_out_rd_ptr[ADDR_WIDTH-1:0];
@@ -366,8 +403,8 @@ module ofs_plat_utils_avalon_dc_fifo(
    
     generate 
          if (SYNC_RESET == 0) begin
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n) begin
+            always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                if (!internal_in_sclr_n) begin
                     in_wr_ptr           <= 0;
                     in_wr_ptr_lookahead <= 1;
                 end
@@ -379,7 +416,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge in_clk) begin
-                if (~internal_in_sclr) begin
+                if (~internal_in_sclr_n) begin
                     in_wr_ptr           <= 0;
                     in_wr_ptr_lookahead <= 1;
                 end
@@ -394,8 +431,8 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     generate 
          if(SYNC_RESET == 0) begin
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if (!out_reset_n) begin
+            always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                if (!internal_out_sclr_n) begin
                     out_rd_ptr           <= 0;
                     out_rd_ptr_lookahead <= 1;
                 end
@@ -407,7 +444,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge out_clk) begin
-                if (~internal_out_sclr) begin
+                if (~internal_out_sclr_n) begin
                     out_rd_ptr           <= 0;
                     out_rd_ptr_lookahead <= 1;
                 end
@@ -422,14 +459,14 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate if (LOOKAHEAD_POINTERS) begin : lookahead_pointers
 
         assign next_in_wr_ptr       = (in_ready_copyC && in_valid) ? in_wr_ptr_lookahead : in_wr_ptr;
-		assign next_in_wr_ptr_copyB = (in_ready_copyB && in_valid) ? in_wr_ptr_lookahead : in_wr_ptr;
+        assign next_in_wr_ptr_copyB = (in_ready_copyB && in_valid) ? in_wr_ptr_lookahead : in_wr_ptr;
         assign next_out_rd_ptr      = (internal_out_ready && internal_out_valid) ? out_rd_ptr_lookahead : out_rd_ptr;
 
     end
     else begin : non_lookahead_pointers
 
         assign next_in_wr_ptr       = (in_ready_copyC && in_valid) ? in_wr_ptr + 1'b1 : in_wr_ptr;
-		assign next_in_wr_ptr_copyB = (in_ready_copyB && in_valid) ? in_wr_ptr + 1'b1 : in_wr_ptr;
+        assign next_in_wr_ptr_copyB = (in_ready_copyB && in_valid) ? in_wr_ptr + 1'b1 : in_wr_ptr;
         assign next_out_rd_ptr      = (internal_out_ready && internal_out_valid) ? out_rd_ptr + 1'b1 : out_rd_ptr;
 
     end
@@ -444,8 +481,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     generate
          if(SYNC_RESET == 0) begin
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if(!out_reset_n)
+            always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                if(!internal_out_sclr_n)
                     empty <= 1;
                 else
                     empty <= (next_out_rd_ptr == next_out_wr_ptr);
@@ -453,7 +490,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin 
             always @(posedge out_clk) begin
-                if(~internal_out_sclr)
+                if(~internal_out_sclr_n)
                     empty <= 1;
                 else
                     empty <= (next_out_rd_ptr == next_out_wr_ptr);
@@ -463,12 +500,12 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     generate
          if(SYNC_RESET == 0) begin 
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n) begin
-                    full       <= BACKPRESSURE_DURING_RESET ? 1 : 0;			
-				    full_copyA <= BACKPRESSURE_DURING_RESET ? 1 : 0;
-				    full_copyB <= BACKPRESSURE_DURING_RESET ? 1 : 0;
-				    full_copyC <= BACKPRESSURE_DURING_RESET ? 1 : 0;				
+            always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                if (!internal_in_sclr_n) begin
+                    full       <= BACKPRESSURE_DURING_RESET ? 1 : 0;            
+                    full_copyA <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+                    full_copyB <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+                    full_copyC <= BACKPRESSURE_DURING_RESET ? 1 : 0;                
                 end
                 else begin
                     full       <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
@@ -480,17 +517,17 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge in_clk) begin
-                if (~internal_in_sclr) begin
-                    full       <= BACKPRESSURE_DURING_RESET ? 1 : 0;			
-				    full_copyA <= BACKPRESSURE_DURING_RESET ? 1 : 0;
-				    full_copyB <= BACKPRESSURE_DURING_RESET ? 1 : 0;
-				    full_copyC <= BACKPRESSURE_DURING_RESET ? 1 : 0;				
+                if (~internal_in_sclr_n) begin
+                    full       <= BACKPRESSURE_DURING_RESET ? 1 : 0;            
+                    full_copyA <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+                    full_copyB <= BACKPRESSURE_DURING_RESET ? 1 : 0;
+                    full_copyC <= BACKPRESSURE_DURING_RESET ? 1 : 0;                
                 end
                 else begin
                     full       <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
-				    full_copyA <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
-				    full_copyB <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
-				    full_copyC <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                    full_copyA <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                    full_copyB <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
+                    full_copyC <= (next_in_rd_ptr[ADDR_WIDTH - 1 : 0] == next_in_wr_ptr[ADDR_WIDTH - 1 : 0]) && (next_in_rd_ptr[ADDR_WIDTH] != next_in_wr_ptr[ADDR_WIDTH]);
                 end
             end
          end
@@ -506,8 +543,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     
     generate 
          if(SYNC_RESET == 0) begin
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n)
+            always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                if (!internal_in_sclr_n)
                     in_wr_ptr_gray <= 0;
                 else
                     in_wr_ptr_gray <= bin2gray(in_wr_ptr);
@@ -515,7 +552,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge in_clk) begin
-                if (~internal_in_sclr)
+                if (~internal_in_sclr_n)
                     in_wr_ptr_gray <= 0;
                 else
                     in_wr_ptr_gray <= bin2gray(in_wr_ptr);
@@ -525,16 +562,16 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     generate
          if (SYNC_RESET == 0) begin
-            ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(WR_SYNC_DEPTH)) 
+            ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1),.retiming_reg_en (retiming_reg_en), .DEPTH(WR_SYNC_DEPTH)) 
               write_crosser (
                 .clk(out_clk),
-                .reset_n(out_reset_n),
+                .reset_n(internal_out_sclr_n),
                 .din(in_wr_ptr_gray),
                 .dout(out_wr_ptr_gray)
             );
          end
          else begin
-            ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(WR_SYNC_DEPTH)) 
+            ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .retiming_reg_en (retiming_reg_en), .DEPTH(WR_SYNC_DEPTH)) 
               write_crosser (
                 .clk(out_clk),
                 .reset_n(1'b1),
@@ -551,8 +588,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate if (PIPELINE_POINTERS) begin : wr_ptr_pipeline
 
          if(SYNC_RESET == 0) begin
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if (!out_reset_n)
+            always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                if (!internal_out_sclr_n)
                     out_wr_ptr_gray_reg <= 0;
                 else
                     out_wr_ptr_gray_reg <= gray2bin(out_wr_ptr_gray);
@@ -560,7 +597,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge out_clk) begin
-                if (~internal_out_sclr)
+                if (~internal_out_sclr_n)
                     out_wr_ptr_gray_reg <= 0;
                 else
                     out_wr_ptr_gray_reg <= gray2bin(out_wr_ptr_gray);
@@ -585,8 +622,8 @@ module ofs_plat_utils_avalon_dc_fifo(
 
    generate
       if(SYNC_RESET == 0) begin
-         always @(posedge out_clk or negedge out_reset_n) begin
-              if (!out_reset_n)
+         always @(posedge out_clk or negedge internal_out_sclr_n) begin
+              if (!internal_out_sclr_n)
                   out_rd_ptr_gray <= 0;
               else
                   out_rd_ptr_gray <= bin2gray(out_rd_ptr);
@@ -594,7 +631,7 @@ module ofs_plat_utils_avalon_dc_fifo(
       end
       else begin
          always @(posedge out_clk) begin
-              if (~internal_out_sclr)
+              if (~internal_out_sclr_n)
                   out_rd_ptr_gray <= 0;
               else
                   out_rd_ptr_gray <= bin2gray(out_rd_ptr);
@@ -604,16 +641,16 @@ module ofs_plat_utils_avalon_dc_fifo(
 
    generate
       if(SYNC_RESET == 0) begin
-         ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(RD_SYNC_DEPTH)) 
+         ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .retiming_reg_en (retiming_reg_en), .DEPTH(RD_SYNC_DEPTH)) 
             read_crosser (
               .clk(in_clk),
-              .reset_n(in_reset_n),
+              .reset_n(internal_in_sclr_n),
               .din(out_rd_ptr_gray),
               .dout(in_rd_ptr_gray)
          );
       end
       else begin
-         ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .DEPTH(RD_SYNC_DEPTH)) 
+         ofs_plat_utils_dcfifo_synchronizer_bundle #(.WIDTH(ADDR_WIDTH+1), .retiming_reg_en (retiming_reg_en), .DEPTH(RD_SYNC_DEPTH)) 
             read_crosser (
               .clk(in_clk),
               .reset_n(1'b1),
@@ -630,8 +667,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate if (PIPELINE_POINTERS) begin : rd_ptr_pipeline
 
         if(SYNC_RESET == 0) begin
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n)
+            always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                if (!internal_in_sclr_n)
                     in_rd_ptr_gray_reg <= 0;
                 else
                     in_rd_ptr_gray_reg <= gray2bin(in_rd_ptr_gray);
@@ -639,7 +676,7 @@ module ofs_plat_utils_avalon_dc_fifo(
         end
         else begin
             always @(posedge in_clk) begin
-                if (~internal_in_sclr)
+                if (~internal_in_sclr_n)
                     in_rd_ptr_gray_reg <= 0;
                 else
                     in_rd_ptr_gray_reg <= gray2bin(in_rd_ptr_gray);
@@ -659,11 +696,11 @@ module ofs_plat_utils_avalon_dc_fifo(
     // ---------------------------------------------------------------------
     // Avalon ST Signals
     // ---------------------------------------------------------------------
-     assign in_ready       = !full;	//BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
-	 assign in_ready_copyA = !full_copyA; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
-	 assign in_ready_copyB = !full_copyB; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
-	 assign in_ready_copyC = !full_copyC; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
-	 
+     assign in_ready       = !full; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+     assign in_ready_copyA = !full_copyA; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+     assign in_ready_copyB = !full_copyB; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+     assign in_ready_copyC = !full_copyC; //BACKPRESSURE_DURING_RESET is now supported by resetting full to '1'
+     
     assign internal_out_valid = !empty;
 
     // --------------------------------------------------
@@ -678,8 +715,8 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     generate 
          if(SYNC_RESET == 0) begin
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if (!out_reset_n) begin
+            always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                if (!internal_out_sclr_n) begin
                     out_valid <= 0;
                     out_payload <= 0;
                 end
@@ -693,7 +730,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge out_clk) begin
-                if (~internal_out_sclr) begin
+                if (~internal_out_sclr_n) begin
                     out_valid <= 0;
                     out_payload <= 0;
                 end
@@ -724,8 +761,8 @@ module ofs_plat_utils_avalon_dc_fifo(
         if (USE_OUT_FILL_LEVEL || STREAM_ALMOST_EMPTY) begin
 
             if(SYNC_RESET == 0) begin
-               always @(posedge out_clk or negedge out_reset_n) begin
-                   if (!out_reset_n) begin
+               always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                   if (!internal_out_sclr_n) begin
                        out_fifo_fill_level <= 0;
                    end
                    else begin
@@ -735,7 +772,7 @@ module ofs_plat_utils_avalon_dc_fifo(
             end
             else begin
                always @(posedge out_clk) begin
-                   if (~internal_out_sclr) begin
+                   if (~internal_out_sclr_n) begin
                        out_fifo_fill_level <= 0;
                    end
                    else begin
@@ -766,8 +803,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate 
     if (USE_OUT_FILL_LEVEL || STREAM_ALMOST_EMPTY) begin
          if(SYNC_RESET == 0) begin
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if (!out_reset_n) begin
+            always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                if (!internal_out_sclr_n) begin
                     out_csr_readdata <= 0;
                     if (STREAM_ALMOST_EMPTY) 
                         almost_empty_threshold <= 0;
@@ -790,7 +827,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge out_clk) begin
-                if (~internal_out_sclr) begin
+                if (~internal_out_sclr_n) begin
                     out_csr_readdata <= 0;
                     if (STREAM_ALMOST_EMPTY) 
                         almost_empty_threshold <= 0;
@@ -821,8 +858,8 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     if (STREAM_ALMOST_EMPTY) begin
          if(SYNC_RESET == 0) begin
-            always @(posedge out_clk or negedge out_reset_n) begin
-                if (!out_reset_n) begin
+            always @(posedge out_clk or negedge internal_out_sclr_n) begin
+                if (!internal_out_sclr_n) begin
                     almost_empty_valid <= 0;
                     almost_empty_data <= 0;
                 end
@@ -834,7 +871,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge out_clk) begin
-                if (~internal_out_sclr) begin
+                if (~internal_out_sclr_n) begin
                     almost_empty_valid <= 0;
                     almost_empty_data <= 0;
                 end
@@ -874,8 +911,8 @@ module ofs_plat_utils_avalon_dc_fifo(
         if (USE_IN_FILL_LEVEL || STREAM_ALMOST_FULL) begin
 
             if(SYNC_RESET == 0) begin
-               always @(posedge in_clk or negedge in_reset_n) begin
-                   if (!in_reset_n) begin
+               always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                   if (!internal_in_sclr_n) begin
                        in_fill_level <= 0;
                    end
                    else begin
@@ -885,7 +922,7 @@ module ofs_plat_utils_avalon_dc_fifo(
             end
             else begin
                always @(posedge in_clk) begin
-                   if (~internal_in_sclr) begin
+                   if (~internal_in_sclr_n) begin
                        in_fill_level <= 0;
                    end
                    else begin
@@ -901,8 +938,8 @@ module ofs_plat_utils_avalon_dc_fifo(
         if (USE_SPACE_AVAIL_IF) begin
        
             if(SYNC_RESET == 0) begin 
-               always @(posedge in_clk or negedge in_reset_n) begin
-                   if (!in_reset_n) begin
+               always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                   if (!internal_in_sclr_n) begin
                        in_space_avail <= FIFO_DEPTH;
                    end
                    else begin
@@ -924,7 +961,7 @@ module ofs_plat_utils_avalon_dc_fifo(
             end
             else begin
                always @(posedge in_clk) begin
-                   if (~internal_in_sclr) begin
+                   if (~internal_in_sclr_n) begin
                        in_space_avail <= FIFO_DEPTH;
                    end
                    else begin
@@ -960,8 +997,8 @@ module ofs_plat_utils_avalon_dc_fifo(
     generate 
     if (USE_IN_FILL_LEVEL || STREAM_ALMOST_FULL) begin
          if(SYNC_RESET == 0) begin
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n) begin
+            always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                if (!internal_in_sclr_n) begin
                     in_csr_readdata <= 0;
                     if (STREAM_ALMOST_FULL)
                         almost_full_threshold <= 0;
@@ -984,7 +1021,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge in_clk) begin
-                if (~internal_in_sclr) begin
+                if (~internal_in_sclr_n) begin
                     in_csr_readdata <= 0;
                     if (STREAM_ALMOST_FULL)
                         almost_full_threshold <= 0;
@@ -1015,8 +1052,8 @@ module ofs_plat_utils_avalon_dc_fifo(
 
     if (STREAM_ALMOST_FULL) begin
          if(SYNC_RESET == 0) begin
-            always @(posedge in_clk or negedge in_reset_n) begin
-                if (!in_reset_n) begin
+            always @(posedge in_clk or negedge internal_in_sclr_n) begin
+                if (!internal_in_sclr_n) begin
                     almost_full_valid <= 0;
                     almost_full_data <= 0;
                 end
@@ -1028,7 +1065,7 @@ module ofs_plat_utils_avalon_dc_fifo(
          end
          else begin
             always @(posedge in_clk) begin
-                if (~internal_in_sclr) begin
+                if (~internal_in_sclr_n) begin
                     almost_full_valid <= 0;
                     almost_full_data <= 0;
                 end
@@ -1078,7 +1115,7 @@ module ofs_plat_utils_avalon_dc_fifo(
             gray2bin[i] = gray_val[i];
 
             for (j = ADDR_WIDTH; j > i; j = j - 1) begin
-                gray2bin[i] = gray2bin[i] ^ gray_val[j];	
+                gray2bin[i] = gray2bin[i] ^ gray_val[j];    
             end
 
         end
@@ -1103,3 +1140,7 @@ module ofs_plat_utils_avalon_dc_fifo(
     endfunction
 
 endmodule
+
+
+
+
