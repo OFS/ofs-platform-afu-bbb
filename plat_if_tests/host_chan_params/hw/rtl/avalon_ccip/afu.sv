@@ -134,6 +134,7 @@ module afu
         );
 
     assign mmio64_if.response = 2'b0;
+    assign mmio64_if.readresponseuser = '0;
     assign mmio64_if.waitrequest = 1'b0;
 
 endmodule // afu
