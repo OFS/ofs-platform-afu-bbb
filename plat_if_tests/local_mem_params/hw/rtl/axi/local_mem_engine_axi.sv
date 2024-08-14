@@ -71,8 +71,13 @@
 
 module local_mem_engine_axi
   #(
-    parameter ENGINE_NUMBER = 0,
-    parameter LM_AFU_USER_WIDTH = 4
+    parameter GROUP_ENGINE_NUMBER = 0,
+    parameter LM_AFU_USER_WIDTH = 4,
+
+    // Setting NUM_UNIQUE_MEM_REGIONS to a value great than one partitions the
+    // address space into multiple unique address ranges by forcing a constant
+    // value in the high address bits. The value comes from GROUP_ENGINE_NUMBER.
+    parameter NUM_UNIQUE_MEM_REGIONS = 1
     )
    (
     // Local memory (AXI)
@@ -97,16 +102,24 @@ module local_mem_engine_axi
     // counter so in the test code 1 means 1 beat.
     typedef logic [local_mem_if.BURST_CNT_WIDTH : 0] t_burst_cnt;
 
-    // Address is to a line
-    localparam ADDR_WIDTH = local_mem_if.ADDR_WIDTH;
-    typedef logic [ADDR_WIDTH-1 : 0] t_addr;
-    localparam DATA_WIDTH = local_mem_if.DATA_WIDTH;
-    typedef logic [DATA_WIDTH-1 : 0] t_data;
+    // Forced high bits of the address, when enabled. A zero is left in the low bit
+    // of UNIQUE_REGION_ID so that the test can be sloppy with address management
+    // and a burst can wrap into the unused space.
+    localparam UNIQUE_REGION_ID_SIZE = $clog2(NUM_UNIQUE_MEM_REGIONS) + 1;
+    localparam bit [UNIQUE_REGION_ID_SIZE-1 : 0] UNIQUE_REGION_ID = { GROUP_ENGINE_NUMBER, 1'b0 };
 
     // Number of address bits that index a byte within a single bus-sized
     // line of data. This is the encoding of the AXI size field.
     localparam ADDR_BYTE_IDX_WIDTH = local_mem_if.ADDR_BYTE_IDX_WIDTH;
     typedef logic [ADDR_BYTE_IDX_WIDTH-1 : 0] t_byte_idx;
+
+    // Address is to a line
+    localparam ADDR_WIDTH = local_mem_if.ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH -
+                            (NUM_UNIQUE_MEM_REGIONS > 1 ? UNIQUE_REGION_ID_SIZE : 0);
+    typedef logic [ADDR_WIDTH-1 : 0] t_addr;
+    typedef logic [local_mem_if.ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH - 1 : 0] t_line_addr;
+    localparam DATA_WIDTH = local_mem_if.DATA_WIDTH;
+    typedef logic [DATA_WIDTH-1 : 0] t_data;
 
     localparam USER_WIDTH = local_mem_if.USER_WIDTH;
     localparam LM_AFU_USER_START = USER_WIDTH - LM_AFU_USER_WIDTH;
@@ -258,7 +271,7 @@ module local_mem_engine_axi
         local_mem_if.arvalid = (state_run && ! rd_done);
 
         local_mem_if.ar = '0;
-        local_mem_if.ar.addr = { rd_cur_addr, t_byte_idx'(0) };
+        local_mem_if.ar.addr = { t_line_addr'({UNIQUE_REGION_ID, rd_cur_addr}), t_byte_idx'(0) };
         local_mem_if.ar.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.ar.len = rd_req_burst_len - 1;
         local_mem_if.ar.id = rd_req_id;
@@ -495,7 +508,7 @@ module local_mem_engine_axi
     begin
         local_mem_if.awvalid = (state_run && ! wr_done) && wr_sop && local_mem_if.wready;
         local_mem_if.aw = '0;
-        local_mem_if.aw.addr = { wr_cur_addr, t_byte_idx'(0) };
+        local_mem_if.aw.addr = { t_line_addr'({UNIQUE_REGION_ID, wr_cur_addr}), t_byte_idx'(0) };
         local_mem_if.aw.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.aw.len = wr_flits_left - 1;
         local_mem_if.aw.id = wr_req_id;

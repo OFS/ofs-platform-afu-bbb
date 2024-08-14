@@ -1,0 +1,4 @@
+# Each bank gets a unique address range. Useful when "banks" share memory.
++define+TEST_PARAM_UNIQUE_REGIONS
+
+C:axi/sources_axi.txt

@@ -85,13 +85,20 @@ module afu
     //
     // ====================================================================
 
+`ifdef TEST_PARAM_UNIQUE_REGIONS
+    localparam UNIQUE_MEM_REGIONS = 1;
+`else
+    localparam UNIQUE_MEM_REGIONS = 0;
+`endif
+
     generate
         for (genvar b = 0; b < local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS; b = b + 1)
         begin : mb
             local_mem_engine_axi
               #(
-                .ENGINE_NUMBER(b),
-                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
+                .GROUP_ENGINE_NUMBER(b),
+                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH),
+                .NUM_UNIQUE_MEM_REGIONS(UNIQUE_MEM_REGIONS ? local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS : 1)
                 )
               eng
                (
@@ -105,8 +112,9 @@ module afu
         begin : mb_g1
             local_mem_engine_axi
               #(
-                .ENGINE_NUMBER(b + local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS),
-                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
+                .GROUP_ENGINE_NUMBER(b),
+                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH),
+                .NUM_UNIQUE_MEM_REGIONS(UNIQUE_MEM_REGIONS ? local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS : 1)
                 )
               eng
                (
@@ -121,9 +129,9 @@ module afu
         begin : mb_g2
             local_mem_engine_axi
               #(
-                .ENGINE_NUMBER(b + local_mem_g1_cfg_pkg::LOCAL_MEM_NUM_BANKS +
-                                   local_mem_cfg_pkg::LOCAL_MEM_NUM_BANKS),
-                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH)
+                .GROUP_ENGINE_NUMBER(b),
+                .LM_AFU_USER_WIDTH(LM_AFU_USER_WIDTH),
+                .NUM_UNIQUE_MEM_REGIONS(UNIQUE_MEM_REGIONS ? local_mem_g2_cfg_pkg::LOCAL_MEM_NUM_BANKS : 1)
                 )
               eng
                (

@@ -61,8 +61,13 @@
 
 module local_mem_engine_avalon
   #(
-    parameter ENGINE_NUMBER = 0,
-    parameter LM_AFU_USER_WIDTH = 4
+    parameter GROUP_ENGINE_NUMBER = 0,
+    parameter LM_AFU_USER_WIDTH = 4,
+
+    // Setting NUM_UNIQUE_MEM_REGIONS to a value great than one partitions the
+    // address space into multiple unique address ranges by forcing a constant
+    // value in the high address bits. The value comes from GROUP_ENGINE_NUMBER.
+    parameter NUM_UNIQUE_MEM_REGIONS = 1
     )
    (
     // Local memory (Avalon)
@@ -85,9 +90,17 @@ module local_mem_engine_avalon
 
     typedef logic [local_mem_if.BURST_CNT_WIDTH-1 : 0] t_burst_cnt;
 
+    // Forced high bits of the address, when enabled. A zero is left in the low bit
+    // of UNIQUE_REGION_ID so that the test can be sloppy with address management
+    // and a burst can wrap into the unused space.
+    localparam UNIQUE_REGION_ID_SIZE = $clog2(NUM_UNIQUE_MEM_REGIONS) + 1;
+    localparam bit [UNIQUE_REGION_ID_SIZE-1 : 0] UNIQUE_REGION_ID = { GROUP_ENGINE_NUMBER, 1'b0 };
+
     // Address is to a line
-    localparam ADDR_WIDTH = local_mem_if.ADDR_WIDTH;
+    localparam ADDR_WIDTH = local_mem_if.ADDR_WIDTH -
+                            (NUM_UNIQUE_MEM_REGIONS > 1 ? UNIQUE_REGION_ID_SIZE : 0);
     typedef logic [ADDR_WIDTH-1 : 0] t_addr;
+    typedef logic [local_mem_if.ADDR_WIDTH-1 : 0] t_line_addr;
     localparam DATA_WIDTH = local_mem_if.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
@@ -479,7 +492,7 @@ module local_mem_engine_avalon
     begin
         if (arb_do_read)
         begin
-            local_mem_if.address = rd_cur_addr;
+            local_mem_if.address = t_line_addr'({UNIQUE_REGION_ID, rd_cur_addr});
             local_mem_if.read = (state_run && ! rd_done);
             local_mem_if.write = 1'b0;
             local_mem_if.burstcount = rd_req_burst_len;
@@ -488,7 +501,7 @@ module local_mem_engine_avalon
         end
         else
         begin
-            local_mem_if.address = wr_cur_addr;
+            local_mem_if.address = t_line_addr'({UNIQUE_REGION_ID, wr_cur_addr});
             local_mem_if.read = 1'b0;
             local_mem_if.write = (state_run && ! wr_done) || ! wr_sop;
             local_mem_if.burstcount = wr_flits_left;
