@@ -412,7 +412,7 @@ initEngine(
     // Set the buffer size mask. The buffer is 2MB but the mask covers
     // only 1MB. This allows bursts to flow a bit beyond the mask
     // without concern for overflow.
-    csrEngWrite(csr_handle, accel_eng_idx, 4, (MB(1) / CL(1)) - 1);
+    csrEngWrite(csr_handle, accel_eng_idx, 4, (MB(1) / s_eng_bufs[e].data_bus_bytes) - 1);
 }
 
 
