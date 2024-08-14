@@ -129,7 +129,7 @@ module afu
         host_mem_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT] = 1'b1;
         // Store the index in user. This can be used below to match responses with
         // requests, though Avalon guarantees that responses are returned in order.
-        host_mem_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1 +: $clog2(NUM_INTR_IDS)] =
+        host_mem_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH +: $clog2(NUM_INTR_IDS)] =
             cur_intr_id;
 
         host_mem_if.wr_burstcount = 1;
@@ -144,14 +144,17 @@ module afu
 
     // Interrupt index is stored in wr_writeresponseuser
     t_intr_id rsp_intr_id;
-    assign rsp_intr_id = host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX+1 +: $clog2(NUM_INTR_IDS)];
+    assign rsp_intr_id = host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH +: $clog2(NUM_INTR_IDS)];
+
+    // Flags returned with write commit
+    wire ofs_plat_host_chan_axi_mem_pkg::t_hc_axi_user_flags wr_resp_user_flags =
+        host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH-1 : 0];
 
     // Count interrupt responses
     always_ff @(posedge clk)
     begin
         // Confirm that the interrupt user flag is set properly
-        if (host_mem_if.wr_writeresponsevalid &&
-            host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT])
+        if (host_mem_if.wr_writeresponsevalid && wr_resp_user_flags.interrupt)
         begin
             num_intr_responses <= num_intr_responses + 1;
             intr_response_mask[rsp_intr_id] <= 1'b1;
@@ -177,16 +180,14 @@ module afu
         begin
             if (wr_user_error) $fatal(2, "Aborting due to error");
 
-            if (host_mem_if.wr_writeresponsevalid &&
-                !host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT])
+            if (host_mem_if.wr_writeresponsevalid && !wr_resp_user_flags.interrupt)
             begin
                 $display("** ERROR ** %m: wr_writeresponseuser INTERRUPT flag not set!");
                 wr_user_error <= 1'b1;
             end
 
             // Ensure that the FENCE flag is not set
-            if (host_mem_if.wr_writeresponsevalid &&
-                host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
+            if (host_mem_if.wr_writeresponsevalid && wr_resp_user_flags.fence)
             begin
                 $display("** ERROR ** %m: wr_writeresponseuser FENCE flag is set unexpectedly!");
                 wr_user_error <= 1'b1;

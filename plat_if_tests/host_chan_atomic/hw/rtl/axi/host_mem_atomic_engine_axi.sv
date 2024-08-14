@@ -109,8 +109,6 @@ module host_mem_atomic_engine_axi
 
     localparam USER_WIDTH = host_mem_if.USER_WIDTH;
     typedef logic [USER_WIDTH-1 : 0] t_user;
-    // Portion of user field that doesn't include command flags (like FENCE)
-    typedef logic [USER_WIDTH-HC_AXI_UFLAG_MAX-2 : 0] t_user_afu;
 
     localparam RID_WIDTH = host_mem_if.RID_WIDTH;
     typedef logic [RID_WIDTH-1 : 0] t_rid;

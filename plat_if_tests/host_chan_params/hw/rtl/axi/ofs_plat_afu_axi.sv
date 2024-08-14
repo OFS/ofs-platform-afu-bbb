@@ -43,7 +43,7 @@ module ofs_plat_afu
 `endif
         // Write fence and interrupt are signaled with AWUSER flags. Add
         // 4 extra bits for requests (returned with responses).
-        .USER_WIDTH(ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX + 1 + 4),
+        .USER_WIDTH(ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH + 4),
         .LOG_CLASS(ofs_plat_log_pkg::HOST_CHAN)
         )
         host_mem_to_afu[NUM_PORTS]();

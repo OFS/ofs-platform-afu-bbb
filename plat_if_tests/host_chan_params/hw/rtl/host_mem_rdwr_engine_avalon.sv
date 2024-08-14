@@ -134,7 +134,9 @@ module host_mem_rdwr_engine_avalon
     localparam USER_WIDTH = host_mem_if.USER_WIDTH;
     typedef logic [USER_WIDTH-1 : 0] t_user;
     // Portion of user field that doesn't include command flags (like FENCE)
-    typedef logic [USER_WIDTH-HC_AVALON_UFLAG_MAX-2 : 0] t_user_afu;
+    localparam AFU_PVT_USER_WIDTH = USER_WIDTH -
+                                    ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH;
+    typedef logic [AFU_PVT_USER_WIDTH-1 : 0] t_user_afu;
 
     localparam ADDR_OFFSET_WIDTH = 32;
     typedef logic [ADDR_OFFSET_WIDTH-1 : 0] t_addr_offset;
@@ -420,10 +422,10 @@ module host_mem_rdwr_engine_avalon
                 // Only check the part of rd_readresponseuser above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,
                 // interrupts, etc. and are not guaranteed to be returned.
-                if (host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] !== rd_rsp_user)
+                if (host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_WIDTH] !== rd_rsp_user)
                 begin
                     $display("** ERROR ** %m: rd_readresponseuser is 0x%x, expected 0x%x",
-                             { host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1], t_hc_avalon_user_flags'(0) },
+                             { host_mem_if.rd_readresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_WIDTH], t_hc_avalon_user_flags'(0) },
                              { rd_rsp_user, t_hc_avalon_user_flags'(0) });
                     rd_user_error <= 1'b1;
                 end
@@ -552,6 +554,10 @@ module host_mem_rdwr_engine_avalon
     assign wr_fence_resp_expected = wr_fence_done &&
                                     (wr_bursts_req == wr_bursts_resp_sim + t_counter'(1));
 
+    // Flags returned with write commit
+    wire ofs_plat_host_chan_axi_mem_pkg::t_hc_axi_user_flags wr_resp_user_flags =
+        host_mem_if.wr_writeresponseuser[HC_AVALON_UFLAG_WIDTH-1 : 0];
+
     always_ff @(posedge clk)
     begin
         if (reset_n && !state_reset)
@@ -565,17 +571,16 @@ module host_mem_rdwr_engine_avalon
                 // Only check the part of wr_writeresponseuser above the flag bits.
                 // Flags are used to trigger fences, interrupts, etc. and are not
                 // guaranteed to be returned.
-                if (host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1] !== wr_rsp_user)
+                if (host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_WIDTH] !== wr_rsp_user)
                 begin
                     $display("** ERROR ** %m: wr_writeresponseuser is 0x%x, expected 0x%x",
-                             { host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_MAX+1], t_hc_avalon_user_flags'(0) },
+                             { host_mem_if.wr_writeresponseuser[USER_WIDTH-1 : HC_AVALON_UFLAG_WIDTH], t_hc_avalon_user_flags'(0) },
                              { wr_rsp_user, t_hc_avalon_user_flags'(0) });
                     wr_user_error <= 1'b1;
                 end
 
                 // Ensure that the FENCE flag is set only on responses for memory fences.
-                if (wr_fence_resp_expected !=
-                    host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE])
+                if (wr_fence_resp_expected != wr_resp_user_flags.fence)
                 begin
                     $display("** ERROR ** %m: wr_writeresponseuser FENCE flag is %0s unexpectedly!",
                              (wr_fence_resp_expected ? "clear" : "set"));
@@ -584,7 +589,7 @@ module host_mem_rdwr_engine_avalon
 
                 // Ensure that the INTERRUPT flag is not set. This AFU never requests
                 // an interrupt.
-                if (host_mem_if.wr_writeresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT])
+                if (wr_resp_user_flags.interrupt)
                 begin
                     $display("** ERROR ** %m: wr_writeresponseuser INTERRUPT flag is set unexpectedly!");
                     wr_user_error <= 1'b1;

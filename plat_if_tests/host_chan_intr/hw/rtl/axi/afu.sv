@@ -120,7 +120,7 @@ module afu
         // Store the index in user. This is used below to match responses in
         // case they are returned out of order. (Note that OFS PIM shims currently
         // all return AXI responses in order, so this is not strictly necessary.)
-        host_mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1 +: $clog2(NUM_INTR_IDS)] =
+        host_mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH +: $clog2(NUM_INTR_IDS)] =
             cur_intr_id;
 
         // Generate a corresponding write data packet
@@ -139,14 +139,17 @@ module afu
     // Count interrupt responses
     assign host_mem_if.bready = 1'b1;
 
+    // Flags returned with write commit
+    wire ofs_plat_host_chan_axi_mem_pkg::t_hc_axi_user_flags wr_b_user_flags =
+        host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH-1 : 0];
+
     // Interrupt index is stored in b.user
     t_intr_id rsp_intr_id;
-    assign rsp_intr_id = host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_MAX+1 +: $clog2(NUM_INTR_IDS)];
+    assign rsp_intr_id = host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH +: $clog2(NUM_INTR_IDS)];
 
     always_ff @(posedge clk)
     begin
-        if (host_mem_if.bvalid &&
-            host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT])
+        if (host_mem_if.bvalid && wr_b_user_flags.interrupt)
         begin
             num_intr_responses <= num_intr_responses + 1;
             intr_response_mask[rsp_intr_id] <= 1'b1;
@@ -173,16 +176,14 @@ module afu
         begin
             if (wr_user_error) $fatal(2, "Aborting due to error");
 
-            if (host_mem_if.bvalid &&
-                !host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT])
+            if (host_mem_if.bvalid && !wr_b_user_flags.interrupt)
             begin
                 $display("** ERROR ** %m: b.user INTERRUPT flag not set!");
                 wr_user_error <= 1'b1;
             end
 
             // Ensure that the FENCE flag is not set
-            if (host_mem_if.bvalid &&
-                host_mem_if.b.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE])
+            if (host_mem_if.bvalid && wr_b_user_flags.fence)
             begin
                 $display("** ERROR ** %m: b.user FENCE flag is set unexpectedly!");
                 wr_user_error <= 1'b1;
