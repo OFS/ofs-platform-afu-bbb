@@ -34,7 +34,7 @@ module ofs_plat_host_chan_@group@_fim_gasket
     ofs_plat_axi_stream_if.to_sink irq_cpl_to_pim
     );
 
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;

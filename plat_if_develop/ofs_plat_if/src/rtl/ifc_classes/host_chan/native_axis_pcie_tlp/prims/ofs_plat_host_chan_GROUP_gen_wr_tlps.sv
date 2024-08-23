@@ -33,7 +33,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     ofs_plat_axi_stream_if.to_source atomic_cpl_tag,
 
     // Fence completions, processed first by the read response pipeline.
-    // (t_dma_rd_tag)
+    // (t_gen_tx_wr_cpl)
     ofs_plat_axi_stream_if.to_source wr_fence_cpl,
 
     // Interrupt completions from the FIU (t_ofs_plat_pcie_hdr_irq)
@@ -44,7 +44,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     assign error = 1'b0;
 
@@ -131,7 +131,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     t_wr_fence_tag req_fence_tlp_tag;
 
     logic free_wr_fence_tlp_tag;
-    t_wr_fence_tag wr_fence_cpl_tag;
+    t_gen_tx_wr_cpl wr_fence_cpl_reg;
 
     //
     // Track write addresses so a fence can use the most recent address.
@@ -182,34 +182,34 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .alloc_uid(req_fence_tlp_tag),
 
         .free(free_wr_fence_tlp_tag),
-        .free_uid(wr_fence_cpl_tag)
+        .free_uid(t_wr_fence_tag'(wr_fence_cpl_reg.tag))
         );
 
 
     //
     // Register fence completion tags until forwarded to the AFU.
     //
-    logic wr_fence_cpl_valid;
-    assign free_wr_fence_tlp_tag = wr_rsp_notFull && wr_fence_cpl_valid;
-    assign wr_fence_cpl.tready = !wr_fence_cpl_valid;
+    logic wr_fence_cpl_reg_valid;
+    assign free_wr_fence_tlp_tag = wr_rsp_notFull && wr_fence_cpl_reg_valid;
+    assign wr_fence_cpl.tready = !wr_fence_cpl_reg_valid;
 
     always_ff @(posedge clk)
     begin
-        if (!wr_fence_cpl_valid)
+        if (!wr_fence_cpl_reg_valid)
         begin
-            wr_fence_cpl_valid <= wr_fence_cpl.tvalid;
-            wr_fence_cpl_tag <= wr_fence_cpl.t.data;
+            wr_fence_cpl_reg_valid <= wr_fence_cpl.tvalid;
+            wr_fence_cpl_reg <= wr_fence_cpl.t.data;
         end
         else
         begin
             // Fence completions get priority. As long as the outbound FIFO
             // has space the fence completion will be handled.
-            wr_fence_cpl_valid <= !wr_rsp_notFull;
+            wr_fence_cpl_reg_valid <= !wr_rsp_notFull;
         end
 
         if (!reset_n)
         begin
-            wr_fence_cpl_valid <= 1'b0;
+            wr_fence_cpl_reg_valid <= 1'b0;
         end
     end
 
@@ -230,7 +230,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .waddr(req_fence_tlp_tag),
         .wdata(wr_req.tag),
 
-        .raddr(wr_fence_cpl_tag),
+        .raddr(t_wr_fence_tag'(wr_fence_cpl_reg.tag)),
         .rdata(wr_fence_afu_tag)
         );
 
@@ -328,6 +328,8 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     always_comb
     begin
         tlp_mem_hdr = '0;
+
+        tlp_mem_hdr.vchan = wr_req.vchan;
 
         if (wr_req.is_fence)
         begin
@@ -478,21 +480,22 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
     logic fake_fence_rsp_valid;
     logic fake_fence_rsp_deq;
     t_dma_afu_tag fake_fence_afu_tag;
+    t_ofs_plat_pcie_hdr_vchan fake_fence_vchan;
 
     ofs_plat_prim_fifo2
       #(
-        .N_DATA_BITS(AFU_TAG_WIDTH)
+        .N_DATA_BITS(AFU_TAG_WIDTH + $bits(t_ofs_plat_pcie_hdr_vchan))
         )
       fake_fence_rsp_fifo
        (
         .clk,
         .reset_n,
 
-        .enq_data(wr_req.tag),
+        .enq_data({ wr_req.tag, wr_req.vchan }),
         .enq_en(wr_req_deq && wr_req.eop && wr_req.is_fence && !last_wr_addr_valid),
         .notFull(fake_fence_rsp_notFull),
 
-        .first(fake_fence_afu_tag),
+        .first({ fake_fence_afu_tag, fake_fence_vchan }),
         .deq_en(fake_fence_rsp_deq),
         .notEmpty(fake_fence_rsp_valid)
         );
@@ -518,7 +521,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             irq_cpl_reg_valid <= irq_cpl.tvalid;
             irq_cpl_reg <= irq_cpl.t.data;
         end
-        else if (wr_rsp_notFull && !wr_fence_cpl_valid)
+        else if (wr_rsp_notFull && !wr_fence_cpl_reg_valid)
         begin
             // Can forward a registered completion this cycle. (Fences get
             // priority.)
@@ -574,11 +577,12 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         fake_fence_rsp_deq = 1'b0;
         std_wr_rsp_deq = 1'b0;
 
-        if (wr_fence_cpl_valid)
+        if (wr_fence_cpl_reg_valid)
         begin
             wr_rsp.is_fence = 1'b1;
             wr_rsp.is_interrupt = 1'b0;
             wr_rsp.tag = wr_fence_afu_tag;
+            wr_rsp.vchan = wr_fence_cpl_reg.vchan;
             wr_rsp.line_idx = 0;
         end
         else if (irq_cpl_reg_valid)
@@ -586,6 +590,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             wr_rsp.is_fence = 1'b0;
             wr_rsp.is_interrupt = 1'b1;
             wr_rsp.tag = { '0, irq_cpl_reg.irq_id };
+            wr_rsp.vchan = t_ofs_plat_pcie_hdr_vchan'(irq_cpl_reg.requester_id);
             wr_rsp.line_idx = 0;
         end
         else if (fake_fence_rsp_valid)
@@ -593,6 +598,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             wr_rsp.is_fence = 1'b1;
             wr_rsp.is_interrupt = 1'b0;
             wr_rsp.tag = fake_fence_afu_tag;
+            wr_rsp.vchan = fake_fence_vchan;
             wr_rsp.line_idx = 0;
             fake_fence_rsp_deq = wr_rsp_notFull;
         end
@@ -601,6 +607,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
             wr_rsp.is_fence = 1'b0;
             wr_rsp.is_interrupt = 1'b0;
             wr_rsp.tag = std_wr_rsp.tag;
+            wr_rsp.vchan = std_wr_rsp.vchan;
             wr_rsp.line_idx = std_wr_rsp.line_count - 1;
             std_wr_rsp_deq = std_wr_rsp_valid && wr_rsp_notFull;
         end
@@ -618,7 +625,7 @@ module ofs_plat_host_chan_@group@_gen_wr_tlps
         .enq_data(wr_rsp),
         // Send a write response for the end of a normal write, when a
         // write fence completion arrives, or when an interrupt completes.
-        .enq_en(wr_rsp_notFull && (std_wr_rsp_valid || wr_fence_cpl_valid || irq_cpl_reg_valid ||
+        .enq_en(wr_rsp_notFull && (std_wr_rsp_valid || wr_fence_cpl_reg_valid || irq_cpl_reg_valid ||
                                    fake_fence_rsp_valid)),
         .notFull(wr_rsp_notFull),
 

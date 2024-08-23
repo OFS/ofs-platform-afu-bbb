@@ -442,6 +442,33 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     localparam int MAX_BW_ACTIVE_WR_LINES =
                        ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_BW_ACTIVE_WR_LINES;
 
+    // synthesis translate_off
+    initial begin
+        if (host_mem_to_afu.USER_WIDTH < ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: host_mem_to_afu user field is too narrow for flags. Is %0d, needs %0d.",
+                   host_mem_to_afu.USER_WIDTH,
+                   ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH);
+        end
+
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        if (host_mem_to_afu.USER_WIDTH < ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WITH_VCHAN_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: host_mem_to_afu user field is too narrow for multiplexed vchan. Is %0d, needs %0d.",
+                   host_mem_to_afu.USER_WIDTH,
+                   ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WITH_VCHAN_WIDTH);
+        end
+
+        if (avmm_mmio.USER_WIDTH < ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_MMIO_UFLAG_WITH_VCHAN_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: mmio_to_afu field is too narrow for multiplexed vchan. Is %0d, needs %0d.",
+                   avmm_mmio.USER_WIDTH,
+                   ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_MMIO_UFLAG_WITH_VCHAN_WIDTH);
+        end
+`endif
+    end
+    // synthesis translate_on
+
     // ====================================================================
     //  Bind the proper clock to the AFU interface. If there is no clock
     //  crossing requested then it's just the FIU clock.
@@ -496,7 +523,11 @@ module ofs_plat_host_chan_@group@_as_avalon_mem_rdwr_impl
     localparam RCB_USER_WIDTH = 2 * ofs_plat_host_chan_@group@_pcie_tlp_pkg::NUM_PAYLOAD_RCB_SEGS;
 
     localparam USER_WIDTH =
-        ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_MAX + 1 +
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WITH_VCHAN_WIDTH +
+`else
+        ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_WIDTH +
+`endif
         ROB_IDX_WIDTH + RCB_USER_WIDTH;
 
     // Maximum burst that fits in the largest allowed TLP packet

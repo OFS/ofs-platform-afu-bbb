@@ -41,6 +41,7 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
+    import ofs_plat_host_chan_avalon_mem_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;
@@ -148,6 +149,8 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
         (MMIO_WO_DATA_WIDTH >= 64) && (MMIO_WO_DATA_WIDTH <= 512) &&
         (MMIO_WO_DATA_WIDTH == (2 ** $clog2(MMIO_WO_DATA_WIDTH)));
 
+    t_hc_avalon_mmio_user_flags_with_vchan mmio_flags;
+
     // synthesis translate_off
     initial
     begin
@@ -172,7 +175,17 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
 
     assign mmio_if.address = host_mmio_req.t.data.addr[$clog2(MMIO_DATA_WIDTH/8) +: MMIO_ADDR_WIDTH];
     assign mmio_if.burstcount = '1;
-    assign mmio_if.user = '0;
+
+    always_comb
+    begin
+        mmio_flags = '0;
+        mmio_flags.vchan = host_mmio_req.t.data.vchan;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        mmio_if.user = { '0, mmio_flags };
+`else
+        mmio_if.user = '0;
+`endif
+    end
 
     // Reformat MMIO write data and mask for Avalon
     ofs_plat_host_chan_mmio_wr_data_comb
@@ -224,7 +237,11 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
 
     assign mmio_wo_if.address = host_mmio_req.t.data.addr[$clog2(MMIO_WO_DATA_WIDTH/8) +: MMIO_WO_ADDR_WIDTH];
     assign mmio_wo_if.burstcount = '1;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    assign mmio_wo_if.user = { '0, mmio_flags };
+`else
     assign mmio_wo_if.user = '0;
+`endif
 
     // Reformat MMIO write data and mask for Avalon
     ofs_plat_host_chan_mmio_wr_data_comb
@@ -289,6 +306,8 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     assign host_mmio_rsp.tvalid = mmio_rd_datavalid;
     assign host_mmio_rsp.t.data.tag = mmio_rd_tag;
     assign host_mmio_rsp.t.data.payload = { '0, mmio_rd_data_shifted };
+    // No need to return the PF/VF vchan here. The TLP mapper records
+    // it, indexed by the tag.
 
 
     // ====================================================================
@@ -328,6 +347,10 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
 
     // Read requests from AFU (t_gen_tx_afu_rd_req)
     `AXI_STREAM_INSTANCE(afu_rd_req, t_gen_tx_afu_rd_req);
+
+    wire t_hc_avalon_user_flags_with_vchan mem_if_rd_user =
+        t_hc_avalon_user_flags_with_vchan'(mem_if.rd_user);
+
     assign afu_rd_req.tvalid = mem_if.rd_read;
     assign mem_if.rd_waitrequest = !afu_rd_req.tready;
     assign afu_rd_req.t.data.tag = { '0, robIdxFromUser(mem_if.rd_user) };
@@ -335,6 +358,11 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     assign afu_rd_req.t.data.addr = { '0, mem_if.rd_address, t_line_addr_idx'(0) };
     // Atomics are not currently supported in the Avalon-MM interface.
     assign afu_rd_req.t.data.is_atomic = 1'b0;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    assign afu_rd_req.t.data.vchan = mem_if_rd_user.vchan;
+`else
+    assign afu_rd_req.t.data.vchan = '0;
+`endif
 
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
     `AXI_STREAM_INSTANCE(afu_rd_rsp, t_gen_tx_afu_rd_rsp);
@@ -385,8 +413,7 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
         end
 
         // Use the no reply flag to indicate the beat isn't SOP.
-        mem_if.rd_readresponseuser[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_NO_REPLY] <=
-            |(afu_rd_rsp.t.data.line_idx);
+        mem_if.rd_readresponseuser[HC_AVALON_UFLAG_NO_REPLY] <= |(afu_rd_rsp.t.data.line_idx);
     end
 
     // synthesis translate_off
@@ -505,6 +532,9 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
     assign mem_if.wr_waitrequest = !afu_wr_req.tready;
     assign afu_wr_req.tvalid = mem_if.wr_write;
 
+    wire t_hc_avalon_user_flags_with_vchan mem_if_wr_user =
+        t_hc_avalon_user_flags_with_vchan'(mem_if.wr_user);
+
     always_comb
     begin
         afu_wr_req.t.data = '0;
@@ -514,12 +544,12 @@ module ofs_plat_host_chan_@group@_map_as_avalon_mem_if
 
         if (wr_is_sop)
         begin
-            afu_wr_req.t.data.is_fence =
-                (mem_if.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE) &&
-                 mem_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_FENCE];
-            afu_wr_req.t.data.is_interrupt =
-                (mem_if.USER_WIDTH > ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT) &&
-                 mem_if.wr_user[ofs_plat_host_chan_avalon_mem_pkg::HC_AVALON_UFLAG_INTERRUPT];
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+            afu_wr_req.t.data.vchan = mem_if_wr_user.vchan;
+`endif
+
+            afu_wr_req.t.data.is_fence = mem_if_wr_user.base.fence;
+            afu_wr_req.t.data.is_interrupt = mem_if_wr_user.base.interrupt;
 
             // If either the first or the last mask bit is 0 then write only
             // a portion of the line. This is supported only for simple line requests.

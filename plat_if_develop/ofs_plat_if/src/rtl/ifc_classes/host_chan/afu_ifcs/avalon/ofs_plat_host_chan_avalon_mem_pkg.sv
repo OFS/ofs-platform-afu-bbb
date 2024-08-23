@@ -43,38 +43,53 @@ package ofs_plat_host_chan_avalon_mem_pkg;
 
 
     //
-    // Message routing info for multiplexed streams. E.g., multiple PCIe VFs
+    // Virtual channel info for multiplexed streams. E.g., multiple PCIe VFs
     // in a single interface. When the PIM-generated host channel mapping to
     // memory mapped interfaces remains multiplexed, routing information is
     // added to the user field.
     //
     // The Avalon-MM interface exposed by the PIM to AFUs is supposed to be independent
-    // of the protocol of the actual device in the FIM. Routing information
-    // for a multiplexed channel is necessarily protocol-specific. As a compromise,
-    // we define a union of all supported routing tags so that the data structure
-    // remains the same everywhere. The only current routing info is PCIe PF/VFs.
+    // of the protocol of the actual device in the FIM. Virtual channels
+    // for a multiplexed channel are necessarily protocol-specific. As a compromise,
+    // we define a dense vchan ID. The platform-specific code in the PIM manages
+    // the mapping from vchan to device mapping, e.g. to PF/VF.
     //
-    typedef struct packed {
-        logic vf_active;
-        logic [10:0] vf_num;
-        logic [2:0] pf_num;
-    } t_hc_avalon_user_routing_pcie;
+    // Because the interface here is device independent, the size of the vchan
+    // ID is fixed. The current value, 11, matches the maximum PCIe VF.
+    localparam HC_AVALON_UFLAG_VCHAN_WIDTH = 11;
+    typedef logic [HC_AVALON_UFLAG_VCHAN_WIDTH-1:0] t_hc_avalon_user_vchan;
 
-    typedef union packed {
-        t_hc_avalon_user_routing_pcie pcie;
-    } t_hc_avalon_user_routing;
-
-    // Full user flags struct for use when routing is added to the user field.
+    // Full user flags struct for use when vchan is added to the user field.
     // The low bits in base are the same as normal user flags. This struct
     // is larger than the default user field size, so AFUs that enable
     // multiplexed memory mapped interfaces must ensure the instantiated
     // interfaces specify proper user field width.
     typedef struct packed {
-        // Routing info for multiplexed streams such as multiple PCIe PF/VFs
-        t_hc_avalon_user_routing routing;
+        // Virtual channel for multiplexed streams such as multiple PCIe PF/VFs
+        t_hc_avalon_user_vchan vchan;
 
         // Base flags, e.g. fence.
         t_hc_avalon_user_flags base;
-    } t_hc_avalon_user_flags_with_routing;
+    } t_hc_avalon_user_flags_with_vchan;
+    localparam HC_AVALON_UFLAG_WITH_VCHAN_WIDTH = $bits(t_hc_avalon_user_flags_with_vchan);
+
+
+    //
+    // Flags on MMIO user fields
+    //
+
+    // Currently there are no base MMIO flags. Data structure defined as
+    // a placeholder.
+    typedef struct packed {
+        logic reserved;
+    } t_hc_avalon_mmio_user_flags;
+    localparam HC_AVALON_MMIO_UFLAG_WIDTH = $bits(t_hc_avalon_user_flags);
+
+    typedef struct packed {
+        // Virtual channel for multiplexed streams such as multiple PCIe PF/VFs
+        t_hc_avalon_user_vchan vchan;
+        t_hc_avalon_mmio_user_flags base;
+    } t_hc_avalon_mmio_user_flags_with_vchan;
+    localparam HC_AVALON_MMIO_UFLAG_WITH_VCHAN_WIDTH = $bits(t_hc_avalon_mmio_user_flags_with_vchan);
 
 endpackage // ofs_plat_host_chan_avalon_mem_pkg

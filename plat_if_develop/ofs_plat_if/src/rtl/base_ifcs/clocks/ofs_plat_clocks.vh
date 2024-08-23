@@ -51,7 +51,18 @@ typedef struct packed
     // There is typically a single uClk, shared by all ports. Thus all clocks
     // will be the same for all indices in ports, but the resets will differ
     // due to separate soft reset control of each port.
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    // AFU expects multiplexed ports without a PF/VF MUX.
+    t_ofs_plat_std_afu_clocks [`OFS_PLAT_PARAM_HOST_CHAN_NUM_MULTIPLEXED_PORTS - 1 : 0] ports;
+
+    // Generate clock/reset pairs for demultiplexed ports.
+    // The resets here include function level resets.
+    t_ofs_plat_std_afu_clocks [`OFS_PLAT_PARAM_HOST_CHAN_NUM_MULTIPLEXED_PORTS - 1 : 0][`OFS_PLAT_PARAM_HOST_CHAN_NUM_CHAN_PER_MULTIPLEXED_PORT - 1 : 0] demux_ports;
+`else
+    // AFU expects demultiplexed ports from the FIM, one PF/VF per
+    // port linearized even across physically separate links.
     t_ofs_plat_std_afu_clocks [`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS - 1 : 0] ports;
+`endif
 
     // These are provided for legacy AFU support. Before multiple PFs and VFs
     // where supported, there was a single host channel. The resets below

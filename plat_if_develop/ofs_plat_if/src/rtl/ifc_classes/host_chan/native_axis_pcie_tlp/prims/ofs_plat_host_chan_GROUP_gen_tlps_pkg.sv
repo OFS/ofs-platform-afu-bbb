@@ -11,6 +11,7 @@
 package ofs_plat_host_chan_@group@_gen_tlps_pkg;
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     //
     // MMIO
@@ -19,6 +20,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     // Requests to AFU
     typedef struct packed {
         t_mmio_rd_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         logic [63:0] addr;
         logic [11:0] byte_count;
         logic is_write;
@@ -34,6 +36,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     // Host read requests, tracked internally (not for AFU)
     typedef struct packed {
         t_mmio_rd_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         logic [6:0] lower_addr;
         logic [11:0] byte_count;
         logic [15:0] requester_id;
@@ -53,6 +56,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         logic is_atomic;
 
         t_dma_afu_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
         logic [63:0] addr;
@@ -62,6 +66,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     typedef struct packed {
         logic [PAYLOAD_LINE_SIZE-1 : 0] payload;
         t_dma_afu_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         // Line index in multi-line read
         t_tlp_payload_line_idx line_idx;
         // Done handling full request?
@@ -104,6 +109,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
         e_atomic_op atomic_op;
 
         t_dma_afu_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         // Number of lines to request
         t_tlp_payload_line_count line_count;
         // Byte address, but the code assumes byte offset bits within a line are 0.
@@ -129,6 +135,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     // Write response to AFU
     typedef struct packed {
         t_dma_afu_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         // Line index of last line in multi-line write (zero based)
         t_tlp_payload_line_idx line_idx;
         logic is_fence;
@@ -140,6 +147,7 @@ package ofs_plat_host_chan_@group@_gen_tlps_pkg;
     // the commit point of a write request into the ordered TLP stream.
     typedef struct packed {
         t_dma_afu_tag tag;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         // Number of lines
         t_tlp_payload_line_count line_count;
     } t_gen_tx_wr_cpl;

@@ -8,7 +8,7 @@
 // types using FIM-specific gaskets.
 //
 
-package ofs_plat_pcie_tlp_hdr_pkg;
+package ofs_plat_pcie_tlp_@group@_hdr_pkg;
 
     // PCIe FMTTYPE - the command
     typedef logic [7:0] t_ofs_plat_pcie_hdr_fmttype;
@@ -38,6 +38,10 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     typedef logic [6:0] t_ofs_plat_pcie_hdr_lower_addr;
     typedef logic [15:0] t_ofs_plat_pcie_hdr_irq_id;
 
+    // Lower layers of the PIM map PF/VF in multiplexed channels
+    // to a linear virtual channel ID.
+    localparam OFS_PLAT_PCIE_VC_WIDTH = $clog2(ofs_plat_host_chan_@group@_pkg::NUM_CHAN_PER_MULTIPLEXED_PORT);
+    typedef logic [OFS_PLAT_PCIE_VC_WIDTH-1:0] t_ofs_plat_pcie_hdr_vchan;
 
     //
     // Header encodings, associated with the FMTTYPE commands above.
@@ -117,6 +121,7 @@ package ofs_plat_pcie_tlp_hdr_pkg;
         } u;
 
         logic is_irq;
+        t_ofs_plat_pcie_hdr_vchan vchan;
         t_ofs_plat_pcie_hdr_length length;
         t_ofs_plat_pcie_hdr_fmttype fmttype;
     }
@@ -200,9 +205,9 @@ package ofs_plat_pcie_tlp_hdr_pkg;
     endfunction
 
     function automatic string ofs_plat_pcie_func_base_to_string(input t_ofs_plat_pcie_hdr hdr);
-        return $sformatf("%6s len 0x%x",
+        return $sformatf("%6s len 0x%x [pim vchan %0d]",
                          ofs_plat_pcie_func_fmttype_to_string(hdr.fmttype),
-                         hdr.length);
+                         hdr.length, hdr.vchan);
     endfunction
 
     function automatic string ofs_plat_pcie_func_mem_req_to_string(input t_ofs_plat_pcie_hdr hdr);
@@ -255,4 +260,4 @@ package ofs_plat_pcie_tlp_hdr_pkg;
 
     // synthesis translate_on
 
-endpackage // ofs_plat_pcie_tlp_hdr_pkg
+endpackage // ofs_plat_pcie_tlp_@group@_hdr_pkg

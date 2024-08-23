@@ -40,13 +40,25 @@ module ofs_plat_host_chan_@group@_fim_gasket
     ofs_plat_axi_stream_if.to_sink irq_cpl_to_pim
     );
 
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
     import ofs_plat_host_chan_@group@_fim_gasket_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;
     logic reset_n;
     assign reset_n = to_fiu_tlp.reset_n;
+
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    // When true, no PF/VF MUX is instantiated between ofs_plat_afu() and the FIM.
+    // The PCIe stream remains multiplexed, tagged by SR-IOV PF/VF numbers.
+    // The PIM retains the PF/VF tags so that a single PIM instance manages
+    // the TLP stream.
+    localparam PCIE_MULTIPLEXED = 1;
+`else
+    // When multiplexing is disabled, the stream maps to a single SR-IOV
+    // instance. The constant PF/VF tag stored in to_fiu_tlp will be used.
+    localparam PCIE_MULTIPLEXED = 0;
+`endif
 
     // Delay the allow_dm_enc flag for timing
     logic [7:0] allow_dm_enc_reg;
@@ -222,9 +234,22 @@ module ofs_plat_host_chan_@group@_fim_gasket
         { tx_mem_req_dm_hdr.host_addr_h, tx_mem_req_dm_hdr.host_addr_m, tx_mem_req_dm_hdr.host_addr_l } =
             tx_from_pim.t.user[0].hdr.u.mem_req.addr;
 
-        tx_mem_req_dm_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_mem_req_dm_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_mem_req_dm_hdr.vf_active = to_fiu_tlp.vf_active;
+        if (PCIE_MULTIPLEXED)
+        begin
+            map_vchan_to_pf_vf_num(tx_from_pim.t.user[0].hdr.vchan,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs,
+                                   tx_mem_req_dm_hdr.vf_num,
+                                   tx_mem_req_dm_hdr.vf_active,
+                                   tx_mem_req_dm_hdr.pf_num);
+        end
+        else
+        begin
+            tx_mem_req_dm_hdr.pf_num = to_fiu_tlp.pfvf.pf_num;
+            tx_mem_req_dm_hdr.vf_num = to_fiu_tlp.pfvf.vf_num;
+            tx_mem_req_dm_hdr.vf_active = to_fiu_tlp.pfvf.vf_active;
+        end
 
         // Because there are two TX pipelines in the FIM, TX A for writes and TX B
         // for reads, the commit point of writes has not yet been reached. Pass
@@ -242,7 +267,13 @@ module ofs_plat_host_chan_@group@_fim_gasket
         tx_mem_req_pu_hdr = '0;
         tx_mem_req_pu_hdr.fmt_type = tx_fmttype;
         tx_mem_req_pu_hdr.length = tx_from_pim.t.user[0].hdr.length;
-        tx_mem_req_pu_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
+        tx_mem_req_pu_hdr.req_id =
+            PCIE_MULTIPLEXED ? map_vchan_to_pf_vf_id(tx_from_pim.t.user[0].hdr.vchan,
+                                                     to_fiu_tlp.vchan_mapping_alg,
+                                                     to_fiu_tlp.num_multiplexed_pfvfs,
+                                                     to_fiu_tlp.multiplexed_pfvfs) :
+                               to_fiu_tlp.pfvf;
+
         tx_mem_req_pu_hdr.TC = tx_from_pim.t.user[0].hdr.u.mem_req.tc;
         { tx_mem_req_pu_hdr.tag_h, tx_mem_req_pu_hdr.tag_m, tx_mem_req_pu_hdr.tag_l } =
             { '0, tx_from_pim.t.user[0].hdr.u.mem_req.tag };
@@ -257,9 +288,23 @@ module ofs_plat_host_chan_@group@_fim_gasket
         begin
             tx_mem_req_pu_hdr.host_addr_h = tx_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
         end
-        tx_mem_req_pu_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_mem_req_pu_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_mem_req_pu_hdr.vf_active = to_fiu_tlp.vf_active;
+
+        if (PCIE_MULTIPLEXED)
+        begin
+            map_vchan_to_pf_vf_num(tx_from_pim.t.user[0].hdr.vchan,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs,
+                                   tx_mem_req_pu_hdr.vf_num,
+                                   tx_mem_req_pu_hdr.vf_active,
+                                   tx_mem_req_pu_hdr.pf_num);
+        end
+        else
+        begin
+            tx_mem_req_pu_hdr.pf_num = to_fiu_tlp.pfvf.pf_num;
+            tx_mem_req_pu_hdr.vf_num = to_fiu_tlp.pfvf.vf_num;
+            tx_mem_req_pu_hdr.vf_active = to_fiu_tlp.pfvf.vf_active;
+        end
 
         // Because there are two TX pipelines in the FIM, TX A for writes and TX B
         // for reads, the commit point of writes has not yet been reached. Pass
@@ -283,10 +328,29 @@ module ofs_plat_host_chan_@group@_fim_gasket
             { '0, tx_from_pim.t.user[0].hdr.u.cpl.tag };
         tx_cpl_hdr.byte_count = tx_from_pim.t.user[0].hdr.u.cpl.byte_count;
         tx_cpl_hdr.low_addr = tx_from_pim.t.user[0].hdr.u.cpl.lower_addr;
-        tx_cpl_hdr.comp_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
-        tx_cpl_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_cpl_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_cpl_hdr.vf_active = to_fiu_tlp.vf_active;
+
+        if (PCIE_MULTIPLEXED)
+        begin
+            tx_cpl_hdr.comp_id = map_vchan_to_pf_vf_id(tx_from_pim.t.user[0].hdr.vchan,
+                                                       to_fiu_tlp.vchan_mapping_alg,
+                                                       to_fiu_tlp.num_multiplexed_pfvfs,
+                                                       to_fiu_tlp.multiplexed_pfvfs);
+
+            map_vchan_to_pf_vf_num(tx_from_pim.t.user[0].hdr.vchan,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs,
+                                   tx_cpl_hdr.vf_num,
+                                   tx_cpl_hdr.vf_active,
+                                   tx_cpl_hdr.pf_num);
+        end
+        else
+        begin
+            tx_cpl_hdr.comp_id = to_fiu_tlp.pfvf;
+            tx_cpl_hdr.pf_num = to_fiu_tlp.pfvf.pf_num;
+            tx_cpl_hdr.vf_num = to_fiu_tlp.pfvf.vf_num;
+            tx_cpl_hdr.vf_active = to_fiu_tlp.pfvf.vf_active;
+        end
     end
 
     // Interrupt request
@@ -295,9 +359,23 @@ module ofs_plat_host_chan_@group@_fim_gasket
         tx_irq_hdr = '0;
         tx_irq_hdr.fmt_type = pcie_ss_hdr_pkg::DM_INTR;
         tx_irq_hdr.vector_num = { '0, tx_from_pim.t.user[0].hdr.u.irq.irq_id };
-        tx_irq_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_irq_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_irq_hdr.vf_active = to_fiu_tlp.vf_active;
+
+        if (PCIE_MULTIPLEXED)
+        begin
+            map_vchan_to_pf_vf_num(tx_from_pim.t.user[0].hdr.vchan,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs,
+                                   tx_irq_hdr.vf_num,
+                                   tx_irq_hdr.vf_active,
+                                   tx_irq_hdr.pf_num);
+        end
+        else
+        begin
+            tx_irq_hdr.pf_num = to_fiu_tlp.pfvf.pf_num;
+            tx_irq_hdr.vf_num = to_fiu_tlp.pfvf.vf_num;
+            tx_irq_hdr.vf_active = to_fiu_tlp.pfvf.vf_active;
+        end
     end
 
     logic tx_from_pim_invalid_cmd;
@@ -395,9 +473,22 @@ module ofs_plat_host_chan_@group@_fim_gasket
         { tx_mrd_req_dm_hdr.host_addr_h, tx_mrd_req_dm_hdr.host_addr_m, tx_mrd_req_dm_hdr.host_addr_l } =
             tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr;
 
-        tx_mrd_req_dm_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_mrd_req_dm_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_mrd_req_dm_hdr.vf_active = to_fiu_tlp.vf_active;
+        if (PCIE_MULTIPLEXED)
+        begin
+            map_vchan_to_pf_vf_num(tx_mrd_from_pim.t.user[0].hdr.vchan,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs,
+                                   tx_mrd_req_dm_hdr.vf_num,
+                                   tx_mrd_req_dm_hdr.vf_active,
+                                   tx_mrd_req_dm_hdr.pf_num);
+        end
+        else
+        begin
+            tx_mrd_req_dm_hdr.pf_num = to_fiu_tlp.pfvf.pf_num;
+            tx_mrd_req_dm_hdr.vf_num = to_fiu_tlp.pfvf.vf_num;
+            tx_mrd_req_dm_hdr.vf_active = to_fiu_tlp.pfvf.vf_active;
+        end
     end
 
     // Memory request - PU encoding
@@ -406,7 +497,13 @@ module ofs_plat_host_chan_@group@_fim_gasket
         tx_mrd_req_pu_hdr = '0;
         tx_mrd_req_pu_hdr.fmt_type = tx_mrd_fmttype;
         tx_mrd_req_pu_hdr.length = tx_mrd_from_pim.t.user[0].hdr.length;
-        tx_mrd_req_pu_hdr.req_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
+        tx_mrd_req_pu_hdr.req_id =
+            PCIE_MULTIPLEXED ? map_vchan_to_pf_vf_id(tx_mrd_from_pim.t.user[0].hdr.vchan,
+                                                     to_fiu_tlp.vchan_mapping_alg,
+                                                     to_fiu_tlp.num_multiplexed_pfvfs,
+                                                     to_fiu_tlp.multiplexed_pfvfs) :
+                               to_fiu_tlp.pfvf;
+
         tx_mrd_req_pu_hdr.TC = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tc;
         { tx_mrd_req_pu_hdr.tag_h, tx_mrd_req_pu_hdr.tag_m, tx_mrd_req_pu_hdr.tag_l } =
             { '0, tx_mrd_from_pim.t.user[0].hdr.u.mem_req.tag };
@@ -421,9 +518,23 @@ module ofs_plat_host_chan_@group@_fim_gasket
         begin
             tx_mrd_req_pu_hdr.host_addr_h = tx_mrd_from_pim.t.user[0].hdr.u.mem_req.addr[31:0];
         end
-        tx_mrd_req_pu_hdr.pf_num = to_fiu_tlp.pf_num;
-        tx_mrd_req_pu_hdr.vf_num = to_fiu_tlp.vf_num;
-        tx_mrd_req_pu_hdr.vf_active = to_fiu_tlp.vf_active;
+
+        if (PCIE_MULTIPLEXED)
+        begin
+            map_vchan_to_pf_vf_num(tx_mrd_from_pim.t.user[0].hdr.vchan,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs,
+                                   tx_mrd_req_pu_hdr.vf_num,
+                                   tx_mrd_req_pu_hdr.vf_active,
+                                   tx_mrd_req_pu_hdr.pf_num);
+        end
+        else
+        begin
+            tx_mrd_req_pu_hdr.pf_num = to_fiu_tlp.pfvf.pf_num;
+            tx_mrd_req_pu_hdr.vf_num = to_fiu_tlp.pfvf.vf_num;
+            tx_mrd_req_pu_hdr.vf_active = to_fiu_tlp.pfvf.vf_active;
+        end
     end
 
     assign fim_enc_tx_mrd.tvalid = tx_mrd_from_pim.tvalid;
@@ -684,6 +795,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
                 pcie_ss_hdr_pkg::func_is_addr64(rx_a_fmttype) ?
                     { rx_mem_req_pu_hdr.host_addr_h, rx_mem_req_pu_hdr.host_addr_l, 2'b0 } :
                     { '0, rx_mem_req_pu_hdr.host_addr_h };
+
+            mmio_req_to_pim.t.user[0].hdr.vchan =
+                map_pf_vf_num_to_vchan(rx_mem_req_pu_hdr.vf_num,
+                                       rx_mem_req_pu_hdr.vf_active,
+                                       rx_mem_req_pu_hdr.pf_num,
+                                       to_fiu_tlp.vchan_mapping_alg,
+                                       to_fiu_tlp.num_multiplexed_pfvfs,
+                                       to_fiu_tlp.multiplexed_pfvfs);
         end
     end
 
@@ -768,6 +887,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
                     { '0, rd_cpl_dm_hdr.low_addr_h, rd_cpl_dm_hdr.low_addr_l };
                 rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = rd_cpl_dm_hdr.FC;
                 rd_cpl_to_pim.t.user[0].hdr.u.cpl.dm_encoded = 1'b1;
+
+                rd_cpl_to_pim.t.user[0].hdr.vchan =
+                    map_pf_vf_num_to_vchan(rd_cpl_dm_hdr.vf_num,
+                                           rd_cpl_dm_hdr.vf_active,
+                                           rd_cpl_dm_hdr.pf_num,
+                                           to_fiu_tlp.vchan_mapping_alg,
+                                           to_fiu_tlp.num_multiplexed_pfvfs,
+                                           to_fiu_tlp.multiplexed_pfvfs);
             end
             else
             begin
@@ -784,6 +911,14 @@ module ofs_plat_host_chan_@group@_fim_gasket
                 // The PIM only generates dword aligned reads, so the check for
                 // the last packet is easy.
                 rd_cpl_to_pim.t.user[0].hdr.u.cpl.fc = (rd_cpl_pu_hdr.byte_count[11:2] == rd_cpl_pu_hdr.length);
+
+                rd_cpl_to_pim.t.user[0].hdr.vchan =
+                    map_pf_vf_num_to_vchan(rd_cpl_pu_hdr.vf_num,
+                                           rd_cpl_pu_hdr.vf_active,
+                                           rd_cpl_pu_hdr.pf_num,
+                                           to_fiu_tlp.vchan_mapping_alg,
+                                           to_fiu_tlp.num_multiplexed_pfvfs,
+                                           to_fiu_tlp.multiplexed_pfvfs);
             end
         end
     end
@@ -895,6 +1030,15 @@ module ofs_plat_host_chan_@group@_fim_gasket
             ofs_plat_host_chan_@group@_pcie_tlp_pkg::t_dma_afu_tag'(rx_wr_cpl_pu_hdr.metadata_l);
         wr_cpl_to_pim.t.data.line_count =
             ofs_plat_host_chan_@group@_pcie_tlp_pkg::dwordLenToLineCount(rx_wr_cpl_pu_hdr.length);
+
+        wr_cpl_to_pim.t.data.vchan =
+            map_pf_vf_num_to_vchan(rx_wr_cpl_pu_hdr.vf_num,
+                                   rx_wr_cpl_pu_hdr.vf_active,
+                                   rx_wr_cpl_pu_hdr.pf_num,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs);
+
         wr_cpl_to_pim.t.last = 1'b1;
     end
 
@@ -930,8 +1074,15 @@ module ofs_plat_host_chan_@group@_fim_gasket
     always_comb
     begin
         irq_cpl_to_pim.t = '0;
-        irq_cpl_to_pim.t.data.requester_id = { to_fiu_tlp.vf_num, to_fiu_tlp.vf_active, to_fiu_tlp.pf_num };
         irq_cpl_to_pim.t.data.irq_id = rx_intr_cpl_dm_hdr.metadata_l[$bits(t_ofs_plat_pcie_hdr_irq_id)-1 : 0];
+
+        irq_cpl_to_pim.t.data.requester_id =
+            map_pf_vf_num_to_vchan(rx_intr_cpl_dm_hdr.vf_num,
+                                   rx_intr_cpl_dm_hdr.vf_active,
+                                   rx_intr_cpl_dm_hdr.pf_num,
+                                   to_fiu_tlp.vchan_mapping_alg,
+                                   to_fiu_tlp.num_multiplexed_pfvfs,
+                                   to_fiu_tlp.multiplexed_pfvfs);
     end
 
 endmodule // ofs_plat_host_chan_@group@_fim_gasket

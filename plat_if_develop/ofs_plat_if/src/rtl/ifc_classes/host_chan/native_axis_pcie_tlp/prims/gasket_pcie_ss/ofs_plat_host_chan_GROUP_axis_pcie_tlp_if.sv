@@ -22,11 +22,17 @@ interface ofs_plat_host_chan_@group@_axis_pcie_tlp_if
     // code that instantiates the interface object.
     int unsigned instance_number;
 
-    // PCIe PF/VF details
-    pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num;
-    pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num;
-    logic vf_active;
     int link_num;
+
+    // PCIe PF/VF details. Meaningful only when OFS_PLAT_HOST_CHAN_MULTIPLEXED is
+    // not set by the AFU.
+    ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_pfvf_id pfvf;
+
+    // Multiplexed version of pfvf above. Enumerates all PFs/VFs that share the
+    // stream when OFS_PLAT_HOST_CHAN_MULTIPLEXED is set by the AFU.
+    ofs_plat_host_chan_@group@_fim_gasket_pkg::t_ofs_fim_pfvf_id [ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_CHAN_PER_MULTIPLEXED_PORT-1:0] multiplexed_pfvfs;
+    ofs_plat_host_chan_@group@_fim_gasket_pkg::t_multiplexed_port_id num_multiplexed_pfvfs;
+    ofs_plat_host_chan_@group@_fim_gasket_pkg::e_pcie_vchan_mapping_alg vchan_mapping_alg;
 
     // AFU -> FIM TLP TX stream
     pcie_ss_axis_if#(.DATA_W(ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH))

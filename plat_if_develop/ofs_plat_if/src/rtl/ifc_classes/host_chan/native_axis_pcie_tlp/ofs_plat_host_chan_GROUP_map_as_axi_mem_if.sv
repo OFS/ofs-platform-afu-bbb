@@ -42,6 +42,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
+    import ofs_plat_host_chan_axi_mem_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;
@@ -193,6 +194,9 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // MMIO read request
     assign mmio_if.arvalid = host_mmio_req.tready && host_mmio_req.tvalid &&
                              !host_mmio_req.t.data.is_write;
+
+    t_hc_axi_mmio_user_flags_with_vchan mmio_ar_flags;
+
     always_comb
     begin
         mmio_if.ar = '0;
@@ -200,6 +204,12 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
                           host_mmio_req.t.data.tag };
         mmio_if.ar.addr = t_mmio_addr'(host_mmio_req.t.data.addr);
         mmio_if.ar.size = mmio_log2_size(host_mmio_req.t.data.byte_count);
+
+        mmio_ar_flags = '0;
+        mmio_ar_flags.vchan = host_mmio_req.t.data.vchan;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        mmio_if.ar.user = { '0, mmio_ar_flags };
+`endif
     end
 
     // MMIO write request
@@ -210,6 +220,7 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     t_mmio_data mmio_if_wdata;
     logic [MMIO_DATA_WIDTH/8-1 : 0] mmio_if_wstrb;
+    t_hc_axi_mmio_user_flags_with_vchan mmio_aw_flags;
 
     always_comb
     begin
@@ -220,6 +231,13 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         mmio_if.w = '0;
         mmio_if.w.data = mmio_if_wdata;
         mmio_if.w.strb = mmio_if_wstrb;
+
+        mmio_aw_flags = '0;
+        mmio_aw_flags.vchan = host_mmio_req.t.data.vchan;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        mmio_if.aw.user = { '0, mmio_aw_flags };
+        mmio_if.w.user = { '0, mmio_aw_flags };
+`endif
     end
 
     // Reformat MMIO write data and mask for AXI
@@ -254,6 +272,11 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
         mmio_wo_if.w = '0;
         mmio_wo_if.w.data = mmio_wo_if_wdata;
         mmio_wo_if.w.strb = mmio_wo_if_wstrb;
+
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        mmio_wo_if.aw.user = { '0, mmio_aw_flags };
+        mmio_wo_if.w.user = { '0, mmio_aw_flags };
+`endif
     end
 
     // Reformat MMIO write data and mask for AXI on the write-only channel
@@ -304,6 +327,8 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
             host_mmio_rsp.tvalid <= mmio_if.rvalid;
             host_mmio_rsp.t.data.tag <= mmio_rid;
             host_mmio_rsp.t.data.payload <= { '0, mmio_r_data };
+            // No need to return the PF/VF vchan here. The TLP mapper records
+            // it, indexed by the tag.
         end
 
         if (!reset_n)
@@ -321,6 +346,10 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
     // Read requests from AFU (t_gen_tx_afu_rd_req)
     `AXI_STREAM_INSTANCE(afu_rd_req, t_gen_tx_afu_rd_req);
+
+    wire t_hc_axi_user_flags_with_vchan mem_if_ar_user =
+        t_hc_axi_user_flags_with_vchan'(mem_if.ar.user);
+
     assign afu_rd_req.tvalid = mem_if.arvalid;
     assign mem_if.arready = afu_rd_req.tready;
     assign afu_rd_req.t.data.tag = { '0, mem_if.ar.id };
@@ -329,9 +358,12 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // Atomic reads are generated inside the PIM to match an atomic write.
     // They allocate IDs in the read pipeline so that the response appears
     // to target a normal read request.
-    assign afu_rd_req.t.data.is_atomic =
-               mem_if.ar.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_ATOMIC];
-
+    assign afu_rd_req.t.data.is_atomic = mem_if_ar_user.base.atomic;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    assign afu_rd_req.t.data.vchan = mem_if_ar_user.vchan;
+`else
+    assign afu_rd_req.t.data.vchan = '0;
+`endif
 
     // Read responses to AFU (t_gen_tx_afu_rd_rsp)
     `AXI_STREAM_INSTANCE(afu_rd_rsp, t_gen_tx_afu_rd_rsp);
@@ -514,6 +546,9 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     assign mem_if.wready = (!wr_is_sop || mem_if.awvalid) && afu_wr_req.tready;
     assign afu_wr_req.tvalid = (!wr_is_sop || mem_if.awvalid) && mem_if.wvalid;
 
+    wire t_hc_axi_user_flags_with_vchan mem_if_aw_user =
+        t_hc_axi_user_flags_with_vchan'(mem_if.aw.user);
+
     always_comb
     begin
         afu_wr_req.t.data = '0;
@@ -523,15 +558,14 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
 
         if (wr_is_sop)
         begin
-            afu_wr_req.t.data.is_fence =
-                (mem_if.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE) &&
-                mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_FENCE];
-            afu_wr_req.t.data.is_interrupt =
-                (mem_if.USER_WIDTH > ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT) &&
-                mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_INTERRUPT];
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+            afu_wr_req.t.data.vchan = mem_if_aw_user.vchan;
+`endif
 
-            afu_wr_req.t.data.is_atomic =
-                mem_if.aw.user[ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_ATOMIC];
+            afu_wr_req.t.data.is_fence = mem_if_aw_user.base.fence;
+            afu_wr_req.t.data.is_interrupt = mem_if_aw_user.base.interrupt;
+
+            afu_wr_req.t.data.is_atomic = mem_if_aw_user.base.atomic;
             if (mem_if.aw.atop == ofs_plat_axi_mem_pkg::ATOMIC_ADD)
                 afu_wr_req.t.data.atomic_op = TLP_ATOMIC_FADD;
             else if (mem_if.aw.atop == ofs_plat_axi_mem_pkg::ATOMIC_SWAP)
@@ -609,6 +643,8 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     // Write responses to AFU once the packet is completely sent (t_gen_tx_afu_wr_rsp)
     `AXI_STREAM_INSTANCE(afu_wr_rsp, t_gen_tx_afu_wr_rsp);
 
+    t_hc_axi_user_flags_with_vchan mem_if_b_user;
+
     assign afu_wr_rsp.tready = mem_if.bready;
     assign mem_if.bvalid = afu_wr_rsp.tvalid;
 
@@ -616,6 +652,12 @@ module ofs_plat_host_chan_@group@_map_as_axi_mem_if
     begin
         mem_if.b = '0;
         mem_if.b.id = afu_wr_rsp.t.data.tag;
+
+        mem_if_b_user = '0;
+        mem_if_b_user.vchan = afu_wr_rsp.t.data.vchan;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        mem_if.b.user = mem_if_b_user;
+`endif
 
         // Restore transaction ID for interrupts. (The response tag is the
         // interrupt index, not the transaction ID.)

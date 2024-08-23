@@ -27,10 +27,16 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     parameter INSTANCE_NUMBER = 0,
 
     // PCIe PF/VF details
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    parameter NUM_PF_VF_INFO_ENTRIES = ofs_plat_host_chan_@group@_pkg::NUM_CHAN_PER_MULTIPLEXED_PORT,
+    parameter pcie_ss_hdr_pkg::ReqHdr_pf_vf_info_t [NUM_PF_VF_INFO_ENTRIES-1:0] PORT_PF_VF_INFO
+`else
+    parameter NUM_PF_VF_INFO_ENTRIES = 1,
     parameter pcie_ss_hdr_pkg::ReqHdr_pf_num_t PF_NUM,
     parameter pcie_ss_hdr_pkg::ReqHdr_vf_num_t VF_NUM,
     parameter VF_ACTIVE,
     parameter LINK_NUM = 0
+`endif
     )
    (
     // All streams are expected to share the same clock and reset
@@ -52,10 +58,30 @@ module map_fim_pcie_ss_to_pim_@group@_host_chan
     assign port.reset_n = reset_n;
 
     assign port.instance_number = INSTANCE_NUMBER;
-    assign port.pf_num = PF_NUM;
-    assign port.vf_num = VF_NUM;
-    assign port.vf_active = VF_ACTIVE;
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    assign port.link_num = PORT_PF_VF_INFO[0].link_num;
+    assign port.num_multiplexed_pfvfs = NUM_PF_VF_INFO_ENTRIES;
+    for (genvar p = 0; p < NUM_PF_VF_INFO_ENTRIES; p = p + 1) begin
+        // PF/VF details of all SR-IOV streams multiplexed in the port
+        assign port.multiplexed_pfvfs[p].vf_num = PORT_PF_VF_INFO[p].vf_num;
+        assign port.multiplexed_pfvfs[p].vf_active = PORT_PF_VF_INFO[p].vf_active;
+        assign port.multiplexed_pfvfs[p].pf_num = PORT_PF_VF_INFO[p].pf_num;
+    end
+`else
+    // Single PF/VF in the port, already demultiplexed
     assign port.link_num = LINK_NUM;
+    assign port.num_multiplexed_pfvfs = 1;
+    assign port.multiplexed_pfvfs[0].vf_num = VF_NUM;
+    assign port.multiplexed_pfvfs[0].vf_active = VF_ACTIVE;
+    assign port.multiplexed_pfvfs[0].pf_num = PF_NUM;
+`endif
+
+    // Backward compatibility -- meaningful only in demultiplexed mode
+    assign port.pfvf = port.multiplexed_pfvfs[0];
+
+    assign port.vchan_mapping_alg =
+        ofs_plat_host_chan_@group@_fim_gasket_pkg::pick_vchan_mapping_alg(
+            port.num_multiplexed_pfvfs, port.multiplexed_pfvfs);
 
     // Use the legacy module to map the streaming channels
     map_fim_pcie_ss_to_@group@_host_chan map

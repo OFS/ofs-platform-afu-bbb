@@ -38,7 +38,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
     // Dataless write fence completions are received by the read pipeline
     // The tag value is forwarded to the write pipeline, which will
     // generate the AFU response. The tag is released for reuse in the
-    // read pipeline below. (t_dma_rd_tag)
+    // read pipeline below. (t_gen_tx_wr_cpl)
     ofs_plat_axi_stream_if.to_sink wr_fence_cpl,
 
     // Are CPLD tags still available? If not, reads will block until a
@@ -51,7 +51,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     assign error = 1'b0;
 
@@ -226,6 +226,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         tlp_mem_hdr.fmttype = rd_req_is_addr64 ? OFS_PLAT_PCIE_FMTTYPE_MEM_READ64 :
                                                  OFS_PLAT_PCIE_FMTTYPE_MEM_READ32;
         tlp_mem_hdr.length = lineCountToDwordLen(rd_req.line_count);
+        tlp_mem_hdr.vchan = rd_req.vchan;
         tlp_mem_hdr.u.mem_req.addr = rd_req.addr;
         tlp_mem_hdr.u.mem_req.tag = { '0, req_tlp_tag };
         tlp_mem_hdr.u.mem_req.last_be = 4'b1111;
@@ -292,13 +293,16 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             rx_cpl_tlps.t.user[0].sop &&
             ofs_plat_pcie_func_is_completion(tlp_cpl_hdr.fmttype) &&
             rsp_is_wr_fence;
-        wr_fence_cpl.t.data = rd_rsp_tlp_tag;
+        wr_fence_cpl.t.data = '0;
+        wr_fence_cpl.t.data.tag = rd_rsp_tlp_tag;
+        wr_fence_cpl.t.data.vchan = tlp_cpl_hdr.vchan;
     end
 
     // Record header details for handling multi-beat responses
     logic afu_rd_rsp_active, reg_afu_rd_rsp_active;
     logic afu_rd_rsp_is_last, reg_afu_rd_rsp_is_last;
     logic [AFU_TAG_WIDTH-1 : 0] afu_rd_rsp_tag, reg_afu_rd_rsp_tag;
+    t_ofs_plat_pcie_hdr_vchan afu_rd_rsp_vchan, reg_afu_rd_rsp_vchan;
     t_tlp_payload_line_idx afu_rd_rsp_line_idx, reg_afu_rd_rsp_line_idx;
     t_dma_rd_tag reg_afu_rd_rsp_tlp_tag;
     t_tlp_payload_rcb_seg_idx afu_rd_rsp_rcb_idx, reg_afu_rd_rsp_rcb_idx;
@@ -321,6 +325,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             // for the last beat.
             afu_rd_rsp_is_last = tlp_cpl_hdr.u.cpl.fc;
             afu_rd_rsp_tag = rd_rsp_meta.afu_tag;
+            afu_rd_rsp_vchan = tlp_cpl_hdr.vchan;
 
             if (! tlp_cpl_hdr.u.cpl.dm_encoded)
             begin
@@ -362,6 +367,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             afu_rd_rsp_active = reg_afu_rd_rsp_active;
             afu_rd_rsp_is_last = reg_afu_rd_rsp_is_last;
             afu_rd_rsp_tag = reg_afu_rd_rsp_tag;
+            afu_rd_rsp_vchan = reg_afu_rd_rsp_vchan;
             afu_rd_rsp_line_idx = reg_afu_rd_rsp_line_idx + 1;
             afu_rd_rsp_rcb_idx = reg_afu_rd_rsp_rcb_idx;
             afu_rd_rsp_num_rcb_seg_valid = reg_afu_rd_rsp_num_rcb_seg_valid;
@@ -402,6 +408,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
             reg_afu_rd_rsp_active <= afu_rd_rsp_active && !rx_cpl_tlps_eop;
             reg_afu_rd_rsp_is_last <= afu_rd_rsp_is_last;
             reg_afu_rd_rsp_tag <= afu_rd_rsp_tag;
+            reg_afu_rd_rsp_vchan <= afu_rd_rsp_vchan;
             reg_afu_rd_rsp_line_idx <= afu_rd_rsp_line_idx;
             reg_afu_rd_rsp_rcb_idx <= afu_rd_rsp_rcb_idx;
             reg_afu_rd_rsp_num_rcb_seg_valid <= afu_rd_rsp_num_rcb_seg_valid;
@@ -425,6 +432,7 @@ module ofs_plat_host_chan_@group@_gen_rd_tlps
         begin
             afu_rd_rsp.tvalid <= afu_rd_rsp_active;
             afu_rd_rsp.t.data.tag <= afu_rd_rsp_tag;
+            afu_rd_rsp.t.data.vchan <= afu_rd_rsp_vchan;
             afu_rd_rsp.t.data.line_idx <= afu_rd_rsp_line_idx;
             afu_rd_rsp.t.data.last <= afu_rd_rsp_is_last && rx_cpl_tlps_eop;
             afu_rd_rsp.t.data.payload <= { '0, rx_cpl_tlps.t.data };

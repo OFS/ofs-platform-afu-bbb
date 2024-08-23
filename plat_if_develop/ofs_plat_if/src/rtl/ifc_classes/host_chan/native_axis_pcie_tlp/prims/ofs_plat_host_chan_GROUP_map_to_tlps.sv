@@ -70,7 +70,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     logic clk;
     assign clk = to_fiu_tlp.clk;
@@ -192,7 +192,7 @@ module ofs_plat_host_chan_@group@_map_to_tlps
     `OFS_PLAT_AXI_STREAM_INSTANCE(atomic_cpl_tag, t_dma_rd_tag);
 
     // Write fence completions
-    `OFS_PLAT_AXI_STREAM_INSTANCE(wr_fence_cpl, t_dma_rd_tag);
+    `OFS_PLAT_AXI_STREAM_INSTANCE(wr_fence_cpl, t_gen_tx_wr_cpl);
 
     logic rd_cpld_tag_available;
 

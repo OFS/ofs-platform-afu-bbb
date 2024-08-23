@@ -14,11 +14,27 @@
 //
 module ofs_plat_std_clocks_gen_port_resets
   #(
+    // Reset topology varies when host channels remain multiplexed.
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    parameter NUM_MULTIPLEXED_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_MULTIPLEXED_PORTS,
+    parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_CHAN_PER_MULTIPLEXED_PORT
+`else
     parameter NUM_PORTS = `OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS
+`endif
     )
    (
     input  logic pClk,
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    // AFU expects multiplexed ports without a PF/VF MUX.
+    input  logic [NUM_MULTIPLEXED_PORTS - 1 : 0] pClk_reset_n,
+    // The resets here include function level resets, down
+    // to demultiplexing of each port.
+    input  logic [NUM_PORTS - 1 : 0] pClk_demux_reset_n[NUM_MULTIPLEXED_PORTS - 1 : 0],
+`else
+    // AFU expects demultiplexed ports from the FIM, one PF/VF per
+    // port linearized even across physically separate links.
     input  logic [NUM_PORTS - 1 : 0] pClk_reset_n,
+`endif
 
     input  logic pClkDiv2,
     input  logic pClkDiv4,
@@ -28,6 +44,39 @@ module ofs_plat_std_clocks_gen_port_resets
     output t_ofs_plat_std_clocks clocks
     );
 
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+    generate
+        for (genvar m = 0; m < NUM_MULTIPLEXED_PORTS; m = m + 1)
+        begin : multi
+            // Reset for a multiplexed port. No function level reset.
+            ofs_plat_std_afu_clocks_gen_resets r
+               (
+                .pClk,
+                .pClk_reset_n(pClk_reset_n[m]),
+                .pClkDiv2,
+                .pClkDiv4,
+                .uClk_usr,
+                .uClk_usrDiv2,
+                .clocks(clocks.ports[m])
+                );
+
+            for (genvar p = 0; p < NUM_PORTS; p = p + 1)
+            begin : port
+                // Resets for each demultiplexed port, including function level reset
+                ofs_plat_std_afu_clocks_gen_resets r
+                   (
+                    .pClk,
+                    .pClk_reset_n(pClk_demux_reset_n[m][p]),
+                    .pClkDiv2,
+                    .pClkDiv4,
+                    .uClk_usr,
+                    .uClk_usrDiv2,
+                    .clocks(clocks.demux_ports[m][p])
+                    );
+            end
+        end
+    endgenerate
+`else
     generate
         for (genvar p = 0; p < NUM_PORTS; p = p + 1)
         begin : port
@@ -43,6 +92,7 @@ module ofs_plat_std_clocks_gen_port_resets
                 );
         end
     endgenerate
+`endif
 
     // Top-level clocks and resets from port 0 for backward compatibility
     assign clocks.pClk = clocks.ports[0].pClk;

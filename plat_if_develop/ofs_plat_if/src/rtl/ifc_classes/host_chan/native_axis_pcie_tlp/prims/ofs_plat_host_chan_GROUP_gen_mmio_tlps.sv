@@ -31,14 +31,14 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
 
     import ofs_plat_host_chan_@group@_pcie_tlp_pkg::*;
     import ofs_plat_host_chan_@group@_gen_tlps_pkg::*;
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     assign error = 1'b0;
 
     //
     // Translation incoming TLP requests to requests for the AFU on host_mmio_req
     //
-    ofs_plat_pcie_tlp_hdr_pkg::t_ofs_plat_pcie_hdr rx_mem_req_hdr, rx_mem_req_hdr_q;
+    ofs_plat_pcie_tlp_@group@_hdr_pkg::t_ofs_plat_pcie_hdr rx_mem_req_hdr, rx_mem_req_hdr_q;
     assign rx_mem_req_hdr = from_fiu_rx_st.t.user[0].hdr;
 
     assign from_fiu_rx_st.tready = host_mmio_req.tready;
@@ -59,6 +59,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
     always_comb
     begin
         host_mmio_req.t.data.tag = t_mmio_rd_tag'(rx_mem_req_hdr.u.mem_req.tag);
+        host_mmio_req.t.data.vchan = rx_mem_req_hdr.vchan;
         host_mmio_req.t.data.addr = rx_mem_req_hdr.u.mem_req.addr;
         host_mmio_req.t.data.byte_count = { rx_mem_req_hdr.length, 2'b0 };
         host_mmio_req.t.data.is_write = ofs_plat_pcie_func_is_mwr_req(rx_mem_req_hdr.fmttype);
@@ -83,6 +84,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
 
     assign rx_mmio_valid = rx_st_is_mmio_rd_req_q;
     assign rx_mmio.tag = rx_mem_req_hdr_q.u.mem_req.tag;
+    assign rx_mmio.vchan = rx_mem_req_hdr_q.vchan;
     assign rx_mmio.lower_addr = rx_mem_req_hdr_q.u.mem_req.addr[6:0];
     assign rx_mmio.byte_count = { rx_mem_req_hdr_q.length, 2'b0 };
     assign rx_mmio.requester_id = rx_mem_req_hdr_q.u.mem_req.requester_id;
@@ -194,6 +196,7 @@ module ofs_plat_host_chan_@group@_gen_mmio_tlps
         mmio_cpl_hdr = '0;
         mmio_cpl_hdr.fmttype = OFS_PLAT_PCIE_FMTTYPE_CPLD;
         mmio_cpl_hdr.length = mmio_rsp_meta.byte_count >> 2;
+        mmio_cpl_hdr.vchan = mmio_rsp_meta.vchan;
         mmio_cpl_hdr.u.cpl.byte_count = mmio_rsp_meta.byte_count;
         mmio_cpl_hdr.u.cpl.requester_id = mmio_rsp_meta.requester_id;
         mmio_cpl_hdr.u.cpl.tc = mmio_rsp_meta.tc;

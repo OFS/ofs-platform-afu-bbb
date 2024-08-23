@@ -668,6 +668,33 @@ module ofs_plat_host_chan_@group@_as_axi_mem_impl
     localparam int MAX_BW_ACTIVE_WR_LINES =
                        ofs_plat_host_chan_@group@_pcie_tlp_pkg::MAX_BW_ACTIVE_WR_LINES;
 
+    // synthesis translate_off
+    initial begin
+        if (host_mem_to_afu.USER_WIDTH < ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: host_mem_to_afu user field is too narrow for flags. Is %0d, needs %0d.",
+                   host_mem_to_afu.USER_WIDTH,
+                   ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH);
+        end
+
+`ifdef OFS_PLAT_HOST_CHAN_MULTIPLEXED
+        if (host_mem_to_afu.USER_WIDTH < ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WITH_VCHAN_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: host_mem_to_afu user field is too narrow for multiplexed vchan. Is %0d, needs %0d.",
+                   host_mem_to_afu.USER_WIDTH,
+                   ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WITH_VCHAN_WIDTH);
+        end
+
+        if (axi_mmio.USER_WIDTH < ofs_plat_host_chan_axi_mem_pkg::HC_AXI_MMIO_UFLAG_WITH_VCHAN_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: mmio_to_afu field is too narrow for multiplexed vchan. Is %0d, needs %0d.",
+                   axi_mmio.USER_WIDTH,
+                   ofs_plat_host_chan_axi_mem_pkg::HC_AXI_MMIO_UFLAG_WITH_VCHAN_WIDTH);
+        end
+`endif
+    end
+    // synthesis translate_on
+
     // ====================================================================
     //  Bind the proper clock to the AFU interface. If there is no clock
     //  crossing requested then it's just the FIU clock.

@@ -20,7 +20,7 @@
 
 package ofs_plat_host_chan_@group@_pcie_tlp_pkg;
 
-    import ofs_plat_pcie_tlp_hdr_pkg::*;
+    import ofs_plat_pcie_tlp_@group@_hdr_pkg::*;
 
     // ====================================================================
     //

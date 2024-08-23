@@ -12,6 +12,7 @@
 //
 
 `include "ofs_plat_if.vh"
+`include "ofs_pcie_ss_cfg.vh"
 
 package ofs_plat_host_chan_@group@_fim_gasket_pkg;
 
@@ -179,6 +180,191 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
         return data.payload[s*FIM_PCIE_SEG_WIDTH +: $bits(pcie_ss_hdr_pkg::PCIe_PUReqHdr_t)];
 
     endfunction // ofs_fim_gasket_pcie_hdr_from_seg
+
+
+    //
+    // PF/VF encoding. Import definitions from the FIM if possible.
+    //
+
+    // Encoded PF/VF info in the order expected by the PCIe SS for mapping
+    // requester and completer IDs.
+`ifdef OFS_PCIE_SS_CFG_FLAG_HAS_REQHDR_PF_VF_ID_T
+    typedef pcie_ss_hdr_pkg::ReqHdr_pf_vf_id_t t_ofs_fim_pfvf_id;
+`else
+    typedef struct packed {
+        pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num;
+        logic vf_active;
+        pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num;
+    } t_ofs_fim_pfvf_id;
+`endif
+
+    function automatic t_ofs_fim_pfvf_id init_pfvf_id(
+        pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num,
+        logic vf_active,
+        pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num
+        );
+
+`ifdef OFS_PCIE_SS_CFG_FLAG_HAS_REQHDR_PF_VF_ID_T
+        return pcie_ss_hdr_pkg::init_ReqHdr_pf_vf_id(vf_num, vf_active, pf_num);
+`else
+        t_ofs_fim_pfvf_id pfvf;
+        pfvf.vf_num = vf_num;
+        pfvf.vf_active = vf_active;
+        pfvf.pf_num = pf_num;
+        return pfvf;
+`endif
+    endfunction
+
+
+    //
+    // Multiplexed virtual channel management. When the PIM is in
+    // OFS_PLAT_HOST_CHAN_MULTIPLEXED mode, PCIe SR-IOV tags are mapped
+    // to a virtual channel ID before being passed to an AFU. This way
+    // AFUs see a protocol-independent virtual channel.
+    //
+
+    localparam NUM_CHAN_PER_MULTIPLEXED_PORT = ofs_plat_host_chan_@group@_pkg::NUM_CHAN_PER_MULTIPLEXED_PORT;
+    typedef logic [$clog2(NUM_CHAN_PER_MULTIPLEXED_PORT+1)-1:0] t_multiplexed_port_id;
+
+    // Algorithm for mapping PF/VF in a multiplexed channel to a PIM virtual
+    // channel ID.
+    typedef enum bit[1:0] {
+        // Direct VF number to virtual channel ID. PF is ignored.
+        PCIE_VCHAN_MAP_VF_ONLY,
+        // Ignore VF, map only PFs
+        PCIE_VCHAN_MAP_PF_ONLY,
+        // Use both VF and PF when mapping to PIM virtual channels
+        PCIE_VCHAN_MAP_FULL
+    } e_pcie_vchan_mapping_alg;
+
+    // Choose a PF/VF to virtual channel algorithm.
+    function automatic e_pcie_vchan_mapping_alg pick_vchan_mapping_alg(
+        input t_multiplexed_port_id num_pfvfs,
+        input t_ofs_fim_pfvf_id [NUM_CHAN_PER_MULTIPLEXED_PORT-1:0] multiplexed_pfvfs
+        );
+
+        bit vfs_valid = multiplexed_pfvfs[0].vf_active;
+        bit vfs_ordered = 1;
+        bit pfs_valid = !multiplexed_pfvfs[0].vf_active;
+        bit all_pfs_equal = 1;
+        pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num = multiplexed_pfvfs[0].pf_num;
+
+        for (int c = 1; c < num_pfvfs; c = c + 1) begin
+            vfs_valid = vfs_valid || multiplexed_pfvfs[c].vf_active;
+            pfs_valid = pfs_valid || !multiplexed_pfvfs[c].vf_active;
+
+            // Test that VFs are dense, starting with 0
+            if (multiplexed_pfvfs[c].vf_active && (multiplexed_pfvfs[c].vf_num != c))
+                vfs_ordered = 0;
+
+            if (pf_num != multiplexed_pfvfs[c].pf_num)
+               all_pfs_equal = 0;
+        end
+
+        if (!pfs_valid && vfs_ordered && all_pfs_equal)
+            // Virtual channels are equal to VFs
+            return PCIE_VCHAN_MAP_VF_ONLY;
+        else if (!vfs_valid)
+            return PCIE_VCHAN_MAP_PF_ONLY;
+
+        return PCIE_VCHAN_MAP_FULL;
+    endfunction // pick_vchan_mapping_alg
+
+    // Map a PF/VF ID to a virtual channel. This algorithm isn't as complicated in
+    // HW as it might appear. Nearly all inputs are constant and the usual OFS case
+    // is the simple PCIE_VCHAN_MAP_VF_ONLY.
+    function automatic t_multiplexed_port_id map_pf_vf_id_to_vchan (
+        input t_ofs_fim_pfvf_id pfvf,
+        input e_pcie_vchan_mapping_alg mapping_alg,
+        input t_multiplexed_port_id num_pfvfs,
+        input t_ofs_fim_pfvf_id [NUM_CHAN_PER_MULTIPLEXED_PORT-1:0] multiplexed_pfvfs
+        );
+
+        if (mapping_alg == PCIE_VCHAN_MAP_VF_ONLY)
+            return pfvf.vf_num;
+        else if (mapping_alg == PCIE_VCHAN_MAP_PF_ONLY) begin
+            // PFs probably don't start at 0. Generate a table to map PF to VC.
+            for (int c = 0; c < num_pfvfs; c = c + 1) begin
+                if (pfvf.pf_num == multiplexed_pfvfs[c].pf_num)
+                    return c;
+            end
+        end
+        else begin
+            // Generate a full table to map PF/VF to VC.
+            for (int c = 0; c < num_pfvfs; c = c + 1) begin
+                if (pfvf == multiplexed_pfvfs[c])
+                    return c;
+            end
+        end
+
+        return 0;
+    endfunction // map_pf_vf_id_to_vchan
+
+    // Same as map_pf_vf_id_vchan but takes separate PF/VF numbers
+    function automatic t_multiplexed_port_id map_pf_vf_num_to_vchan (
+        input pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num,
+        input logic vf_active,
+        input pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num,
+        input e_pcie_vchan_mapping_alg mapping_alg,
+        input t_multiplexed_port_id num_pfvfs,
+        input t_ofs_fim_pfvf_id [NUM_CHAN_PER_MULTIPLEXED_PORT-1:0] multiplexed_pfvfs
+        );
+
+        t_ofs_fim_pfvf_id pfvf;
+        pfvf.vf_num = vf_num;
+        pfvf.vf_active = vf_active;
+        pfvf.pf_num = pf_num;
+
+        return map_pf_vf_id_to_vchan(pfvf, mapping_alg, num_pfvfs, multiplexed_pfvfs);
+    endfunction // map_pf_vf_num_to_vchan
+
+    // Reverse mapping: virtual channel to PF/VF struct
+    function automatic t_ofs_fim_pfvf_id map_vchan_to_pf_vf_id (
+        input t_multiplexed_port_id vchan,
+        input e_pcie_vchan_mapping_alg mapping_alg,
+        input t_multiplexed_port_id num_pfvfs,
+        input t_ofs_fim_pfvf_id [NUM_CHAN_PER_MULTIPLEXED_PORT-1:0] multiplexed_pfvfs
+        );
+
+        t_ofs_fim_pfvf_id pfvf;
+
+        if (mapping_alg == PCIE_VCHAN_MAP_VF_ONLY) begin
+            pfvf.vf_num = vchan;
+            pfvf.vf_active = 1'b1;
+            pfvf.pf_num = multiplexed_pfvfs[0].pf_num;
+        end
+        else if (mapping_alg == PCIE_VCHAN_MAP_PF_ONLY) begin
+            pfvf.vf_num = 0;
+            pfvf.vf_active = 1'b0;
+            pfvf.pf_num = multiplexed_pfvfs[vchan].pf_num;
+        end
+        else begin
+            pfvf.vf_num = multiplexed_pfvfs[vchan].vf_num;
+            pfvf.vf_active = multiplexed_pfvfs[vchan].vf_active;
+            pfvf.pf_num = multiplexed_pfvfs[vchan].pf_num;
+        end
+
+        return pfvf;
+    endfunction // map_vchan_to_pf_vf_id
+
+    // Reverse mapping: virtual channel to separate PF/VF fields
+    function automatic void map_vchan_to_pf_vf_num (
+        input t_multiplexed_port_id vchan,
+        input e_pcie_vchan_mapping_alg mapping_alg,
+        input t_multiplexed_port_id num_pfvfs,
+        input t_ofs_fim_pfvf_id [NUM_CHAN_PER_MULTIPLEXED_PORT-1:0] multiplexed_pfvfs,
+        output pcie_ss_hdr_pkg::ReqHdr_vf_num_t vf_num,
+        output logic vf_active,
+        output pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num
+        );
+
+        t_ofs_fim_pfvf_id pfvf;
+        pfvf = map_vchan_to_pf_vf_id(vchan, mapping_alg, num_pfvfs, multiplexed_pfvfs);
+
+        vf_num = pfvf.vf_num;
+        vf_active = pfvf.vf_active;
+        pf_num = pfvf.pf_num;
+    endfunction // map_vchan_to_pf_vf_num
 
 
     // synthesis translate_off

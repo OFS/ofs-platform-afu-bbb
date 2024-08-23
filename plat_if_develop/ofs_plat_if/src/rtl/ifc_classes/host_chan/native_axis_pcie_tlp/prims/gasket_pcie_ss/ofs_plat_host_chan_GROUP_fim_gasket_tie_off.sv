@@ -195,10 +195,11 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
             pcie_ss_hdr_pkg::func_is_addr64(rx_hdr.fmt_type) ?
                 rx_hdr.host_addr_l[4:0] : rx_hdr.host_addr_h[6:2];
 
-        tx_cpl_hdr.comp_id = { port.vf_num, port.vf_active, port.pf_num };
-        tx_cpl_hdr.pf_num = port.pf_num;
-        tx_cpl_hdr.vf_num = port.vf_num;
-        tx_cpl_hdr.vf_active = port.vf_active;
+        // The PCIe SS will map PF/VF to a true completer ID
+        tx_cpl_hdr.comp_id = { rx_hdr.vf_num, rx_hdr.vf_active, rx_hdr.pf_num };
+        tx_cpl_hdr.pf_num = rx_hdr.pf_num;
+        tx_cpl_hdr.vf_num = rx_hdr.vf_num;
+        tx_cpl_hdr.vf_active = rx_hdr.vf_active;
     end
 
     logic [63:0] cpl_data;
@@ -223,9 +224,9 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
             4'h1:
                 begin
                     cpl_data[63:0] = '0;
-                    cpl_data[63:56] = { '0, port.vf_num };
-                    cpl_data[52] = port.vf_active;
-                    cpl_data[51:48] = { '0, port.pf_num };
+                    cpl_data[63:56] = { '0, tx_cpl_hdr.vf_num };
+                    cpl_data[52] = tx_cpl_hdr.vf_active;
+                    cpl_data[51:48] = { '0, tx_cpl_hdr.pf_num };
                 end
 
             // AFU_ID_H
