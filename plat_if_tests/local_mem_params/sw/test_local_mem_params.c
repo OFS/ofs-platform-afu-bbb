@@ -26,6 +26,11 @@
 #define CL(x) ((x) * MEMLINE_BYTES)
 #define MB(x) ((x) * 1048576)
 
+#define RUN_BANK_WIRING_TEST 
+// #define RUN_FULL_FILL_TEST
+// #define RUN_BYTE_MASKING_TEST 
+// #define RUN_SMALL_REGIONS_TEST 
+#define RUN_BW_TEST 
 //
 // Hold local memory details for one engine
 //
@@ -98,19 +103,24 @@ static void
 configEngRead(
     uint32_t e,
     bool enabled,
-    uint32_t burst_size,
+    uint8_t burst_size,
     uint32_t num_bursts,
     uint32_t start_addr
 )
 {
-    assert(burst_size <= 0xffff);
+    assert(burst_size <= 64);
     assert(num_bursts <= 0xffff);
-    assert(start_addr <= 0xffff);
+    assert(start_addr <= 0x3ffffffff);
 
+    // csrEngWrite(s_csr_handle, e, 0,
+    //             ((uint64_t)enabled << 48) |
+    //             ((uint64_t)num_bursts << 32) |
+    //             (start_addr << 16) |
+    //             burst_size);
     csrEngWrite(s_csr_handle, e, 0,
-                ((uint64_t)enabled << 48) |
-                ((uint64_t)num_bursts << 32) |
-                (start_addr << 16) |
+                ((uint64_t)enabled << 58) |
+                ((uint64_t)num_bursts << 42) |
+                ((uint64_t)start_addr << 8) |
                 burst_size);
 }
 
@@ -120,23 +130,28 @@ configEngWrite(
     uint32_t e,
     bool enabled,
     bool write_zeros,
-    uint32_t burst_size,
+    uint8_t burst_size,
     uint32_t num_bursts,
     uint32_t start_addr,
     uint64_t data_seed
 )
 {
-    assert(burst_size <= 0xffff);
+    assert(burst_size <= 64);
     assert(num_bursts <= 0xffff);
-    assert(start_addr <= 0xffff);
+    assert(start_addr <= 0x3ffffffff);
 
+    // csrEngWrite(s_csr_handle, e, 1,
+    //             ((uint64_t)write_zeros << 49) |
+    //             ((uint64_t)enabled << 48) |
+    //             ((uint64_t)num_bursts << 32) |
+    //             (start_addr << 16) |
+    //             burst_size);
     csrEngWrite(s_csr_handle, e, 1,
-                ((uint64_t)write_zeros << 49) |
-                ((uint64_t)enabled << 48) |
-                ((uint64_t)num_bursts << 32) |
-                (start_addr << 16) |
+                ((uint64_t)write_zeros << 59) |
+                ((uint64_t)enabled << 58) |
+                ((uint64_t)num_bursts << 42) |
+                ((uint64_t)start_addr << 8) |
                 burst_size);
-
     // Write data seed
     csrEngWrite(s_csr_handle, e, 2, data_seed);
 }
@@ -368,7 +383,7 @@ testBankWiring(
     uint64_t all_eng_mask = ((uint64_t)1 << num_engines) - 1;
 
     printf("Testing bank wiring:\n");
-
+    uint32_t OFFSET=1 << 24;
     // Write unique patterns to all memory banks. We will later read
     // them back to prove that the banks are wired correctly.
     // Write to two address regions in each bank to confirm the
@@ -376,11 +391,12 @@ testBankWiring(
     srand(1);
     for (uint32_t p = 0; p < 2; p += 1)
     {
-        uint32_t start_addr = (p ? 0xa00 : 0);
+        uint32_t start_addr = (p ? 0xf0 : 0);
 
         for (uint32_t e = 0; e < num_engines; e += 1)
         {
-            configEngWrite(e, true, false, 2, 2, start_addr, rand());
+            // configEngWrite(e, true, false, 2, 2, start_addr, rand());
+            configEngWrite(e, true, false, 1, 1, start_addr+OFFSET* (e%16), rand());
             configEngRead(e, false, 0, 0, 0);
         }
 
@@ -400,11 +416,12 @@ testBankWiring(
     srand(1);
     for (uint32_t p = 0; p < 2; p += 1)
     {
-        uint32_t start_addr = (p ? 0xa00 : 0);
+        uint32_t start_addr = (p ? 0xf0 : 0);
 
         for (uint32_t e = 0; e < num_engines; e += 1)
         {
-            configEngRead(e, true, 2, 2, start_addr);
+	        // configEngRead(e, true, 2, 2, start_addr);
+            configEngRead(e, true, 1, 1, start_addr+OFFSET*(e%16));
             configEngWrite(e, false, false, 0, 0, 0, 0);
         }
 
@@ -422,10 +439,11 @@ testBankWiring(
         // Check hashes
         for (uint32_t e = 0; e < num_engines; e += 1)
         {
-            uint64_t expected_hash = testDataChkGen(s_eng_bufs[e].data_byte_width, rand(), 4);
+            // uint64_t expected_hash = testDataChkGen(s_eng_bufs[e].data_byte_width, rand(), 4);
+            uint64_t expected_hash = testDataChkGen(s_eng_bufs[e].data_byte_width, rand(), 1);
             uint64_t hw_hash = csrEngRead(s_csr_handle, e, 5);
 
-            printf("  Engine %d, addr 0x%x", e, start_addr);
+            printf("  Engine %d, addr 0x%x", e, start_addr+OFFSET*(e%16));
             if (hw_hash == expected_hash)
             {
                 printf(" - PASS (0x%016lx)\n", hw_hash);
@@ -444,6 +462,83 @@ testBankWiring(
     return num_errors;
 }
 
+static int
+testFullFill(
+    uint32_t num_engines,
+    uint32_t test_engine,
+    bool check_hash
+) 
+{
+    
+    int num_errors = 0;
+    uint64_t all_eng_mask = ((uint64_t)1 << num_engines) - 1;
+    uint64_t single_engine_mask = ((uint64_t)1 << test_engine);
+    uint32_t GB_OFFSET=1 << 24;
+    uint8_t burst_size = 64;
+    uint32_t num_bursts = 0x8000; 
+
+    // Each engine writes to full 16GB address space it can access.
+    // Reads back full 16GB address space
+    // Verify all 16GB
+    
+    printf("Filling all 16GB of HBM Bank # %d with engine %d\n", (test_engine < 16), test_engine);
+    srand(1+test_engine);
+    uint32_t start_addr = 0;
+    // WRITE full 16GB address space
+    while (start_addr < GB_OFFSET*16) {
+    
+        configEngWrite(test_engine, true, false, burst_size, num_bursts, start_addr, rand());
+        configEngRead(test_engine, false, 0, 0, 0);
+    
+        // Start the engines
+        if (runEnginesTest(single_engine_mask))
+        {
+            testDumpEngineState(test_engine);
+            num_errors += 1;
+            goto fail;
+        }
+        start_addr += burst_size*num_bursts;
+    }
+    srand(1+test_engine);
+    start_addr = 0;
+    printf("Reading back all 16GB of HBM Bank # %d with engine %d\n", (test_engine < 16), test_engine);
+    // READ BACK full 16GB address space
+    while (start_addr < GB_OFFSET*16) {
+        configEngRead(test_engine, true, burst_size, num_bursts, start_addr);
+        configEngWrite(test_engine, false, false, 0, 0, 0, 0);     
+
+        // Start the engines
+        if (runEnginesTest(single_engine_mask))
+        {
+            testDumpEngineState(test_engine);
+            num_errors += 1;
+            goto fail;
+        }
+        if (check_hash) {
+            uint64_t expected_hash = testDataChkGen(s_eng_bufs[test_engine].data_byte_width, rand(), num_bursts*burst_size);
+            uint64_t hw_hash = csrEngRead(s_csr_handle, test_engine, 5);
+
+            printf("  Engine %d, addr 0x%x", test_engine, start_addr);
+            if (hw_hash == expected_hash)
+            {
+                printf(" - PASS (0x%016lx)\n", hw_hash);
+            }
+            else
+            {
+                num_errors += 1;
+                printf(" - FAIL\n");
+                printf("    0x%016lx, expected 0x%016lx\n", hw_hash, expected_hash);
+            }
+        }
+        start_addr += burst_size*num_bursts;
+    }
+
+
+    printf("\n");
+  fail:
+    return num_errors;
+
+}
 
 static int
 testSmallRegions(
@@ -595,8 +690,12 @@ configBandwidth(
 {
     // Configure engine burst details. Set the number of bursts to 0,
     // indicating unlimited I/O until time expires.
-    configEngRead(e, do_reads, burst_size, 0, 0);
-    configEngWrite(e, do_writes, false, burst_size, 0, 0x2000, e);
+    // configEngRead(e, do_reads, burst_size, 0, 0);
+    // configEngWrite(e, do_writes, false, burst_size, 0, 0x2000, e);
+
+    uint32_t OFFSET=1 << 24;
+    configEngRead(e, do_reads, burst_size, 0, OFFSET*(e%16));
+    configEngWrite(e, do_writes, false, burst_size, 0, OFFSET*(e%16), e);
 
     return 0;
 }
@@ -608,7 +707,9 @@ configBandwidth(
 //
 static int
 runBandwidth(
-    uint64_t emask
+    uint64_t emask,
+    uint32_t ms_to_run,
+    uint32_t verbosity  //0 = summary only
 )
 {
     assert(emask != 0);
@@ -625,7 +726,9 @@ runBandwidth(
     }
 
     // Let them run for a while
-    sleep(s_is_ase ? 10 : 1);
+    // sleep(s_is_ase ? 10 : 1);
+    // uint32_t msec = 100;
+    usleep(s_is_ase ? 10*ms_to_run*1000 : ms_to_run*1000);
     
     csrDisableEngines(s_csr_handle, emask);
 
@@ -670,6 +773,8 @@ runBandwidth(
     // Loop through the engine mask, finding all enabled engines.
     uint32_t e = 0;
     uint64_t m = emask;
+    double total_read_bw = 0;
+    double total_write_bw = 0;
     while (m)
     {
         if (m & 1)
@@ -686,22 +791,62 @@ runBandwidth(
                              s_afu_mhz / (1000.0 * cycles);
             double write_bw = s_eng_bufs[e].data_byte_width * write_lines *
                               s_afu_mhz / (1000.0 * cycles);
+            total_read_bw += read_bw;
+            total_write_bw += write_bw;
+            // Print Verbose
+            if (verbosity == 1) {
+                if (! write_lines)
+                {
+                    printf("  [eng %d] Read GiB/s:  %f\n", e, read_bw);
+                }
+                else if (! read_lines)
+                {
+                    printf("  [eng %d] Write GiB/s: %f\n", e, write_bw);
+                }
+                else
+                {
+                    printf("  [eng %d] R+W GiB/s:   %f (read %f, write %f)\n",
+                        e, read_bw + write_bw, read_bw, write_bw);
+                }
+            }
 
-            if (! write_lines)
-            {
-                printf("  [eng %d] Read GiB/s:  %f\n", e, read_bw);
+            if (m == 1) {
+                if (! write_lines)
+                {
+                    printf("  Runtime: %d ms\t\tTotal Read GiB/s:  %f\n", ms_to_run, total_read_bw);
+                }
+                else if (! read_lines)
+                {
+                    printf("  Runtime: %d ms\t\tTotal Write GiB/s: %f\n", ms_to_run, total_write_bw);
+                }
+                else
+                {
+                    printf("  Runtime: %d ms\t\tTotal R+W GiB/s:   %f (read %f, write %f)\n", ms_to_run, total_read_bw + total_write_bw, total_read_bw, total_write_bw);
+                }
             }
-            else if (! read_lines)
-            {
-                printf("  [eng %d] Write GiB/s: %f\n", e, write_bw);
+            // On last engine
+            /*
+            if (m == 1) {
+                if (! write_lines)
+                {
+                    printf("  Total Read GiB/s:  %f\n", total_read_bw);
+                    printf("  Average Read GiB/s:  %f\n", total_read_bw/(e+1));
+                }
+                else if (! read_lines)
+                {
+                    printf("  Total Write GiB/s: %f\n", total_write_bw);
+                    printf("  Average Write GiB/s: %f\n", total_write_bw/(e+1));
+                }
+                else
+                {
+                    printf("  Total R+W GiB/s:   %f (read %f, write %f)\n", total_read_bw + total_write_bw, total_read_bw, total_write_bw);
+                    printf("  Average R+W GiB/s:   %f (read %f, write %f)\n", (total_read_bw + total_write_bw)/(e+1), total_read_bw/(e+1), total_write_bw/(e+1));
+                }
             }
-            else
-            {
-                printf("  [eng %d] R+W GiB/s:   %f (read %f, write %f)\n",
-                       e, read_bw + write_bw, read_bw, write_bw);
-            }
+            */
         }
 
+        
         e += 1;
         m >>= 1;
     }
@@ -726,7 +871,9 @@ testLocalMemParams(
     printf("Test ID: %016" PRIx64 " %016" PRIx64 "\n",
            csrEngGlobRead(csr_handle, 1),
            csrEngGlobRead(csr_handle, 0));
-
+    
+    // YC
+    // uint32_t num_engines = 4;
     uint32_t num_engines = csrGetNumEngines(csr_handle);
     printf("Engines: %d\n", num_engines);
 
@@ -738,7 +885,9 @@ testLocalMemParams(
         // Get the maximum burst size for the engine.
         uint64_t r = csrEngRead(s_csr_handle, e, 0);
         s_eng_bufs[e].data_byte_width = r >> 56;
-        s_eng_bufs[e].max_burst_size = r & 0x7fff;
+        //s_eng_bufs[e].max_burst_size = r & 0x7fff;
+        // YC manually set max burst size to 64
+        s_eng_bufs[e].max_burst_size = 64;
         s_eng_bufs[e].natural_bursts = (r >> 15) & 1;
         s_eng_bufs[e].ordered_read_responses = (r >> 39) & 1;
         s_eng_bufs[e].eng_type = (r >> 35) & 7;
@@ -750,13 +899,29 @@ testLocalMemParams(
     }
     printf("\n");
     
+    #ifdef RUN_BANK_WIRING_TEST
     if (testBankWiring(num_engines))
     {
         // Quit on error
         result = 1;
         goto done;
     }
+    #endif 
 
+    #ifdef RUN_FULL_FILL_TEST
+    bool check_hash = 1; // 1 = do actual hash checking of data read back
+    for (uint32_t e = 0; e < num_engines; e += 1)
+    {
+        if (testFullFill(num_engines, e, check_hash))
+        {
+            // Quit on error
+            result = 1;
+            goto done;
+        }
+    }
+    #endif 
+
+    #ifdef RUN_BYTE_MASKING_TEST
     printf("Testing byte masking:\n");
     for (uint32_t e = 0; e < num_engines; e += 1)
     {
@@ -768,14 +933,17 @@ testLocalMemParams(
         }
     }
     printf("\n");
+    #endif 
 
+    #ifdef RUN_SMALL_REGIONS_TEST
     // Save time in ASE mode. Only test one engine.
     uint32_t num_test_engines = num_engines;
     if (s_is_ase)
     {
         num_test_engines = 1;
     }
-
+    
+    
     for (uint32_t e = 0; e < num_test_engines; e += 1)
     {
         if (testSmallRegions(e))
@@ -785,35 +953,57 @@ testLocalMemParams(
             goto done;
         }
     }
+    #endif
 
+    #ifdef RUN_BW_TEST
     // Test bandwidth of all engines in parallel. We assume that all engines
     // have the same max. burst size.
     uint64_t all_eng_mask = ((uint64_t)1 << num_engines) - 1;
     uint64_t burst_size = 1;
+    u_int32_t verbosity = 1;
     while (burst_size <= s_eng_bufs[0].max_burst_size)
+    // while (burst_size <= 4)
     {
         printf("\nTesting burst size %ld:\n", burst_size);
+        int ms = 10;
+        while (ms <= 10) {
+        // for (int ms = 100; ms <= 30*1000; ms+=100) {
+            // printf("\nRunning test for %d ms:\n", ms);
+            // Read
+            for (uint32_t e = 0; e < num_engines; e += 1)
+            {
+                configBandwidth(e, burst_size, true, false);
+            }
+            runBandwidth(all_eng_mask, ms, verbosity);
 
-        // Read
-        for (uint32_t e = 0; e < num_engines; e += 1)
-        {
-            configBandwidth(e, burst_size, true, false);
-        }
-        runBandwidth(all_eng_mask);
+            // Write
+            // for (uint32_t e = 0; e < num_engines; e += 1)
+            // {
+            //     configBandwidth(e, burst_size, false, true);
+            // }
+            // runBandwidth(all_eng_mask, ms, verbosity);
 
-        // Write
-        for (uint32_t e = 0; e < num_engines; e += 1)
-        {
-            configBandwidth(e, burst_size, false, true);
-        }
-        runBandwidth(all_eng_mask);
+            // Read+Write
+            // for (uint32_t e = 0; e < num_engines; e += 1)
+            // {
+            //     configBandwidth(e, burst_size, true, true);
+            // }
+            // runBandwidth(all_eng_mask, ms, verbosity);
+            if (ms < 50) {
+                ms += 5;
+            } else if (ms < 1*1000) {
+                ms += 100;
+            } else if (ms < 5*1000) {
+                ms += 250;
+            } else if (ms < 15*1000) {
+                ms += 1000;
+            } else if (ms < 30*1000) {
+                ms += 2500;
+            } else {
+                ms += 5000;
+            }
 
-        // Read+Write
-        for (uint32_t e = 0; e < num_engines; e += 1)
-        {
-            configBandwidth(e, burst_size, true, true);
         }
-        runBandwidth(all_eng_mask);
 
         if (s_eng_bufs[0].natural_bursts || (burst_size >= 4))
         {
@@ -825,7 +1015,7 @@ testLocalMemParams(
             burst_size += 1;
         }
     }
-
+    #endif
   done:
     free(s_eng_bufs);
 
