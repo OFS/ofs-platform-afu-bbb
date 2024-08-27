@@ -9,19 +9,19 @@
 // Write control registers:
 //
 //   0: Read control:
-//       [63:49] - Reserved
-//       [48]    - Enable reads
-//       [47:32] - Number of bursts (unlimited if 0)
-//       [31:16] - Start address offset
-//       [15: 0] - Burst size
+//       [63:59] - Reserved
+//       [58]    - Enable reads
+//       [57:42] - Number of bursts (unlimited if 0)
+//       [41:8] - Start address offset
+//       [7: 0] - Burst size
 //
 //   1: Write control:
-//       [63:50] - Reserved
-//       [49]    - Write zero instead of test data
-//       [48]    - Enable write
-//       [47:32] - Number of bursts (unlimited if 0)
-//       [31:16] - Start address offset
-//       [15: 0] - Burst size
+//       [63:60] - Reserved
+//       [59]    - Write zero instead of test data
+//       [58]    - Enable write
+//       [57:42] - Number of bursts (unlimited if 0)
+//       [41:8] - Start address offset
+//       [7: 0] - Burst size
 //
 //   2: Write seed value (input to initial state of write data)
 //
@@ -111,13 +111,14 @@ module local_mem_engine_axi
     // Number of address bits that index a byte within a single bus-sized
     // line of data. This is the encoding of the AXI size field.
     localparam ADDR_BYTE_IDX_WIDTH = local_mem_if.ADDR_BYTE_IDX_WIDTH;
-    typedef logic [ADDR_BYTE_IDX_WIDTH-1 : 0] t_byte_idx;
+    typedef logic [ADDR_BYTE_IDX_WIDTH-1 : 0] t_byte_idx; // == 6
 
     // Address is to a line
-    localparam ADDR_WIDTH = local_mem_if.ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH -
-                            (NUM_UNIQUE_MEM_REGIONS > 1 ? UNIQUE_REGION_ID_SIZE : 0);
-    typedef logic [ADDR_WIDTH-1 : 0] t_addr;
-    typedef logic [local_mem_if.ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH - 1 : 0] t_line_addr;
+    // localparam ADDR_WIDTH = local_mem_if.ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH -
+    //                         (NUM_UNIQUE_MEM_REGIONS > 1 ? UNIQUE_REGION_ID_SIZE : 0);
+    localparam ADDR_WIDTH = 34;
+    typedef logic [ADDR_WIDTH-1 : 0] t_addr; // [33:0]
+    typedef logic [local_mem_if.ADDR_WIDTH - ADDR_BYTE_IDX_WIDTH - 1 : 0] t_line_addr; //[27:0]
     localparam DATA_WIDTH = local_mem_if.DATA_WIDTH;
     typedef logic [DATA_WIDTH-1 : 0] t_data;
 
@@ -148,8 +149,8 @@ module local_mem_engine_axi
     //
 
     logic rd_enabled, wr_enabled;
-    logic [15:0] rd_start_addr;
-    logic [15:0] wr_start_addr;
+    logic [33:0] rd_start_addr;
+    logic [33:0] wr_start_addr;
     t_burst_cnt rd_req_burst_len, wr_req_burst_len;
     t_num_burst_reqs rd_num_burst_reqs, wr_num_burst_reqs;
     logic [63:0] wr_seed;
@@ -167,18 +168,27 @@ module local_mem_engine_axi
             case (csrs.wr_idx)
                 4'h0:
                     begin
-                        rd_enabled <= csrs.wr_data[48];
-                        rd_num_burst_reqs <= csrs.wr_data[47:32];
-                        rd_start_addr <= csrs.wr_data[31:16];
-                        rd_req_burst_len <= csrs.wr_data[15:0];
+                        // rd_enabled <= csrs.wr_data[48];
+                        // rd_num_burst_reqs <= csrs.wr_data[47:32];
+                        // rd_start_addr <= csrs.wr_data[31:16];
+                        // rd_req_burst_len <= csrs.wr_data[15:0];
+                        rd_enabled <= csrs.wr_data[58];
+                        rd_num_burst_reqs <= csrs.wr_data[57:42];
+                        rd_start_addr <= csrs.wr_data[41:8];
+                        rd_req_burst_len <= csrs.wr_data[7:0];
                     end
                 4'h1:
                     begin
-                        wr_zeros <= csrs.wr_data[49];
-                        wr_enabled <= csrs.wr_data[48];
-                        wr_num_burst_reqs <= csrs.wr_data[47:32];
-                        wr_start_addr <= csrs.wr_data[31:16];
-                        wr_req_burst_len <= csrs.wr_data[15:0];
+                        // wr_zeros <= csrs.wr_data[49];
+                        // wr_enabled <= csrs.wr_data[48];
+                        // wr_num_burst_reqs <= csrs.wr_data[47:32];
+                        // wr_start_addr <= csrs.wr_data[31:16];
+                        // wr_req_burst_len <= csrs.wr_data[15:0];
+                        wr_zeros <= csrs.wr_data[59];
+                        wr_enabled <= csrs.wr_data[58];
+                        wr_num_burst_reqs <= csrs.wr_data[57:42];
+                        wr_start_addr <= csrs.wr_data[41:8];
+                        wr_req_burst_len <= csrs.wr_data[7:0];
                     end
                 4'h2: wr_seed <= csrs.wr_data;
                 4'h3: wr_start_byteenable[63:0] <= csrs.wr_data;
@@ -271,7 +281,7 @@ module local_mem_engine_axi
         local_mem_if.arvalid = (state_run && ! rd_done);
 
         local_mem_if.ar = '0;
-        local_mem_if.ar.addr = { t_line_addr'({UNIQUE_REGION_ID, rd_cur_addr}), t_byte_idx'(0) };
+        local_mem_if.ar.addr = { t_line_addr'( rd_cur_addr), t_byte_idx'(0) };
         local_mem_if.ar.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.ar.len = rd_req_burst_len - 1;
         local_mem_if.ar.id = rd_req_id;
@@ -508,7 +518,7 @@ module local_mem_engine_axi
     begin
         local_mem_if.awvalid = (state_run && ! wr_done) && wr_sop && local_mem_if.wready;
         local_mem_if.aw = '0;
-        local_mem_if.aw.addr = { t_line_addr'({UNIQUE_REGION_ID, wr_cur_addr}), t_byte_idx'(0) };
+        local_mem_if.aw.addr = { t_line_addr'(wr_cur_addr), t_byte_idx'(0) };
         local_mem_if.aw.size = local_mem_if.ADDR_BYTE_IDX_WIDTH;
         local_mem_if.aw.len = wr_flits_left - 1;
         local_mem_if.aw.id = wr_req_id;
