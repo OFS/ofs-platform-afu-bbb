@@ -37,6 +37,8 @@ module ase_afu_main_pcie_ss
     ase_emul_pcie_ss_axis_tlp
       #(
         .NUM_PORTS(NUM_PORTS),
+        // The full number of emulated PF/VF virtual ports, independent
+        // of where the demulatiplexing will happen.
         .NUM_AFU_PORTS(`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS)
         )
       pcie_ss_axis_tlp
@@ -56,7 +58,6 @@ module ase_afu_main_pcie_ss
     // OFS sources specific to a given board.
     ase_afu_main_emul
       #(
-        // The true number of ports, after demultiplexing
         .PG_NUM_PORTS(`OFS_PLAT_PARAM_HOST_CHAN_NUM_PORTS)
         )
       ase_afu_main_emul
