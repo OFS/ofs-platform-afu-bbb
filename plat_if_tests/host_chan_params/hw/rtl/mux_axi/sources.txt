@@ -1,0 +1,7 @@
++define+TEST_PARAM_IFC_AXI
+
+host_chan_params.json
+
+C:../sources_base.txt
+ofs_plat_afu.sv
+../axi/afu_axi.sv

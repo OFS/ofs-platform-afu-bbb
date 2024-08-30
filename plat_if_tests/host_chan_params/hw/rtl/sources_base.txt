@@ -2,10 +2,10 @@
 C:../../../common/hw/rtl/sources.txt
 
 events/host_chan_events_if.sv
-events/host_chan_events_avalon.sv
 events/host_chan_events_axi.sv
 events/host_chan_events_ccip.sv
 events/host_chan_events_common.sv
+events/host_chan_events_generic.sv
 events/host_chan_events_none.sv
 
 # Engines are in the common space because they are used by tests

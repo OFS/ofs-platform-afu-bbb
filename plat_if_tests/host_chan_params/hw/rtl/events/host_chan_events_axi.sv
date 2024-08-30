@@ -125,6 +125,7 @@ module host_chan_events_axi
         .clk,
         .reset_n,
 
+        .rdClk(clk),
         .rdReqCnt(rd_n_dwords_req_q),
         .rdRespCnt(rd_n_dwords_rsp_q),
 
@@ -229,6 +230,7 @@ module host_chan_events_axi
         .clk,
         .reset_n,
 
+        .rdClk(clk),
         .rdReqCnt(rd_n_dwords_req_q),
         .rdRespCnt(rd_n_dwords_rsp_q),
 

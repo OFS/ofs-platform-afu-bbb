@@ -105,6 +105,8 @@ module host_mem_rdwr_engine_axi
   #(
     parameter ENGINE_NUMBER = 0,
     parameter ENGINE_GROUP = 0,
+    // Used when the PIM is in multiplexed mode. -1 indicates not multiplexed.
+    parameter VCHAN_NUMBER = -1,
     parameter WRITE_FENCE_SUPPORTED = 1,
     parameter string ADDRESS_SPACE = "IOADDR"
     )
@@ -149,8 +151,10 @@ module host_mem_rdwr_engine_axi
     typedef logic [USER_WIDTH-1 : 0] t_user;
     // Portion of user field that doesn't include command flags (like FENCE)
     // AFU private bits in the user fields
-    localparam AFU_PVT_USER_WIDTH = USER_WIDTH -
-                                    ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH;
+    localparam UFLAG_WIDTH = (VCHAN_NUMBER >= 0) ?
+                                 ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WITH_VCHAN_WIDTH :
+                                 ofs_plat_host_chan_axi_mem_pkg::HC_AXI_UFLAG_WIDTH;
+    localparam AFU_PVT_USER_WIDTH = USER_WIDTH - UFLAG_WIDTH;
     typedef logic [AFU_PVT_USER_WIDTH-1 : 0] t_user_afu;
 
     localparam RID_WIDTH = host_mem_if.RID_WIDTH;
@@ -303,6 +307,16 @@ module host_mem_rdwr_engine_axi
     t_line_counter rd_cur_active_lines, wr_cur_active_lines;
     logic rd_line_quota_exceeded, wr_line_quota_exceeded;
 
+    // Default user flags, including virtual channel ID used when the PIM
+    // is compiled with multiplexed host channels.
+    function automatic logic [UFLAG_WIDTH-1 : 0] gen_default_uflags();
+        t_hc_axi_user_flags_with_vchan uflags = '0;
+        if (VCHAN_NUMBER >= 0)
+            uflags.vchan = VCHAN_NUMBER;
+        return UFLAG_WIDTH'(uflags);
+    endfunction // gen_default_uflags
+    localparam logic [UFLAG_WIDTH-1 : 0] DEFAULT_UFLAGS = gen_default_uflags();
+
     always_ff @(posedge clk)
     begin
         state_reset <= csrs.state_reset;
@@ -328,7 +342,7 @@ module host_mem_rdwr_engine_axi
         host_mem_if.ar.size = host_mem_if.ADDR_BYTE_IDX_WIDTH;
         host_mem_if.ar.len = rd_req_burst_len - 1;
         host_mem_if.ar.id = rd_req_id;
-        host_mem_if.ar.user = { rd_req_user, t_hc_axi_user_flags'(0) };
+        host_mem_if.ar.user = { rd_req_user, DEFAULT_UFLAGS };
     end
 
     always_ff @(posedge clk)
@@ -462,11 +476,10 @@ module host_mem_rdwr_engine_axi
                 // Only check the part of user field above the flag bits.
                 // Flags are used (mostly by write requests) to trigger fences,
                 // interrupts, etc. and are not guaranteed to be returned.
-                if (host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_WIDTH] !== rd_rsp_user)
+                if (host_mem_if.r.user[USER_WIDTH-1 : UFLAG_WIDTH] !== rd_rsp_user)
                 begin
                     $display("** ERROR ** %m: r.user is 0x%x, expected 0x%x",
-                             { host_mem_if.r.user[USER_WIDTH-1 : HC_AXI_UFLAG_WIDTH], t_hc_axi_user_flags'(0) },
-                             { rd_rsp_user, t_hc_axi_user_flags'(0) });
+                             host_mem_if.r.user, { rd_rsp_user, DEFAULT_UFLAGS });
                     rd_user_error <= 1'b1;
                 end
             end
@@ -500,7 +513,7 @@ module host_mem_rdwr_engine_axi
         host_mem_if.aw.size = host_mem_if.ADDR_BYTE_IDX_WIDTH;
         host_mem_if.aw.len = wr_flits_left - 1;
         host_mem_if.aw.id = wr_req_id;
-        host_mem_if.aw.user = { wr_req_user, t_hc_axi_user_flags'(0) };
+        host_mem_if.aw.user = { wr_req_user, DEFAULT_UFLAGS };
 
         // Emit a write fence at the end
         if (wr_done && !wr_fence_done && !wr_line_quota_exceeded)
@@ -651,11 +664,10 @@ module host_mem_rdwr_engine_axi
                 // Only check the part of b.user above the flag bits.
                 // Flags are used to trigger fences, interrupts, etc. and are not
                 // guaranteed to be returned.
-                if (host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_WIDTH] !== wr_rsp_user)
+                if (host_mem_if.b.user[USER_WIDTH-1 : UFLAG_WIDTH] !== wr_rsp_user)
                 begin
                     $display("** ERROR ** %m: b.user is 0x%x, expected 0x%x",
-                             { host_mem_if.b.user[USER_WIDTH-1 : HC_AXI_UFLAG_WIDTH], t_hc_axi_user_flags'(0) },
-                             { wr_rsp_user, t_hc_axi_user_flags'(0) });
+                             host_mem_if.b.user, { wr_rsp_user, DEFAULT_UFLAGS });
                     wr_user_error <= 1'b1;
                 end
 

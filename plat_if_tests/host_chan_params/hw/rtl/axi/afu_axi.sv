@@ -5,7 +5,9 @@
 
 module afu
   #(
-    parameter AFU_INSTANCE_ID = 0
+    parameter AFU_INSTANCE_ID = 0,
+    // Used when the PIM is in multiplexed mode. -1 indicates not multiplexed.
+    parameter VCHAN_NUMBER = -1
     )
    (
     // Host memory (AXI)
@@ -73,6 +75,7 @@ module afu
 `ifdef OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE
             .ADDRESS_SPACE(`OFS_PLAT_PARAM_HOST_CHAN_ADDRESS_SPACE),
 `endif
+            .VCHAN_NUMBER(VCHAN_NUMBER),
             .ENGINE_NUMBER(0),
             .ENGINE_GROUP(0)
             )

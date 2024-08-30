@@ -55,6 +55,7 @@ module host_chan_events_ccip
         .clk,
         .reset_n,
 
+        .rdClk(clk),
         .rdReqCnt(rd_n_lines_req),
         .rdRespCnt(3'(rd_is_line_rsp)),
 

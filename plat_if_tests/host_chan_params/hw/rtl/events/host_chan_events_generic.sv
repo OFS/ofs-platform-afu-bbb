@@ -1,13 +1,13 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 //
-// Host channel event tracker for native Avalon
+// Host channel event tracker for generic read counters
 //
 
 `include "ofs_plat_if.vh"
 
-module host_chan_events_avalon
+module host_chan_events_generic
   #(
     parameter BURST_CNT_WIDTH = 7
     )
@@ -15,7 +15,7 @@ module host_chan_events_avalon
     input  logic clk,
     input  logic reset_n,
 
-    // Track traffic on FIM Avalon interface
+    input  logic rd_clk,
     input  logic en_tx_rd,
     input  logic [BURST_CNT_WIDTH-1 : 0] tx_rd_cnt,
     input  logic en_rx_rd,
@@ -31,7 +31,7 @@ module host_chan_events_avalon
     t_line_count rd_n_lines_req;
     logic rd_is_line_rsp;
 
-    always_ff @(posedge clk)
+    always_ff @(posedge rd_clk)
     begin
         rd_n_lines_req <= (en_tx_rd ? tx_rd_cnt : '0);
         rd_is_line_rsp <= en_rx_rd;
@@ -50,10 +50,11 @@ module host_chan_events_avalon
         .clk,
         .reset_n,
 
+        .rdClk(rd_clk),
         .rdReqCnt(rd_n_lines_req),
         .rdRespCnt(BURST_CNT_WIDTH'(rd_is_line_rsp)),
 
         .events
         );
 
-endmodule // host_chan_events_avalon
+endmodule // host_chan_events_generic
