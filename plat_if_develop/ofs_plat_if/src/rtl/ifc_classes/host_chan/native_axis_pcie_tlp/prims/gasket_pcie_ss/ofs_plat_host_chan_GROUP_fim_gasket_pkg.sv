@@ -249,7 +249,12 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
         bit all_pfs_equal = 1;
         pcie_ss_hdr_pkg::ReqHdr_pf_num_t pf_num = multiplexed_pfvfs[0].pf_num;
 
-        for (int c = 1; c < num_pfvfs; c = c + 1) begin
+        // Using a constant to terminate the loop instead of num_pfvfs convinces
+        // static elaboration that the loop terminates before running off
+        // the end of multiplexed_pfvfs.
+        for (int c = 1; c < NUM_CHAN_PER_MULTIPLEXED_PORT; c = c + 1) begin
+            if (c >= num_pfvfs) break;
+
             vfs_valid = vfs_valid || multiplexed_pfvfs[c].vf_active;
             pfs_valid = pfs_valid || !multiplexed_pfvfs[c].vf_active;
 
@@ -284,14 +289,21 @@ package ofs_plat_host_chan_@group@_fim_gasket_pkg;
             return pfvf.vf_num;
         else if (mapping_alg == PCIE_VCHAN_MAP_PF_ONLY) begin
             // PFs probably don't start at 0. Generate a table to map PF to VC.
-            for (int c = 0; c < num_pfvfs; c = c + 1) begin
+            // See comment on for loop above about instant ranges.
+            for (int c = 0; c < NUM_CHAN_PER_MULTIPLEXED_PORT; c = c + 1) begin
+                // Shouldn't happen
+                if (c >= num_pfvfs) return t_multiplexed_port_id'(~0);
+
                 if (pfvf.pf_num == multiplexed_pfvfs[c].pf_num)
                     return c;
             end
         end
         else begin
             // Generate a full table to map PF/VF to VC.
-            for (int c = 0; c < num_pfvfs; c = c + 1) begin
+            for (int c = 0; c < NUM_CHAN_PER_MULTIPLEXED_PORT; c = c + 1) begin
+                // Shouldn't happen
+                if (c >= num_pfvfs) return t_multiplexed_port_id'(~0);
+
                 if (pfvf == multiplexed_pfvfs[c])
                     return c;
             end
