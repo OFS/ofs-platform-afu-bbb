@@ -191,13 +191,20 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
-          rmux
+          r_mux
            (
-            .mux_in(host_str_r),
-            .demux_out(afu_str_r),
-
             .demux_in(afu_str_ar),
             .mux_out(host_str_ar)
+            );
+
+        ofs_plat_prim_vchan_demux
+          #(
+            .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
+            )
+          r_demux
+           (
+            .mux_in(host_str_r),
+            .demux_out(afu_str_r)
             );
 
 
@@ -318,13 +325,20 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
-          wmux
+          w_mux
            (
-            .mux_in(host_str_b),
-            .demux_out(afu_str_b),
-
             .demux_in(afu_str_w),
             .mux_out(host_str_w)
+            );
+
+        ofs_plat_prim_vchan_demux
+          #(
+            .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
+            )
+          w_demux
+           (
+            .mux_in(host_str_b),
+            .demux_out(afu_str_b)
             );
 
     end // else: !if(NUM_AFU_PORTS == 1)
