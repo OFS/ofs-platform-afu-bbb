@@ -132,7 +132,7 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
         ofs_plat_axi_stream_if #(.TDATA_TYPE(t_r_payload), .TUSER_TYPE(t_vchan_num))
             host_str_r();
         // tuser is unused on the MUX output side
-        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_r_payload), .TUSER_TYPE(logic))
+        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_r_payload), .TUSER_TYPE(t_vchan_num))
             afu_str_r[NUM_AFU_PORTS]();
 
         assign host_str_ar.clk = clk;
@@ -187,7 +187,7 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
             end
         end
 
-        ofs_plat_prim_vchan_mux
+        ofs_plat_prim_vchan_mux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
@@ -197,7 +197,7 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
             .mux_out(host_str_ar)
             );
 
-        ofs_plat_prim_vchan_demux
+        ofs_plat_prim_vchan_demux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
@@ -226,7 +226,7 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
         ofs_plat_axi_stream_if #(.TDATA_TYPE(t_b_payload), .TUSER_TYPE(t_vchan_num))
             host_str_b();
         // tuser is unused on the MUX output side
-        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_b_payload), .TUSER_TYPE(logic))
+        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_b_payload), .TUSER_TYPE(t_vchan_num))
             afu_str_b[NUM_AFU_PORTS]();
 
         assign host_str_w.clk = clk;
@@ -321,7 +321,7 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
         end
 
 
-        ofs_plat_prim_vchan_mux
+        ofs_plat_prim_vchan_mux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
@@ -331,7 +331,7 @@ module ofs_plat_host_chan_axi_mem_if_vchan_mux
             .mux_out(host_str_w)
             );
 
-        ofs_plat_prim_vchan_demux
+        ofs_plat_prim_vchan_demux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )

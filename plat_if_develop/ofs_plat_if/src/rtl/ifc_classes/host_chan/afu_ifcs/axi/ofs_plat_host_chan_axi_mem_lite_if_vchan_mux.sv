@@ -125,7 +125,7 @@ module ofs_plat_host_chan_axi_mem_lite_if_vchan_mux
         ofs_plat_axi_stream_if #(.TDATA_TYPE(t_ar_payload), .TUSER_TYPE(t_vchan_num))
             host_str_ar();
         // tuser is unused on the MUX output side
-        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_ar_payload), .TUSER_TYPE(logic))
+        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_ar_payload), .TUSER_TYPE(t_vchan_num))
             afu_str_ar[NUM_AFU_PORTS]();
 
         ofs_plat_axi_stream_if #(.TDATA_TYPE(t_r_payload), .TUSER_TYPE(logic))
@@ -187,7 +187,7 @@ module ofs_plat_host_chan_axi_mem_lite_if_vchan_mux
             end
         end
 
-        ofs_plat_prim_vchan_mux
+        ofs_plat_prim_vchan_mux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
@@ -197,7 +197,7 @@ module ofs_plat_host_chan_axi_mem_lite_if_vchan_mux
             .mux_out(host_str_r)
             );
 
-        ofs_plat_prim_vchan_demux
+        ofs_plat_prim_vchan_demux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
@@ -219,7 +219,7 @@ module ofs_plat_host_chan_axi_mem_lite_if_vchan_mux
         ofs_plat_axi_stream_if #(.TDATA_TYPE(t_full_w_payload), .TUSER_TYPE(t_vchan_num))
             host_str_w();
         // tuser is unused on the MUX output side
-        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_full_w_payload), .TUSER_TYPE(logic))
+        ofs_plat_axi_stream_if #(.TDATA_TYPE(t_full_w_payload), .TUSER_TYPE(t_vchan_num))
             afu_str_w[NUM_AFU_PORTS]();
 
         ofs_plat_axi_stream_if #(.TDATA_TYPE(t_b_payload), .TUSER_TYPE(logic))
@@ -299,7 +299,7 @@ module ofs_plat_host_chan_axi_mem_lite_if_vchan_mux
             end
         end
 
-        ofs_plat_prim_vchan_mux
+        ofs_plat_prim_vchan_mux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )
@@ -309,7 +309,7 @@ module ofs_plat_host_chan_axi_mem_lite_if_vchan_mux
             .mux_out(host_str_b)
             );
 
-        ofs_plat_prim_vchan_demux
+        ofs_plat_prim_vchan_demux_tree
           #(
             .NUM_DEMUX_PORTS(NUM_AFU_PORTS)
             )

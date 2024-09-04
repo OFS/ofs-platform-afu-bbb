@@ -12,7 +12,11 @@
 
 module ofs_plat_prim_vchan_demux
   #(
-    parameter NUM_DEMUX_PORTS = 2
+    parameter NUM_DEMUX_PORTS = 2,
+
+    // Start position in mux_in.t.user field of the outbound demux_out
+    // port index.
+    parameter PORT_IDX_START_BIT = 0
     )
    (
     ofs_plat_axi_stream_if.to_source mux_in,
@@ -22,7 +26,8 @@ module ofs_plat_prim_vchan_demux
     wire clk = mux_in.clk;
     wire reset_n = mux_in.reset_n;
 
-    localparam M_IN_DATA_WIDTH = mux_in.TDATA_WIDTH;
+    localparam M_IN_PAYLOAD_WIDTH = mux_in.T_PAYLOAD_WIDTH;
+    localparam PORT_SEL_WIDTH = $clog2(NUM_DEMUX_PORTS);
 
     logic mux_in_sop;
     always_ff @(posedge clk)
@@ -41,8 +46,10 @@ module ofs_plat_prim_vchan_demux
     // Declare mux_in to demux_out port mapping as "bit" so it always has
     // a value, even when invalid. Traffic will still be gated by valid/ready
     // bits.
-    bit [$clog2(NUM_DEMUX_PORTS)-1 : 0] port_sel;
-    assign port_sel = (mux_in.t.user < NUM_DEMUX_PORTS) ? mux_in.t.user : '0;
+    bit [PORT_SEL_WIDTH-1 : 0] port_sel;
+    assign port_sel =
+        (mux_in.t.user[PORT_IDX_START_BIT +: PORT_SEL_WIDTH] < NUM_DEMUX_PORTS) ?
+            mux_in.t.user[PORT_IDX_START_BIT +: PORT_SEL_WIDTH] : '0;
 
     always_comb
     begin
@@ -53,21 +60,11 @@ module ofs_plat_prim_vchan_demux
         mux_in.tready = M_in_ready[port_sel];
     end
 
-    logic [NUM_DEMUX_PORTS-1 : 0][M_IN_DATA_WIDTH-1 : 0] D_out_data;
-
-    for (genvar p = 0; p < NUM_DEMUX_PORTS; p = p + 1) begin
-        always_comb
-        begin
-            demux_out[p].t = '0;
-            demux_out[p].t.data = D_out_data[p];
-        end
-    end
-
     for (genvar p = 0; p < NUM_DEMUX_PORTS; p = p + 1) begin : D_mux
         // mux_in -> demux_out[p]
         fim_pf_vf_nmux
           #(
-            .WIDTH(M_IN_DATA_WIDTH),
+            .WIDTH(M_IN_PAYLOAD_WIDTH),
             .N(1),
             .REG_OUT(0),
             .DEPTH(1)
@@ -77,14 +74,14 @@ module ofs_plat_prim_vchan_demux
             .clk,
             .rst_n(reset_n),
 
-            .mux_in_data(mux_in.t.data),
+            .mux_in_data(mux_in.t),
             .mux_in_sop(mux_in_sop & M_in_valid[p]),
             .mux_in_eop(mux_in.t.last & M_in_valid[p]),
             .mux_in_valid(M_in_valid[p]),
             .mux_out_ready(demux_out[p].tready),
 
             .mux_in_ready(M_in_ready[p]),
-            .mux_out_data(D_out_data[p]),
+            .mux_out_data(demux_out[p].t),
             .mux_out_valid(demux_out[p].tvalid),
 
             .out_q_err(),
@@ -102,16 +99,23 @@ module ofs_plat_prim_vchan_demux
     // synthesis translate_off
     initial
     begin
-        if (M_IN_DATA_WIDTH != demux_out[0].TDATA_WIDTH)
+        if (M_IN_PAYLOAD_WIDTH != demux_out[0].T_PAYLOAD_WIDTH)
         begin
-            $fatal(2, "** ERROR ** %m: mux_in (%0d)/demux_out (%0d) width mismatch!",
-                   M_IN_DATA_WIDTH, demux_out[0].TDATA_WIDTH);
+            $fatal(2, "** ERROR ** %m: mux_in (%0d)/demux_out (%0d) payload width mismatch!",
+                   M_IN_PAYLOAD_WIDTH, demux_out[0].T_PAYLOAD_WIDTH);
         end
 
-        if (mux_in.TUSER_WIDTH < $clog2(NUM_DEMUX_PORTS))
+        if (mux_in.TUSER_WIDTH != demux_out[0].TUSER_WIDTH)
         begin
-            $fatal(2, "** ERROR ** %m: mux_in port selector (%0d) too small for %0d demux ports!",
-                   mux_in.TUSER_WIDTH, NUM_DEMUX_PORTS);
+            $fatal(2, "** ERROR ** %m: mux_in (%0d)/demux_out (%0d) user width mismatch!",
+                   mux_in.TUSER_WIDTH, demux_out[0].TUSER_WIDTH);
+        end
+
+        if (mux_in.TUSER_WIDTH < PORT_IDX_START_BIT + PORT_SEL_WIDTH)
+        begin
+            $fatal(2, "** ERROR ** %m: mux_in user width (%0d) too small for [%0d:%0d] demux ports!",
+                   mux_in.TUSER_WIDTH,
+                   PORT_IDX_START_BIT + PORT_SEL_WIDTH - 1, PORT_IDX_START_BIT);
         end
     end
     // synthesis translate_on

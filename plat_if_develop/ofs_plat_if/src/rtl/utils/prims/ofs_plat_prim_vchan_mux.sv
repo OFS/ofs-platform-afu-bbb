@@ -24,24 +24,16 @@ module ofs_plat_prim_vchan_mux
     wire clk = mux_out.clk;
     wire reset_n = mux_out.reset_n;
 
-    localparam M_OUT_DATA_WIDTH = mux_out.TDATA_WIDTH;
+    localparam M_OUT_PAYLOAD_WIDTH = mux_out.T_PAYLOAD_WIDTH;
 
-    logic [M_OUT_DATA_WIDTH-1 : 0] M_out_data;
-
-    always_comb
-    begin
-        mux_out.t = '0;
-        mux_out.t.data = M_out_data;
-    end
-
-    logic [NUM_DEMUX_PORTS-1 : 0][M_OUT_DATA_WIDTH-1 : 0] D_in_data;
+    logic [NUM_DEMUX_PORTS-1 : 0][M_OUT_PAYLOAD_WIDTH-1 : 0] D_in_data;
     logic [NUM_DEMUX_PORTS-1 : 0] D_in_sop;
     logic [NUM_DEMUX_PORTS-1 : 0] D_in_eop;
     logic [NUM_DEMUX_PORTS-1 : 0] D_in_valid;
     logic [NUM_DEMUX_PORTS-1 : 0] D_in_ready;
 
     for (genvar p = 0; p < NUM_DEMUX_PORTS; p = p + 1) begin
-        assign D_in_data[p] = demux_in[p].t.data;
+        assign D_in_data[p] = demux_in[p].t;
         assign D_in_eop[p] = demux_in[p].t.last;
         assign D_in_valid[p] = demux_in[p].tvalid;
         assign demux_in[p].tready = D_in_ready[p];
@@ -59,7 +51,7 @@ module ofs_plat_prim_vchan_mux
     // demux_in -> mux_out
     fim_pf_vf_nmux
       #(
-        .WIDTH(M_OUT_DATA_WIDTH),
+        .WIDTH(M_OUT_PAYLOAD_WIDTH),
         .N(NUM_DEMUX_PORTS),
         .REG_OUT(0),
         .DEPTH(1)
@@ -76,7 +68,7 @@ module ofs_plat_prim_vchan_mux
         .mux_out_ready(mux_out.tready),
 
         .mux_in_ready(D_in_ready),
-        .mux_out_data(M_out_data),
+        .mux_out_data(mux_out.t),
         .mux_out_valid(mux_out.tvalid),
 
         .out_q_err(),
@@ -93,10 +85,10 @@ module ofs_plat_prim_vchan_mux
     // synthesis translate_off
     initial
     begin
-        if (M_OUT_DATA_WIDTH != demux_in[0].TDATA_WIDTH)
+        if (M_OUT_PAYLOAD_WIDTH != demux_in[0].T_PAYLOAD_WIDTH)
         begin
             $fatal(2, "** ERROR ** %m: mux_out (%0d)/demux_in (%0d) width mismatch!",
-                   M_OUT_DATA_WIDTH, demux_in[0].TDATA_WIDTH);
+                   M_OUT_PAYLOAD_WIDTH, demux_in[0].T_PAYLOAD_WIDTH);
         end
     end
     // synthesis translate_on
