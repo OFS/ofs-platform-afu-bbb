@@ -41,20 +41,24 @@ module ofs_plat_prim_vchan_mux_tree
     // Try to balance the tree so that arbitration remains fair throughout
     // by picking a given level's number of ports with the goal of minimizing
     // the difference in number of children per port.
-    //
-    // Pick the number of ports, less than max_arb_ports, that minimizes
-    // the remainder when dividing num_demux_ports. There is probably a
-    // more efficient way to find this, but it is static elaboration and
-    // the number of ports is small.
     function automatic int pick_fair_num_ports(int max_arb_ports, int num_demux_ports);
         int best_num_ports = max_arb_ports;
-        int best_rem = num_demux_ports % max_arb_ports;
+        real best_ratio = 0.0;
 
-        for (int i = max_arb_ports-1; i > 1; i -= 1) begin
-            int rem = num_demux_ports % i;
-            if (rem < best_rem) begin
+        for (int i = max_arb_ports; i > 1; i -= 1) begin
+            int demux_per_arb_port = num_demux_ports / i;
+            // If num_demux_ports isn't a multiple of i there will be extra
+            // demux ports in the last arb port.
+            int demux_in_last_arb_port = num_demux_ports - (i - 1) * demux_per_arb_port;
+            real ratio = (1.0 * demux_per_arb_port) / (1.0 * demux_in_last_arb_port);
+
+            // Demux ports divide evenly across i arbitration ports. Done.
+            if (demux_per_arb_port == demux_in_last_arb_port)
+                return i;
+
+            if (ratio > best_ratio) begin
                 best_num_ports = i;
-                best_rem = rem;
+                best_ratio = ratio;
             end
         end
 
