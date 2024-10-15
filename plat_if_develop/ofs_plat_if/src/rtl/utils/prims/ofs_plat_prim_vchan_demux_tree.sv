@@ -37,6 +37,20 @@ module ofs_plat_prim_vchan_demux_tree
             ((PORTS_PER_LEVEL_BASE >= MAX_PORTS_PER_LEVEL) ? MAX_PORTS_PER_LEVEL :
                                                              PORTS_PER_LEVEL_BASE);
 
+    function automatic int floor_log2(int i);
+        // It ought to be possible to compute floor log2 as:
+        //    $rtoi($log10(i) / $log10(2))
+        // but some simulators fail. Use integer functions instead, starting
+        // with the ceiling of log2.
+        int log2 = $clog2(i);
+
+        // ceiling -> floor
+        if ((1 << log2) > i)
+           log2 -= 1;
+
+        return log2;
+    endfunction
+
     if (NUM_DEMUX_PORTS == 1) begin : direct
 
         // Only 1 output port! Just wire the input to the output.
@@ -71,8 +85,7 @@ module ofs_plat_prim_vchan_demux_tree
         // a number of ports <= PORTS_PER_LEVEL that is a power of 2.
         // QoS is not a factor in port distribution since there is a single
         // source of data.
-        localparam int TREE_PORT_IDX_WIDTH_X = $floor($log10(PORTS_PER_LEVEL) / $log10(2));
-        localparam TREE_PORT_IDX_WIDTH = 1;
+        localparam TREE_PORT_IDX_WIDTH = floor_log2(PORTS_PER_LEVEL);
 
         // High bits of the port index select the intermediate tree node's
         // output port.
@@ -108,7 +121,8 @@ module ofs_plat_prim_vchan_demux_tree
             ofs_plat_prim_vchan_demux_tree
               #(
                 .NUM_DEMUX_PORTS(ITER_NUM_DEMUX_PORTS),
-                .MAX_SWITCHED_DATA_WIDTH(MAX_SWITCHED_DATA_WIDTH)
+                .MAX_SWITCHED_DATA_WIDTH(MAX_SWITCHED_DATA_WIDTH),
+                .MAX_PORTS_PER_LEVEL(MAX_PORTS_PER_LEVEL)
                 )
               node
                (

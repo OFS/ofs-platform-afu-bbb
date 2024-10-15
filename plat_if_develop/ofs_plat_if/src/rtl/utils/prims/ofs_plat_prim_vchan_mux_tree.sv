@@ -122,7 +122,8 @@ module ofs_plat_prim_vchan_mux_tree
             ofs_plat_prim_vchan_mux_tree
               #(
                 .NUM_DEMUX_PORTS(ITER_NUM_DEMUX_PORTS),
-                .MAX_SWITCHED_DATA_WIDTH(MAX_SWITCHED_DATA_WIDTH)
+                .MAX_SWITCHED_DATA_WIDTH(MAX_SWITCHED_DATA_WIDTH),
+                .MAX_PORTS_PER_LEVEL(MAX_PORTS_PER_LEVEL)
                 )
               node
                (
