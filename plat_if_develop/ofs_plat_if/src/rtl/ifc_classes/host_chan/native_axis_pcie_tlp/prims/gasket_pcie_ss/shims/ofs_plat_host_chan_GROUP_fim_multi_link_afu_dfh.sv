@@ -56,9 +56,7 @@ module ofs_plat_host_chan_@group@_fim_multi_link_afu_dfh
     assign to_afu.reset_n = to_fiu.reset_n;
     assign to_afu.instance_number = to_fiu.instance_number;
 
-    assign to_afu.pf_num = to_fiu.pf_num;
-    assign to_afu.vf_num = to_fiu.vf_num;
-    assign to_afu.vf_active = to_fiu.vf_active;
+    assign to_afu.pfvf = to_fiu.pfvf;
 
     //
     // FIM-provided shim for generating parent/child feature headers.
