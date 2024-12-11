@@ -143,10 +143,17 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
 
     assign rx_st.tready = !rx_hdr_valid;
 
+    logic tx_cpl_emit_data;
+
     // Incoming MMIO read?
     always_ff @(posedge clk)
     begin
-        if (rx_st.tready)
+        if (rx_hdr_valid && !tx_cpl_emit_data)
+        begin
+            // Still processing previous request?
+            rx_hdr_valid <= 1'b1;
+        end
+        else if (rx_st.tready)
         begin
             rx_hdr_valid <= 1'b0;
 
@@ -243,18 +250,66 @@ module ofs_plat_host_chan_@group@_fim_gasket_tie_off
     end
 
     // Forward the completion to the AFU->host TX stream
-    always_comb
-    begin
-        tx_st.tvalid = rx_hdr_valid &&
-                       pcie_ss_hdr_pkg::func_is_mrd_req(rx_hdr.fmt_type);
-        tx_st.t = '0;
-        // TLP payload is the completion data and the header
-        tx_st.t.data.payload = { '0, cpl_data, tx_cpl_hdr };
-        tx_st.t.user[0].sop = tx_st.tvalid;
-        tx_st.t.user[0].eop = tx_st.tvalid;
-        // Keep matches the data: either 8 or 4 bytes of data and the header
-        tx_st.t.keep = { '0, {4{(rx_hdr.length > 1)}}, {4{1'b1}}, {TX_CPL_HDR_BYTES{1'b1}} };
-        tx_st.t.last = 1'b1;
+    if (ofs_plat_host_chan_@group@_fim_gasket_pkg::TDATA_WIDTH > $bits(pcie_ss_hdr_pkg::PCIe_PUCplHdr_t))
+    begin : gen_cpl
+        // Normal case: data bus is wide enough for header + data
+
+        // Completion takes only one cycle
+        assign tx_cpl_emit_data = 1'b1;
+
+        always_comb
+        begin
+            tx_st.tvalid = rx_hdr_valid &&
+                           pcie_ss_hdr_pkg::func_is_mrd_req(rx_hdr.fmt_type);
+            tx_st.t = '0;
+            // TLP payload is the completion data and the header
+            tx_st.t.data.payload = { '0, cpl_data, tx_cpl_hdr };
+            tx_st.t.user[0].sop = tx_st.tvalid;
+            tx_st.t.user[0].eop = tx_st.tvalid;
+            // Keep matches the data: either 8 or 4 bytes of data and the header
+            tx_st.t.keep = { '0, {4{(rx_hdr.length > 1)}}, {4{1'b1}}, {TX_CPL_HDR_BYTES{1'b1}} };
+            tx_st.t.last = 1'b1;
+        end
+    end
+    else
+    begin : gen_cpl
+        // Narrow bus: header and data must be emitted in separate cycles
+
+        // Alternate header and data cycles
+        always_ff @(posedge clk)
+        begin
+            if (tx_st.tvalid && tx_st.tready)
+                tx_cpl_emit_data <= ~tx_cpl_emit_data;
+
+            if (!reset_n)
+                tx_cpl_emit_data <= 1'b0;
+        end
+
+        always_comb
+        begin
+            tx_st.tvalid = rx_hdr_valid &&
+                           pcie_ss_hdr_pkg::func_is_mrd_req(rx_hdr.fmt_type);
+            tx_st.t = '0;
+            if (!tx_cpl_emit_data)
+            begin
+                // TLP completion header
+                tx_st.t.data.payload = tx_cpl_hdr;
+                tx_st.t.user[0].sop = 1'b1;
+                tx_st.t.user[0].eop = 1'b0;
+                tx_st.t.keep = { '0, {TX_CPL_HDR_BYTES{1'b1}} };
+                tx_st.t.last = 1'b0;
+            end
+            else
+            begin
+                // TLP completion data
+                tx_st.t.data.payload = { '0, cpl_data };
+                tx_st.t.user[0].sop = 1'b0;
+                tx_st.t.user[0].eop = 1'b1;
+                // Keep matches the data: either 8 or 4 bytes of data
+                tx_st.t.keep = { '0, {4{(rx_hdr.length > 1)}}, {4{1'b1}} };
+                tx_st.t.last = 1'b1;
+            end
+        end
     end
 
     assign fim_tx_b_st.tvalid = 1'b0;

@@ -338,6 +338,9 @@ initEngine(
     s_eng_bufs[e].group = (r >> 47) & 7;
     s_eng_bufs[e].eng_type = (r >> 35) & 7;
     s_eng_bufs[e].data_bus_bytes = ((r >> 51) & 3) * 64;
+    if (s_eng_bufs[e].data_bus_bytes == 0)
+        s_eng_bufs[e].data_bus_bytes = 32;
+
     uint32_t eng_num = (r >> 42) & 31;
     printf("#  Engine %d type: %s\n", e, engine_type[s_eng_bufs[e].eng_type]);
     printf("#  Engine %d data bus bytes: %d\n", e, s_eng_bufs[e].data_bus_bytes);
@@ -530,7 +533,13 @@ testMaskedWrite(
     csrEngWrite(csr_handle, e, 3, ((uint64_t)1 << 32) | 1);
 
     // Test a simple mask -- just prove that the mask reaches the FIM
-    if (line_bytes == 64)
+    if (line_bytes == 32)
+    {
+        uint64_t mask = 0x3fffffe;
+        csrEngWrite(csr_handle, e, 5, mask);
+        printf("  Write engine %d, mask 0x%016" PRIx64 " - ", e, mask);
+    }
+    else if (line_bytes == 64)
     {
         uint64_t mask = 0x3fffffffffffffe;
         csrEngWrite(csr_handle, e, 5, mask);

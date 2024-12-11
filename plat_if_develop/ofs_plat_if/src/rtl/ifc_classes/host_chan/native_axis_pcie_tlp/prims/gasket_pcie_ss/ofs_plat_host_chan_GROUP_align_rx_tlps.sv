@@ -113,59 +113,84 @@ module ofs_plat_host_chan_@group@_align_rx_tlps
     assign hdr_stream.t.keep = 64'((65'h1 << ($bits(pcie_ss_hdr_pkg::PCIe_CplHdr_t)) / 8) - 1);
     assign hdr_stream.t.last = 1'b1;
 
+    pcie_ss_hdr_pkg::PCIe_PUReqHdr_t hdr_in;
+    assign hdr_in = hdr_stream.t.data;
+    wire hdr_in_has_data = pcie_ss_hdr_pkg::func_has_data(hdr_in.fmt_type);
 
     // Data - either directly from the stream for short messages or
     // by combining the current and previous messages.
-
-    // Record the previous data in case it is needed later.
-    logic [TDATA_WIDTH-1:0] prev_payload;
-    logic [(TDATA_WIDTH/8)-1:0] prev_keep;
-    always_ff @(posedge clk)
-    begin
-        if (process_drain)
-        begin
-            prev_must_drain <= 1'b0;
-        end
-        if (process_msg)
-        begin
-            prev_payload <= source_skid.t.data;
-            prev_keep <= source_skid.t.keep;
-            // Either there is data that won't fit in this beat or the data+header
-            // is a single beat.
-            prev_must_drain <= source_skid.t.last &&
-                               (source_skid.t.keep[HDR_TKEEP_WIDTH] || source_skid_sop);
-        end
-
-        if (!reset_n)
-        begin
-            prev_must_drain <= 1'b0;
-        end
-    end
 
     // Continuation of multi-cycle data?
     logic payload_is_pure_data;
     assign payload_is_pure_data = !source_skid_sop;
 
-    assign data_stream.tvalid = (process_msg && payload_is_pure_data) || process_drain;
+    if (DATA_AFTER_HDR_WIDTH > 0)
+    begin : ds
+        // Normal case: PCIe data stream width is greater than TLP header width
 
-    always_comb
-    begin
-        data_stream.t.last = (source_skid.t.last && !source_skid.t.keep[HDR_TKEEP_WIDTH]) ||
-                            prev_must_drain;
-        data_stream.t.user = '0;
-
-        // Realign data - low part from previous flit, high part from current
-        data_stream.t.data =
-            { source_skid.t.data[0 +: HDR_WIDTH],
-              prev_payload[HDR_WIDTH +: DATA_AFTER_HDR_WIDTH] };
-        data_stream.t.keep =
-            { source_skid.t.keep[0 +: HDR_TKEEP_WIDTH],
-              prev_keep[HDR_TKEEP_WIDTH +: DATA_AFTER_HDR_TKEEP_WIDTH] };
-
-        if (prev_must_drain)
+        // Record the previous data in case it is needed later.
+        logic [TDATA_WIDTH-1:0] prev_payload;
+        logic [(TDATA_WIDTH/8)-1:0] prev_keep;
+        always_ff @(posedge clk)
         begin
-            data_stream.t.data[DATA_AFTER_HDR_WIDTH +: HDR_WIDTH] = '0;
-            data_stream.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH +: HDR_TKEEP_WIDTH] = '0;
+            if (process_drain)
+            begin
+                prev_must_drain <= 1'b0;
+            end
+            if (process_msg)
+            begin
+                prev_payload <= source_skid.t.data;
+                prev_keep <= source_skid.t.keep;
+                // Either there is data that won't fit in this beat or the data+header
+                // is a single beat.
+                prev_must_drain <= source_skid.t.last &&
+                                   (source_skid.t.keep[HDR_TKEEP_WIDTH] || source_skid_sop);
+            end
+
+            if (!reset_n)
+            begin
+                prev_must_drain <= 1'b0;
+            end
+        end
+
+        assign data_stream.tvalid = (process_msg && payload_is_pure_data) || process_drain;
+
+        always_comb
+        begin
+            data_stream.t.last = (source_skid.t.last && !source_skid.t.keep[HDR_TKEEP_WIDTH]) ||
+                                 prev_must_drain;
+            data_stream.t.user = '0;
+
+            // Realign data - low part from previous flit, high part from current
+            data_stream.t.data =
+                { source_skid.t.data[0 +: HDR_WIDTH],
+                  prev_payload[HDR_WIDTH +: DATA_AFTER_HDR_WIDTH] };
+            data_stream.t.keep =
+                { source_skid.t.keep[0 +: HDR_TKEEP_WIDTH],
+                  prev_keep[HDR_TKEEP_WIDTH +: DATA_AFTER_HDR_TKEEP_WIDTH] };
+
+            if (prev_must_drain)
+            begin
+                data_stream.t.data[DATA_AFTER_HDR_WIDTH +: HDR_WIDTH] = '0;
+                data_stream.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH +: HDR_TKEEP_WIDTH] = '0;
+            end
+        end
+    end
+    else
+    begin : ds
+        // Simple case: PCIe data stream is just the width of a header
+        assign prev_must_drain = 1'b0;
+        // Downstream expects an empty data beat when TLP has no data
+        wire msg_has_data = !source_skid_sop || hdr_in_has_data;
+        assign data_stream.tvalid = process_msg && (!source_skid_sop || !hdr_in_has_data);
+
+        always_comb
+        begin
+            data_stream.t.last = source_skid.t.last;
+            data_stream.t.user = '0;
+
+            data_stream.t.data = msg_has_data ? source_skid.t.data : '0;
+            data_stream.t.keep = msg_has_data ? source_skid.t.keep : '0;
         end
     end
 

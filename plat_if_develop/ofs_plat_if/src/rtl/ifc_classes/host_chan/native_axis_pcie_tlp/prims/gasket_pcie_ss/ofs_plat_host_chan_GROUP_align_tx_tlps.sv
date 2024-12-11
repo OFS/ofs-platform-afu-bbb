@@ -90,26 +90,13 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
     //
     logic source_is_sop;
 
-    always_ff @(posedge clk)
-    begin
-        if (data_source.tready && data_source.tvalid)
-        begin
-            source_is_sop <= data_source.t.last;
-        end
-
-        if (!reset_n)
-        begin
-            source_is_sop <= 1'b1;
-        end
-    end
-
     generate
-        if (ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG == 1)
+        if (DATA_AFTER_HDR_WIDTH > 0 && ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG == 1)
         begin : seg1
             //
-            // This is a very simple case:
-            //  - There is at most one header (SOP) in the incoming tdata stream.
-            //  - All headers begin at tdata[0].
+            // - PCIe data bus width is greater than the width of a header.
+            // - There is at most one header (SOP) in the incoming tdata stream.
+            // - All headers begin at tdata[0].
             //
 
             // Track data remaining from the previous cycle
@@ -120,6 +107,19 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
             wire source_is_single_beat =
                  !pcie_ss_hdr_pkg::func_has_data(hdr_source.t.data.fmt_type) ||
                  !data_source.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH];
+
+            always_ff @(posedge clk)
+            begin
+                if (data_source.tready && data_source.tvalid)
+                begin
+                    source_is_sop <= data_source.t.last;
+                end
+
+                if (!reset_n)
+                begin
+                    source_is_sop <= 1'b1;
+                end
+            end
 
             always_ff @(posedge clk)
             begin
@@ -221,6 +221,67 @@ module ofs_plat_host_chan_@group@_align_tx_tlps
                     end
 
                     sink_skid.t.last = source_is_sop || !data_source.t.keep[DATA_AFTER_HDR_TKEEP_WIDTH];
+                    sink_skid.t.user[0].dm_mode = 1'b0;
+                    sink_skid.t.user[0].sop = 1'b0;
+                    sink_skid.t.user[0].eop = sink_skid.t.last;
+                end
+            end
+        end
+        else if (ofs_plat_host_chan_@group@_fim_gasket_pkg::NUM_OF_SEG == 1)
+        begin : seg1_narrow
+            //
+            // Data bus width is just the width of a header. The incoming header and
+            // data streams are simply interleaved in the proper order without having
+            // to be realigned.
+            //
+
+            wire source_is_single_beat =
+                 !pcie_ss_hdr_pkg::func_has_data(hdr_source.t.data.fmt_type);
+
+            always_ff @(posedge clk)
+            begin
+                if (sink_skid.tvalid && sink_skid.tready)
+                    source_is_sop <= sink_skid.t.last;
+
+                if (!reset_n)
+                    source_is_sop <= 1'b1;
+            end
+
+            // Consume incoming header?
+            assign hdr_source.tready = hdr_source.tvalid &&
+                                       data_source.tvalid &&
+                                       sink_skid.tready &&
+                                       source_is_sop;
+
+            // Consume incoming data? Messages with no data have an empty data
+            // beat that must be consumed along with the header.
+            assign data_source.tready = data_source.tvalid &&
+                                        sink_skid.tready &&
+                                        (!source_is_sop || !pcie_ss_hdr_pkg::func_has_data(hdr_source.t.data.fmt_type));
+
+            // Write outbound TLP traffic?
+            assign sink_skid.tvalid = hdr_source.tready || data_source.tready;
+
+            // Generate the outbound payload
+            always_comb
+            begin
+                sink_skid.t = '0;
+
+                if (hdr_source.tready)
+                begin
+                    // SOP: payload is first portion of data + header
+                    sink_skid.t.data = hdr_source.t.data;
+                    sink_skid.t.keep = {(HDR_TKEEP_WIDTH){1'b1}};
+                    sink_skid.t.last = source_is_single_beat;
+                    sink_skid.t.user[0].dm_mode = hdr_source.t.user;
+                    sink_skid.t.user[0].sop = 1'b1;
+                    sink_skid.t.user[0].eop = sink_skid.t.last;
+                end
+                else
+                begin
+                    sink_skid.t.data = data_source.t.data;
+                    sink_skid.t.keep = data_source.t.keep;
+                    sink_skid.t.last = data_source.t.last;
                     sink_skid.t.user[0].dm_mode = 1'b0;
                     sink_skid.t.user[0].sop = 1'b0;
                     sink_skid.t.user[0].eop = sink_skid.t.last;

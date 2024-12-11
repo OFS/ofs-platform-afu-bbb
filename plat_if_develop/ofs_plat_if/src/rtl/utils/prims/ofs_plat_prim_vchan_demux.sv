@@ -3,7 +3,7 @@
 
 //
 // Break an incoming multiplexed stream into separate ports,
-// one per virtual channel. The opposite of ofs_plat_prim_vchan_mux. 
+// one per virtual channel. The opposite of ofs_plat_prim_vchan_mux.
 //
 // The output port index is stored in mux_in.t.user.
 //
