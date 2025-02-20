@@ -1,31 +1,21 @@
-Copyright 2024-2025 Altera Corporation
+MIT License
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, except as set forth below, 
-including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Copyright (c) 2022 Intel Corporation
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software; 
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-If a file contained in this Software includes separate license text or a header file with license terms, those terms will supersede this agreement for purposes of that file only, all files without a separate agreement are subject to this agreement;
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-The Software must be used solely for design and implementation on an Altera product; 
-
-You must not use the Software or devices you configure using this Software to violate any internationally recognized human right; and 
-
-The Software may be subject to export controls under applicable government laws and regulations, including those of the U.S. You must: 
-a) comply with applicable laws and regulations and obtain any necessary authorizations; 
-b) not export, import, or transfer the materials to any prohibited or sanctioned country, person, or entity; or 
-c) use the materials for the development, design, manufacture, or production of nuclear, missile, chemical, or biological weapons.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-Governing Law and Jurisdiction. If you are in the Americas, U.S. and Delaware law governs all disputes arising out of or relating to this agreement without regard to conflict-of-laws principles. The state and federal 
-courts in Wilmington, Delaware will have exclusive jurisdiction over any dispute arising out of or relating to this agreement. If you are in Europe or Africa, the laws of England and Wales govern all matters arising 
-out of or relating to this agreement without regard to conflict-of-laws principles. The courts in England will have exclusive jurisdiction over any dispute arising out of or relating to this agreement. If you are in 
-Asia or Australia, Singapore law governs all disputes arising out of or relating to this agreement without regard to conflict-of-laws principles. The courts in Singapore will have exclusive jurisdiction over any dispute 
-arising out of or relating to this agreement. You and Intel consent to personal jurisdiction and venue in the courts designated for your location. If you are in China, Hong Kong law governs all disputes arising out of or 
-relating to this agreement without regard to conflict-of-laws principles. Any dispute arising out of or relating to this agreement will be subject to arbitration by the Hong Kong International Arbitration Centre, this 
-arbitration agreement will be governed by Hong Kong law, and the seat and location of proceedings will be Hong Kong. The current rules of the HKIAC will apply, except that the arbitration will be referred to a sole 
-arbitrator and the proceedings will be conducted in English. The Arbitral Tribunal may only award monetary damages and may not award injunctive relief or any remedy that requires a party to license any intellectual 
-property rights. Regardless of the above or your location, claims for misappropriation of trade secrets and breach of confidentiality obligations may also be brought in any court that has jurisdiction over the parties 
-if the relief sought is limited to injunctive or other nonmonetary relief. The parties exclude the application of the United Nations Convention on Contracts for the International Sale of Goods (1980).
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
