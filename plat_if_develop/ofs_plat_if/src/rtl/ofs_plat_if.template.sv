@@ -29,6 +29,8 @@ interface ofs_plat_if
     // Required: active low soft reset (clocked by pClk). This reset
     // is identical to clocks.pClk.reset_n.
     logic softReset_n;
+    // Optional: if AFU needs to use the PR Freeze signal from FIM FSM
+    logic pr_freeze_to_afu_in;
     // Required: AFU power state (clocked by pClk)
     t_ofs_plat_power_state pwrState;
 
