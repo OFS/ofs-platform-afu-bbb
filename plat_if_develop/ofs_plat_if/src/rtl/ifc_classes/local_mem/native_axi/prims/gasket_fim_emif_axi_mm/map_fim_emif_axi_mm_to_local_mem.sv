@@ -58,7 +58,7 @@ module map_fim_emif_axi_mm_to_local_mem
         afu_mem_bank.b = '0;
         afu_mem_bank.b.id = fim_mem_bank.bid;
         afu_mem_bank.b.resp = fim_mem_bank.bresp;
-        afu_mem_bank.b.user = fim_mem_bank.buser;
+        // afu_mem_bank.b.user = fim_mem_bank.buser;
     end
 
     assign afu_mem_bank.arready = fim_mem_bank.arready;
@@ -150,7 +150,7 @@ module map_local_mem_to_fim_emif_axi_mm
     assign fim_mem_bank.bvalid = pim_mem_bank.bvalid;
     assign fim_mem_bank.bid = pim_mem_bank.b.id;
     assign fim_mem_bank.bresp = pim_mem_bank.b.resp;
-    assign fim_mem_bank.buser = pim_mem_bank.b.user;
+    // assign fim_mem_bank.buser = pim_mem_bank.b.user;
 
     assign fim_mem_bank.arready = pim_mem_bank.arready;
     assign pim_mem_bank.arvalid = fim_mem_bank.arvalid;
